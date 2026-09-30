@@ -34,4 +34,6 @@ docker compose pull sandbox-runtime
 docker compose up -d --build
 ```
 
+If you run the full stack with email, add `-f docker-compose.full.yml` to both `docker compose` commands.
+
 Database migrations run automatically when the API starts. Check the [changelog](https://github.com/XInTheDark/meowbert-ai-agent/blob/main/CHANGELOG.md) before upgrading for anything that needs your attention.

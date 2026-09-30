@@ -16,11 +16,14 @@ Meowbert sends email through [Listmonk](https://listmonk.app), a self-hosted mai
 
 ## 1. Start Listmonk
 
-Listmonk and its database are in the Docker Compose file behind the `email` profile, so a normal `docker compose up` doesn't start them. Start the stack with the profile:
+Listmonk and its database aren't part of the default `docker-compose.yml`. They're in `docker-compose.full.yml`, which includes the default stack and adds them. Create the folder for Listmonk's database (or set `MEOWBERT_LISTMONK_POSTGRES_DATA_PATH` in `.env`), then start the full stack:
 
 ```bash
-docker compose --profile email up -d
+sudo mkdir -p /data/meowbert/listmonk-postgres-data
+docker compose -f docker-compose.full.yml up -d
 ```
+
+Use `-f docker-compose.full.yml` in every later `docker compose` command too, including upgrades. On Coolify, point the resource at `docker-compose.coolify.yml` instead (see [Example: Coolify](/reference/coolify-runtime-storage)).
 
 Listmonk is then available at `http://localhost:9000`. Sign in with the admin user from `LISTMONK_ADMIN_USER` and `LISTMONK_ADMIN_PASSWORD` (both default to `listmonk`, so change them in your `.env` before exposing the server).
 

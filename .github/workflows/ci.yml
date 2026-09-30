@@ -32,6 +32,11 @@ jobs:
       - name: Use the example config
         run: cp config/global.example.json config/global.json
 
+      - name: Check the generated Coolify compose file
+        run: |
+          node scripts/generate-coolify-compose.mjs --check
+          diff <(docker compose -f docker-compose.full.yml config) <(docker compose -f docker-compose.coolify.yml config)
+
       - name: Lint
         run: npm run lint
 

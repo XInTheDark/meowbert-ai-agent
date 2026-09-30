@@ -21,7 +21,8 @@
 - `npm run test`: run Vitest across all workspaces.
 - `npm run lint`: TypeScript no-emit checks across all workspaces.
 - `npm run migrate`: apply DB migrations through API workspace CLI.
-- `docker compose up -d`: start full stack (`postgres`, `redis`, `api`, `worker`, `web`).
+- `docker compose up -d`: start the core stack (`postgres`, `redis`, `api`, `worker`, `web`). `docker compose -f docker-compose.full.yml up -d` adds Listmonk email.
+- `docker-compose.full.yml` `include`s `docker-compose.yml`. After changing either, run `npm run compose:coolify` to regenerate `docker-compose.coolify.yml` (a flat copy for Coolify); CI fails if it's stale.
 
 ## Coding Style & Naming Conventions
 - Language: TypeScript (ESM) with strict typing.

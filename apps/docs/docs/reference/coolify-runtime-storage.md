@@ -7,6 +7,13 @@ summary: Move Meowbert runtime storage onto a stable Coolify host path and migra
 
 If you deploy Meowbert on **Coolify** using the repo’s `docker-compose.yml`, the runtime bind path matters a lot for XFS.
 
+## Which compose file
+
+Coolify reads a single compose file and doesn't follow Compose `include`. Pick one of these as the resource's Docker Compose location:
+
+- `docker-compose.yml`: the core stack, without outgoing email.
+- `docker-compose.coolify.yml`: the full stack with [Listmonk email](/reference/email-delivery). It's generated from `docker-compose.full.yml`, so the two always match.
+
 ## The important rule
 
 The XFS mountpoints must live **under the exact host directory** that is bind-mounted into `/app/runtime`.
