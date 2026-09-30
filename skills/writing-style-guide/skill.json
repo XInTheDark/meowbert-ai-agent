@@ -1,0 +1,14 @@
+{
+  "id": "writing-style-guide",
+  "name": "Writing Style Guide",
+  "description": "Guidance for natural-language deliverables.",
+  "hidden": true,
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

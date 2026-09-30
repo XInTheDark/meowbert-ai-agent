@@ -1,0 +1,42 @@
+name: Bug report
+description: Something doesn't work the way it should.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a task with ...
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: e.g. main @ abc1234
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How are you running Meowbert?
+      options:
+        - Docker Compose
+        - Local development (npm run dev:*)
+        - Other
+  - type: input
+    id: provider
+    attributes:
+      label: Model provider
+      description: Which provider and model were you using? Don't include API keys.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: API or worker logs around the problem. Remove secrets first.
+      render: text

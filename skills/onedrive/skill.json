@@ -1,0 +1,18 @@
+{
+  "id": "onedrive",
+  "name": "OneDrive",
+  "description": "Search OneDrive, browse folders, and fetch workspace-approved files into the task filesystem.",
+  "surface": "source",
+  "source": {
+    "provider": "onedrive",
+    "supportsAttachments": true
+  },
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

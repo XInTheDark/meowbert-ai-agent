@@ -1,0 +1,21 @@
+{
+  "id": "youtube",
+  "name": "YouTube",
+  "description": "Use yt-dlp to inspect YouTube videos, fetch metadata, and optionally download subtitles or other derived assets inside the task sandbox.",
+  "surface": "source",
+  "source": {
+    "provider": "youtube",
+    "supportsAttachments": true,
+    "attachmentMode": "note",
+    "requiresAdminCredentials": false,
+    "requiresWorkspaceConnection": false
+  },
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

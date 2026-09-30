@@ -1,0 +1,20 @@
+{
+  "id": "rclone",
+  "name": "rclone",
+  "description": "Search, browse, and fetch files from a workspace-configured rclone remote.",
+  "surface": "source",
+  "source": {
+    "provider": "rclone",
+    "supportsAttachments": true,
+    "requiresAdminCredentials": false,
+    "requiresWorkspaceConnection": true
+  },
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

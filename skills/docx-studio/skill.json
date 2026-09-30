@@ -1,0 +1,14 @@
+{
+  "id": "docx-studio",
+  "name": "DOCX Studio",
+  "description": "Create and edit Word documents, fill templates, embed figures, and export matching PDF copies. Prefer for general documents when no format is specified or editable Word output is needed.",
+  "catalogGroup": "documents",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

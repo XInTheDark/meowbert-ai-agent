@@ -1,0 +1,17 @@
+{
+  "id": "deep-ai-search",
+  "name": "Deep AI Search",
+  "description": "AI-powered web search and deep fetch MCP server backed by Brave Search and LLM-assisted filtering.",
+  "catalogGroup": "web",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": ["dist/index.js"],
+    "cwd": "{{SKILL_DIR}}",
+    "env": {
+      "DEEP_AI_SEARCH_CONFIG_PATH": "{{SKILL_DIR}}/deep-ai-search.config.json",
+      "BRAVE_API_KEY": "{{ENV:BRAVE_API_KEY}}",
+      "OPENAI_API_KEY": "{{ENV:OPENAI_API_KEY}}"
+    }
+  }
+}

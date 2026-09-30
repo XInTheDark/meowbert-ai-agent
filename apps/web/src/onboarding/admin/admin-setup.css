@@ -1,0 +1,47 @@
+.admin-setup-modal {
+  max-width: 560px;
+}
+
+.admin-setup-kicker {
+  font-size: 0.78rem;
+}
+
+.admin-setup-model-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.admin-setup-model-row strong {
+  overflow-wrap: anywhere;
+}
+
+.admin-setup-model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.admin-setup-choice {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.admin-setup-choice > span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.admin-setup-footer {
+  padding: 0.6rem 1.4rem 1rem;
+}
+
+@media (max-width: 560px) {
+  .admin-setup-model-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

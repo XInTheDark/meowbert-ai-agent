@@ -1,0 +1,26 @@
+.admin-utilities { display: grid; gap: 0.8rem; min-width: 0; }
+.admin-utilities h2, .admin-utilities p { margin: 0; }
+.activation-heading, .activation-schedule-head, .activation-rule-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.activation-heading h2 { font-size: 1.1rem; }
+.activation-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+.activation-schedule, .activation-rule { border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; min-width: 0; display: grid; gap: 0.6rem; }
+.activation-target, .activation-schedule p { overflow-wrap: anywhere; }
+.activation-results { display: flex; flex-wrap: wrap; gap: 0.3rem 1.5rem; font-size: 0.8rem; }
+.activation-form-fields { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 1rem; }
+.activation-form-fields > legend { font-weight: 600; margin-bottom: 0.75rem; }
+.activation-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.activation-fields label, .activation-window label, .activation-time, .activation-windows > label, .activation-rule-head > label { display: grid; gap: 0.35rem; min-width: 0; font-size: 0.85rem; }
+.activation-fields input, .activation-fields select, .activation-rule input, .activation-rule select { min-width: 0; width: 100%; }
+.activation-enabled { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; overflow-wrap: anywhere; }
+.activation-enabled input, .activation-days input { width: auto; margin: 0; }
+.activation-days { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.activation-days label { display: flex; align-items: center; gap: 0.35rem; border: 1px solid var(--border-color); border-radius: 5px; padding: 0.35rem 0.45rem; font-size: 0.8rem; cursor: pointer; }
+.activation-days label.selected { background: var(--surface-muted); }
+.activation-windows { display: grid; gap: 0.7rem; justify-items: start; }
+.activation-window { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 0.5rem; max-width: 100%; }
+.activation-help { font-size: 0.8rem; }
+.activation-time, .activation-windows > label { max-width: 12rem; }
+@media (max-width: 700px) {
+  .activation-fields { grid-template-columns: minmax(0, 1fr); }
+  .activation-schedule, .activation-rule { padding: 0.75rem; }
+}

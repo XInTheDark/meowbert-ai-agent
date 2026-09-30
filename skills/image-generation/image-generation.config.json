@@ -1,0 +1,13 @@
+{
+  "logLevel": "info",
+  "provider": {
+    "provider": "openai",
+    "model": "gpt-image-2.5-sunburst",
+    "apiKeyEnvVar": "IMAGE_GEN_SKILL_API_KEY",
+    "baseURL": "https://api.openai.com/v1",
+    "headers": {},
+    "name": "openai",
+    "maxRetries": 2,
+    "timeoutMs": 600000
+  }
+}

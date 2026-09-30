@@ -1,0 +1,19 @@
+services:
+  api:
+    environment:
+      MEOWBERT_SANDBOX_RUNTIME_IMAGE: meowbert-sandbox-runtime:local
+
+  worker:
+    environment:
+      MEOWBERT_SANDBOX_RUNTIME_IMAGE: meowbert-sandbox-runtime:local
+
+  sandbox-runtime:
+    image: meowbert-sandbox-runtime:local
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: apps/sandbox-runtime/Dockerfile
+      args:
+        MEOWBERT_BROWSER_USE_ENABLED: ${MEOWBERT_BROWSER_USE_ENABLED:-}
+        MEOWBERT_HTML_CANVAS_ENABLED: ${MEOWBERT_HTML_CANVAS_ENABLED:-}
+        MEOWBERT_OFFICE_ENABLED: ${MEOWBERT_OFFICE_ENABLED:-}

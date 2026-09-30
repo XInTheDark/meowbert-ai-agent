@@ -1,0 +1,202 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - "desktop-*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Ensure the GitHub release exists
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          TARGET_GH_TOKEN: ${{ secrets.DESKTOP_RELEASES_GH_TOKEN }}
+          FALLBACK_GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET_REPOSITORY="$(node -e "const { resolveDesktopReleaseEnv } = require('./config/desktop-release.cjs'); process.stdout.write(resolveDesktopReleaseEnv().repository);")"
+          APP_VERSION="$(node -p "require('./apps/desktop/package.json').version")"
+          EXPECTED_TAG="desktop-${APP_VERSION}"
+          EXPECTED_V_TAG="desktop-v${APP_VERSION}"
+          if [[ -n "${TARGET_GH_TOKEN}" ]]; then
+            TARGET_TOKEN="${TARGET_GH_TOKEN}"
+          elif [[ "${TARGET_REPOSITORY}" == "${GITHUB_REPOSITORY}" ]]; then
+            TARGET_TOKEN="${FALLBACK_GH_TOKEN}"
+          else
+            echo "DESKTOP_RELEASES_GH_TOKEN is required to publish desktop releases to ${TARGET_REPOSITORY}" >&2
+            exit 1
+          fi
+
+          NOTES_FILE="$(mktemp)"
+          trap 'rm -f "${NOTES_FILE}"' EXIT
+          SOURCE_RELEASE_FOUND=0
+          if GH_TOKEN="${FALLBACK_GH_TOKEN}" gh release view "${TAG_NAME}" --repo "${SOURCE_REPOSITORY}" --json body --template '{{.body}}' > "${NOTES_FILE}" 2>/dev/null; then
+            SOURCE_RELEASE_FOUND=1
+          else
+            : > "${NOTES_FILE}"
+          fi
+
+          TAG_SUFFIX="${TAG_NAME#desktop-}"
+          DISPLAY_VERSION="${TAG_SUFFIX#v}"
+          export DISPLAY_VERSION
+          export GH_TOKEN="${TARGET_TOKEN}"
+          if gh release view "$TAG_NAME" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1; then
+            args=(
+              release edit "$TAG_NAME"
+              --repo "$TARGET_REPOSITORY"
+              --title "Meowbert Desktop $DISPLAY_VERSION"
+            )
+            if [[ "${SOURCE_RELEASE_FOUND}" -eq 1 ]]; then
+              args+=(--notes-file "${NOTES_FILE}")
+            fi
+            gh "${args[@]}"
+            exit 0
+          fi
+
+          RELEASE_METADATA_PATH=".meowbert-desktop-release.json"
+          TARGET_DEFAULT_BRANCH="$(gh api "repos/${TARGET_REPOSITORY}" --jq .default_branch)"
+          EXISTING_METADATA_SHA="$(gh api "repos/${TARGET_REPOSITORY}/contents/${RELEASE_METADATA_PATH}?ref=${TARGET_DEFAULT_BRANCH}" --jq .sha 2>/dev/null || true)"
+          RELEASE_METADATA_CONTENT="$(
+            node -e 'const metadata = {
+              tag: process.env.TAG_NAME,
+              version: process.env.DISPLAY_VERSION,
+              sourceRepository: process.env.SOURCE_REPOSITORY,
+              sourceSha: process.env.GITHUB_SHA,
+              sourceRef: process.env.GITHUB_REF_NAME,
+              publishedAt: new Date().toISOString()
+            }; process.stdout.write(Buffer.from(`${JSON.stringify(metadata, null, 2)}\n`).toString("base64"));'
+          )"
+          metadata_args=(
+            --method PUT
+            "repos/${TARGET_REPOSITORY}/contents/${RELEASE_METADATA_PATH}"
+            -f message="chore: publish ${TAG_NAME}"
+            -f content="${RELEASE_METADATA_CONTENT}"
+            -f branch="${TARGET_DEFAULT_BRANCH}"
+          )
+          if [[ -n "${EXISTING_METADATA_SHA}" ]]; then
+            metadata_args+=(-f sha="${EXISTING_METADATA_SHA}")
+          fi
+
+          TARGET_RELEASE_COMMIT="$(
+            gh api "${metadata_args[@]}" --jq .commit.sha
+          )"
+
+          args=(
+            release create "$TAG_NAME"
+            --repo "$TARGET_REPOSITORY"
+            --title "Meowbert Desktop $DISPLAY_VERSION"
+            --notes-file "${NOTES_FILE}"
+            --target "${TARGET_RELEASE_COMMIT}"
+          )
+          if [[ "${APP_VERSION}" == *-* && ( "${TAG_NAME}" == "${EXPECTED_TAG}" || "${TAG_NAME}" == "${EXPECTED_V_TAG}" ) ]]; then
+            args+=(--prerelease)
+          fi
+          gh "${args[@]}"
+
+  publish:
+    name: Publish ${{ matrix.label }}
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS universal
+            os: macos-latest
+            publish_args: --mac dmg zip --universal
+            csc_identity_auto_discovery: "false"
+          - label: Windows x64
+            os: windows-latest
+            publish_args: --win nsis zip --x64
+            csc_identity_auto_discovery: ""
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify desktop version matches the pushed tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./apps/desktop/package.json').version")"
+          TAG_SUFFIX="${GITHUB_REF_NAME#desktop-}"
+          if [[ "${GITHUB_REF_NAME}" == "desktop-${VERSION}" || "${GITHUB_REF_NAME}" == "desktop-v${VERSION}" ]]; then
+            exit 0
+          fi
+
+          if [[ "${TAG_SUFFIX}" =~ ^v?[0-9] ]]; then
+            echo "Expected tag desktop-${VERSION} or desktop-v${VERSION} but received ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+          echo "Skipping strict desktop version check for custom tag ${GITHUB_REF_NAME}"
+
+      - name: Publish desktop artifacts
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.csc_identity_auto_discovery }}
+          TARGET_GH_TOKEN: ${{ secrets.DESKTOP_RELEASES_GH_TOKEN }}
+          FALLBACK_GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET_REPOSITORY="$(node -e "const { resolveDesktopReleaseEnv } = require('./config/desktop-release.cjs'); process.stdout.write(resolveDesktopReleaseEnv().repository);")"
+          TARGET_RELEASES_PAGE_URL="$(node -e "const { resolveDesktopReleaseEnv } = require('./config/desktop-release.cjs'); process.stdout.write(resolveDesktopReleaseEnv().pageUrl ?? '');")"
+          APP_VERSION="$(node -p "require('./apps/desktop/package.json').version")"
+          EXPECTED_TAG="desktop-${APP_VERSION}"
+          EXPECTED_V_TAG="desktop-v${APP_VERSION}"
+          if [[ -n "${TARGET_GH_TOKEN}" ]]; then
+            export GH_TOKEN="${TARGET_GH_TOKEN}"
+          elif [[ "${TARGET_REPOSITORY}" == "${GITHUB_REPOSITORY}" ]]; then
+            export GH_TOKEN="${FALLBACK_GH_TOKEN}"
+          else
+            echo "DESKTOP_RELEASES_GH_TOKEN is required to publish desktop releases to ${TARGET_REPOSITORY}" >&2
+            exit 1
+          fi
+
+          export MEOWBERT_DESKTOP_RELEASE_REPOSITORY="${TARGET_REPOSITORY}"
+          export VITE_DESKTOP_RELEASE_REPOSITORY="${TARGET_REPOSITORY}"
+          if [[ -n "${TARGET_RELEASES_PAGE_URL}" ]]; then
+            export VITE_DESKTOP_RELEASES_PAGE_URL="${TARGET_RELEASES_PAGE_URL}"
+          fi
+
+          if [[ "${GITHUB_REF_NAME}" == "${EXPECTED_TAG}" || "${GITHUB_REF_NAME}" == "${EXPECTED_V_TAG}" ]]; then
+            npm run package:release --workspace apps/desktop -- ${{ matrix.publish_args }}
+            exit 0
+          fi
+
+          npm run package --workspace apps/desktop -- ${{ matrix.publish_args }}
+
+          uploaded_files=0
+          while IFS= read -r -d '' release_file; do
+            gh release upload "${GITHUB_REF_NAME}" --repo "${TARGET_REPOSITORY}" --clobber "${release_file}"
+            uploaded_files=$((uploaded_files + 1))
+          done < <(find apps/desktop/dist-packages -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.blockmap" \) -print0)
+
+          if [[ "${uploaded_files}" -eq 0 ]]; then
+            echo "No desktop release artifacts were generated for ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi

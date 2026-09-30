@@ -1,0 +1,15 @@
+{
+  "id": "openai-doc",
+  "name": "OpenAI: doc",
+  "description": "Create, edit, and visually review Word documents with Python. Prefer for general documents, existing DOCX files, and editable Word output; use Typst for new PDF-only documents.",
+  "requiresSuperAdmin": true,
+  "catalogGroup": "documents",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

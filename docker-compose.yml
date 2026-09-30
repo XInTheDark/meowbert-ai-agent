@@ -1,0 +1,275 @@
+services:
+  meowbert-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_DB: ${MEOWBERT_POSTGRES_DB:-meowbert}
+      POSTGRES_USER: ${MEOWBERT_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${MEOWBERT_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command: ["postgres", "-c", "password_encryption=scram-sha-256"]
+    ports:
+      - "${MEOWBERT_POSTGRES_BIND_ADDRESS:-127.0.0.1}:${MEOWBERT_POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - type: bind
+        source: ${MEOWBERT_POSTGRES_DATA_PATH:-/data/meowbert/postgres-data}
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "pg_isready -h 127.0.0.1 -p 5432"
+      ]
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+      start_interval: 2s
+      interval: 8760h
+  meowbert-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      [
+        "sh",
+        "-c",
+        "if [ -n \"$${MEOWBERT_REDIS_PASSWORD:-}\" ]; then redis-server --requirepass \"$$MEOWBERT_REDIS_PASSWORD\"; else redis-server; fi"
+      ]
+    environment:
+      MEOWBERT_REDIS_PASSWORD: ${MEOWBERT_REDIS_PASSWORD:-}
+    ports:
+      - "${MEOWBERT_REDIS_BIND_ADDRESS:-127.0.0.1}:${MEOWBERT_REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "if [ -n \"$${MEOWBERT_REDIS_PASSWORD:-}\" ]; then redis-cli -a \"$$MEOWBERT_REDIS_PASSWORD\" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi"
+        ]
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+      start_interval: 5s
+      interval: 8760h
+  meowbert-meilisearch:
+    image: getmeili/meilisearch:v1.45.1
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEOWBERT_MEILISEARCH_MASTER_KEY:-meowbert-meilisearch}
+    ports:
+      - "${MEOWBERT_MEILISEARCH_BIND_ADDRESS:-127.0.0.1}:${MEOWBERT_MEILISEARCH_HOST_PORT:-7700}:7700"
+    volumes:
+      - type: bind
+        source: ${MEOWBERT_MEILISEARCH_DATA_PATH:-/srv/meowbert/runtime/meilisearch}
+        target: /meili_data
+  listmonk-postgres:
+    image: postgres:17-alpine
+    profiles: ["email"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${MEOWBERT_LISTMONK_POSTGRES_DB:-listmonk}
+      POSTGRES_USER: ${MEOWBERT_LISTMONK_POSTGRES_USER:-listmonk}
+      POSTGRES_PASSWORD: ${MEOWBERT_LISTMONK_POSTGRES_PASSWORD:-listmonk}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MEOWBERT_LISTMONK_POSTGRES_USER:-listmonk} -d ${MEOWBERT_LISTMONK_POSTGRES_DB:-listmonk}"]
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+      start_interval: 2s
+      interval: 8760h
+    volumes:
+      - type: bind
+        source: ${MEOWBERT_LISTMONK_POSTGRES_DATA_PATH:-/data/meowbert/listmonk-postgres-data}
+        target: /var/lib/postgresql/data
+  listmonk:
+    image: listmonk/listmonk:latest
+    profiles: ["email"]
+    restart: unless-stopped
+    command:
+      [
+        "sh",
+        "-c",
+        "./listmonk --install --idempotent --yes --config '' && ./listmonk --upgrade --yes --config '' && ./listmonk --config ''"
+      ]
+    environment:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__user: ${MEOWBERT_LISTMONK_POSTGRES_USER:-listmonk}
+      LISTMONK_db__password: ${MEOWBERT_LISTMONK_POSTGRES_PASSWORD:-listmonk}
+      LISTMONK_db__database: ${MEOWBERT_LISTMONK_POSTGRES_DB:-listmonk}
+      LISTMONK_db__host: listmonk-postgres
+      LISTMONK_db__port: "5432"
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_db__max_open: "25"
+      LISTMONK_db__max_idle: "25"
+      LISTMONK_db__max_lifetime: 300s
+      LISTMONK_ADMIN_USER: ${LISTMONK_ADMIN_USER:-listmonk}
+      LISTMONK_ADMIN_PASSWORD: ${LISTMONK_ADMIN_PASSWORD:-listmonk}
+      TZ: UTC
+    ports:
+      - "${MEOWBERT_LISTMONK_BIND_ADDRESS:-127.0.0.1}:${MEOWBERT_LISTMONK_HOST_PORT:-9000}:9000"
+    depends_on:
+      listmonk-postgres:
+        condition: service_healthy
+  postgres-backup:
+    image: meowbert-postgres-backup:local
+    build:
+      context: .
+      dockerfile: apps/postgres-backup/Dockerfile
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: meowbert-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${MEOWBERT_POSTGRES_DB:-meowbert}
+      POSTGRES_USER: ${MEOWBERT_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${MEOWBERT_POSTGRES_PASSWORD:-postgres}
+      SCHEDULE: "${MEOWBERT_POSTGRES_BACKUP_SCHEDULE:-0 0 * * 0}"
+      BACKUP_KEEP_DAYS: ${MEOWBERT_POSTGRES_BACKUP_KEEP_DAYS:-0}
+      BACKUP_KEEP_WEEKS: ${MEOWBERT_POSTGRES_BACKUP_KEEP_WEEKS:-2}
+      BACKUP_KEEP_MONTHS: ${MEOWBERT_POSTGRES_BACKUP_KEEP_MONTHS:-0}
+    volumes:
+      - type: bind
+        source: ${MEOWBERT_POSTGRES_BACKUP_PATH:-/data/meowbert/postgres-backups}
+        target: /backups
+    depends_on:
+      meowbert-postgres:
+        condition: service_healthy
+  api:
+    image: meowbert-api:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      MEOWBERT_CONFIG_PATH: ${MEOWBERT_CONFIG_PATH:-/app/config/global.docker.json}
+      MEOWBERT_SANDBOX_RUNTIME_IMAGE: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main}
+      DATABASE_HOST: meowbert-postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: ${MEOWBERT_POSTGRES_USER:-postgres}
+      DATABASE_PASSWORD: ${MEOWBERT_POSTGRES_PASSWORD:-postgres}
+      DATABASE_NAME: ${MEOWBERT_POSTGRES_DB:-meowbert}
+      MEOWBERT_REDIS_PASSWORD: ${MEOWBERT_REDIS_PASSWORD:-}
+      MEOWBERT_MEILISEARCH_HOST: http://meowbert-meilisearch:7700
+      MEOWBERT_MEILISEARCH_API_KEY: ${MEOWBERT_MEILISEARCH_MASTER_KEY:-meowbert-meilisearch}
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse:/dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - type: bind
+        source: ./config
+        target: /app/config
+      # Coolify parses short bind specs before Compose interpolation. Keep the
+      # production runtime path literal so it accepts the rshared propagation.
+      - "/srv/meowbert/runtime:/app/runtime:rshared"
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    depends_on:
+      meowbert-postgres:
+        condition: service_healthy
+      meowbert-redis:
+        condition: service_healthy
+      meowbert-meilisearch:
+        condition: service_started
+      sandbox-runtime:
+        condition: service_started
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:4000/health || exit 1"]
+      retries: 30
+      timeout: 5s
+      start_period: 60s
+      start_interval: 5s
+      interval: 8760h
+  worker:
+    image: meowbert-worker:local
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      MEOWBERT_CONFIG_PATH: ${MEOWBERT_CONFIG_PATH:-/app/config/global.docker.json}
+      MEOWBERT_SANDBOX_RUNTIME_IMAGE: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main}
+      MEOWBERT_API_URL: http://api:4000
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      DATABASE_HOST: meowbert-postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: ${MEOWBERT_POSTGRES_USER:-postgres}
+      DATABASE_PASSWORD: ${MEOWBERT_POSTGRES_PASSWORD:-postgres}
+      DATABASE_NAME: ${MEOWBERT_POSTGRES_DB:-meowbert}
+      MEOWBERT_REDIS_PASSWORD: ${MEOWBERT_REDIS_PASSWORD:-}
+      MEOWBERT_MEILISEARCH_HOST: http://meowbert-meilisearch:7700
+      MEOWBERT_MEILISEARCH_API_KEY: ${MEOWBERT_MEILISEARCH_MASTER_KEY:-meowbert-meilisearch}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      IMAGE_GEN_SKILL_API_KEY: ${IMAGE_GEN_SKILL_API_KEY:-}
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse:/dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - type: bind
+        source: ./config
+        target: /app/config
+      # Coolify parses short bind specs before Compose interpolation. Keep the
+      # production runtime path literal so it accepts the rshared propagation.
+      - "/srv/meowbert/runtime:/app/runtime:rshared"
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    depends_on:
+      api:
+        condition: service_healthy
+      meowbert-redis:
+        condition: service_healthy
+      meowbert-meilisearch:
+        condition: service_started
+      sandbox-runtime:
+        condition: service_started
+  sandbox-runtime:
+    image: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main}
+    pull_policy: always
+    restart: unless-stopped
+    command:
+      [
+        "/bin/sh",
+        "-lc",
+        "trap 'exit 0' TERM INT; while :; do sleep 3600; done"
+      ]
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+        SERVICE_URL_API: ${SERVICE_URL_API:-}
+        VITE_DOCS_URL: ${VITE_DOCS_URL:-}
+        SERVICE_URL_DOCS: ${SERVICE_URL_DOCS:-}
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:4000
+      VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-}
+      SERVICE_FQDN_WEB: ${SERVICE_FQDN_WEB:-}
+      SERVICE_URL_WEB: ${SERVICE_URL_WEB:-}
+      COOLIFY_FQDN: ${COOLIFY_FQDN:-}
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+  docs:
+    build:
+      context: .
+      dockerfile: apps/docs/Dockerfile
+    restart: unless-stopped
+    environment:
+      VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-}
+      SERVICE_FQDN_DOCS: ${SERVICE_FQDN_DOCS:-}
+      SERVICE_URL_DOCS: ${SERVICE_URL_DOCS:-}
+      COOLIFY_FQDN: ${COOLIFY_FQDN:-}
+    ports:
+      - "${MEOWBERT_DOCS_BIND_ADDRESS:-127.0.0.1}:${MEOWBERT_DOCS_HOST_PORT:-4173}:4173"

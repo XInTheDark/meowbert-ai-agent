@@ -1,0 +1,12 @@
+{
+  "id": "typst",
+  "name": "Typst",
+  "description": "Create PDF-only reports, guides, handouts, and technical documents with automatic pagination and customizable, editable Typst source. Prefer Word when an editable Office document is needed.",
+  "catalogGroup": "documents",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": ["server.mjs"],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

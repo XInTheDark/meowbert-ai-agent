@@ -1,0 +1,18 @@
+{
+  "id": "outlook",
+  "name": "Outlook",
+  "description": "Search and read Outlook emails, inspect calendars, and safely manage calendar events for the connected workspace account.",
+  "surface": "source",
+  "source": {
+    "provider": "outlook",
+    "supportsAttachments": false
+  },
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

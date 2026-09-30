@@ -1,0 +1,15 @@
+{
+  "name": "@meowbert/docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev docs",
+    "build": "vitepress build docs",
+    "preview": "vitepress preview docs --host 0.0.0.0 --port 4173",
+    "generate:onboarding-manifest": "node scripts/generate-onboarding-manifest.mjs"
+  },
+  "devDependencies": {
+    "vitepress": "2.0.0-alpha.17"
+  }
+}

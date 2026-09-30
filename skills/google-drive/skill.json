@@ -1,0 +1,18 @@
+{
+  "id": "google-drive",
+  "name": "Google Drive",
+  "description": "Search Google Drive, browse folders, and fetch workspace-approved files into the task filesystem.",
+  "surface": "source",
+  "source": {
+    "provider": "google-drive",
+    "supportsAttachments": true
+  },
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

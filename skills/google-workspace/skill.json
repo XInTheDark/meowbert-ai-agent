@@ -1,0 +1,17 @@
+{
+  "id": "google-workspace",
+  "name": "Google Workspace",
+  "description": "Read, edit, and export Google Docs, Sheets, and Slides attached directly or through a live Drive folder.",
+  "hidden": true,
+  "sourceAccess": {
+    "sourceId": "google-drive"
+  },
+  "mcp": {
+    "transport": "stdio",
+    "command": "python3",
+    "args": [
+      "server.py"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

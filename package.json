@@ -1,0 +1,34 @@
+{
+  "name": "meowbert-ai",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "version": "1.0.0",
+  "description": "The frontier AI agent platform",
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace apps/api",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:worker": "npm run dev --workspace apps/worker",
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:docs": "npm run dev --workspace apps/docs",
+    "build": "npm run build --workspace packages/shared && npm run build --workspace apps/api && npm run build --workspace apps/worker && npm run build --workspace apps/web",
+    "build:docs": "npm run build --workspace apps/docs",
+    "preview:docs": "npm run preview --workspace apps/docs",
+    "docs:generate-onboarding-manifest": "npm run generate:onboarding-manifest --workspace apps/docs",
+    "test": "npm run test:desktop-version && npm run test --workspace packages/shared && npm run test --workspace apps/api && npm run test --workspace apps/worker && npm run test --workspace apps/web",
+    "test:desktop-version": "node --test scripts/desktop-version.test.mjs",
+    "lint": "npm run build --workspace packages/shared && npm run lint --workspace packages/shared && npm run lint --workspace apps/api && npm run lint --workspace apps/worker && npm run lint --workspace apps/web",
+    "migrate": "npm run migrate --workspace apps/api",
+    "dev:desktop": "npm run dev --workspace apps/desktop",
+    "build:desktop": "npm run build --workspace apps/desktop",
+    "lint:desktop": "npm run lint --workspace apps/desktop",
+    "version:desktop": "node scripts/desktop-version.mjs"
+  },
+  "optionalDependencies": {
+    "@esbuild/darwin-arm64": "0.27.3"
+  }
+}

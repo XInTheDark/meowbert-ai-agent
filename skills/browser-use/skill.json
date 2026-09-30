@@ -1,0 +1,16 @@
+{
+  "id": "browser-use",
+  "name": "Browser Use",
+  "description": "Automate websites with Playwright MCP for navigation, form interactions, extraction, and screenshots.",
+  "requiresSuperAdmin": true,
+  "catalogGroup": "web",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": ["server.mjs"],
+    "cwd": "{{SKILL_DIR}}",
+    "env": {
+      "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright"
+    }
+  }
+}

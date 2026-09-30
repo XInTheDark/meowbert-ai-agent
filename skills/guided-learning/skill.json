@@ -1,0 +1,14 @@
+{
+  "id": "guided-learning",
+  "name": "Guided Learning",
+  "description": "Teach concepts step by step with intuition, learner-aware pacing, Socratic checks, and visual or interactive explanations.",
+  "hidden": true,
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

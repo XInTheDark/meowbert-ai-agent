@@ -1,0 +1,137 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 4000,
+    "publicUrl": "http://localhost:4000"
+  },
+  "db": {
+    "url": "postgres://postgres:postgres@meowbert-postgres:5432/meowbert",
+    "autoCreateOnStartup": true,
+    "requireExistingSchemaOnStartup": false
+  },
+  "redis": {
+    "url": "redis://meowbert-redis:6379"
+  },
+  "search": {
+    "meilisearch": {
+      "host": "http://meowbert-meilisearch:7700",
+      "indexUid": "tasks",
+      "syncBatchSize": 100,
+      "syncIntervalMs": 1000
+    }
+  },
+  "openai": {
+    "defaultModel": "o4-mini"
+  },
+  "storage": {
+    "defaultWorkspaceBackendId": "local-default",
+    "backends": [
+      {
+        "id": "local-default",
+        "label": "Local",
+        "type": "local",
+        "workspacesRoot": "/app/runtime/workspaces",
+        "environmentsRoot": "/app/runtime/environments"
+      }
+    ]
+  },
+  "runtime": {
+    "shell": "/bin/bash",
+    "environmentsRoot": "/app/runtime/environments",
+    "tasksRoot": "/app/runtime/tasks",
+    "commandTimeoutMs": 900000,
+    "maxCommandOutputKb": 256,
+    "maxSteps": 800,
+    "workerConcurrency": 4,
+    "sandbox": {
+      "provider": "docker",
+      "image": "ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main",
+      "dockerHost": "unix:///var/run/docker.sock",
+      "startTimeoutMs": 30000,
+      "sessionIdleTimeoutMs": 2700000,
+      "envPassthroughPatterns": [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "SSL_CERT_*"
+      ],
+      "resources": {
+        "pids": 256,
+        "memoryMb": 2048,
+        "cpus": 2,
+        "storageMb": 4096
+      }
+    },
+    "workspacesRoot": "/app/runtime/workspaces"
+  },
+  "security": {
+    "jwtSecret": "REPLACE_WITH_JWT_SECRET",
+    "jwtTtl": "7d"
+  },
+  "limits": {
+    "defaultTaskConcurrencyPerEnv": 4,
+    "maxConcurrentTasksWorkspace": 20,
+    "maxActiveRecurringTasksPerEnv": 10,
+    "maxActiveRecurringTasksWorkspace": 50
+  },
+  "connectors": {
+    "telegram": {
+      "enabled": true
+    },
+    "discord": {
+      "enabled": true
+    },
+    "email": {
+      "enabled": false
+    }
+  },
+  "email": {
+    "enabled": false,
+    "appBaseUrl": "http://localhost:5173",
+    "queue": {
+      "maxAttempts": 5,
+      "retryBaseMs": 3000,
+      "globalRatePerMinute": 60
+    },
+    "rateLimits": {
+      "signupVerificationPerHour": 5,
+      "signupResendCooldownSeconds": 60,
+      "forgotPasswordPerHour": 5,
+      "verificationAttemptsPerHour": 20
+    }
+  },
+  "github": {
+    "enabled": false
+  },
+  "web": {
+    "docsUrl": "http://localhost:4173",
+    "appUrl": "http://localhost:5173"
+  },
+  "webPush": {
+    "enabled": true,
+    "contactEmail": "admin@example.com"
+  },
+  "taskHistoryArchive": {
+    "mountPath": "/app/runtime/storage/task-history-archive",
+    "archivesDir": "tasks"
+  },
+  "skills": {
+    "rootDir": "/app/skills",
+    "browserUse": {
+      "enabled": true
+    },
+    "htmlCanvas": {
+      "enabled": true
+    },
+    "office": {
+      "enabled": true
+    }
+  },
+  "memory": {
+    "indexCacheRoot": "/tmp/meowbert-memory-index-cache",
+    "embeddings": {
+      "mode": "openai",
+      "model": "text-embedding-3-small"
+    }
+  }
+}

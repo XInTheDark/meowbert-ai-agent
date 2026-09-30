@@ -1,0 +1,46 @@
+{
+  "name": "deep-ai-search-mcp",
+  "version": "0.1.0",
+  "description": "AI-powered search + fetch MCP server (Brave Search + deep content extraction, with LLM-assisted filtering).",
+  "type": "module",
+  "bin": {
+    "deep-ai-search-mcp": "dist/index.js",
+    "deep-ai-search-cli": "dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "dev:cli": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "4.0.40",
+    "@ai-sdk/openai": "4.0.44",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@mozilla/readability": "0.6.0",
+    "ai": "7.0.70",
+    "jsdom": "26.1.0",
+    "lru-cache": "11.2.5",
+    "p-limit": "6.2.0",
+    "turndown": "7.2.2",
+    "zod": "4.3.6"
+  },
+  "optionalDependencies": {
+    "puppeteer": "25.8.0",
+    "puppeteer-extra": "3.3.6",
+    "puppeteer-extra-plugin-stealth": "2.11.2"
+  },
+  "devDependencies": {
+    "@types/jsdom": "21.1.7",
+    "@types/node": "22.19.7",
+    "@types/turndown": "5.0.6",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

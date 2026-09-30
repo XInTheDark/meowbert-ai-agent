@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{TITLE}}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #fffdf8;
+        --frame: #ded7ca;
+        --ink: #1c242b;
+        --muted: #5b6770;
+        --accent: #0f766e;
+        --accent-soft: #d7f0ed;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Liberation Sans", "Noto Sans", sans-serif;
+        background: linear-gradient(180deg, #ece7de 0%, #f6f3ed 100%);
+        color: var(--ink);
+      }
+
+      main {
+        display: grid;
+        gap: 28px;
+        justify-content: center;
+        padding: 28px;
+      }
+
+      .page {
+        width: 210mm;
+        min-height: 297mm;
+        padding: 18mm;
+        background: var(--paper);
+        border: 1px solid var(--frame);
+        box-shadow: 0 24px 60px rgba(28, 36, 43, 0.12);
+      }
+
+      .kicker {
+        margin: 0 0 10mm;
+        font-size: 11pt;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      h1,
+      h2 {
+        margin: 0 0 7mm;
+        font-family: "Liberation Serif", Georgia, serif;
+        line-height: 1.02;
+      }
+
+      h1 {
+        font-size: 28pt;
+      }
+
+      h2 {
+        font-size: 20pt;
+      }
+
+      p,
+      li {
+        font-size: 11.5pt;
+        line-height: 1.55;
+        color: var(--muted);
+      }
+
+      .lede {
+        margin: 0 0 10mm;
+        font-size: 14pt;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6mm;
+        margin-top: 8mm;
+      }
+
+      .card {
+        padding: 6mm;
+        border-radius: 5mm;
+        background: var(--accent-soft);
+      }
+
+      .card strong {
+        display: block;
+        margin-bottom: 2mm;
+        font-size: 14pt;
+        color: var(--ink);
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 6mm;
+      }
+
+      @page {
+        size: A4;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="page" data-meowbert-page>
+        <p class="kicker">Executive summary</p>
+        <h1>{{TITLE}}</h1>
+        <p class="lede">{{SUBTITLE}}</p>
+        <div class="grid">
+          <article class="card">
+            <strong>What changed</strong>
+            <p>Use explicit page wrappers when you need deterministic previews before PDF export.</p>
+          </article>
+          <article class="card">
+            <strong>Why HTML</strong>
+            <p>CSS layout is easier to inspect, revise, and print than ad hoc PDF drawing.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-meowbert-page>
+        <p class="kicker">Review checklist</p>
+        <h2>Do not ship until the preview pass is clean.</h2>
+        <ul>
+          <li>Check every page PNG for clipping or overflow.</li>
+          <li>Fix every failed asset request and JavaScript error.</li>
+          <li>Confirm typography, spacing, and page breaks still hold in the PDF.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script>
+      window.__MEOWBERT_READY__ = true;
+    </script>
+  </body>
+</html>

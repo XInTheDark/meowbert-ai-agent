@@ -1,0 +1,106 @@
+:root {
+  --font-ui: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-content: var(--font-ui);
+  --font-mono: "SFMono-Regular", "SF Mono", "Cascadia Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --radius-xs: 0.35rem;
+  --radius-pill: 9999px;
+  --page-max: 1480px;
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--font-ui);
+  line-height: 1.45;
+  font-weight: 400;
+  --radius-sm: .5rem;
+  --radius-md: .65rem;
+  --radius-lg: .8rem;
+  --radius-xl: 1rem;
+  --page-pad: clamp(1rem, 2.5vw, 2rem);
+  --surface-raised: var(--surface);
+  --surface-panel: var(--surface-soft);
+  --surface-control: var(--surface-soft);
+  --border-subtle: color-mix(in srgb, var(--border) 75%, transparent);
+  --font-heading: var(--font-ui);
+  --bg-primary: var(--surface);
+  --bg-hover: var(--surface-muted);
+  --text-secondary: var(--text-muted);
+  --border-color: var(--border);
+}* {
+  box-sizing: border-box;
+}body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-ui);
+  color: var(--text);
+  font-feature-settings: "cv02", "cv03", "cv04", "kern";
+  background: var(--bg);
+  font-size: 1rem;
+  line-height: 1.5;
+}a {
+  color: inherit;
+}button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid var(--border);
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  background: var(--surface-control);
+  border-radius: var(--radius-sm);
+  padding: .6rem .75rem;
+}input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input,
+textarea,
+select {
+  border-radius: var(--radius-sm);
+}
+
+html, body, #root {
+  background: var(--bg, #171819);
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  background: var(--surface-control);
+  border-color: color-mix(in srgb, var(--text-muted) 50%, var(--border));
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  background: var(--surface);
+  border-color: var(--brand);
+  box-shadow: var(--focus-ring);
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  letter-spacing: -.02em;
+}
+/* Match the neutral system sans used by ChatGPT/OpenAI surfaces. */
+:root {
+  --font-ui: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-content: var(--font-ui);
+  --font-heading: var(--font-ui);
+}

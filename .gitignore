@@ -1,0 +1,25 @@
+node_modules
+npm-debug.log*
+*.tsbuildinfo
+dist
+!skills/deep-ai-search/dist/
+!skills/deep-ai-search/dist/**
+*.env
+runtime/*
+!runtime/.gitkeep
+.docker-data/
+coverage
+.DS_Store
+*.thinking
+.thinking*
+.impeccable.md
+config/global.json
+config/global.docker.json
+apps/desktop/dist-packages
+apps/desktop/dist
+apps/web/dist
+apps/docs/docs/.vitepress/dist
+.codex
+
+# Local config copies (may contain secrets)
+config/*copy*.json

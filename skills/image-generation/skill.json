@@ -1,0 +1,20 @@
+{
+  "id": "image-generation",
+  "name": "Image Generation",
+  "description": "Generate or edit images with OpenAI-compatible image endpoints and save them as task files.",
+  "requiresSuperAdmin": true,
+  "catalogGroup": "visuals",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}",
+    "env": {
+      "IMAGE_GENERATION_CONFIG_PATH": "{{SKILL_DIR}}/image-generation.config.json",
+      "OPENAI_API_KEY": "{{ENV:OPENAI_API_KEY:-}}",
+      "IMAGE_GEN_SKILL_API_KEY": "{{ENV:IMAGE_GEN_SKILL_API_KEY:-}}"
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "name": "@meowbert/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./themes": {
+      "types": "./dist/themes.d.ts",
+      "default": "./dist/themes.js"
+    },
+    "./memory": {
+      "types": "./dist/memory.d.ts",
+      "default": "./dist/memory.js"
+    },
+    "./sandbox": {
+      "types": "./dist/sandbox.d.ts",
+      "default": "./dist/sandbox.js"
+    },
+    "./workspace-agent-settings": {
+      "types": "./dist/workspace-agent-settings.d.ts",
+      "default": "./dist/workspace-agent-settings.js"
+    },
+    "./workspace-icons": {
+      "types": "./dist/workspace-icons.d.ts",
+      "default": "./dist/workspace-icons.js"
+    },
+    "./project-context": {
+      "types": "./dist/project-context.d.ts",
+      "default": "./dist/project-context.js"
+    },
+    "./context-usage": {
+      "types": "./dist/context-usage.d.ts",
+      "default": "./dist/context-usage.js"
+    },
+    "./inline-artifacts": {
+      "types": "./dist/inline-artifacts.d.ts",
+      "default": "./dist/inline-artifacts.js"
+    },
+    "./responses-settings": {
+      "types": "./dist/responses-settings.d.ts",
+      "default": "./dist/responses-settings.js"
+    },
+    "./agent-swarm": {
+      "types": "./dist/agent-swarm.d.ts",
+      "default": "./dist/agent-swarm.js"
+    },
+    "./agent-swarm-quota": {
+      "types": "./dist/agent-swarm-quota.d.ts",
+      "default": "./dist/agent-swarm-quota.js"
+    },
+    "./docker-sandbox": {
+      "types": "./dist/docker-sandbox.d.ts",
+      "default": "./dist/docker-sandbox.js"
+    },
+    "./server-security": {
+      "types": "./dist/server-security.d.ts",
+      "default": "./dist/server-security.js"
+    },
+    "./storage-backends": {
+      "types": "./dist/storage-backends.d.ts",
+      "default": "./dist/storage-backends.js"
+    },
+    "./storage-backend-runtime": {
+      "types": "./dist/storage-backend-runtime.d.ts",
+      "default": "./dist/storage-backend-runtime.js"
+    },
+    "./task-history-search": {
+      "types": "./dist/task-history-search.d.ts",
+      "default": "./dist/task-history-search.js"
+    },
+    "./ansi": {
+      "types": "./dist/ansi.d.ts",
+      "default": "./dist/ansi.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "dockerode": "5.0.1",
+    "fast-xml-parser": "5.8.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/dockerode": "4.0.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

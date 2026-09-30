@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@meowbert/shared": [
+        "../../../packages/shared/src/index.ts"
+      ],
+      "@meowbert/shared/*": [
+        "../../../packages/shared/src/*"
+      ]
+    },
+    "types": [
+      "vite/client",
+      "node"
+    ],
+    "baseUrl": "./src",
+    "noEmit": true
+  },
+  "include": [
+    "src"
+  ]
+}

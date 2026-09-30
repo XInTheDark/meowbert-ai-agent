@@ -1,0 +1,15 @@
+{
+  "id": "pptx-studio",
+  "name": "PPTX Studio",
+  "description": "Create more polished slide decks, generate detailed SVG visuals, preview/edit existing PPTX files, fill templates, inspect placeholders, and fetch reusable presentation templates.",
+  "hidden": true,
+  "catalogGroup": "documents",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  }
+}

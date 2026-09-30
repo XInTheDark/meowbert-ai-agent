@@ -1,0 +1,91 @@
+{
+  "logLevel": "info",
+  "logFile": "/tmp/deep-ai-search-mcp.log.jsonl",
+  "aiFeaturesEnabled": false,
+  "brave": {
+    "apiKeys": ["${BRAVE_API_KEY}"],
+    "baseUrl": "https://api.search.brave.com/res/v1/web/search",
+    "maxConcurrency": 1,
+    "timeoutMs": 15000,
+    "retry": {
+      "maxRetries": 5,
+      "initialBackoffMs": 1000,
+      "maxBackoffMs": 30000,
+      "respectRetryAfter": true
+    },
+    "defaultParams": {
+      "country": "ALL",
+      "search_lang": "en",
+      "ui_lang": "en-US",
+      "safesearch": "off"
+    }
+  },
+  "llm": {
+    "big": {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "apiKeyEnvVar": "OPENAI_API_KEY",
+      "baseURL": "https://api.openai.com/v1",
+      "headers": {},
+      "name": "openai",
+      "maxRetries": 3,
+      "forceToolCall": true
+    },
+    "small": {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "apiKeyEnvVar": "OPENAI_API_KEY",
+      "baseURL": "https://api.openai.com/v1",
+      "headers": {},
+      "name": "openai",
+      "maxRetries": 3,
+      "forceToolCall": true
+    }
+  },
+  "search": {
+    "defaultBreadth": 4,
+    "returnCountMin": 5,
+    "returnCountMax": 50,
+    "considerCountMax": 200,
+    "maxVariants": 1,
+    "queryVariantMaxLen": 120,
+    "braveResultsPerQueryMax": 20,
+    "smallFilterBatchSize": 50,
+    "smallFilterMaxConcurrency": 4,
+    "scaling": {
+      "exponent": 0.6,
+      "returnCountExponent": 0.5,
+      "resultsPerQueryMin": 10,
+      "considerMultiplier": 1,
+      "maxPerDomainAtMinBreadth": 5,
+      "maxPerDomainAtMaxBreadth": 10,
+      "diversityExponent": 1
+    },
+    "defaultDomainAllowlist": [],
+    "defaultDomainBlocklist": []
+  },
+  "fetch": {
+    "defaultDepth": 4,
+    "defaultSmartMode": true,
+    "defaultAiMode": false,
+    "cacheTtlMs": 3000000,
+    "cacheMaxEntries": 128,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "httpTimeoutMs": 15000,
+    "maxDownloadBytes": 10485760,
+    "enableBrowserFallback": false,
+    "browserNavigationTimeoutMs": 30000,
+    "smallModelContextChars": 100000,
+    "depthScaling": {
+      "minChars": 5000,
+      "maxChars": 200000,
+      "exponent": 1
+    },
+    "smartChunking": {
+      "chunkSizeDivisor": 8,
+      "minChunkChars": 1000,
+      "maxChunkChars": 5000,
+      "overlapRatio": 0.1
+    }
+  }
+}

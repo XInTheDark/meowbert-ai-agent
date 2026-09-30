@@ -1,0 +1,17 @@
+{
+  "id": "html-canvas",
+  "name": "Canvas",
+  "description": "Create interactive visuals, HTML slide decks, and custom page compositions in HTML/CSS. Prefer Word for general documents and Typst for new PDF-only reports; use Canvas when browser output or layout needs call for it.",
+  "catalogGroup": "visuals",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}",
+    "env": {
+      "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright"
+    }
+  }
+}
