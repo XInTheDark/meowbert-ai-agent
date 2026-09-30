@@ -201,3 +201,11 @@ export function findNextSectionStepIndex(steps: OnboardingResolvedStep[], curren
   const nextIndex = steps.findIndex((step, index) => index > currentIndex && step.section !== currentSection);
   return nextIndex === -1 ? steps.length : nextIndex;
 }
+
+// Some step routes redirect deeper on arrival (a project opens its Master conversation), so a nested path can count as arrived.
+export function isOnStepRoute(pathname: string, expectedPath: string, acceptNested: boolean): boolean {
+  if (pathname === expectedPath) {
+    return true;
+  }
+  return acceptNested && pathname.startsWith(`${expectedPath}/`);
+}

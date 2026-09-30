@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ONBOARDING_SECTIONS, findNextSectionStepIndex, getOnboardingResolvedSteps } from "./steps";
+import { ONBOARDING_SECTIONS, findNextSectionStepIndex, getOnboardingResolvedSteps, isOnStepRoute } from "./steps";
 
 describe("onboarding sections", () => {
   const steps = getOnboardingResolvedSteps();
@@ -21,5 +21,17 @@ describe("onboarding sections", () => {
 
   it("reports the end of the tour when skipping the last section", () => {
     expect(findNextSectionStepIndex(steps, steps.length - 1)).toBe(steps.length);
+  });
+});
+
+describe("isOnStepRoute", () => {
+  it("accepts a redirect below the step route only when nested paths are allowed", () => {
+    const projectPath = "/app/w1/projects/p1";
+    const masterPath = `${projectPath}/tasks/t1`;
+
+    expect(isOnStepRoute(projectPath, projectPath, false)).toBe(true);
+    expect(isOnStepRoute(masterPath, projectPath, false)).toBe(false);
+    expect(isOnStepRoute(masterPath, projectPath, true)).toBe(true);
+    expect(isOnStepRoute("/app/w1/projects/p10", projectPath, true)).toBe(false);
   });
 });

@@ -19,7 +19,7 @@ import {
   writeOnboardingProgress
 } from "./storage";
 import { deriveOnboardingDecision } from "./state";
-import { findNextSectionStepIndex, getOnboardingResolvedSteps } from "./steps";
+import { findNextSectionStepIndex, getOnboardingResolvedSteps, isOnStepRoute } from "./steps";
 import { OnboardingChecklist } from "./OnboardingChecklist";
 import { OnboardingStepBody } from "./OnboardingStepBody";
 
@@ -67,6 +67,7 @@ export function OnboardingManager(props: OnboardingManagerProps) {
   const [showResumePrompt, setShowResumePrompt] = useState(false);
   const [joyrideMountNonce, setJoyrideMountNonce] = useState(0);
   const lastTargetNotFoundKeyRef = useRef<string | null>(null);
+  const routedStepIndexRef = useRef<number | null>(null);
 
   const preferredEnvironmentId = useMemo(() => {
     if (props.activeEnvironmentId) {
@@ -251,8 +252,11 @@ export function OnboardingManager(props: OnboardingManagerProps) {
       return;
     }
 
+    // Once this step has routed, accept the page's own redirect instead of bouncing back to the step route.
     const expectedPath = currentStep.route(routeContext);
-    if (location.pathname !== expectedPath) {
+    const acceptNested = routedStepIndexRef.current === currentIndex;
+    routedStepIndexRef.current = currentIndex;
+    if (!isOnStepRoute(location.pathname, expectedPath, acceptNested)) {
       navigate(expectedPath);
     }
   }, [location.pathname, navigate, props.activeWorkspaceId, resolveBlockedStepIndex, routeContext, run, setTutorialStepIndex, stepIndex, steps]);
@@ -380,6 +384,14 @@ export function OnboardingManager(props: OnboardingManagerProps) {
     [hasInProgressTutorial, resumeTutorial, run, startTutorial]
   );
 
+  // Hold the tooltip until the step's page is showing, so it never flashes over the previous page.
+  const activeStep = steps[clampStepIndex(stepIndex, steps.length)];
+  const isActiveStepRouteReady = activeStep
+    ? isOnStepRoute(location.pathname, activeStep.route(routeContext), true)
+    : false;
+  // Only targeted steps need a remount to rebind their target after navigation; centered ones stay mounted.
+  const joyrideKey = activeStep?.targetSelector ? `${location.pathname}:${joyrideMountNonce}` : `centered:${joyrideMountNonce}`;
+
   return (
     <OnboardingContext.Provider value={contextValue}>
       {props.children}
@@ -423,8 +435,8 @@ export function OnboardingManager(props: OnboardingManagerProps) {
       ) : null}
 
       <Joyride
-        key={`${location.pathname}:${joyrideMountNonce}`}
-        run={run}
+        key={joyrideKey}
+        run={run && isActiveStepRouteReady}
         stepIndex={stepIndex}
         continuous
         showSkipButton
