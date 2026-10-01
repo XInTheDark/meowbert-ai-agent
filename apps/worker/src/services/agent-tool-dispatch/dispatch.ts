@@ -6,6 +6,7 @@ import { assertSubagentsFinished } from "../subagents/mail.js";
 import type {
   ResponseCustomToolCall,
   ResponseFunctionToolCall,
+  ResponseInputItem,
   ResponseOutputMessage,
   ResponseOutputItem
 } from "openai/resources/responses/responses";
@@ -490,6 +491,42 @@ function preprocessXmlToolCalls(
   return result;
 }
 
+function hasRecordedToolOutput(item: ResponseOutputItem, state: ToolDispatchState): boolean {
+  return (isApplyPatchCustomToolCallItem(item) && hasCustomToolOutput(state, item.call_id))
+    || (isFunctionCallItem(item) && hasFunctionCallOutput(state, item.call_id))
+    || (isApplyPatchCallItem(item) && hasApplyPatchCallOutput(state, item.call_id));
+}
+
+// Record the whole response before any tool runs, so a parallel batch is replayed as all of its
+// calls followed by all of its outputs. Interleaving each output after its own call splits one
+// assistant turn into several, which session-resuming proxies (e.g. Meridian) cannot match to the
+// turn they returned, and they fall back to re-sending the whole conversation uncached.
+async function recordResponseItems(
+  items: ResponseOutputItem[],
+  ctx: ToolDispatchContext,
+  state: ToolDispatchState
+): Promise<void> {
+  const recorded: ResponseInputItem[] = [];
+  for (const item of items) {
+    if (hasRecordedToolOutput(item, state)) {
+      continue;
+    }
+    const isContextTool = isFunctionCallItem(item) && ctx.contextManagementV2 && isContextManagementV2Tool(item.name);
+    const inputItem = isContextTool
+      ? item as unknown as ResponseInputItem
+      : toContinuityInputItem(item, ctx.compatibilityModes);
+    if (!inputItem) {
+      continue;
+    }
+    state.conversationItems.push(inputItem);
+    state.runPersistedItems.push(inputItem);
+    recorded.push(inputItem);
+  }
+  if (ctx.contextManagementV2 && recorded.length > 0) {
+    await recordContextItems(ctx.contextManagementV2, recorded);
+  }
+}
+
 export async function dispatchResponseOutput(
   outputItems: ResponseOutputItem[],
   ctx: ToolDispatchContext,
@@ -499,6 +536,7 @@ export async function dispatchResponseOutput(
   const effectiveItems = preprocessXmlToolCalls(outputItems, ctx.compatibilityModes ?? []);
 
   await ctx.assertNotCancelled();
+  await recordResponseItems(effectiveItems, ctx, state);
   let sawToolCall = false;
   let sawFunctionToolCall = false;
   let finalResponse: ToolDispatchResult["finalResponse"] = null;
@@ -549,15 +587,6 @@ export async function dispatchResponseOutput(
         }));
       }
       continue;
-    }
-
-    const continuityItem = toContinuityInputItem(outputItem, ctx.compatibilityModes);
-    if (continuityItem) {
-      state.conversationItems.push(continuityItem);
-      state.runPersistedItems.push(continuityItem);
-      if (ctx.contextManagementV2) {
-        await recordContextItems(ctx.contextManagementV2, [continuityItem]);
-      }
     }
 
     if (outputItem.type === "web_search_call") {

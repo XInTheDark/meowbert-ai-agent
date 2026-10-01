@@ -33,7 +33,7 @@ const contextManagementV2: ContextManagementV2State = {
 };
 
 describe("handleContextManagementV2Tool", () => {
-  it("persists context tool activity for the task conversation", async () => {
+  it("persists the context tool output for the task conversation", async () => {
     mocks.mutateContextNote.mockResolvedValue({ path: "notes/continuity.md", updated: true });
     const call = {
       type: "function_call",
@@ -51,13 +51,12 @@ describe("handleContextManagementV2Tool", () => {
 
     await handleContextManagementV2Tool(call, ctx, state);
 
-    expect(state.runPersistedItems).toHaveLength(2);
-    expect(state.runPersistedItems[0]).toBe(call);
-    expect(state.runPersistedItems[1]).toMatchObject({
+    expect(state.runPersistedItems).toHaveLength(1);
+    expect(state.runPersistedItems[0]).toMatchObject({
       type: "function_call_output",
       call_id: "call-1"
     });
-    expect(JSON.parse((state.runPersistedItems[1] as { output: string }).output)).toEqual({
+    expect(JSON.parse((state.runPersistedItems[0] as { output: string }).output)).toEqual({
       updated: true,
       context: "Model request that produced this tool call: 64000 / 256000 tokens (25%)."
     });

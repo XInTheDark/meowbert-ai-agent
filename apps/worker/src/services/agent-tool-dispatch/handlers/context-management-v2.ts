@@ -1,4 +1,4 @@
-import type { ResponseFunctionToolCall, ResponseInputItem } from "openai/resources/responses/responses";
+import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import {
   contextEmptyArgumentsSchema,
   historyListItemsArgumentsSchema,
@@ -61,14 +61,6 @@ function parseArguments(call: ResponseFunctionToolCall): unknown {
   }
 }
 
-async function pushContextItem(ctx: ToolDispatchContext, state: ToolDispatchState, item: ResponseInputItem): Promise<void> {
-  const context = ctx.contextManagementV2;
-  if (!context) throw new Error("Context management V2 is unavailable for this run.");
-  state.conversationItems.push(item);
-  state.runPersistedItems.push(item);
-  await recordContextItems(context, [item]);
-}
-
 async function pushContextOutput(ctx: ToolDispatchContext, state: ToolDispatchState, toolName: string, callId: string, output: unknown): Promise<void> {
   const context = ctx.contextManagementV2;
   if (!context) throw new Error("Context management V2 is unavailable for this run.");
@@ -83,7 +75,6 @@ export async function handleContextManagementV2Tool(
 ): Promise<void> {
   const context = ctx.contextManagementV2;
   if (!context) throw new Error("Context management V2 is unavailable for this run.");
-  await pushContextItem(ctx, state, call as unknown as ResponseInputItem);
   const raw = parseArguments(call);
   let output: unknown;
   switch (call.name) {

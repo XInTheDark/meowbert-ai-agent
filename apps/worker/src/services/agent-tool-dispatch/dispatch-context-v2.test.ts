@@ -20,6 +20,7 @@ vi.mock("./handlers/apply-patch.js", () => ({
   handleApplyPatch: mocks.handleApplyPatch
 }));
 
+import { GET_CONTEXT_REMAINING_TOOL_NAME } from "../agent-tools/index.js";
 import { dispatchResponseOutput } from "./dispatch.js";
 
 const contextManagementV2: ContextManagementV2State = {
@@ -107,5 +108,44 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
         call_id: "ctc_v2_1"
       })
     ]);
+  });
+
+  it("replays a parallel batch as all calls before any output, recording each call once", async () => {
+    mocks.recordContextItems.mockClear();
+    const state: ToolDispatchState = {
+      conversationItems: [],
+      runPersistedItems: [],
+      commandStep: 0
+    };
+    const ctx = {
+      contextManagementV2,
+      compatibilityModes: [],
+      assertNotCancelled: async () => {}
+    } as ToolDispatchContext;
+
+    await dispatchResponseOutput([
+      {
+        type: "message",
+        id: "msg_1",
+        role: "assistant",
+        status: "completed",
+        content: [{ type: "output_text", text: "Checking both.", annotations: [] }]
+      },
+      { type: "function_call", call_id: "call_a", name: GET_CONTEXT_REMAINING_TOOL_NAME, arguments: "{}" },
+      { type: "custom_tool_call", call_id: "call_b", name: "unexpected_custom_tool", input: "{}" }
+    ] as unknown as ResponseOutputItem[], ctx, state);
+
+    const sequence = state.conversationItems.map((item) => {
+      const record = item as { type?: string; role?: string; call_id?: string };
+      return record.call_id ? `${record.type}:${record.call_id}` : `${record.type}:${record.role}`;
+    });
+    expect(sequence).toEqual([
+      "message:assistant",
+      "function_call:call_a",
+      "custom_tool_call:call_b",
+      "function_call_output:call_a",
+      "custom_tool_call_output:call_b"
+    ]);
+    expect(state.runPersistedItems).toEqual(state.conversationItems);
   });
 });
