@@ -555,6 +555,7 @@ async function requestModelTurn(input: {
       allowSwarmFinalReviewTool: availability.allowSwarmFinalReviewTool,
       allowSwarmOutputTool: availability.allowSwarmOutputTool,
       allowScheduleTools: execution.allowScheduleTools,
+      loadedToolGroups: [...execution.loadedToolGroups],
       allowSubtaskTools: execution.allowSubtaskTools,
       allowPdfFileTool: !execution.prepared.runtimeCompatibilityModes.includes("disablePdfFile"),
       newMessageOrganizationEnabled: Boolean(execution.state.dispatchState.organization),
@@ -875,7 +876,8 @@ function buildDispatchContext(execution: AgentExecutionContext): ToolDispatchCon
     isSkillAdmin: execution.prepared.resolvedRunActorIsSuperAdmin,
     activeMcpConnections: execution.prepared.activeMcpConnections,
     activeSkillTools: execution.prepared.activeSkillTools,
-    enableSkillById: execution.prepared.enableSkillById,
+    enableSkillById: execution.enableSkillById,
+    onDemandSkills: execution.onDemandCapabilities,
     appendPromptDelta: (promptDeltaInput) => {
       appendPromptEnvelopeDelta(execution.promptEnvelope, promptDeltaInput);
     },

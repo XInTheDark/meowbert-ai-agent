@@ -6,6 +6,7 @@ import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { SkillManifest, SkillManifestMcpStdio, SkillManifestMcpSse } from "@meowbert/shared";
 import type { DockerSandboxHandle, SandboxAttachedProcess } from "@meowbert/shared/docker-sandbox";
 import type { FunctionTool } from "openai/resources/responses/responses";
+import { compactToolInputSchema } from "./mcp-schema-compaction.js";
 
 export interface McpConnection {
   client: Client;
@@ -363,7 +364,7 @@ export function mcpToolsToFunctionTools(skillId: string, mcpTools: McpToolDefini
     name: skillToolName(skillId, tool.name),
     description: tool.description,
     strict: false,
-    parameters: tool.inputSchema
+    parameters: compactToolInputSchema(tool.inputSchema)
   }));
 }
 

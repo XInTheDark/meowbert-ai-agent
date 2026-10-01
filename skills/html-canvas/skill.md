@@ -12,7 +12,10 @@ The HTML source is the editable source of truth. PNG and PDF files are review an
 
 These are defaults, not conversion requirements. Preserve the user's format choice and useful existing source. The page-oriented rules below apply after choosing Canvas, not to every document request.
 
-{{CANVAS_DESIGN_GUIDANCE}}
+## Design guide
+
+Before you build an artifact or substantially restyle one, read `/app/skills/html-canvas/design-guide.md` in full and follow it. It covers the quality bar, what to settle before building, design principles, and format-specific guidance. Small edits within an existing design can skip it.
+
 ## Working with the user
 
 - Look at what the user gave you before building: files, brand material, screenshots, existing artifacts, code. When adding to an existing design, follow its visual vocabulary (palette, type, density, copy tone, interaction states) rather than introducing your own.

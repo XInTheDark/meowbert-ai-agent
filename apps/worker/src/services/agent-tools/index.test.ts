@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CustomTool, FunctionTool } from "openai/resources/responses/responses";
+import type { FunctionTool } from "openai/resources/responses/responses";
 import {
   APPLY_PATCH_TOOL_NAME,
   SWARM_PAUSE_TOOL_NAME,
@@ -10,6 +10,7 @@ import {
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,
   CREATE_CHANNEL_TOOL_NAME,
   CREATE_INTERACTIVE_CANVAS_TOOL_NAME,
+  EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
   HISTORY_LIST_ITEMS_TOOL_NAME,
@@ -27,6 +28,7 @@ import {
   REFRESH_INBOX_TOOL_NAME,
   RESPONSE_FUNCTION_TOOLS,
   RUN_SHELL_TOOL_NAME,
+  SCHEDULE_TASK_TOOL_NAME,
   SHELL_SESSION_TOOL_NAME,
   shellSessionArgumentsSchema,
   QUERY_TASKS_TOOL_NAME,
@@ -36,6 +38,7 @@ import {
   STOP_TASK_TOOL_NAME,
   SUBMIT_RESPONSE_TOOL_NAME,
   SUBMIT_REVIEW_TOOL_NAME,
+  TASK_SCHEDULING_TOOL_GROUP_ID,
   TASK_TITLE_FUNCTION_TOOL,
   VIEW_TASK_HISTORY_TOOL_NAME,
   VIEW_PDF_FILE_TOOL_NAME,
@@ -547,28 +550,24 @@ describe("buildResponseTools", () => {
     expect(enabled.some((tool) => tool.type === "function" && tool.name === PUSH_LIVE_SYNC_FILE_TOOL_NAME)).toBe(true);
   });
 
-  it("always includes apply_patch as a custom grammar tool", () => {
-    const tools = buildResponseTools(
-      {
-        webSearch: false,
-        memorySearch: false,
-        scheduleTask: false,
-        subtasks: false,
-        computerUse: false,
-        enabledSkills: [],
-        enabledSources: []
-      },
-      []
-    );
+  it("keeps scheduling tools out of the request until their group is loaded", () => {
+    const options = {
+      webSearch: false,
+      memorySearch: false,
+      scheduleTask: true,
+      subtasks: false,
+      computerUse: false,
+      enabledSkills: [],
+      enabledSources: []
+    };
+    const names = (availability: NonNullable<Parameters<typeof buildResponseTools>[2]>) => buildResponseTools(options, [], availability)
+      .flatMap((tool) => tool.type === "function" ? [tool.name] : []);
 
-    expect(tools).toContainEqual(expect.objectContaining<Partial<CustomTool>>({
-      type: "custom",
-      name: APPLY_PATCH_TOOL_NAME,
-      format: expect.objectContaining({
-        type: "grammar",
-        syntax: "lark"
-      })
-    }));
+    expect(names({ allowScheduleTools: true })).not.toContain(SCHEDULE_TASK_TOOL_NAME);
+    expect(names({ allowScheduleTools: true, loadedToolGroups: [TASK_SCHEDULING_TOOL_GROUP_ID] })).toEqual(
+      expect.arrayContaining([SCHEDULE_TASK_TOOL_NAME, EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME])
+    );
+    expect(names({ allowScheduleTools: false, loadedToolGroups: [TASK_SCHEDULING_TOOL_GROUP_ID] })).not.toContain(SCHEDULE_TASK_TOOL_NAME);
   });
 
   it("always includes the explicit artifact-marking tool", () => {

@@ -3,9 +3,9 @@ import { PROJECT_MASTER_TOOL_NAMES } from "./project-master.js";
 import { SUBAGENT_TOOL_NAMES } from "./subagents.js";
 import type { FunctionTool, Tool } from "openai/resources/responses/responses";
 import type { TaskMessageToolOptions } from "../agent/types.js";
+import { isToolGroupLoaded } from "./tool-groups.js";
 import { COMPUTER_LOCAL_SHELL_TOOL_NAME, COMPUTER_RESPONSE_FUNCTION_TOOLS } from "../computer/computer-tools.js";
 import {
-  APPLY_PATCH_TOOL,
   INIT_SANDBOX_TOOL,
   buildSwarmPauseFunctionTool,
   buildUnbudgetedSwarmManageFunctionTool,
@@ -80,6 +80,10 @@ function isToolEnabled(
     }
     return tool.name === NEW_CONTEXT_TOOL_NAME;
   }
+  if (!isToolGroupLoaded(tool.name, availability.loadedToolGroups)) {
+    return false;
+  }
+
   if (
     tool.name === CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME
     || tool.name === CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME
@@ -329,7 +333,6 @@ export function buildResponseTools(
       }),
     ...CONTEXT_V2_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
     ...COMPUTER_RESPONSE_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
-    APPLY_PATCH_TOOL,
     ...skillTools
   ];
 

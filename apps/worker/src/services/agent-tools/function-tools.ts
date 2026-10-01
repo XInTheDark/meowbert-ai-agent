@@ -1340,4 +1340,7 @@ export const WEB_SEARCH_TOOL: Tool = {
   search_context_size: "high"
 } as unknown as Tool;
 
+// Disabled: buildResponseTools no longer offers apply_patch. run_shell already covers file edits, so
+// the tool mostly added schema and guidance tokens to every request. The dispatch handler stays so
+// older task histories with apply_patch calls still replay. Planned for removal along with it.
 export const APPLY_PATCH_TOOL: CustomTool = applyPatchCustomToolDefinition;

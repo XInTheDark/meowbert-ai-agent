@@ -6,6 +6,7 @@ import type { DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import type { TaskMessageToolOptions } from "../agent/types.js";
 import type { McpConnection } from "../agent/mcp-client.js";
+import type { SkillSummary } from "../agent/skill-registry.js";
 import type { TaskLiveSyncFileSummary } from "../agent/live-sync-types.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
 import type { LoadedWorkflowRunContext } from "../task-workflows/service.js";
@@ -52,6 +53,8 @@ export interface ToolDispatchContext {
   activeMcpConnections: Map<string, McpConnection>;
   activeSkillTools: FunctionTool[];
   enableSkillById: (skillId: string) => Promise<{ doc: string | null; toolNames: string[] }>;
+  // Offered without being loaded; list_skills shows them even when the skill is hidden from the catalog.
+  onDemandSkills?: SkillSummary[];
   initializeSandbox?: () => Promise<{ alreadyInitialized: boolean }>;
   appendPromptDelta?: (input: { reason: string; content: string; role?: "developer" | "system" }) => void;
   refreshGitHubToken?: () => Promise<{ ok: boolean; login?: string; expiresAt?: string | null; error?: string }>;

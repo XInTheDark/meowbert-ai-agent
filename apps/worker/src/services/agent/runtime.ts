@@ -90,6 +90,7 @@ import { createNetworkRequestLogger } from "./network-request-event-storage.js";
 import type { TaskLiveSyncFileSummary } from "./live-sync-types.js";
 import { createTaskDebugLogger, isTaskDebugModeEnabled, type TaskDebugLogger } from "../runtime/debug-task-events.js";
 import {
+  GOOGLE_WORKSPACE_SKILL_ID,
   serializeGoogleWorkspaceReferences,
   type GoogleWorkspaceRuntimeReference
 } from "./google-workspace-references.js";
@@ -159,6 +160,8 @@ export interface PreparedAgentRunContext {
   currentLeafMessageId: string | null;
   dispatchState: ToolDispatchState | null;
   runToolOptions: TaskMessageToolOptions;
+  // Skills offered to the agent without loading their tools up front; it enables them on demand.
+  onDemandSkills: string[];
   runShellMaxTimeoutSeconds: number;
   isSubtask: boolean;
   isProjectMaster?: boolean;
@@ -796,7 +799,7 @@ function createSkillEnabler(
           provider: sourceEntry.manifest.source.provider,
           ticketScope: "source_reference_proxy"
         }),
-        ...(skillId === "google-workspace"
+        ...(skillId === GOOGLE_WORKSPACE_SKILL_ID
           ? { GOOGLE_WORKSPACE_REFERENCES_JSON: serializeGoogleWorkspaceReferences(input.googleWorkspaceReferences) }
           : {})
       };
@@ -1108,6 +1111,7 @@ interface PreparedRunResourceInput {
 
 interface PreparedRunResources {
   runToolOptions: TaskMessageToolOptions;
+  onDemandSkills: string[];
   runShellMaxTimeoutSeconds: number;
   isSubtask: boolean;
   skillsRootDir: string | null;
@@ -1128,15 +1132,15 @@ async function resolvePreparedRunTooling(input: PreparedRunResourceInput) {
     listProjectGoogleWorkspaceReferences(project),
     hasTaskGoogleWorkspaceFolders({ ...project, taskId: input.snapshot.task.id })
   ]);
-  if (
-    (googleWorkspaceReferences.length > 0 || hasGoogleWorkspaceFolders)
-    && !runToolOptions.enabledSkills.includes("google-workspace")
-    && isSkillEnabledByConfig(config, "google-workspace")
-  ) {
-    runToolOptions.enabledSkills.push("google-workspace");
-  }
+  // Attached Google files make the Google Workspace skill available, but its large toolset loads
+  // only when the agent enables it.
+  const onDemandSkills = (googleWorkspaceReferences.length > 0 || hasGoogleWorkspaceFolders)
+    && !runToolOptions.enabledSkills.includes(GOOGLE_WORKSPACE_SKILL_ID)
+    && isSkillEnabledByConfig(config, GOOGLE_WORKSPACE_SKILL_ID)
+    ? [GOOGLE_WORKSPACE_SKILL_ID]
+    : [];
   const skillsRootDir = config.skills?.rootDir ?? null;
-  const hasSourceDependentSkill = skillsRootDir !== null && runToolOptions.enabledSkills.some((skillId) => (
+  const hasSourceDependentSkill = skillsRootDir !== null && [...runToolOptions.enabledSkills, ...onDemandSkills].some((skillId) => (
     getSkillEntry(skillsRootDir, skillId)?.manifest.sourceAccess !== undefined
   ));
   await input.debugLogger.log("Resolved run tool options.", {
@@ -1157,6 +1161,7 @@ async function resolvePreparedRunTooling(input: PreparedRunResourceInput) {
     isSubtask: input.snapshot.task.parent_task_id !== null,
     skillsRootDir,
     hasSourceDependentSkill,
+    onDemandSkills,
     googleWorkspaceReferences,
     activeMcpConnections: new Map<string, McpConnection>(),
     activeSkillTools: [] as FunctionTool[]
@@ -1264,6 +1269,7 @@ async function buildPreparedRunResources(input: PreparedRunResourceInput): Promi
   const tooling = await resolvePreparedRunTooling(input);
   const {
     runToolOptions,
+    onDemandSkills,
     runShellMaxTimeoutSeconds,
     isSubtask,
     skillsRootDir,
@@ -1305,6 +1311,7 @@ async function buildPreparedRunResources(input: PreparedRunResourceInput): Promi
 
   return {
     runToolOptions,
+    onDemandSkills,
     runShellMaxTimeoutSeconds,
     isSubtask,
     skillsRootDir,
@@ -1418,6 +1425,7 @@ export async function prepareAgentRunContext(
       currentLeafMessageId: base.snapshot.branch_leaf_message_id,
       dispatchState: null,
       runToolOptions: resources.runToolOptions,
+      onDemandSkills: resources.onDemandSkills,
       runShellMaxTimeoutSeconds: resources.runShellMaxTimeoutSeconds,
       isSubtask: resources.isSubtask,
       isProjectMaster: base.snapshot.task.is_project_master === true

@@ -1,3 +1,5 @@
+export const GOOGLE_WORKSPACE_SKILL_ID = "google-workspace";
+
 export interface GoogleWorkspaceRuntimeReference {
   path: string | null;
   itemId: string;

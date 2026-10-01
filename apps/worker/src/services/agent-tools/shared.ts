@@ -88,6 +88,8 @@ export interface ResponseToolAvailability {
   newMessageOrganizationEnabled?: boolean;
   allowFinalResponse?: boolean;
   allowScheduleTools?: boolean;
+  // On-demand built-in tool groups the agent has loaded this run (see tool-groups.ts).
+  loadedToolGroups?: string[];
   allowSubtaskTools?: boolean;
   allowComputerUse?: boolean;
   allowComputerLocalShell?: boolean;

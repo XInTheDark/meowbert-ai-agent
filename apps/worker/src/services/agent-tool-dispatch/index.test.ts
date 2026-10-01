@@ -2245,6 +2245,34 @@ describe("dispatchResponseOutput", () => {
     expect(outputItem?.type).toBe("function_call_output");
   });
 
+  it("lists on-demand skills that the catalog hides", async () => {
+    vi.mocked(getAvailableSkills).mockReturnValueOnce([
+      { id: "typst", name: "Typst", description: "PDF reports" }
+    ]);
+    const ctx = createBaseContext();
+    ctx.skillsRootDir = "/tmp/skills";
+    ctx.onDemandSkills = [
+      { id: "google-workspace", name: "Google Workspace", description: "Edit attached Google files" },
+      { id: "typst", name: "Typst", description: "PDF reports" }
+    ];
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+
+    await dispatchResponseOutput([{
+      id: "fc_list_skills_on_demand",
+      type: "function_call",
+      name: "list_skills",
+      call_id: "call_list_skills_on_demand",
+      arguments: "{}",
+      status: "completed"
+    }], ctx, state);
+
+    const outputItem = state.conversationItems.find(
+      (item) => item.type === "function_call_output" && item.call_id === "call_list_skills_on_demand"
+    );
+    const output = JSON.parse(outputItem?.type === "function_call_output" ? String(outputItem.output) : "{}");
+    expect(output.skills.map((skill: { id: string }) => skill.id)).toEqual(["typst", "google-workspace"]);
+  });
+
   it("lists admin-gated skills for admin runs", async () => {
     const getAvailableSkillsMock = vi.mocked(getAvailableSkills);
     getAvailableSkillsMock.mockClear();

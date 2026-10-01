@@ -1,14 +1,6 @@
-import { buildCanvasDesignGuidance } from "./design-guidance.js";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
 
-const CANVAS_DESIGN_GUIDANCE_MARKER = "{{CANVAS_DESIGN_GUIDANCE}}";
-
-function buildSkillDocument(skillId: string, doc: string | null): string | null {
-  if (!doc || skillId !== "html-canvas") {
-    return doc;
-  }
-
-  return doc.replace(CANVAS_DESIGN_GUIDANCE_MARKER, buildCanvasDesignGuidance());
-}
+const PROMPT_UPDATE_PREFIX = "[Prompt update] ";
 
 export function buildSkillEnabledPromptDelta(input: {
   skillId: string;
@@ -17,8 +9,7 @@ export function buildSkillEnabledPromptDelta(input: {
   kindLabel?: string;
 }): string {
   const kindLabel = input.kindLabel ?? "Skill";
-  const skillDoc = buildSkillDocument(input.skillId, input.doc);
-  const sections = [`[Prompt update] ${kindLabel} enabled: ${input.skillId}`];
+  const sections = [`${PROMPT_UPDATE_PREFIX}${kindLabel} enabled: ${input.skillId}`];
 
   sections.push("", "New function tools:");
   if (input.toolNames.length > 0) {
@@ -31,9 +22,39 @@ export function buildSkillEnabledPromptDelta(input: {
     sections.push("- none");
   }
 
-  if (skillDoc) {
-    sections.push("", `${kindLabel} guidance:`, skillDoc);
+  if (input.doc) {
+    sections.push("", `${kindLabel} guidance:`, input.doc);
   }
 
   return sections.join("\n");
+}
+
+export function buildOnDemandSkillsPromptDelta(skills: Array<{ id: string; description: string }>): string {
+  return [
+    "These skills are available without being loaded. Call `enable_skill` with the ID before you need its tools:",
+    ...skills.map((skill) => `- \`${skill.id}\`: ${skill.description}`)
+  ].join("\n");
+}
+
+function promptItemText(item: ResponseInputItem): string | null {
+  const record = item as { role?: unknown; content?: unknown };
+  if (record.role !== "system" && record.role !== "developer") return null;
+  if (typeof record.content === "string") return record.content;
+  if (!Array.isArray(record.content)) return null;
+  const first = record.content[0] as { text?: unknown } | undefined;
+  return typeof first?.text === "string" ? first.text : null;
+}
+
+// Skills enabled in earlier runs leave their prompt update in history. Restoring them keeps the tools
+// the conversation says exist, and the tool list (part of the cached prefix) matches the last run.
+export function findSkillsEnabledInHistory(items: ResponseInputItem[]): string[] {
+  const marker = `${PROMPT_UPDATE_PREFIX}Skill enabled: `;
+  const skillIds = new Set<string>();
+  for (const item of items) {
+    const text = promptItemText(item);
+    if (!text?.startsWith(marker)) continue;
+    const skillId = text.slice(marker.length).split("\n", 1)[0].trim();
+    if (skillId.length > 0) skillIds.add(skillId);
+  }
+  return [...skillIds];
 }

@@ -1,7 +1,7 @@
 import { prepareConversationOrganization, conversationOrganizationPrompt } from "./conversation-organization.js";
 import { buildSubagentPrompt } from "../subagents/prompt.js";
 import { buildProjectMasterPrompt } from "../project-master/prompt.js";
-import { getPersistentRuntimeEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID } from "@meowbert/shared";
+import { getPersistentRuntimeEnabled } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
@@ -25,7 +25,8 @@ import {
   ensureRecurringTaskStateFile,
   getTaskScheduleInfo
 } from "../task-schedules/service.js";
-import { buildSkillEnabledPromptDelta } from "./skill-prompt.js";
+import { enableRunCapabilities, resolveOnDemandCapabilities } from "./run-capabilities.js";
+import { TASK_SCHEDULING_TOOL_GROUP_ID, withToolGroups } from "../agent-tools/index.js";
 import { resolveAgentTaskInputDir } from "./task-input-dir.js";
 import {
   buildWorkflowPromptContext,
@@ -314,7 +315,6 @@ function buildRunSystemPrompt(input: {
           }
         : null,
       projectContext: input.projectContextPromptData,
-      canvasDesignGuidanceInSkill: input.prepared.runToolOptions.enabledSkills.includes(WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID),
       interactiveCanvas: interactiveCanvas
         ? {
             id: interactiveCanvas.id,
@@ -342,58 +342,6 @@ function buildQuickModeSystemPrompt(isProjectMaster: boolean): string {
     "Tool results include a `context` string with exact API-reported input-token usage for the model request that produced the tool call. It is one request behind and excludes the current response and tool result.",
     "Images that were attached by the user may already be included in the conversation. Other uploaded files become accessible after `init_sandbox`."
   ].join("\n");
-}
-
-async function autoEnableSelectedCapabilities(
-  prepared: PreparedAgentRunContext,
-  promptEnvelope: ReturnType<typeof createPromptEnvelope>
-): Promise<void> {
-  if (!prepared.skillsRootDir) {
-    return;
-  }
-
-  for (const skillId of prepared.runToolOptions.enabledSkills) {
-    try {
-      const enabledSkill = await prepared.enableSkillById(skillId);
-      appendPromptEnvelopeDelta(promptEnvelope, {
-        reason: "skill_enabled",
-        role: "system",
-        runScoped: true,
-        content: buildSkillEnabledPromptDelta({
-          skillId,
-          doc: enabledSkill.doc,
-          toolNames: enabledSkill.toolNames
-        })
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.startsWith("Skill not found:") && !message.startsWith("Skill disabled in server config:")) {
-        console.warn(`Failed to auto-enable skill ${skillId}: ${message}`);
-      }
-    }
-  }
-
-  for (const sourceId of prepared.runToolOptions.enabledSources) {
-    try {
-      const enabledSource = await prepared.enableSourceById(sourceId);
-      appendPromptEnvelopeDelta(promptEnvelope, {
-        reason: "skill_enabled",
-        role: "system",
-        runScoped: true,
-        content: buildSkillEnabledPromptDelta({
-          skillId: sourceId,
-          doc: enabledSource.doc,
-          toolNames: enabledSource.toolNames,
-          kindLabel: "Source"
-        })
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.startsWith("Source not found:")) {
-        console.warn(`Failed to auto-enable source ${sourceId}: ${message}`);
-      }
-    }
-  }
 }
 
 export async function initializeAgentExecution(
@@ -438,6 +386,13 @@ export async function initializeAgentExecution(
   });
   const runControl = createRunControl(job, prepared, scheduleInfo);
   const allowScheduleTools = prepared.snapshot.task.is_thread !== true && prepared.runToolOptions.scheduleTask === true;
+  // A task that already has a schedule keeps its scheduling tools loaded; others load them on demand.
+  const loadedToolGroups = new Set<string>(allowScheduleTools && scheduleInfo !== null ? [TASK_SCHEDULING_TOOL_GROUP_ID] : []);
+  const onDemandCapabilities = resolveOnDemandCapabilities(
+    prepared,
+    allowScheduleTools && scheduleInfo === null ? [TASK_SCHEDULING_TOOL_GROUP_ID] : []
+  );
+  const enableSkillById = withToolGroups(prepared.enableSkillById, allowScheduleTools ? [TASK_SCHEDULING_TOOL_GROUP_ID] : [], loadedToolGroups);
   const allowSubtaskTools = prepared.snapshot.task.is_thread !== true && prepared.runToolOptions.subtasks === true;
   const allowStopTask = shouldExposeStopTaskForRecurringRun({
     hasSchedule: scheduleInfo !== null,
@@ -555,7 +510,7 @@ export async function initializeAgentExecution(
       stage: "init.auto_enable",
       startMessage: "Auto-enabling selected skills and sources.",
       successMessage: "Auto-enabled selected skills and sources.",
-      run: () => autoEnableSelectedCapabilities(prepared, promptEnvelope),
+      run: () => enableRunCapabilities({ prepared, promptEnvelope, enableSkillById, onDemandCapabilities, conversationItems }),
       successPayload: {
         enabledSkillCount: prepared.runToolOptions.enabledSkills.length,
         enabledSourceCount: prepared.runToolOptions.enabledSources.length
@@ -619,7 +574,13 @@ export async function initializeAgentExecution(
           fullSystemPrompt
         ].join("\n\n")
       });
-      await autoEnableSelectedCapabilities(prepared, promptEnvelope);
+      await enableRunCapabilities({
+        prepared,
+        promptEnvelope,
+        enableSkillById,
+        onDemandCapabilities,
+        conversationItems: state.dispatchState.conversationItems
+      });
       activeSystemPrompt = fullSystemPrompt;
       if (executionContext) {
         executionContext.systemPrompt = activeSystemPrompt;
@@ -644,6 +605,9 @@ export async function initializeAgentExecution(
     taskInputDir,
     scheduleInfo,
     allowScheduleTools,
+    loadedToolGroups,
+    enableSkillById,
+    onDemandCapabilities,
     allowSubtaskTools,
     allowStopTask,
     maxRunSteps,

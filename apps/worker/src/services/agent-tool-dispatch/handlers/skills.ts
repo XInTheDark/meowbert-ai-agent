@@ -49,11 +49,13 @@ export async function handleListSkills(
     inputLabel: "Action",
     inputText: "List available skills"
   });
-  const skills = ctx.skillsRootDir
+  const catalog = ctx.skillsRootDir
     ? getAvailableSkills(ctx.skillsRootDir, ctx.isSkillAdmin, {
         isSkillEnabled: (manifest) => isSkillEnabledByConfig(config, manifest.id)
       })
     : [];
+  const onDemand = (ctx.onDemandSkills ?? []).filter((skill) => !catalog.some((entry) => entry.id === skill.id));
+  const skills = [...catalog, ...onDemand];
   const output = {
     skills,
     enabled: Array.from(ctx.activeMcpConnections.keys())

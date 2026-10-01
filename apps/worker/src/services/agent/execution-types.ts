@@ -5,6 +5,7 @@ import type { getTaskScheduleInfo } from "../task-schedules/service.js";
 import type { LoadedWorkflowRunContext, WorkflowPromptContext } from "../task-workflows/service.js";
 import type { PreparedAgentRunContext } from "./runtime.js";
 import type { TaskDebugLogger } from "../runtime/debug-task-events.js";
+import type { SkillSummary } from "./skill-registry.js";
 import type { ContextManagementState } from "../context-management-v2/index.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 
@@ -79,6 +80,11 @@ export interface AgentExecutionContext {
   taskInputDir: string;
   scheduleInfo: AgentScheduleInfo;
   allowScheduleTools: boolean;
+  loadedToolGroups: Set<string>;
+  // enable_skill entry point: skills, plus the built-in tool groups this run may load.
+  enableSkillById: (skillId: string) => Promise<{ doc: string | null; toolNames: string[] }>;
+  // Skills and tool groups offered without being loaded (hidden ones included), for list_skills.
+  onDemandCapabilities: SkillSummary[];
   allowSubtaskTools: boolean;
   allowStopTask: boolean;
   maxRunSteps: number;
