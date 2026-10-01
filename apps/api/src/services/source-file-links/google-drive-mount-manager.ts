@@ -104,8 +104,10 @@ export async function acquireGoogleDriveFolderMount(input: {
       provider: "google-drive"
     }));
     const mountPoint = path.resolve(input.mountPoint);
-    await fs.mkdir(mountPoint, { recursive: true });
+    // A mount left behind by a previous API process (e.g. after a restart) is dead and makes any
+    // stat of the path fail with ENOTCONN, so detach it before touching the directory.
     await lazyUnmount(mountPoint);
+    await fs.mkdir(mountPoint, { recursive: true });
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), "meowbert-google-drive-"));
     const configPath = path.join(configDir, "rclone.conf");
     let child: ChildProcess;
