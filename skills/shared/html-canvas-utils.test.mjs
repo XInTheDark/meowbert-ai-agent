@@ -64,6 +64,7 @@ function createFakePage() {
 const launchMock = vi.fn(async () => ({
   async newContext() {
     return {
+      async addInitScript() {},
       async newPage() {
         return createFakePage();
       },
@@ -89,7 +90,12 @@ vi.mock("./playwright-browser-utils.mjs", () => ({
   }
 }));
 
-const { renderHtmlCanvasDocument, createInlineHtmlArtifact, createInlineFileArtifact } = await import("./html-canvas-utils.mjs");
+const {
+  renderHtmlCanvasDocument,
+  createInlineHtmlArtifact,
+  createInlineFileArtifact,
+  scaffoldHtmlCanvasTemplate
+} = await import("./html-canvas-utils.mjs");
 
 async function createTempDir(prefix) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
@@ -237,5 +243,29 @@ describe("inline artifact paths", () => {
     await expect(createInlineHtmlArtifact({
       html: "<p>Outside</p>", outputPath: `${taskDir}-other/preview.html`
     })).rejects.toThrow("must stay inside the current task directory");
+  });
+});
+
+describe("scaffoldHtmlCanvasTemplate", () => {
+  it("copies the deck component beside a scaffolded slide deck", async () => {
+    const taskDir = await createTempDir("meowbert-deck-scaffold-");
+    const outputPath = path.join(taskDir, "deck", "pitch.html");
+    await scaffoldHtmlCanvasTemplate({ template: "slide-deck", outputPath, title: "Pitch" });
+
+    const html = await fs.readFile(outputPath, "utf-8");
+    const scriptSource = /<script src="\.\/([^"]+)"/.exec(html)?.[1];
+    expect(scriptSource).toBeTruthy();
+    await expect(fs.stat(path.join(taskDir, "deck", scriptSource))).resolves.toBeTruthy();
+  });
+
+  it("lets an existing multi-page HTML entry be shown inline", async () => {
+    const taskDir = await createTempDir("meowbert-inline-html-");
+    vi.stubEnv("MEOWBERT_TASK_DIR", taskDir);
+    const inputPath = path.join(taskDir, "site", "index.html");
+    await fs.mkdir(path.dirname(inputPath), { recursive: true });
+    await fs.writeFile(inputPath, "<a href=\"about.html\">About</a>");
+
+    const result = await createInlineFileArtifact({ inputPath, type: "html" });
+    expect(result.inline_artifact).toMatchObject({ type: "html", relative_path: "site/index.html" });
   });
 });

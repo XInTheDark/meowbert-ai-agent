@@ -5,6 +5,10 @@ import { API_CACHE_TTLS } from "../../../lib/api-cache";
 import { fetchTaskInlineFileTicket } from "../../../lib/taskInlineFiles";
 import type { ProjectCanvasSummary, TaskArtifact, TaskArtifactsResponse, TaskDetail } from "../../../lib/types";
 
+// Inline artifact tickets last 8 hours on the server; renew before then so
+// artifacts that arrive late in a long session still load.
+const INLINE_FILE_TICKET_RENEW_MS = 7 * 60 * 60 * 1000;
+
 type UseTaskDetailDataOptions = {
   api: ApiClient;
   token: string | null;
@@ -26,6 +30,7 @@ export function useTaskDetailData(options: UseTaskDetailDataOptions) {
   const [artifacts, setArtifacts] = useState<TaskArtifact[]>([]);
   const [artifactCanvases, setArtifactCanvases] = useState<ProjectCanvasSummary[]>([]);
   const [inlineFileTicket, setInlineFileTicket] = useState<string | null>(null);
+  const [inlineFileTicketRenewal, setInlineFileTicketRenewal] = useState(0);
   const [activeLeafMessageId, setActiveLeafMessageId] = useState<string | null>(null);
   const activeTaskIdRef = useRef(taskId);
   const previousTaskStatusRef = useRef<string | null>(null);
@@ -179,6 +184,14 @@ export function useTaskDetailData(options: UseTaskDetailDataOptions) {
         console.error(err);
         setInlineFileTicket(null);
       });
+  }, [inlineFileTicketRenewal, taskId, token]);
+
+  useEffect(() => {
+    if (!taskId || !token) {
+      return;
+    }
+    const timer = window.setInterval(() => setInlineFileTicketRenewal((value) => value + 1), INLINE_FILE_TICKET_RENEW_MS);
+    return () => window.clearInterval(timer);
   }, [taskId, token]);
 
   useEffect(() => {

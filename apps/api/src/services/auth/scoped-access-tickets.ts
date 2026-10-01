@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 
 const SCOPED_ACCESS_TICKET_TTL_SECONDS = 60;
+// Preview tickets live in iframe URLs: every link, asset, and later fetch inside a
+// multi-page artifact reuses the ticket, so it must outlast a normal viewing session.
+const PREVIEW_TICKET_TTL_SECONDS = 8 * 60 * 60;
 
 export type ScopedAccessTicketScope =
   | "task_events_stream"
@@ -41,8 +44,10 @@ export class ScopedAccessTicketError extends Error {
   }
 }
 
-function buildExpiresAt(): string {
-  return new Date(Date.now() + (SCOPED_ACCESS_TICKET_TTL_SECONDS * 1000)).toISOString();
+export function getScopedAccessTicketTtlSeconds(scope: ScopedAccessTicketScope): number {
+  return scope === "task_inline_file_view" || scope === "project_canvas_preview"
+    ? PREVIEW_TICKET_TTL_SECONDS
+    : SCOPED_ACCESS_TICKET_TTL_SECONDS;
 }
 
 function assertScopedAccessTicketPayload(payload: unknown): ScopedAccessTicketPayload {
@@ -89,7 +94,8 @@ export async function issueScopedAccessTicket(
     sourceId?: string | null;
   }
 ): Promise<ScopedAccessTicket> {
-  const expiresAt = buildExpiresAt();
+  const ttlSeconds = getScopedAccessTicketTtlSeconds(input.scope);
+  const expiresAt = new Date(Date.now() + (ttlSeconds * 1000)).toISOString();
   const signTicket = app.jwt.sign as unknown as (
     payload: ScopedAccessTicketPayload,
     options?: { expiresIn?: number }
@@ -106,7 +112,7 @@ export async function issueScopedAccessTicket(
       jti: randomUUID()
     },
     {
-      expiresIn: SCOPED_ACCESS_TICKET_TTL_SECONDS
+      expiresIn: ttlSeconds
     }
   );
 

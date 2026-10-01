@@ -4,169 +4,52 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{TITLE}}</title>
+    <script src="./meowbert-deck.js"></script>
     <style>
       :root {
-        color-scheme: light;
-        --bg: #f5f1e8;
-        --paper: #fffaf0;
-        --ink: #1f2933;
-        --muted: #52606d;
-        --accent: #b04a2f;
-        --accent-soft: #f3d8cf;
-      }
-
-      * {
-        box-sizing: border-box;
+        --paper: #f7f6f2;
+        --ink: #1b1c1e;
+        --muted: #5d6066;
+        --accent: oklch(0.55 0.13 250);
+        --margin: 120px;
       }
 
       body {
         margin: 0;
         font-family: "Liberation Sans", "Noto Sans", sans-serif;
-        background:
-          radial-gradient(circle at top left, rgba(176, 74, 47, 0.16), transparent 28%),
-          linear-gradient(180deg, #e8dfd1 0%, #f6f2ea 100%);
         color: var(--ink);
+        text-wrap: pretty;
       }
 
-      main {
-        display: grid;
-        gap: 28px;
-        justify-content: center;
-        padding: 32px;
-      }
+      a { color: var(--accent); }
+      a:hover { color: var(--ink); }
 
       .slide {
-        position: relative;
-        width: 1600px;
-        height: 900px;
-        overflow: hidden;
-        border: 1px solid rgba(31, 41, 51, 0.08);
-        border-radius: 28px;
-        background:
-          radial-gradient(circle at top right, rgba(176, 74, 47, 0.16), transparent 30%),
-          linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 250, 240, 0.96)),
-          var(--paper);
-        box-shadow: 0 32px 90px rgba(31, 41, 51, 0.14);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 32px;
+        padding: var(--margin);
+        background: var(--paper);
       }
 
-      .slide::before {
-        content: "";
-        position: absolute;
-        inset: 22px;
-        border: 1px solid rgba(176, 74, 47, 0.15);
-        border-radius: 22px;
-        pointer-events: none;
-      }
-
-      .slide__content {
-        position: relative;
-        z-index: 1;
-        display: grid;
-        grid-template-columns: 1.1fr 0.9fr;
-        gap: 40px;
-        height: 100%;
-        padding: 72px;
-      }
-
-      .eyebrow {
-        margin: 0 0 20px;
-        font-size: 20px;
-        font-weight: 700;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--accent);
-      }
-
-      h1,
-      h2 {
-        margin: 0 0 18px;
-        line-height: 0.94;
-        font-family: "Liberation Serif", Georgia, serif;
-      }
-
-      h1 {
-        font-size: 90px;
-      }
-
-      h2 {
-        font-size: 64px;
-      }
-
-      p {
-        margin: 0;
-        font-size: 30px;
-        line-height: 1.45;
-        color: var(--muted);
-      }
-
-      ul {
-        margin: 28px 0 0;
-        padding: 0 0 0 28px;
-        display: grid;
-        gap: 14px;
-        font-size: 29px;
-        line-height: 1.35;
-      }
-
-      .panel {
-        align-self: stretch;
-        display: grid;
-        gap: 20px;
-        padding: 28px;
-        border-radius: 24px;
-        background: rgba(255, 255, 255, 0.72);
-        border: 1px solid rgba(82, 96, 109, 0.12);
-      }
-
-      .metric {
-        padding: 18px 20px;
-        border-radius: 18px;
-        background: var(--accent-soft);
-      }
-
-      .metric strong {
-        display: block;
-        font-size: 44px;
-      }
-
-      .metric span {
-        display: block;
-        margin-top: 6px;
-        font-size: 22px;
-        color: var(--muted);
-      }
-
-      @page {
-        size: 13.333in 7.5in;
-        margin: 0;
-      }
+      h1, h2, p { margin: 0; }
+      h1 { font-size: 112px; line-height: 1; letter-spacing: -0.02em; }
+      h2 { font-size: 72px; line-height: 1.05; }
+      p { max-width: 28ch; font-size: 40px; line-height: 1.35; color: var(--muted); }
     </style>
   </head>
   <body>
-    <main>
-      <section class="slide" data-meowbert-page>
-        <div class="slide__content">
-          <div>
-            <p class="eyebrow">Story arc</p>
-            <h1>{{TITLE}}</h1>
-            <p>{{SUBTITLE}}</p>
-          </div>
-          <aside class="panel">
-            <div class="metric">
-              <strong>84%</strong>
-              <span>Demo metric</span>
-            </div>
-            <div class="metric">
-              <strong>Next</strong>
-              <span>Duplicate this file for each new slide.</span>
-            </div>
-          </aside>
-        </div>
+    <!-- One <section data-meowbert-page> per slide. Each is 1920x1080; the deck scales it on screen. -->
+    <meowbert-deck width="1920" height="1080">
+      <section class="slide" data-meowbert-page data-label="Title" data-notes="">
+        <h1>{{TITLE}}</h1>
+        <p>{{SUBTITLE}}</p>
       </section>
-    </main>
 
-    <script>
-      window.__MEOWBERT_READY__ = true;
-    </script>
+      <section class="slide" data-meowbert-page data-label="Section" data-notes="">
+        <h2>Section heading</h2>
+      </section>
+    </meowbert-deck>
   </body>
 </html>

@@ -271,6 +271,7 @@ export async function registerEnvironmentCanvasRoutes(fastify: FastifyInstance):
       reply.header("Content-Length", String(file.sizeBytes));
       reply.header("Cache-Control", "private, max-age=60");
       reply.header("X-Content-Type-Options", "nosniff");
+      reply.header("Referrer-Policy", "no-referrer");
       return reply.send(fs.createReadStream(file.absolutePath));
     }
   );

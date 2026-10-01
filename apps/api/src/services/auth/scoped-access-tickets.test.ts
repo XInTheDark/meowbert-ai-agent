@@ -99,4 +99,17 @@ describe("scoped access tickets", () => {
       })
     ).rejects.toBeInstanceOf(ScopedAccessTicketError);
   });
+
+  it("keeps preview tickets valid long enough to navigate multi-page artifacts", async () => {
+    const app = await createApp();
+    const lifetimeSeconds = async (scope: "task_events_stream" | "task_inline_file_view" | "project_canvas_preview") => {
+      const issued = await issueScopedAccessTicket(app, { scope, userId: "user-1", taskId: "task-1" });
+      const decoded = app.jwt.decode<{ iat: number; exp: number }>(issued.ticket);
+      return decoded ? decoded.exp - decoded.iat : 0;
+    };
+
+    expect(await lifetimeSeconds("task_events_stream")).toBe(60);
+    expect(await lifetimeSeconds("task_inline_file_view")).toBeGreaterThanOrEqual(60 * 60);
+    expect(await lifetimeSeconds("project_canvas_preview")).toBeGreaterThanOrEqual(60 * 60);
+  });
 });

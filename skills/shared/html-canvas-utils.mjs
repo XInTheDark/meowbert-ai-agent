@@ -14,6 +14,11 @@ const TEMPLATE_FILES = {
   "report-pages": "report-pages.html"
 };
 
+// Files a template loads by relative path; scaffold copies them beside the output.
+const TEMPLATE_COMPANION_FILES = {
+  "slide-deck": ["meowbert-deck.js"]
+};
+
 function applyViewportOrientation(viewport, orientation = null) {
   if (orientation !== "portrait" && orientation !== "landscape") {
     return viewport;
@@ -613,20 +618,28 @@ export async function scaffoldHtmlCanvasTemplate({
   }
 
   const sharedDir = path.dirname(fileURLToPath(import.meta.url));
-  const templatePath = path.resolve(sharedDir, "../html-canvas/assets/templates", fileName);
+  const templateDir = path.resolve(sharedDir, "../html-canvas/assets/templates");
   const absoluteOutputPath = resolveUserPath(outputPath);
-  const templateContents = await fs.readFile(templatePath, "utf-8");
+  const outputDir = path.dirname(absoluteOutputPath);
+  const templateContents = await fs.readFile(path.join(templateDir, fileName), "utf-8");
   const rendered = templateContents
     .replaceAll("{{TITLE}}", title ?? "Canvas document")
     .replaceAll("{{SUBTITLE}}", subtitle ?? "Generated with html-canvas");
 
-  await fs.mkdir(path.dirname(absoluteOutputPath), { recursive: true });
+  await fs.mkdir(outputDir, { recursive: true });
   await fs.writeFile(absoluteOutputPath, rendered, "utf-8");
+  const companionPaths = [];
+  for (const companionFile of TEMPLATE_COMPANION_FILES[template] ?? []) {
+    const companionPath = path.join(outputDir, companionFile);
+    await fs.copyFile(path.join(templateDir, companionFile), companionPath);
+    companionPaths.push(companionPath);
+  }
 
   return {
     ok: true,
     template,
-    output_path: absoluteOutputPath
+    output_path: absoluteOutputPath,
+    companion_paths: companionPaths
   };
 }
 
@@ -670,8 +683,8 @@ export async function createInlineFileArtifact({
   width = null,
   height = null
 }) {
-  if (!["image", "mermaid"].includes(type)) {
-    throw new Error("Inline file artifact type must be image or mermaid.");
+  if (!["html", "image", "mermaid"].includes(type)) {
+    throw new Error("Inline file artifact type must be html, image, or mermaid.");
   }
 
   const absoluteInputPath = resolveUserPath(inputPath);
@@ -735,6 +748,10 @@ export async function renderHtmlCanvasDocument({
     await fs.mkdir(previewDir, { recursive: true });
 
     const context = await browser.newContext({ viewport });
+    // Lets page components such as <meowbert-deck> lay out every page for capture.
+    await context.addInitScript(() => {
+      window.__MEOWBERT_RENDER__ = true;
+    });
     const previewItems = [];
     const sourceFiles = [];
 

@@ -28,7 +28,7 @@ const server = new McpServer({
 
 server.tool(
   "html_canvas_scaffold",
-  "Copy a bundled HTML canvas template into the workspace for further editing.",
+  "Copy a bundled starter into the workspace. `slide-deck` is a single-file deck built on <meowbert-deck> (copies meowbert-deck.js beside it); `report-pages` has explicit A4 page wrappers.",
   {
     template: z.enum(["slide-deck", "report-pages"]).describe("Starter template to copy."),
     output_path: z
@@ -54,7 +54,7 @@ server.tool(
 
 server.tool(
   "html_canvas_render",
-  "Render an HTML document, or a directory of HTML files, to preview PNGs, a preview index, and an optional PDF using bundled Playwright Chromium. For slide decks, prefer a directory with one HTML file per slide/page. The result includes page-fit and overflow diagnostics so clipping is visible to the agent.",
+  "Render an HTML document, or a directory of HTML files, to preview PNGs, a preview index, and an optional PDF using bundled Playwright Chromium. A single file captures each [data-meowbert-page] element as one page (including <meowbert-deck> slides); a directory captures each HTML file as one page. The result includes page-fit and overflow diagnostics so clipping is visible to the agent.",
   {
     input_path: z
       .string()
@@ -165,10 +165,10 @@ server.tool(
 
 server.tool(
   "html_canvas_inline_file_artifact",
-  "Display an existing task-local image or Mermaid file inline in the task conversation.",
+  "Display an existing task-local HTML, image, or Mermaid file inline in the task conversation. For HTML, relative links and assets beside the file load too, so multi-page sites and decks work.",
   {
-    input_path: z.string().min(1).describe("Existing image or Mermaid file inside the current task directory."),
-    type: z.enum(["image", "mermaid"]).describe("Inline artifact renderer to use."),
+    input_path: z.string().min(1).describe("Existing HTML, image, or Mermaid file inside the current task directory."),
+    type: z.enum(["html", "image", "mermaid"]).describe("Inline artifact renderer to use."),
     title: z.string().min(1).nullable().optional().describe("Optional title shown above the inline artifact."),
     description: z.string().min(1).nullable().optional().describe("Optional short caption shown above the inline artifact."),
     width: z.number().int().min(320).max(2000).nullable().optional().describe("Optional default inline preview width in pixels."),
