@@ -14,6 +14,8 @@ Then open `http://localhost:8080`.
 
 Upload the contents of this folder to any static host (GitHub Pages, Cloudflare Pages, Netlify, an S3 bucket, nginx). There is nothing to build.
 
+For Cloudflare Workers, `wrangler.jsonc` serves this folder as static assets. Set the Workers Builds root directory to `promo-website` with no build command, so the build doesn't install the whole monorepo. To deploy by hand, run `npx wrangler deploy` from this folder.
+
 ## Layout
 
 | Path | What it is |

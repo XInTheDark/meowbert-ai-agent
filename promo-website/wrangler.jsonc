@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "meowbert-ai-agent",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "."
+  }
+}
