@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Link } from "react-router-dom";
 import {
   Activity,
   Bell,
@@ -30,7 +29,6 @@ import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
 
 interface TaskDetailTopbarProps {
   task: TaskDetail["task"];
-  allTasksHref?: string;
   displayStatus?: string;
   subtasks: NonNullable<TaskDetail["subtasks"]>;
   isTaskRunning: boolean;
@@ -704,9 +702,6 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
             </div>
           </div>
           <div className="task-topbar-controls">
-            {props.allTasksHref ? (
-              <Link to={props.allTasksHref} className="btn ghost task-topbar-all-tasks">All tasks</Link>
-            ) : null}
             <TaskDetailDisplaySettingsDropdown
               newMessageOrganizationEnabled={props.newMessageOrganizationEnabled}
               value={props.messageDisplayPreferences}

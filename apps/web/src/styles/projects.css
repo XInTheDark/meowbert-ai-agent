@@ -1218,9 +1218,33 @@
 }
 
 .project-master-header {
-  display: grid;
-  gap: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   flex: 0 0 auto;
+  min-width: 0;
+}
+
+.project-master-header .task-toolbar-left {
+  min-width: 0;
+}
+
+/* Enter submits; a second primary button next to New Task would compete for attention. */
+.project-master-header .task-search-submit {
+  display: none;
+}
+
+.project-master-new-task {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .project-master-new-task span {
+    display: none;
+  }
 }
 
 .project-master-conversation {

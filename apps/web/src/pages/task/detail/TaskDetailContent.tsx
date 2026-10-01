@@ -38,9 +38,6 @@ function TaskTopbar({ model }: ModelProps) {
   return (
     <TaskDetailTopbar
       task={task}
-      allTasksHref={task.is_project_master && model.context.taskWorkspaceId && model.context.taskProjectId
-        ? `/app/${model.context.taskWorkspaceId}/projects/${model.context.taskProjectId}/tasks`
-        : undefined}
       displayStatus={displayStatus}
       persistentShellCount={model.persistentShells.items.length}
       subtasks={taskDetail.subtasks ?? []}

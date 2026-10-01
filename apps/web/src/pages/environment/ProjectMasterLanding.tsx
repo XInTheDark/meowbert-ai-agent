@@ -1,11 +1,11 @@
 import { useState } from "react";
+import { ListTodo, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { TaskSearchInputBar } from "../../components/search/TaskSearchInputBar";
 import type { Project } from "../../lib/types";
-import { badgeClass } from "../../lib/utils";
 import { TaskDetailPage } from "../task/TaskDetailPage";
 
-// A project's landing page: the task header and search stay put while the Master conversation fills the rest.
+// A project's landing page: one compact search/actions row stays put while the Master conversation fills the rest.
 export function ProjectMasterLanding(props: { workspaceId: string; project: Project | null; masterTaskId: string | null }) {
   const { workspaceId, project, masterTaskId } = props;
   const navigate = useNavigate();
@@ -15,33 +15,23 @@ export function ProjectMasterLanding(props: { workspaceId: string; project: Proj
   return (
     <section className="project-master-landing">
       {project ? (
-        <div className="project-master-header task-command-panel">
-          <div className="project-command-header">
-            <div className="project-command-title">
-              <h2>Tasks</h2>
-              <div className="project-card-meta">
-                <span className={badgeClass(project.status)}>{project.status}</span>
-                <span className="project-command-path" title={project.root_path ?? "path pending"}>
-                  {project.root_path ?? "path pending"}
-                </span>
-              </div>
-            </div>
-            <div className="workbench-actions">
-              <button className="btn ghost" onClick={() => navigate(`${base}/tasks`)}>All tasks</button>
-              <button className="btn primary" onClick={() => navigate(`${base}/tasks/new`)}>New Task</button>
-            </div>
-          </div>
-          <div className="task-toolbar">
-            <TaskSearchInputBar
-              value={searchDraft}
-              onChange={setSearchDraft}
-              onSubmit={() => {
-                const query = searchDraft.trim();
-                navigate(query ? `${base}/tasks?q=${encodeURIComponent(query)}` : `${base}/tasks`);
-              }}
-              placeholder="Search tasks and conversation history..."
-            />
-          </div>
+        <div className="project-master-header">
+          <TaskSearchInputBar
+            value={searchDraft}
+            onChange={setSearchDraft}
+            onSubmit={() => {
+              const query = searchDraft.trim();
+              navigate(query ? `${base}/tasks?q=${encodeURIComponent(query)}` : `${base}/tasks`);
+            }}
+            placeholder="Search tasks and conversation history..."
+          />
+          <button className="btn ghost icon-btn" onClick={() => navigate(`${base}/tasks`)} title="All tasks" aria-label="All tasks">
+            <ListTodo size={16} />
+          </button>
+          <button className="btn primary project-master-new-task" onClick={() => navigate(`${base}/tasks/new`)}>
+            <Plus size={16} />
+            <span>New Task</span>
+          </button>
         </div>
       ) : null}
       <div className="project-master-conversation">
