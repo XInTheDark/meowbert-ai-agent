@@ -13,9 +13,9 @@ import {
 } from "./projectOverviewTypes";
 import { buildTaskListPath, createEmptyTaskListPagination } from "./projectOverviewUtils";
 
-function useProjectTaskFilters(activeProjectId: string | null | undefined) {
-  const [searchDraft, setSearchDraft] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
+function useProjectTaskFilters(activeProjectId: string | null | undefined, initialSearch: string) {
+  const [searchDraft, setSearchDraft] = useState(initialSearch);
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>([]);
   const [taskTypeFilter, setTaskTypeFilter] = useState<TaskTypeFilter>([]);
   const [scopeFilter, setScopeFilter] = useState<TaskScopeFilter>("active");
@@ -27,8 +27,8 @@ function useProjectTaskFilters(activeProjectId: string | null | undefined) {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   useEffect(() => {
-    setSearchDraft("");
-    setSearchTerm("");
+    setSearchDraft(initialSearch);
+    setSearchTerm(initialSearch);
     setStatusFilter([]);
     setTaskTypeFilter([]);
     setScopeFilter("active");
@@ -38,7 +38,7 @@ function useProjectTaskFilters(activeProjectId: string | null | undefined) {
     setIncludePreview(true);
     setPage(1);
     setPageSize(DEFAULT_PAGE_SIZE);
-  }, [activeProjectId]);
+  }, [activeProjectId, initialSearch]);
 
   function submitTaskSearch(): void {
     setSearchTerm(searchDraft.trim());
@@ -160,8 +160,8 @@ function useProjectTaskListData(
   return { tasks, pagination, isLoading, hasLoadedTaskList, loadError, setLoadError, setHasLoadedTaskList };
 }
 
-export function useProjectTaskList(api: ApiClient, activeProjectId: string | null | undefined) {
-  const filters = useProjectTaskFilters(activeProjectId);
+export function useProjectTaskList(api: ApiClient, activeProjectId: string | null | undefined, initialSearch = "") {
+  const filters = useProjectTaskFilters(activeProjectId, initialSearch);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const data = useProjectTaskListData(api, activeProjectId, filters, refreshNonce);
 

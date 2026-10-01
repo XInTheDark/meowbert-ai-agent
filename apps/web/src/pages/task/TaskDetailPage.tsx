@@ -57,16 +57,16 @@ function LoadedTaskDetail({ context }: { context: TaskDetailPageContext }) {
   return <TaskDetailContent model={model} />;
 }
 
-export function TaskDetailPage() {
-  const context = useTaskDetailPageContext();
+export function TaskDetailPage(props: { taskId?: string; embedded?: boolean }) {
+  const context = useTaskDetailPageContext(props.taskId);
   if (context.data.isTaskLoading && !context.data.taskDetail) {
-    return <LoadingScreen label="Loading task..." />;
+    return props.embedded ? null : <LoadingScreen label="Loading task..." />;
   }
   if (context.data.taskLoadError && !context.data.taskDetail) {
     return <TaskLoadFailure context={context} />;
   }
   if (!context.data.taskDetail) {
-    return <LoadingScreen label="Loading task..." />;
+    return props.embedded ? null : <LoadingScreen label="Loading task..." />;
   }
   if (!context.taskProjectId) {
     return <MissingProjectContext />;

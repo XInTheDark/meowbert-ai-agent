@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
 import { useAppRuntime } from "../../contexts/AppRuntimeContext";
 import { useProjectTaskActions } from "./overview/useProjectTaskActions";
@@ -16,12 +16,13 @@ export function ProjectOverviewPage() {
   const projects = workspaceApp.projects ?? workspaceApp.environments;
   const { publicServerConfig } = useAppRuntime();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const env = projects.find((project) => project.id === activeProjectId);
   const cachedProject = activeProjectId ? api.peekGet?.<typeof env>(`/api/projects/${activeProjectId}`) ?? null : null;
   const project = env ?? cachedProject ?? null;
   const publicBaseUrl = publicServerConfig?.appUrl ?? window.location.origin;
 
-  const taskList = useProjectTaskList(api, activeProjectId);
+  const taskList = useProjectTaskList(api, activeProjectId, searchParams.get("q") ?? "");
   const taskFoldersState = useProjectTaskFolders(api, activeProjectId, taskList.refreshNonce);
   const taskColumns = useTaskColumnWidths();
   const persistentShells = useProjectPersistentShellSessions({

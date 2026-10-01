@@ -1,36 +1,31 @@
-import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { useEffect } from "react";
 import { getProjectMasterEnabled } from "@meowbert/shared/workspace-agent-settings";
 import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
 import { ProjectOverviewPage } from "./EnvironmentOverviewPage";
+import { ProjectMasterLanding } from "./ProjectMasterLanding";
+import { useProjectMasterTaskId } from "./useProjectMasterTaskId";
 
-// Unless the workspace turned the Project Master off, opening a project lands in its Master conversation.
+// Unless the workspace turned the Project Master off, a project opens on its Master conversation in place.
 export function ProjectEntryPage() {
   const workspaceApp = useWorkspaceApp();
   const { api, activeWorkspaceId, workspaceSettings, isWorkspaceSettingsLoading, setFlash } = workspaceApp;
   const projectId = workspaceApp.activeProjectId ?? workspaceApp.activeEnvironmentId;
+  const projects = workspaceApp.projects ?? workspaceApp.environments;
   const masterEnabled = getProjectMasterEnabled(workspaceSettings?.modelDefaults);
-  const [master, setMaster] = useState<{ projectId: string; taskId: string | null } | null>(null);
+  const master = useProjectMasterTaskId(api, projectId, Boolean(workspaceSettings) && masterEnabled);
+  const failureMessage = master.status === "failed" ? master.message : null;
 
   useEffect(() => {
-    if (!workspaceSettings || !masterEnabled || !projectId) return;
-    let cancelled = false;
-    setMaster(null);
-    api.post<{ taskId: string }>(`/api/projects/${projectId}/master`, {
-      clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-    }).then((result) => {
-      if (!cancelled) setMaster({ projectId, taskId: result.taskId });
-    }).catch((error: unknown) => {
-      if (cancelled) return;
-      setMaster({ projectId, taskId: null });
-      setFlash({ tone: "error", text: error instanceof Error ? error.message : "Could not open the Project Master." });
-    });
-    return () => { cancelled = true; };
-  }, [api, workspaceSettings, masterEnabled, projectId, setFlash]);
+    if (failureMessage) setFlash({ tone: "error", text: failureMessage });
+  }, [failureMessage, setFlash]);
 
   if (!workspaceSettings && isWorkspaceSettingsLoading) return null;
-  if (!masterEnabled || !projectId) return <ProjectOverviewPage />;
-  if (!master || master.projectId !== projectId) return null;
-  if (!master.taskId) return <ProjectOverviewPage />;
-  return <Navigate replace to={`/app/${activeWorkspaceId}/projects/${projectId}/tasks/${master.taskId}`} />;
+  if (!masterEnabled || !projectId || master.status === "failed") return <ProjectOverviewPage />;
+  return (
+    <ProjectMasterLanding
+      workspaceId={activeWorkspaceId}
+      project={projects.find((project) => project.id === projectId) ?? null}
+      masterTaskId={master.status === "ready" ? master.taskId : null}
+    />
+  );
 }

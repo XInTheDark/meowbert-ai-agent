@@ -17,8 +17,7 @@ function useResolvedTaskRoute(
   activeWorkspaceId: string | null,
   activeProjectId: string | null
 ) {
-  const params = useParams<{ workspaceId: string; projectId: string; taskId: string }>();
-  const taskId = params.taskId ?? "";
+  const params = useParams<{ workspaceId: string; projectId: string }>();
   const route = useMemo(() => resolveTaskRouteContext({
     routeWorkspaceId: params.workspaceId ?? activeWorkspaceId,
     routeProjectId: params.projectId ?? activeProjectId,
@@ -34,16 +33,17 @@ function useResolvedTaskRoute(
     taskDetail?.task.project_id,
     taskDetail?.task.workspace_id
   ]);
-  return { taskId, route };
+  return { route };
 }
 
-export function useTaskDetailPageContext() {
+// An explicit taskId lets another page embed a task (the project landing embeds its Master).
+export function useTaskDetailPageContext(taskIdOverride?: string) {
   const workspace = useWorkspaceApp();
   const runtime = useAppRuntime();
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ taskId: string }>();
-  const taskId = params.taskId ?? "";
+  const taskId = taskIdOverride ?? params.taskId ?? "";
   const activeProjectId = workspace.activeProjectId ?? workspace.activeEnvironmentId;
   const projects = workspace.projects ?? workspace.environments;
   const [error, setError] = useState<string | null>(null);

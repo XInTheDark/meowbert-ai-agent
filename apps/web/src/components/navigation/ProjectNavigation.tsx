@@ -31,7 +31,7 @@ export function ProjectNavigation() {
           <nav className="project-tabs" aria-label="Project tools">
             {projectTabs.map((tab) => (
               <NavLink key={tab.path} to={`${base}${tab.path}`} end={tab.path === ""}
-                className={({ isActive }) => `project-tab${isActive ? " active" : ""}`}>
+                className={({ isActive }) => `project-tab${isActive || (tab.path === "" && suffix === "/tasks") ? " active" : ""}`}>
                 {tab.label}
               </NavLink>
             ))}
