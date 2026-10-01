@@ -259,6 +259,69 @@
               </div>
             </article>
           </div>
+
+          <div class="spotlight">
+            <article class="card">
+              <div class="card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M10.7 7.2 6.3 15.8M13.3 7.2l4.4 8.6M7.5 18h9"/></svg>
+              </div>
+              <h3>Agent Swarm</h3>
+              <p>
+                A leader and 2 to 16 workers discuss the task in shared channels, check each other's work, and
+                agree on an answer. Another worker reads the final answer before it's sent.
+              </p>
+              <ul class="ticks">
+                <li>The leader can bring in more agents as the work grows</li>
+                <li>Watch each worker and every channel live</li>
+                <li>Token and time budgets, or none</li>
+              </ul>
+            </article>
+            <article class="card">
+              <div class="card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
+              </div>
+              <h3>Connectors</h3>
+              <p>
+                Send tasks from Telegram, Discord, GitHub issues and pull requests, or email. Routing rules pick
+                the project, and the reply comes back in the same thread.
+              </p>
+              <ul class="ticks">
+                <li>Reply in the thread to continue the task</li>
+                <li>Route by prefix, keyword, or let the model choose</li>
+                <li>Trusted-sender lists for email</li>
+              </ul>
+            </article>
+            <article class="card">
+              <div class="card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2.1.7 3.5 2.9 3.5 5.7"/></svg>
+              </div>
+              <h3>Teams and user management</h3>
+              <p>
+                Invite people to a shared workspace with its own projects, connectors, and memory. The admin panel
+                handles sign-ups, accounts, and how much each person can use.
+              </p>
+              <ul class="ticks">
+                <li>Closed, approval-based, or open sign-ups</li>
+                <li>Per-user message limits and token-based plans</li>
+                <li>Owner, admin, and member roles per workspace</li>
+              </ul>
+            </article>
+            <article class="card">
+              <div class="card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2"/><path d="M19 2v4h-4M5 22v-4h4"/></svg>
+              </div>
+              <h3>Live sync with your files</h3>
+              <p>
+                Link files and folders from Google Drive, OneDrive, pCloud, or any rclone remote. The agent works on
+                them in the project, and you push the results back.
+              </p>
+              <ul class="ticks">
+                <li>Pull and push, with conflict detection</li>
+                <li>Google Drive folders sync automatically</li>
+                <li>Edit Google Docs, Sheets, and Slides directly (experimental)</li>
+              </ul>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -270,13 +333,17 @@
           </div>
           <div class="grid">
             <div class="grid-item"><h3>Documents and slides</h3><p>Agents create Word, PowerPoint, and PDF files and render them to check the layout.</p></div>
-            <div class="grid-item"><h3>Interactive Canvas</h3><p>A small website stored in a project that agents build and keep editing.</p></div>
-            <div class="grid-item"><h3>Browser automation</h3><p>Agents can open pages, click through them, and extract content.</p></div>
             <div class="grid-item"><h3>Deep Research</h3><p>The agent plans its research, reads sources, and a reviewer checks the report before it's delivered.</p></div>
+            <div class="grid-item"><h3>Long Horizon and Quality control</h3><p>The agent works from a written plan, and a reviewer approves the result. Quality control also opens the finished files to check how they look.</p></div>
+            <div class="grid-item"><h3>Browser automation</h3><p>Agents can open pages, click through them, and extract content.</p></div>
+            <div class="grid-item"><h3>Interactive Canvas</h3><p>A small website stored in a project that agents build and keep editing.</p></div>
             <div class="grid-item"><h3>Sources</h3><p>Google Drive, OneDrive, pCloud, Outlook, rclone remotes, and YouTube.</p></div>
-            <div class="grid-item"><h3>Custom skills</h3><p>Add a folder to <code>skills/</code> to give agents your own tools.</p></div>
             <div class="grid-item"><h3>Desktop apps</h3><p>macOS and Windows apps with a quick-launch composer and computer use.</p></div>
+            <div class="grid-item"><h3>Custom skills</h3><p>Add a folder to <code>skills/</code> to give agents your own tools.</p></div>
+            <div class="grid-item"><h3>Background shells</h3><p>Agents keep servers and REPLs running across runs, and you can watch their output.</p></div>
+            <div class="grid-item"><h3>Conversation map</h3><p>A map, outline, and one-line summaries make long tasks easy to navigate.</p></div>
             <div class="grid-item"><h3>Installable web app</h3><p>Install it on your phone as a PWA with push notifications.</p></div>
+            <div class="grid-item"><h3>Personalities</h3><p>Set a tone per project, from concise to friendly, or write your own.</p></div>
           </div>
           <p class="grid-foot">
             See the <a href="https://docs.meowbert.com">documentation</a> for the full feature list.

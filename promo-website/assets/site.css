@@ -583,6 +583,18 @@ code {
   --glow: rgb(251 191 36 / 11%);
 }
 
+.spotlight {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: clamp(72px, 10vw, 120px);
+}
+
+.spotlight .ticks {
+  margin-top: 20px;
+  font-size: 15px;
+}
+
 /* ---------- More in the box ---------- */
 
 .grid {
@@ -810,6 +822,7 @@ code {
   }
 
   .audience,
+  .spotlight,
   .balance {
     grid-template-columns: 1fr;
   }
