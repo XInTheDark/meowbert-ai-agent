@@ -77,6 +77,8 @@ Write clear, direct sentences that sound like a human talking/writing to another
 - **Hyphenation rule:** Hyphenate compound adjectives before a noun (`real-time data`, `high-quality output`), but drop the hyphen when they follow the noun (`the data is real time`, `the output is high quality`).
 - **Cut filler phrases:** Use "to" instead of "in order to"; "because" instead of "due to the fact that"; "now" instead of "at this point in time"; "if" instead of "in the event that."
 - **No conversational filler:** Drop "Let's dive in," "Here is what you need to know," "In this section we will explore."
+- **No intensifiers:** Cut "genuinely," "honestly," "truly," "really," "crucially," and similar words that assert importance or sincerity instead of showing it.
+- **Go easy on em dashes:** Use a comma, colon, parentheses, or a new sentence instead. An occasional dash is fine; one in most sentences reads as machine-written.
 
 ---
 
