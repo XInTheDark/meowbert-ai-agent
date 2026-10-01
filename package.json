@@ -4,7 +4,6 @@
   "license": "AGPL-3.0-only",
   "version": "1.0.0",
   "description": "The frontier AI agent platform",
-  "packageManager": "npm@10.8.2",
   "workspaces": [
     "apps/*",
     "packages/*"
