@@ -39,6 +39,7 @@ import { apiSandboxManager } from "./services/runtime/sandbox.js";
 import { startCanvasDevServerCleanupLoop } from "./services/canvases/canvas-dev-server.js";
 import { startTaskSearchSyncLoop } from "./services/task-search/sync.js";
 import { recordAuthenticatedUserSeen } from "./services/auth/user-activity.js";
+import { detachStaleSourceFolderMounts } from "./services/source-file-links/service.js";
 import {
   assertSessionTokenAccepted,
   type SessionTokenPayload
@@ -466,6 +467,9 @@ async function start(): Promise<void> {
   }
   await runMigrations(pool);
   await logStartupIntegrity();
+  await detachStaleSourceFolderMounts().catch((error) => {
+    console.warn("[startup] Could not detach stale Google Drive mounts (non-fatal):", (error as Error).message);
+  });
 
   if (config.email.enabled) {
     try {

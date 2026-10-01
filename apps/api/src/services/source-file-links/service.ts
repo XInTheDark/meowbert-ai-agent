@@ -16,6 +16,7 @@ import {
   deleteSourceFileLink,
   getSourceFileLinkByEnvironmentPath,
   getTaskSourceFileLinkByEnvironmentPath,
+  listGoogleDriveFolderMountPoints,
   listTaskSourceFileLinkSummaries,
   listSourceFileLinksForEnvironmentPaths,
   listSourceFileLinksUnderEnvironmentPaths,
@@ -51,6 +52,7 @@ import type {
 } from "./types.js";
 import {
   acquireGoogleDriveFolderMount,
+  detachStaleGoogleDriveMounts,
   getGoogleDriveFolderMountConsumers,
   releaseGoogleDriveFolderMountsForConsumer,
   unlinkGoogleDriveFolderMount
@@ -892,6 +894,36 @@ export async function unlinkSourceFileLinksUnderEnvironmentPaths(input: {
     await unlinkSourceFileLink(link);
   }
   return links;
+}
+
+// A linked path that cannot be read on disk (deleted, or a dead mount) still has its link row, which
+// blocks re-attaching at that path. Remove those links so deleting the path cleans up.
+export async function unlinkSourceFileLinksAtMissingEnvironmentPaths(input: {
+  environmentId: string;
+  environmentRootPath: string;
+  requestedPaths: string[];
+}): Promise<string[]> {
+  const unlinkedPaths: string[] = [];
+  for (const requestedPath of input.requestedPaths) {
+    let localRelativePath: string;
+    try {
+      localRelativePath = normalizeRelativePath(requestedPath, "Path");
+    } catch {
+      continue;
+    }
+    const readable = await fsPromises.lstat(path.resolve(input.environmentRootPath, localRelativePath)).then(() => true, () => false);
+    const link = readable ? null : await getSourceFileLinkByEnvironmentPath(input.environmentId, localRelativePath);
+    if (link) {
+      await unlinkSourceFileLink(link);
+      unlinkedPaths.push(requestedPath);
+    }
+  }
+  return unlinkedPaths;
+}
+
+export async function detachStaleSourceFolderMounts(): Promise<void> {
+  const mountPoints = await listGoogleDriveFolderMountPoints();
+  await detachStaleGoogleDriveMounts(mountPoints.map((mount) => path.resolve(mount.environmentRootPath, mount.localRelativePath)));
 }
 
 export async function ensureTaskSourceFolderMounts(input: { taskId: string; consumerId: string }): Promise<string[]> {

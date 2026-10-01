@@ -236,6 +236,17 @@ export async function getTaskSourceFileLinkByEnvironmentPath(input: {
   return result.rows[0] ? mapSourceFileLink(result.rows[0]) : null;
 }
 
+export async function listGoogleDriveFolderMountPoints(): Promise<Array<{ environmentRootPath: string; localRelativePath: string }>> {
+  const result = await query<{ root_path: string; local_relative_path: string }>(
+    `SELECT e.root_path, l.local_relative_path
+       FROM source_file_links l
+       JOIN environments e ON e.id = l.environment_id
+      WHERE l.provider = 'google-drive' AND l.link_kind = 'folder'`
+  );
+
+  return result.rows.map((row) => ({ environmentRootPath: row.root_path, localRelativePath: row.local_relative_path }));
+}
+
 export async function listSourceFileLinksForEnvironmentPaths(
   environmentId: string,
   localRelativePaths: string[]

@@ -129,6 +129,16 @@ export async function acquireGoogleDriveFolderMount(input: {
   });
 }
 
+// Drive mounts live on a shared-propagation volume, so they outlive the API process that created
+// them. Detach any mount point this process does not own; it is a dead leftover.
+export async function detachStaleGoogleDriveMounts(mountPoints: string[]): Promise<void> {
+  const owned = new Set(Array.from(mounts.values(), (handle) => handle.mountPoint));
+  await Promise.all(mountPoints
+    .map((mountPoint) => path.resolve(mountPoint))
+    .filter((mountPoint) => !owned.has(mountPoint))
+    .map((mountPoint) => lazyUnmount(mountPoint)));
+}
+
 export async function releaseGoogleDriveFolderMount(linkId: string, consumerId: string): Promise<void> {
   const handle = mounts.get(linkId);
   if (!handle) return;

@@ -22,6 +22,7 @@ import {
   pullSourceFileLinkByEnvironmentPath,
   pushSourceFileLinkByEnvironmentPath,
   unlinkSourceFileLinkByEnvironmentPath,
+  unlinkSourceFileLinksAtMissingEnvironmentPaths,
   unlinkSourceFileLinksUnderEnvironmentPaths
 } from "../../services/source-file-links/service.js";
 import type { SourceFileLinkSummary } from "../../services/source-file-links/types.js";
@@ -407,16 +408,25 @@ export async function registerEnvironmentFileRoutes(fastify: FastifyInstance): P
     const params = environmentParams.parse(request.params);
     const body = environmentDeleteFilesBody.parse(request.body ?? {});
     const environment = await getEnvironmentForUser(params.envId, request.user.id);
+    const unlinkedMissingPaths = await unlinkSourceFileLinksAtMissingEnvironmentPaths({
+      environmentId: environment.id,
+      environmentRootPath: environment.root_path,
+      requestedPaths: body.paths
+    });
     const targets = await resolveDeletionTargetsWithinRoot({
       rootPath: environment.root_path,
-      requestedPaths: body.paths,
+      requestedPaths: body.paths.filter((requestedPath) => !unlinkedMissingPaths.includes(requestedPath)),
       rootLabel: "environment"
     });
     await unlinkSourceFileLinksUnderEnvironmentPaths({
       environmentId: environment.id,
       localRelativePaths: targets.map((target) => target.relativePath)
     });
-    const deleted = await deleteResolvedTargets(targets);
+    const deletedTargets = await deleteResolvedTargets(targets);
+    const deleted = {
+      deletedCount: deletedTargets.deletedCount + unlinkedMissingPaths.length,
+      deletedPaths: [...deletedTargets.deletedPaths, ...unlinkedMissingPaths]
+    };
     const storage = await getWorkspaceStorageUsage({
       workspaceId: environment.workspace_id,
       workspaceRootPath: environment.workspace_root_path,
