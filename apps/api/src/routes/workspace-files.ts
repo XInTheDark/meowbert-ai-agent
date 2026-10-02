@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
 import archiver from "archiver";
 import { z } from "zod";
 import type { FastifyPluginAsync } from "fastify";
@@ -12,6 +11,7 @@ import { buildBatchDownloadArchivePath } from "../services/files/batch-download-
 import { listDirectorySizeEntries } from "../services/files/file-browser-metadata.js";
 import { deleteResolvedTargets, resolveDeletionTargetsWithinRoot } from "../services/files/file-browser.js";
 import { getFileContentType } from "../services/files/file-content-type.js";
+import { saveUploadedFile } from "../services/files/save-uploaded-file.js";
 import { getWorkspaceStorageUsage } from "../services/workspaces/workspace-storage-usage.js";
 import { assertWorkspaceMember } from "../services/workspaces/workspace-access.js";
 import { ensureWorkspaceStorageRoot } from "../services/workspaces/workspace-storage.js";
@@ -72,13 +72,6 @@ function toWebPath(input: string): string {
   return input.split(path.sep).join("/");
 }
 
-function assertPathInsideRoot(rootPath: string, absolutePath: string): void {
-  const normalizedRoot = rootPath.endsWith(path.sep) ? rootPath : `${rootPath}${path.sep}`;
-  if (absolutePath !== rootPath && !absolutePath.startsWith(normalizedRoot)) {
-    throw new Error("Path is outside workspace root");
-  }
-}
-
 function toIsoTimestamp(value: Date | undefined | null): string | null {
   if (!value) {
     return null;
@@ -90,32 +83,6 @@ function toIsoTimestamp(value: Date | undefined | null): string | null {
   }
 
   return value.toISOString();
-}
-
-function sanitizeUploadFilename(filename: string | undefined): string {
-  const base = path.basename((filename ?? "").trim());
-  if (!base || base === "." || base === "..") {
-    return `upload-${Date.now()}.bin`;
-  }
-  return base;
-}
-
-async function createAvailableFilePath(targetPath: string): Promise<string> {
-  const directory = path.dirname(targetPath);
-  const extension = path.extname(targetPath);
-  const base = path.basename(targetPath, extension);
-
-  for (let index = 0; index < 200; index += 1) {
-    const suffix = index === 0 ? "" : ` (${index})`;
-    const candidatePath = path.join(directory, `${base}${suffix}${extension}`);
-    try {
-      await fsPromises.access(candidatePath);
-    } catch {
-      return candidatePath;
-    }
-  }
-
-  throw new Error("Too many files with the same name in this folder");
 }
 
 export const workspaceFileRoutes: FastifyPluginAsync = async (fastify) => {
@@ -418,23 +385,13 @@ export const workspaceFileRoutes: FastifyPluginAsync = async (fastify) => {
       throw new Error("No file was uploaded");
     }
 
-    const safeFilename = sanitizeUploadFilename(upload.filename);
-    const preferredPath = path.join(targetDirectory.absolutePath, safeFilename);
-    let destinationPath = await createAvailableFilePath(preferredPath);
-    destinationPath = path.resolve(destinationPath);
-    assertPathInsideRoot(targetDirectory.rootRealPath, destinationPath);
-
-    await pipeline(upload.file, fs.createWriteStream(destinationPath));
-    const savedStats = await fsPromises.stat(destinationPath);
-
-    return reply.status(201).send({
-      file: {
-        name: path.basename(destinationPath),
-        relativePath: toWebPath(path.relative(targetDirectory.rootRealPath, destinationPath)),
-        sizeBytes: savedStats.size,
-        createdAt: toIsoTimestamp(savedStats.birthtime),
-        modifiedAt: toIsoTimestamp(savedStats.mtime)
-      }
+    const saved = await saveUploadedFile({
+      targetDirectory,
+      filename: upload.filename,
+      file: upload.file,
+      limitBytes: FILE_UPLOAD_LIMIT_BYTES
     });
+
+    return reply.status(201).send({ file: saved.file });
   });
 };

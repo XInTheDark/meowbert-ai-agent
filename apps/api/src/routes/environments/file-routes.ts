@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
 import archiver from "archiver";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -16,6 +15,7 @@ import { listDirectorySizeEntries } from "../../services/files/file-browser-meta
 import { deleteResolvedTargets, resolveDeletionTargetsWithinRoot } from "../../services/files/file-browser.js";
 import { getFileContentType } from "../../services/files/file-content-type.js";
 import { resolveProjectFileDirectory } from "../../services/files/project-file-directory.js";
+import { saveUploadedFile } from "../../services/files/save-uploaded-file.js";
 import { listSourceFileLinksForEnvironmentPaths } from "../../services/source-file-links/store.js";
 import {
   getSourceFileLinkStatusByEnvironmentPath,
@@ -28,8 +28,6 @@ import {
 import type { SourceFileLinkSummary } from "../../services/source-file-links/types.js";
 import { getWorkspaceStorageUsage } from "../../services/workspaces/workspace-storage-usage.js";
 import {
-  assertPathInsideRoot,
-  createAvailableFilePath,
   environmentBatchFileDownloadQuery,
   environmentCleanupQuery,
   environmentDeleteFilesBody,
@@ -41,7 +39,6 @@ import {
   FILE_UPLOAD_LIMIT_BYTES,
   getEnvironmentForUser,
   requiredEnvironmentFileQuery,
-  sanitizeUploadFilename,
   toIsoTimestamp,
   toWebPath
 } from "./shared.js";
@@ -460,28 +457,18 @@ export async function registerEnvironmentFileRoutes(fastify: FastifyInstance): P
       throw new Error("No file was uploaded");
     }
 
-    const safeFilename = sanitizeUploadFilename(upload.filename);
-    const preferredPath = path.join(targetDirectory.absolutePath, safeFilename);
-    let destinationPath = await createAvailableFilePath(preferredPath);
-    destinationPath = path.resolve(destinationPath);
-    assertPathInsideRoot(targetDirectory.rootRealPath, destinationPath);
-
-    await pipeline(upload.file, fs.createWriteStream(destinationPath));
+    const saved = await saveUploadedFile({
+      targetDirectory,
+      filename: upload.filename,
+      file: upload.file,
+      limitBytes: FILE_UPLOAD_LIMIT_BYTES
+    });
     await ensureSandboxWritablePath({
       rootPath: environment.root_path,
-      targetPath: destinationPath
+      targetPath: saved.absolutePath
     });
-    const savedStats = await fsPromises.stat(destinationPath);
 
-    return reply.status(201).send({
-      file: {
-        name: path.basename(destinationPath),
-        relativePath: toWebPath(path.relative(targetDirectory.rootRealPath, destinationPath)),
-        sizeBytes: savedStats.size,
-        createdAt: toIsoTimestamp(savedStats.birthtime),
-        modifiedAt: toIsoTimestamp(savedStats.mtime)
-      }
-    });
+    return reply.status(201).send({ file: saved.file });
   });
 
   fastify.post("/api/projects/:envId/files/text", { preHandler: fastify.authenticate }, async (request, reply) => {
