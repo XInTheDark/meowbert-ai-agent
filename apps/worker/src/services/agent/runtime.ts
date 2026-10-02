@@ -346,6 +346,7 @@ async function createRefreshGitHubToken(
 
 async function resolveRoutedRuntime(input: {
   snapshot: TaskSnapshot;
+  runId: string;
   debugLogger: TaskDebugLogger;
   taskInputDir: string;
   memoryFiles: {
@@ -373,6 +374,9 @@ async function resolveRoutedRuntime(input: {
         : "No model router matched the requested model.",
       run: () => resolveModelRouterSelection({
         taskId: input.snapshot.task.id,
+        billing: input.snapshot.task.initiator_user_id
+          ? { userId: input.snapshot.task.initiator_user_id, taskId: input.snapshot.task.id, runId: input.runId }
+          : null,
         requestedModel: input.requestedRuntimeModel,
         environmentPayload: runtimeEnvironmentPayload,
         platformModelRouters: input.snapshot.platform_model_routers,
@@ -528,6 +532,7 @@ async function resolveRuntimeConfig(
 
   if (!inheritedRuntime) ({ runtimeModel, runtimeEnvironmentPayload, quickMode } = await resolveRoutedRuntime({
     snapshot,
+    runId: job.runId,
     debugLogger,
     taskInputDir,
     memoryFiles,

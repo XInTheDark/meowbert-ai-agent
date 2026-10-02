@@ -753,47 +753,6 @@ export async function getUserSubscriptionUsageLimits(
   return { limits: statuses };
 }
 
-export async function recordUserTokenUsageEvent(input: {
-  userId: string;
-  taskId: string;
-  runId: string;
-  model: string;
-  providerKind: "platform" | "byo";
-  inputTokens: number;
-  outputTokens: number;
-  inputWeight: number;
-  outputWeight: number;
-  weightedTokens: number;
-}): Promise<void> {
-  await query(
-    `INSERT INTO user_token_usage_events (
-      user_id,
-      task_id,
-      run_id,
-      model,
-      provider_kind,
-      input_tokens,
-      output_tokens,
-      input_weight,
-      output_weight,
-      weighted_tokens
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [
-      input.userId,
-      input.taskId,
-      input.runId,
-      input.model,
-      input.providerKind,
-      Math.max(0, Math.floor(input.inputTokens)),
-      Math.max(0, Math.floor(input.outputTokens)),
-      Math.max(0, input.inputWeight),
-      Math.max(0, input.outputWeight),
-      Math.max(0, Math.floor(input.weightedTokens))
-    ]
-  );
-}
-
 export async function getUserFreeMessageUsage(userId: string): Promise<number> {
   const result = await query<{ count: string }>(
     `SELECT COUNT(*)::text AS count

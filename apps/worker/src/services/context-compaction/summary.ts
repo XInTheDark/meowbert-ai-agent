@@ -3,6 +3,7 @@ import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { extractObjectWithToolCall } from "../../lib/openai-tool-output.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { getOpenAiClient } from "../agent/openai-client.js";
+import { platformUsageRecorder } from "../tasks/platform-usage.js";
 import {
   buildUsageSnapshot,
   COMPACTION_INPUT_MAX_UTILIZATION,
@@ -474,6 +475,7 @@ function buildCompactionState(input: {
 async function summarizeConversationChunk(input: {
   taskId: string;
   provider: CompactContextInput["provider"];
+  billing: CompactContextInput["billing"];
   model: string;
   requestTimeoutMs?: number;
   abortSignal?: AbortSignal;
@@ -491,6 +493,7 @@ async function summarizeConversationChunk(input: {
     abortSignal: input.abortSignal,
     maxAttempts: COMPACTION_SUMMARY_MAX_ATTEMPTS,
     baseRetryDelayMs: COMPACTION_SUMMARY_RETRY_BASE_DELAY_MS,
+    onResponseUsage: (usage) => platformUsageRecorder.recordResponseUsage(input.billing, input.model, usage),
     onRetry: async (context) => {
       const retryMsg = [
         `Context compaction model call failed (attempt ${context.attempt}/${context.maxAttempts})`,
@@ -591,6 +594,7 @@ async function runSummaryCompactionPlan(input: {
       const chunkSummary = await summarizeConversationChunk({
         taskId: input.compactInput.taskId,
         provider: input.compactInput.provider,
+        billing: input.compactInput.billing,
         model: compactionModel,
         requestTimeoutMs: input.compactInput.requestTimeoutMs,
         abortSignal: input.compactInput.abortSignal,

@@ -18,6 +18,8 @@ export * from "./inline-artifacts.js";
 export * from "./task-message-metadata.js";
 export * from "./usage-cost.js";
 export * from "./token-usage-stats.js";
+export * from "./model-usage-counts.js";
+export * from "./platform-usage-recording.js";
 export * from "./agent-presets.js";
 export * from "./workspace-agent-settings.js";
 export * from "./workspace-icons.js";

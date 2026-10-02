@@ -15,6 +15,7 @@ interface ToolObjectExtractionInput {
   schema: Record<string, unknown>;
   input: ResponseInputItem[];
   modelPayload?: Record<string, unknown>;
+  onResponseUsage?: (usage: unknown) => Promise<void> | void;
 }
 
 export type ToolObjectExtractionResult<T> =
@@ -48,6 +49,7 @@ export async function extractObjectWithToolCall<T>(
     parallel_tool_calls: false,
     store: false
   });
+  await input.onResponseUsage?.(response.usage);
 
   if (response.error) {
     return { ok: false, error: response.error.message };

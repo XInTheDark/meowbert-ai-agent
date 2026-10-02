@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import type { PlatformUsageBilling } from "@meowbert/shared";
 import type { OpenAiProviderConfig } from "./openai-client.js";
 import { createModelResponse } from "./model.js";
+import { platformUsageRecorder } from "../tasks/platform-usage.js";
 
 // Meridian's cherry adapter runs in internal mode with the Agent SDK's own WebSearch/WebFetch
 // enabled, so the search runs on the Claude subscription. The hosted web_search tool is API-billed
@@ -12,6 +14,7 @@ const SEARCH_INSTRUCTIONS =
 
 export async function runClaudeWebSearch(input: {
   provider: OpenAiProviderConfig;
+  billing: PlatformUsageBilling | null;
   model: string;
   query: string;
   abortSignal?: AbortSignal;
@@ -33,6 +36,7 @@ export async function runClaudeWebSearch(input: {
     toolChoice: "auto",
     parallelToolCalls: false
   });
+  await platformUsageRecorder.recordResponseUsage(input.billing, input.model, response.usage);
   const answer = response.output_text.trim();
   if (answer.length === 0) {
     throw new Error("The search returned no answer.");

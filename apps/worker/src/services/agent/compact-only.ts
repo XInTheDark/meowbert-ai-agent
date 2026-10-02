@@ -4,6 +4,7 @@ import { compactContextNow } from "../context-compaction/index.js";
 import { resetV2ContextWindow } from "./context-window.js";
 import { persistContextCheckpoint } from "../context-management/index.js";
 import { reconstructResponseInputItems } from "./utils.js";
+import { resolveRunUsageBilling } from "./usage-billing.js";
 import type { AgentExecutionContext } from "./execution-types.js";
 
 export async function maybeHandleCompactOnlyRun(execution: AgentExecutionContext): Promise<boolean> {
@@ -71,6 +72,7 @@ export async function maybeHandleCompactOnlyRun(execution: AgentExecutionContext
 
   const compactResult = await compactContextNow({
     provider: execution.prepared.runtimeProvider,
+    billing: resolveRunUsageBilling(execution),
     taskId: execution.job.taskId,
     step: 0,
     model: execution.prepared.runtimeModel,

@@ -4,13 +4,14 @@ import type {
   ResponseInputItem,
   Tool
 } from "openai/resources/responses/responses";
-import type { PlatformModelCompatibilityMode, PlatformModelType, TaskSource } from "@meowbert/shared";
+import type { PlatformModelCompatibilityMode, PlatformModelType, PlatformUsageBilling, TaskSource } from "@meowbert/shared";
 import { streamResponseToFinal } from "@meowbert/shared";
 import { getAbortError, throwIfAborted } from "../../lib/abort-signal.js";
 import { config } from "../../lib/config.js";
 import { query } from "../../lib/db.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { getOpenAiClient, type OpenAiProviderConfig } from "./openai-client.js";
+import { platformUsageRecorder } from "../tasks/platform-usage.js";
 import { emitNetworkRequestEvent, type NetworkRequestLogEvent, type NetworkRequestLogCallback } from "./network-request-log.js";
 import { withOpenAiRequestDebugLogging } from "./openai-sdk-logger.js";
 import { extractNetworkRequestErrorResponse } from "./model-error-response-log.js";
@@ -483,6 +484,7 @@ export async function createModelResponseWithRetry(
 
 export async function maybeAutoGenerateTaskTitle(input: {
   provider: OpenAiProviderConfig;
+  billing: PlatformUsageBilling | null;
   taskId: string;
   currentTitle: string | null;
   source: TaskSource;
@@ -600,6 +602,7 @@ export async function maybeAutoGenerateTaskTitle(input: {
       }
       throw error;
     });
+    await platformUsageRecorder.recordResponseUsage(input.billing, titleModel, titleResponse.usage);
     if (titleResponse.error) {
       await emitNetworkRequestEvent(input.onNetworkRequest, {
         phase: "error",

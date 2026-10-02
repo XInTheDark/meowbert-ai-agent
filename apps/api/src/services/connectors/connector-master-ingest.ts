@@ -73,6 +73,8 @@ export async function resolveConnectorMasterTarget(input: {
   }
   const decision = await decideEnvironmentRoute({
     message: input.routingText,
+    // Routing happens before a Master task is chosen, so it is billed to the user without a task.
+    billing: { userId: input.actorUserId, taskId: null, runId: null },
     defaultEnvironmentId: input.defaultEnvironmentId ?? undefined,
     environments
   });

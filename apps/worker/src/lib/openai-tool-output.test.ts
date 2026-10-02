@@ -215,4 +215,49 @@ describe("extractObjectWithToolCall", () => {
 
     expect(createMock).toHaveBeenCalledTimes(1);
   });
+  it("reports usage for every completed attempt, including ones that are retried", async () => {
+    const createMock = vi.fn()
+      .mockResolvedValueOnce(createResponseStream({
+        error: null,
+        usage: { input_tokens: 40, output_tokens: 5 },
+        output: [{ type: "message", id: "msg_1", role: "assistant", content: [] }]
+      }))
+      .mockResolvedValueOnce(createResponseStream({
+        error: null,
+        usage: { input_tokens: 45, output_tokens: 6 },
+        output: [
+          {
+            type: "function_call",
+            id: "fc_1",
+            call_id: "call_1",
+            name: "pick",
+            arguments: "{\"value\":\"ok\"}"
+          }
+        ]
+      }));
+    const onResponseUsage = vi.fn();
+
+    const result = await extractObjectWithToolCall<{ value: string }>({
+      client: { responses: { create: createMock } } as never,
+      model: "gpt-test",
+      toolName: "pick",
+      toolDescription: "Pick a value",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: { value: { type: "string" } },
+        required: ["value"]
+      },
+      input: [{ role: "user", content: "hello" }],
+      maxAttempts: 2,
+      baseRetryDelayMs: 0,
+      onResponseUsage
+    });
+
+    expect(result).toEqual({ ok: true, value: { value: "ok" } });
+    expect(onResponseUsage.mock.calls).toEqual([
+      [{ input_tokens: 40, output_tokens: 5 }],
+      [{ input_tokens: 45, output_tokens: 6 }]
+    ]);
+  });
 });

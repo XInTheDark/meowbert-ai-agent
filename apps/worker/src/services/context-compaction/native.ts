@@ -2,6 +2,7 @@ import type { Response, ResponseInputItem } from "openai/resources/responses/res
 import { streamResponseToFinal } from "@meowbert/shared";
 import { emitTaskEvent } from "../runtime/events.js";
 import { getOpenAiClient } from "../agent/openai-client.js";
+import { platformUsageRecorder } from "../tasks/platform-usage.js";
 import { buildChatGptCodexProvider } from "../agent/chatgpt-request.js";
 import {
   buildUsageSnapshot,
@@ -115,6 +116,7 @@ export async function compactWithNativeBackend(input: {
     systemPrompt: compactInput.systemPrompt,
     conversationItems: compactInput.conversationItems
   });
+  await platformUsageRecorder.recordResponseUsage(compactInput.billing, compactionModel, compactedResponse.usage);
 
   const compacted = buildNativeCompactedConversation({
     compactedResponse,

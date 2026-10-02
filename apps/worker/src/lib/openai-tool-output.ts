@@ -21,6 +21,8 @@ interface ToolObjectExtractionInput {
   maxAttempts?: number;
   baseRetryDelayMs?: number;
   onRetry?: (context: ToolObjectExtractionRetryContext) => Promise<void> | void;
+  // Called with the usage of every completed response, including attempts that are retried.
+  onResponseUsage?: (usage: unknown) => Promise<void> | void;
 }
 
 export type ToolObjectExtractionResult<T> =
@@ -122,6 +124,7 @@ export async function extractObjectWithToolCall<T>(
         ...(typeof input.requestTimeoutMs === "number" ? { timeout: input.requestTimeoutMs } : {}),
         ...(input.abortSignal ? { signal: input.abortSignal } : {})
       });
+      await input.onResponseUsage?.(response.usage);
 
       if (response.error) {
         throw new Error(response.error.message);

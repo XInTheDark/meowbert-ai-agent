@@ -1,6 +1,6 @@
 import { appendSubagentInbox } from "../subagents/inbox.js";
 import { appendProjectMasterInbox } from "../project-master/inbox.js";
-import { getVisiblePlatformAgentPresets } from "@meowbert/shared";
+import { getVisiblePlatformAgentPresets, parseModelResponseUsage } from "@meowbert/shared";
 import { getPersistentRuntimeEnabled, getSandboxNetworkEnabled } from "@meowbert/shared";
 import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
 import { emitTaskEvent } from "../runtime/events.js";
@@ -25,6 +25,7 @@ import { buildAgentTurnRequest } from "./turn-request.js";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "./prompt-envelope.js";
 import { appendQueuedPromptDeltas } from "./queued-prompt-deltas.js";
 import { runClaudeWebSearch } from "./claude-web-search.js";
+import { resolveRunUsageBilling } from "./usage-billing.js";
 import {
   computeEstimatedCostUsageForModel,
   getUserMonthlySubscriptionQuotaStatus,
@@ -241,6 +242,7 @@ async function maybeRunAutoCompaction(execution: AgentExecutionContext, step: nu
   }
   const autoCompactionResult = await maybeAutoCompactContext({
     provider: execution.prepared.runtimeProvider,
+    billing: resolveRunUsageBilling(execution),
     taskId: execution.job.taskId,
     step,
     model: execution.prepared.runtimeModel,
@@ -475,51 +477,16 @@ async function recordModelResponseUsage(input: {
 }
 
 async function recordSubscriptionUsage(execution: AgentExecutionContext, response: ModelTurnResponse): Promise<number | null> {
-  if (typeof response.usage?.input_tokens !== "number") {
+  const counts = parseModelResponseUsage(response.usage);
+  if (!counts) {
     return null;
   }
 
-  const inputTokens = Math.max(0, Math.floor(response.usage.input_tokens));
-  const outputTokens = typeof response.usage.output_tokens === "number"
-    ? Math.max(0, Math.floor(response.usage.output_tokens))
-    : 0;
-  const cachedInputTokens = typeof response.usage.input_tokens_details?.cached_tokens === "number"
-    ? Math.max(0, Math.floor(response.usage.input_tokens_details.cached_tokens))
-    : 0;
-  const cacheWriteTokens = (response.usage.input_tokens_details as {
-    cache_write_tokens?: unknown;
-  } | undefined)?.cache_write_tokens;
-  const cacheWriteInputTokens = typeof cacheWriteTokens === "number"
-    ? Math.max(0, Math.floor(cacheWriteTokens))
-    : 0;
-  const reasoningTokens = typeof response.usage.output_tokens_details?.reasoning_tokens === "number"
-    ? Math.max(0, Math.floor(response.usage.output_tokens_details.reasoning_tokens))
-    : 0;
-
   try {
-    const usage = await computeEstimatedCostUsageForModel({
-      model: execution.prepared.runtimeModel,
-      inputTokens,
-      cachedInputTokens,
-      cacheWriteInputTokens,
-      outputTokens,
-      reasoningTokens
-    });
-    if (execution.prepared.subscriptionUserId && execution.state.shouldRecordTokenUsage) {
-      await recordPlatformTokenUsageEvent({
-        userId: execution.prepared.subscriptionUserId,
-        taskId: execution.job.taskId,
-        runId: execution.job.runId,
-        model: execution.prepared.runtimeModel,
-        resolvedModel: usage.resolvedModel,
-        inputTokens,
-        cachedInputTokens: usage.cachedInputTokens,
-        outputTokens,
-        reasoningTokens: usage.reasoningTokens,
-        multipliers: usage.multipliers,
-        rateMultiplier: usage.rateMultiplier,
-        weightedTokens: usage.weightedTokens
-      });
+    const usage = await computeEstimatedCostUsageForModel({ model: execution.prepared.runtimeModel, ...counts });
+    const billing = resolveRunUsageBilling(execution);
+    if (billing && execution.state.shouldRecordTokenUsage) {
+      await recordPlatformTokenUsageEvent(billing, counts, usage);
     }
     return usage.weightedTokens;
   } catch (error) {
@@ -789,6 +756,7 @@ async function requestModelTurnWithRecovery(input: {
 
     const recoveryResult = await recoverContextAfterContextWindowError({
       provider: input.execution.prepared.runtimeProvider,
+      billing: resolveRunUsageBilling(input.execution),
       taskId: input.execution.job.taskId,
       step: input.step,
       model: input.execution.prepared.runtimeModel,
@@ -841,6 +809,7 @@ function buildDispatchContext(execution: AgentExecutionContext): ToolDispatchCon
       ? {
         searchWeb: (query: string) => runClaudeWebSearch({
           provider: execution.prepared.runtimeProvider,
+          billing: resolveRunUsageBilling(execution),
           model: execution.prepared.runtimeModel,
           query,
           abortSignal: execution.runControl.runAbortSignal
@@ -993,6 +962,7 @@ async function applyPendingContextManagementAction(
   if (action.kind === "compact") {
     const compactResult = await compactContextNow({
       provider: execution.prepared.runtimeProvider,
+      billing: resolveRunUsageBilling(execution),
       taskId: execution.job.taskId,
       step,
       model: execution.prepared.runtimeModel,

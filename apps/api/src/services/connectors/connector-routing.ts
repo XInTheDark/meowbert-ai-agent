@@ -1,6 +1,8 @@
 import { getPlatformAiClient } from "../platform/ai-provider-client.js";
 import { getInternalModel } from "../admin/admin-settings.js";
 import { extractObjectWithToolCall } from "../../lib/openai-tool-output.js";
+import { platformUsageRecorder } from "../billing/platform-usage.js";
+import type { PlatformUsageBilling } from "@meowbert/shared";
 
 
 const environmentRouteSchema: Record<string, unknown> = {
@@ -59,6 +61,7 @@ function fallbackEnvironmentDecision(
 // it is still active, otherwise a model choice.
 export async function decideEnvironmentRoute(input: {
   message: string;
+  billing: PlatformUsageBilling | null;
   defaultEnvironmentId?: string;
   environments: ConnectorEnvironmentCandidate[];
 }): Promise<ConnectorEnvironmentRouteDecision> {
@@ -91,16 +94,18 @@ export async function decideEnvironmentRoute(input: {
   };
 
   try {
+    const routingModel = await getInternalModel();
     const extraction = await extractObjectWithToolCall<{
       environmentId?: unknown;
       reason?: unknown;
       confidence?: unknown;
     }>({
       client: openai,
-      model: await getInternalModel(),
+      model: routingModel,
       toolName: "select_environment_route",
       toolDescription: "Select the best project id for an incoming connector message.",
       schema: environmentRouteSchema,
+      onResponseUsage: (usage) => platformUsageRecorder.recordResponseUsage(input.billing, routingModel, usage),
       input: [
         {
           role: "developer",

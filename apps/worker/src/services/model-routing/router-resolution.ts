@@ -1,4 +1,4 @@
-import type { PlatformModelRouter, PlatformModelRouterTarget } from "@meowbert/shared";
+import type { PlatformModelRouter, PlatformModelRouterTarget, PlatformUsageBilling } from "@meowbert/shared";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { findPlatformModelRouterById } from "@meowbert/shared";
 import type { TaskMessageRow } from "../agent/types.js";
@@ -6,6 +6,7 @@ import type { MemoryMainFile } from "../memory/index.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
 import type { OpenAiProviderConfig } from "../agent/openai-client.js";
 import { getOpenAiClient } from "../agent/openai-client.js";
+import { platformUsageRecorder } from "../tasks/platform-usage.js";
 import { deepMergeJsonObjects } from "../agent/utils.js";
 import { buildTaskDecisionContext } from "../agent/task-decision-context.js";
 import { query } from "../../lib/db.js";
@@ -425,6 +426,7 @@ function normalizeRoutingDecision(
 
 export async function resolveModelRouterSelection(input: {
   taskId: string;
+  billing: PlatformUsageBilling | null;
   requestedModel: string;
   environmentPayload: Record<string, unknown>;
   platformModelRouters: PlatformModelRouter[];
@@ -471,7 +473,8 @@ export async function resolveModelRouterSelection(input: {
       requestTimeoutMs: Math.max(1_000, Math.min(input.requestTimeoutMs, 60_000)),
       abortSignal: input.abortSignal,
       maxAttempts: ROUTER_REQUEST_MAX_ATTEMPTS,
-      baseRetryDelayMs: ROUTER_REQUEST_BASE_DELAY_MS
+      baseRetryDelayMs: ROUTER_REQUEST_BASE_DELAY_MS,
+      onResponseUsage: (usage) => platformUsageRecorder.recordResponseUsage(input.billing, router.routingModel, usage)
     });
 
     resolution = extraction.ok

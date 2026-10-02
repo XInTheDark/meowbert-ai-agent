@@ -9,6 +9,7 @@ import { setTaskStatusForRun } from "../agent-db/index.js";
 import { asText, mapMessagesForResponsesInput } from "./utils.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { maybeAutoGenerateTaskTitle } from "./model.js";
+import { resolveRunUsageBilling } from "./usage-billing.js";
 import {
   getMessagesAfterLatestCompaction,
   getMessagesForV2ActiveWindow,
@@ -93,6 +94,7 @@ async function loadProjectContextInitData(
 function startTitleGeneration(job: AgentExecutionContext["job"], prepared: PreparedAgentRunContext): void {
   maybeAutoGenerateTaskTitle({
     provider: prepared.runtimeProvider,
+    billing: resolveRunUsageBilling({ prepared, job }),
     taskId: job.taskId,
     currentTitle: prepared.snapshot.task.title,
     source: prepared.snapshot.task.source,

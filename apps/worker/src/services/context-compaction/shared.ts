@@ -1,5 +1,5 @@
 import type { ResponseInputItem, ResponseOutputItem } from "openai/resources/responses/responses";
-import type { PlatformModelMetadata } from "@meowbert/shared";
+import type { PlatformModelMetadata, PlatformUsageBilling } from "@meowbert/shared";
 import { emitTaskEvent } from "../runtime/events.js";
 import type { TaskMessageRow } from "../agent/types.js";
 import type { OpenAiProviderConfig } from "../agent/openai-client.js";
@@ -153,6 +153,7 @@ export interface ContextUsageSnapshot {
 
 export interface CompactContextInput {
   provider: OpenAiProviderConfig;
+  billing: PlatformUsageBilling | null;
   taskId: string;
   step: number;
   trigger: CompactionTrigger;

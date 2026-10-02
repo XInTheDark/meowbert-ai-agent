@@ -738,16 +738,11 @@ describe("runAgentStepLoop", () => {
       outputTokens: 30,
       reasoningTokens: 10
     }));
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "user-1",
-      taskId: "task-1",
-      runId: "run-1",
-      model: "gpt-test",
-      inputTokens: 120,
-      cachedInputTokens: 0,
-      outputTokens: 30,
-      reasoningTokens: 0
-    }));
+    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
+      { userId: "user-1", taskId: "task-1", runId: "run-1" },
+      expect.objectContaining({ inputTokens: 120, cachedInputTokens: 20, outputTokens: 30, reasoningTokens: 10 }),
+      expect.objectContaining({ resolvedModel: "gpt-test" })
+    );
     expect(execution.state.dispatchState.contextUsage).toEqual({
       usedTokens: 120,
       maxContextTokens: 128_000,
@@ -895,27 +890,21 @@ describe("runAgentStepLoop", () => {
     }
 
     expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledTimes(3);
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "user-1",
-      taskId: "leader-task",
-      runId: "leader-run",
-      inputTokens: 90,
-      outputTokens: 15
-    }));
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "user-1",
-      taskId: "worker-task-1",
-      runId: "worker-run-1",
-      inputTokens: 90,
-      outputTokens: 15
-    }));
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "user-1",
-      taskId: "worker-task-2",
-      runId: "worker-run-2",
-      inputTokens: 90,
-      outputTokens: 15
-    }));
+    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
+      { userId: "user-1", taskId: "leader-task", runId: "leader-run" },
+      expect.objectContaining({ inputTokens: 90, outputTokens: 15 }),
+      expect.anything()
+    );
+    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
+      { userId: "user-1", taskId: "worker-task-1", runId: "worker-run-1" },
+      expect.objectContaining({ inputTokens: 90, outputTokens: 15 }),
+      expect.anything()
+    );
+    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
+      { userId: "user-1", taskId: "worker-task-2", runId: "worker-run-2" },
+      expect.objectContaining({ inputTokens: 90, outputTokens: 15 }),
+      expect.anything()
+    );
   });
 
   it("records admin platform token usage without enforcing quota", async () => {
@@ -950,11 +939,11 @@ describe("runAgentStepLoop", () => {
     expect(mockedGetUserMonthlySubscriptionQuotaStatus).not.toHaveBeenCalled();
     expect(execution.state.finalResponseFromTool).toEqual({ response: "Admin done.", notify: true });
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(1);
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "admin-1",
-      inputTokens: 42,
-      outputTokens: 8
-    }));
+    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "admin-1" }),
+      expect.objectContaining({ inputTokens: 42, outputTokens: 8 }),
+      expect.anything()
+    );
   });
 
   it("records usage for an admin-initiated task run by a non-admin without enforcing quota", async () => {
@@ -983,11 +972,11 @@ describe("runAgentStepLoop", () => {
     await runAgentStepLoop(execution as never);
 
     expect(mockedGetUserMonthlySubscriptionQuotaStatus).not.toHaveBeenCalled();
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "admin-1",
-      inputTokens: 42,
-      outputTokens: 8
-    }));
+    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "admin-1" }),
+      expect.objectContaining({ inputTokens: 42, outputTokens: 8 }),
+      expect.anything()
+    );
   });
 
   it("omits prompt cache TTL when prompt caching is disabled", async () => {
