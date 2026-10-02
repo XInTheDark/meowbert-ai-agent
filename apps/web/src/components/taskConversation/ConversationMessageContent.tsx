@@ -16,6 +16,7 @@ import { MarkdownImage } from "./MarkdownImage";
 import { resolveMarkdownDownloadFilename, resolveRuntimeFileDownloadPath, resolveTrustedMarkdownDownloadUrl } from "./markdownDownload";
 import { normalizeLatexDelimiters } from "./normalizeLatexDelimiters";
 import { stripCitationMarkers } from "./stripCitationMarkers";
+import { useExpandOnBottomOverscroll } from "./useExpandOnBottomOverscroll";
 
 const LazyMermaidDiagram = lazy(() => import("./MermaidDiagram").then((mod) => ({ default: mod.MermaidDiagram })));
 
@@ -207,6 +208,13 @@ export function ConversationMessageContent(props: {
     });
   }, [props.expansionKey]);
 
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const expand = useCallback((): void => {
+    persistTaskMessageExpanded(props.expansionKey, true);
+    setIsExpanded(true);
+  }, [props.expansionKey]);
+  useExpandOnBottomOverscroll(toggleRef, shouldAutoCollapse && !isExpanded, expand);
+
   return (
     <div ref={contentRef} className="conversation-message-content" onCopy={handleCopy}>
       {!shouldAutoCollapse ? (
@@ -223,6 +231,7 @@ export function ConversationMessageContent(props: {
             />
           </div>
           <button
+            ref={toggleRef}
             type="button"
             className="bubble-collapsible-toggle"
             onClick={toggleExpanded}

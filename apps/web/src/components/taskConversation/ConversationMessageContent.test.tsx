@@ -105,6 +105,25 @@ describe("ConversationMessageContent", () => {
     expect(container.querySelector(".bubble-collapsible-toggle")?.textContent).toBe("Show less");
   });
 
+  it("expands a collapsed message when scrolling down past the bottom of the feed", () => {
+    const content = Array.from({ length: 26 }, (_, index) => `Line ${index + 1}`).join("\n");
+    container.style.overflowY = "auto";
+    act(() => root.render(
+      <ConversationMessageContent
+        content={content}
+        displayPreferences={buildDefaultTaskAssistantMessageDisplayPreferences()}
+        enableLongMessageCollapse
+      />
+    ));
+    const toggle = container.querySelector<HTMLButtonElement>(".bubble-collapsible-toggle");
+
+    act(() => { container.dispatchEvent(new WheelEvent("wheel", { deltaY: -40 })); });
+    expect(toggle?.textContent).toBe("Read more");
+
+    act(() => { container.dispatchEvent(new WheelEvent("wheel", { deltaY: 40 })); });
+    expect(toggle?.textContent).toBe("Show less");
+  });
+
   it("intercepts artifact download links and calls triggerAuthenticatedBrowserDownload", async () => {
     localStorage.setItem("meowbert_token", "test-token-123");
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
