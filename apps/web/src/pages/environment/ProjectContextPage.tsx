@@ -12,7 +12,6 @@ import {
   buildBatchDownloadUrl,
   buildDownloadUrl,
   buildProjectContextPath,
-  formatRelative,
   getProjectContextNotes,
   getProjectJsonPayload,
   normalizeProjectJsonPayload,
@@ -501,15 +500,6 @@ export function ProjectContextPage() {
           <div className="muted-text project-context-helper-copy">
             Files here are available to every new task in this project. Drop files or folders to add them.
           </div>
-          {entries.length === 0 && !isLoadingList ? (
-            <div className="muted-text project-context-helper-copy">
-              Start by uploading docs, specs, reference files, or a quick text note.
-            </div>
-          ) : (
-            <div className="muted-text project-context-helper-copy">
-              Updated {formatRelative(project.updated_at ?? project.created_at ?? new Date().toISOString())}
-            </div>
-          )}
         </div>
 
         <div className="files-main">

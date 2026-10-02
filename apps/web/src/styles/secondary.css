@@ -994,6 +994,7 @@
 }
 
 .file-browser-empty {
+  align-content: center;
   gap: 0.35rem;
 }
 

@@ -30,20 +30,21 @@ interface EnvironmentFileBrowserProps {
 }
 
 export function EnvironmentFileBrowser(props: EnvironmentFileBrowserProps) {
+  const isEmpty = !props.isLoadingList && props.entries.length === 0;
   return (
     <div className="file-browser-area" onContextMenu={(event) => props.onContextMenu(event)}>
       {props.isLoadingList ? (
         <InlineProgressBar pin="top" />
       ) : null}
 
-      {!props.isLoadingList && props.entries.length === 0 ? (
+      {isEmpty ? (
         <div className="file-browser-empty">
           <div className="file-browser-empty-title">Folder is empty</div>
           <p className="empty-hint">Add files, docs, or notes to get started.</p>
         </div>
       ) : null}
 
-      {!props.isLoadingList && props.viewMode === "list" ? (
+      {!props.isLoadingList && !isEmpty && props.viewMode === "list" ? (
         <ExplorerTable className="file-list-table" columns="var(--file-list-columns)">
           <ExplorerHeader className="file-list-header">
             <ExplorerCell align="center">
@@ -127,7 +128,7 @@ export function EnvironmentFileBrowser(props: EnvironmentFileBrowserProps) {
         </ExplorerTable>
       ) : null}
 
-      {!props.isLoadingList && props.viewMode === "grid" ? (
+      {!props.isLoadingList && !isEmpty && props.viewMode === "grid" ? (
         <div className="file-grid-browser">
           {props.sortedEntries.map((entry, index) => (
             <div
