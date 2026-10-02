@@ -20,6 +20,7 @@ import {
   stopCanvasDevServer
 } from "../../services/canvases/canvas-dev-server.js";
 import { getEnvironmentForUser } from "../../services/environments/environment-for-user.js";
+import { applyUntrustedContentHeaders } from "../files/untrusted-content-headers.js";
 import { environmentParams } from "./shared.js";
 
 const canvasParams = environmentParams.extend({
@@ -258,6 +259,7 @@ export async function registerEnvironmentCanvasRoutes(fastify: FastifyInstance):
             reply.header(key, value);
           }
         });
+        applyUntrustedContentHeaders(reply);
         return proxied.body
           ? reply.send(Readable.fromWeb(proxied.body as never))
           : reply.send();
@@ -271,8 +273,7 @@ export async function registerEnvironmentCanvasRoutes(fastify: FastifyInstance):
       reply.header("Content-Type", getFileContentType(file.absolutePath));
       reply.header("Content-Length", String(file.sizeBytes));
       reply.header("Cache-Control", "private, max-age=60");
-      reply.header("X-Content-Type-Options", "nosniff");
-      reply.header("Referrer-Policy", "no-referrer");
+      applyUntrustedContentHeaders(reply);
       return reply.send(fs.createReadStream(file.absolutePath));
     }
   );
