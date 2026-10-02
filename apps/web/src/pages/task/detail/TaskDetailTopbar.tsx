@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import {
   Activity,
   Bell,
@@ -24,6 +25,7 @@ import { TaskStatusBadge } from "../../../components/tasks/TaskStatusBadge";
 import type { TaskDetailTab } from "./taskDetailConstants";
 import { TaskDetailDisplaySettingsDropdown } from "./TaskDetailDisplaySettingsDropdown";
 import { formatTokenCount } from "./taskDetailUtils";
+import { TaskUsageModal } from "./TaskUsageModal";
 import { SubscriptionUsageWarningLink, type SubscriptionUsageWarning } from "../../../subscription/usageLimits";
 import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
 
@@ -157,11 +159,13 @@ function getUsageSummary(latestUsagePayload: TaskDetail["latest_context_usage"])
 }
 
 function TaskDetailUsageChip(props: {
+  taskId: string;
   usage: UsageSummary | null;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 }) {
   const popoverRef = useRef<HTMLDivElement>(null);
+  const [usageModalOpen, setUsageModalOpen] = useState(false);
   const isExpanded = props.usage !== null && props.expanded;
   useDismissable(isExpanded, () => props.onExpandedChange(false), popoverRef);
 
@@ -235,8 +239,21 @@ function TaskDetailUsageChip(props: {
               }}
             />
           </div>
+          <button
+            type="button"
+            className="task-detail-usage-popover-link"
+            onClick={() => {
+              props.onExpandedChange(false);
+              setUsageModalOpen(true);
+            }}
+          >
+            View usage for this task
+          </button>
         </div>
       ) : null}
+      {usageModalOpen
+        ? createPortal(<TaskUsageModal taskId={props.taskId} onClose={() => setUsageModalOpen(false)} />, document.body)
+        : null}
     </div>
   );
 }
@@ -694,6 +711,7 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
               ) : null}
               <TaskDetailSubtasksChip subtasks={props.subtasks} onOpenSubtask={props.onOpenSubtask} />
               <TaskDetailUsageChip
+                taskId={props.task.id}
                 usage={usage}
                 expanded={props.contextChipExpanded}
                 onExpandedChange={props.onContextChipExpandedChange}

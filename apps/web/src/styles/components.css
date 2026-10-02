@@ -684,3 +684,60 @@
   position: static;
   padding: .5rem 0 0;
 }
+/* Token usage breakdown (admin statistics + task usage) */
+.token-usage-breakdown {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.token-usage-breakdown__bar {
+  display: flex;
+  height: 0.62rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.token-usage-breakdown__segment {
+  height: 100%;
+}
+
+.token-usage-breakdown__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.token-usage-breakdown__legend li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-usage-breakdown__legend small,
+.token-usage-breakdown__label {
+  color: var(--text-muted);
+}
+
+.token-usage-breakdown__swatch {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 0.2rem;
+  align-self: center;
+}
+
+.token-usage--input {
+  background: var(--brand);
+}
+
+.token-usage--cached {
+  background: var(--success);
+}
+
+.token-usage--output {
+  background: var(--warning);
+}

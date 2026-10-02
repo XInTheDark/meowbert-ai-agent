@@ -1,3 +1,4 @@
+import type { TokenUsageTotals } from "@meowbert/shared/token-usage-stats";
 import type { AdminSettings } from "../../../lib/types";
 import type { AdminSourceProviderSettings } from "../../../sources/sourceTypes";
 
@@ -218,41 +219,20 @@ export interface AdminProcessesResponse {
 export type AdminStatisticsBucket = "hour" | "day" | "week" | "month";
 export type AdminStatisticsRange = "24h" | "7d" | "30d" | "90d" | "custom";
 
-export interface AdminUsageStatisticsSummary {
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  totalTokens: number;
-  weightedTokens: number;
-  requestCount: number;
+export interface AdminUsageStatisticsSummary extends TokenUsageTotals {
   activeUserCount: number;
   modelCount: number;
   averageTokensPerRequest: number;
 }
 
-export interface AdminUsageStatisticsPoint {
+export interface AdminUsageStatisticsPoint extends TokenUsageTotals {
   bucketStart: string;
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  totalTokens: number;
-  weightedTokens: number;
-  requestCount: number;
 }
 
-export interface AdminUsageStatisticsBreakdown {
+export interface AdminUsageStatisticsBreakdown extends TokenUsageTotals {
   id: string;
   label: string;
   detail: string | null;
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  totalTokens: number;
-  weightedTokens: number;
-  requestCount: number;
 }
 
 export interface AdminUsageStatisticsFilterOption {

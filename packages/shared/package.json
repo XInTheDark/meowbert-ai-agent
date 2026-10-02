@@ -37,6 +37,10 @@
       "types": "./dist/context-usage.d.ts",
       "default": "./dist/context-usage.js"
     },
+    "./token-usage-stats": {
+      "types": "./dist/token-usage-stats.d.ts",
+      "default": "./dist/token-usage-stats.js"
+    },
     "./inline-artifacts": {
       "types": "./dist/inline-artifacts.d.ts",
       "default": "./dist/inline-artifacts.js"

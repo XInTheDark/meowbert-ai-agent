@@ -1,5 +1,11 @@
-import { toSignedInteger } from "@meowbert/shared";
+import { toSignedInteger, type TokenUsageTotals } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
+import {
+  TOKEN_USAGE_AGGREGATE_COLUMNS,
+  mapTokenUsageTotals,
+  tokenUsageAggregateSql,
+  type TokenUsageAggregateRow
+} from "../billing/token-usage-aggregate.js";
 
 export type AdminStatisticsBucket = "hour" | "day" | "week" | "month";
 export type AdminStatisticsRange = "24h" | "7d" | "30d" | "90d" | "custom";
@@ -14,41 +20,20 @@ export interface AdminUsageStatisticsFilters {
   userSearch?: string;
 }
 
-export interface AdminUsageStatisticsSummary {
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  totalTokens: number;
-  weightedTokens: number;
-  requestCount: number;
+export interface AdminUsageStatisticsSummary extends TokenUsageTotals {
   activeUserCount: number;
   modelCount: number;
   averageTokensPerRequest: number;
 }
 
-export interface AdminUsageStatisticsPoint {
+export interface AdminUsageStatisticsPoint extends TokenUsageTotals {
   bucketStart: string;
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  totalTokens: number;
-  weightedTokens: number;
-  requestCount: number;
 }
 
-export interface AdminUsageStatisticsBreakdown {
+export interface AdminUsageStatisticsBreakdown extends TokenUsageTotals {
   id: string;
   label: string;
   detail: string | null;
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  totalTokens: number;
-  weightedTokens: number;
-  requestCount: number;
 }
 
 export interface AdminUsageStatisticsFilterOption {
@@ -75,14 +60,7 @@ export interface AdminUsageStatisticsResult {
   };
 }
 
-interface UsageAggregateRow {
-  input_tokens: string | number | null;
-  cached_input_tokens: string | number | null;
-  output_tokens: string | number | null;
-  reasoning_tokens: string | number | null;
-  total_tokens: string | number | null;
-  weighted_tokens: string | number | null;
-  request_count: string | number | null;
+interface UsageAggregateRow extends TokenUsageAggregateRow {
   active_user_count?: string | number | null;
   model_count?: string | number | null;
 }
@@ -158,27 +136,10 @@ function resolveBucket(from: Date, to: Date, requested: AdminStatisticsBucket | 
   return "month";
 }
 
-function aggregateSql(alias = "e"): string {
-  return `COALESCE(SUM(${alias}.input_tokens), 0)::text AS input_tokens,
-          COALESCE(SUM(${alias}.cached_input_tokens), 0)::text AS cached_input_tokens,
-          COALESCE(SUM(${alias}.output_tokens), 0)::text AS output_tokens,
-          COALESCE(SUM(${alias}.reasoning_tokens), 0)::text AS reasoning_tokens,
-          COALESCE(SUM(${alias}.input_tokens + ${alias}.output_tokens), 0)::text AS total_tokens,
-          COALESCE(SUM(${alias}.weighted_tokens), 0)::text AS weighted_tokens,
-          COUNT(*)::text AS request_count`;
-}
-
 function mapPoint(row: TimeSeriesRow): AdminUsageStatisticsPoint {
-  const requestCount = toSafeInteger(row.request_count);
   return {
     bucketStart: new Date(row.bucket_start).toISOString(),
-    inputTokens: toSafeInteger(row.input_tokens),
-    cachedInputTokens: toSafeInteger(row.cached_input_tokens),
-    outputTokens: toSafeInteger(row.output_tokens),
-    reasoningTokens: toSafeInteger(row.reasoning_tokens),
-    totalTokens: toSafeInteger(row.total_tokens),
-    weightedTokens: toSafeInteger(row.weighted_tokens),
-    requestCount
+    ...mapTokenUsageTotals(row)
   };
 }
 
@@ -187,13 +148,7 @@ function mapBreakdown(row: BreakdownRow): AdminUsageStatisticsBreakdown {
     id: row.id,
     label: row.label,
     detail: row.detail,
-    inputTokens: toSafeInteger(row.input_tokens),
-    cachedInputTokens: toSafeInteger(row.cached_input_tokens),
-    outputTokens: toSafeInteger(row.output_tokens),
-    reasoningTokens: toSafeInteger(row.reasoning_tokens),
-    totalTokens: toSafeInteger(row.total_tokens),
-    weightedTokens: toSafeInteger(row.weighted_tokens),
-    requestCount: toSafeInteger(row.request_count)
+    ...mapTokenUsageTotals(row)
   };
 }
 
@@ -208,19 +163,12 @@ function mapFilterOption(row: BreakdownRow): AdminUsageStatisticsFilterOption {
 }
 
 function buildSummary(row: UsageAggregateRow | undefined): AdminUsageStatisticsSummary {
-  const requestCount = toSafeInteger(row?.request_count);
-  const totalTokens = toSafeInteger(row?.total_tokens);
+  const totals = mapTokenUsageTotals(row);
   return {
-    inputTokens: toSafeInteger(row?.input_tokens),
-    cachedInputTokens: toSafeInteger(row?.cached_input_tokens),
-    outputTokens: toSafeInteger(row?.output_tokens),
-    reasoningTokens: toSafeInteger(row?.reasoning_tokens),
-    totalTokens,
-    weightedTokens: toSafeInteger(row?.weighted_tokens),
-    requestCount,
+    ...totals,
     activeUserCount: toSafeInteger(row?.active_user_count),
     modelCount: toSafeInteger(row?.model_count),
-    averageTokensPerRequest: requestCount > 0 ? Math.round(totalTokens / requestCount) : 0
+    averageTokensPerRequest: totals.requestCount > 0 ? Math.round(totals.totalTokens / totals.requestCount) : 0
   };
 }
 
@@ -253,7 +201,7 @@ function buildUsageQueryContext(input: AdminUsageStatisticsFilters): UsageQueryC
 
 async function loadUsageSummary(ctx: UsageQueryContext) {
   return query<UsageAggregateRow>(
-    `SELECT ${aggregateSql("e")},
+    `SELECT ${tokenUsageAggregateSql("e")},
             COUNT(DISTINCT e.user_id)::text AS active_user_count,
             COUNT(DISTINCT e.model)::text AS model_count
        FROM user_token_usage_events e
@@ -277,7 +225,7 @@ async function loadUsageTimeSeries(ctx: UsageQueryContext) {
       ),
       usage AS (
         SELECT date_trunc($5::text, e.occurred_at) AS bucket_start,
-               ${aggregateSql("e")}
+               ${tokenUsageAggregateSql("e")}
           FROM user_token_usage_events e
          WHERE e.occurred_at >= $1::timestamptz
            AND e.occurred_at < $2::timestamptz
@@ -287,13 +235,7 @@ async function loadUsageTimeSeries(ctx: UsageQueryContext) {
          GROUP BY 1
       )
       SELECT b.bucket_start,
-             COALESCE(u.input_tokens, '0') AS input_tokens,
-             COALESCE(u.cached_input_tokens, '0') AS cached_input_tokens,
-             COALESCE(u.output_tokens, '0') AS output_tokens,
-             COALESCE(u.reasoning_tokens, '0') AS reasoning_tokens,
-             COALESCE(u.total_tokens, '0') AS total_tokens,
-             COALESCE(u.weighted_tokens, '0') AS weighted_tokens,
-             COALESCE(u.request_count, '0') AS request_count
+             ${TOKEN_USAGE_AGGREGATE_COLUMNS.map((column) => `COALESCE(u.${column}, '0') AS ${column}`).join(",\n             ")}
         FROM buckets b
    LEFT JOIN usage u ON u.bucket_start = b.bucket_start
     ORDER BY b.bucket_start ASC`,
@@ -309,7 +251,7 @@ async function loadModelBreakdown(ctx: UsageQueryContext, limit: number, ignoreM
     `SELECT e.model AS id,
             e.model AS label,
             NULL::text AS detail,
-            ${aggregateSql("e")}
+            ${tokenUsageAggregateSql("e")}
        FROM user_token_usage_events e
       WHERE e.occurred_at >= $1::timestamptz
         AND e.occurred_at < $2::timestamptz
@@ -331,7 +273,7 @@ async function loadUserBreakdown(ctx: UsageQueryContext, limit: number, ignoreUs
     `SELECT e.user_id::text AS id,
             COALESCE(NULLIF(u.display_name, ''), u.email) AS label,
             u.email AS detail,
-            ${aggregateSql("e")}
+            ${tokenUsageAggregateSql("e")}
        FROM user_token_usage_events e
        JOIN users u ON u.id = e.user_id
       WHERE e.occurred_at >= $1::timestamptz
