@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { LoadingIndicator } from "../../components/LoadingIndicator";
 import { TaskSearchInputBar } from "../../components/search/TaskSearchInputBar";
 import { useCompactViewport } from "../../hooks/useCompactViewport";
 import type { Project } from "../../lib/types";
@@ -25,7 +26,9 @@ export function ProjectMasterLanding(props: ProjectMasterLandingProps) {
 function ProjectMasterConversation({ masterTaskId }: { masterTaskId: string | null }) {
   return (
     <div className="project-master-conversation">
-      {masterTaskId ? <TaskDetailPage key={masterTaskId} taskId={masterTaskId} embedded /> : null}
+      {masterTaskId
+        ? <TaskDetailPage key={masterTaskId} taskId={masterTaskId} embedded />
+        : <LoadingIndicator center size={28} label="Loading conversation…" />}
     </div>
   );
 }
