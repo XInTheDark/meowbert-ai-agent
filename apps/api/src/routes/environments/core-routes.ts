@@ -3,12 +3,11 @@ import type { FastifyInstance } from "fastify";
 import { query } from "../../lib/db.js";
 import { assertWorkspaceMember } from "../../services/workspaces/workspace-access.js";
 import { createEnvironment } from "../../services/environments/environment-creation.js";
+import { personalityDefaultId, personalityOptions } from "../../services/environments/personality-options.js";
 import {
   environmentEntityPaths,
   environmentParams,
   jsonObjectSchema,
-  personalityDefaultId,
-  personalityOptions,
   workspaceEnvironmentCollectionPaths,
   workspaceParams
 } from "./shared.js";

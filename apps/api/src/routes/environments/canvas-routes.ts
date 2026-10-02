@@ -19,7 +19,8 @@ import {
   startCanvasDevServer,
   stopCanvasDevServer
 } from "../../services/canvases/canvas-dev-server.js";
-import { environmentParams, getEnvironmentForUser } from "./shared.js";
+import { getEnvironmentForUser } from "../../services/environments/environment-for-user.js";
+import { environmentParams } from "./shared.js";
 
 const canvasParams = environmentParams.extend({
   canvasId: z.string().uuid()

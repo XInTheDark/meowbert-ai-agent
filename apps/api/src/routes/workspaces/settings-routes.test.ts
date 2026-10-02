@@ -14,7 +14,7 @@ vi.mock("../../services/workspaces/workspace-access.js", () => ({
   assertWorkspaceMember: vi.fn(async () => {})
 }));
 
-vi.mock("../environments/shared.js", () => ({
+vi.mock("../../services/environments/personality-options.js", () => ({
   personalityDefaultId: "default",
   personalityOptions: []
 }));

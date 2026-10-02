@@ -10,11 +10,14 @@ vi.mock("../../services/workspaces/workspace-access.js", () => ({
   assertTaskMember: vi.fn(async () => ({ workspaceId: "workspace-1", environmentId: "project-1" }))
 }));
 
+vi.mock("../../services/environments/environment-for-user.js", () => ({
+  getEnvironmentForUser: vi.fn(async () => ({ id: "project-1" }))
+}));
+
 vi.mock("./shared.js", async () => {
   const zod = await import("zod");
   return {
-    environmentParams: zod.z.object({ envId: zod.z.string().uuid() }),
-    getEnvironmentForUser: vi.fn(async () => ({ id: "project-1" }))
+    environmentParams: zod.z.object({ envId: zod.z.string().uuid() })
   };
 });
 

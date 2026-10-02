@@ -6,7 +6,8 @@ import {
   pushSourceFileLinkByEnvironmentPath,
   unlinkSourceFileLinkByEnvironmentPath
 } from "../../services/source-file-links/service.js";
-import { environmentParams, getEnvironmentForUser } from "./shared.js";
+import { getEnvironmentForUser } from "../../services/environments/environment-for-user.js";
+import { environmentParams } from "./shared.js";
 
 const liveSyncPathQuery = z.object({
   path: z.string().trim().min(1).max(1200)

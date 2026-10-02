@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { ensureSandboxWritablePath } from "@meowbert/shared";
 import { buildEnvironmentCleanupPlan } from "../../services/environments/environment-file-cleanup.js";
+import { getEnvironmentForUser, type EnvironmentForUser } from "../../services/environments/environment-for-user.js";
 import { listProjectDirectory } from "../../services/environments/project-directory-listing.js";
 import { deleteProjectFiles } from "../../services/environments/project-file-deletion.js";
 import { createTextFileWithinRoot } from "../../services/files/create-text-file.js";
@@ -18,12 +19,7 @@ import {
   requiredFileQuery
 } from "../files/file-route-schemas.js";
 import { receiveFileUpload } from "../files/file-upload.js";
-import {
-  environmentCleanupQuery,
-  environmentParams,
-  getEnvironmentForUser,
-  type EnvironmentForUser
-} from "./shared.js";
+import { environmentCleanupQuery, environmentParams } from "./shared.js";
 
 async function loadWorkspaceStorage(environment: EnvironmentForUser, actorUserId: string) {
   return getWorkspaceStorageUsage({
