@@ -64,6 +64,8 @@ describe("registerTaskInlineFileRoutes", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
+    expect(response.headers["content-security-policy"]).toMatch(/^sandbox /);
+    expect(response.headers["content-security-policy"]).not.toContain("allow-same-origin");
     expect(response.body).toContain("inline ok");
     expect(mockedResolveTaskInlineFile).toHaveBeenCalledWith(
       "326522d1-67cc-4475-92ce-a85b18556261",

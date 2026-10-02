@@ -20,11 +20,14 @@ export function buildDocumentTitle(...parts: Array<string | null | undefined>): 
 }
 
 export function useDocumentTitle(...parts: Array<string | null | undefined>): void {
+  // Depend on the joined title: callers pass a varying number of parts, and a dependency
+  // array that changes length between renders is invalid in React.
+  const title = buildDocumentTitle(...parts);
   useEffect(() => {
     if (typeof document === "undefined") {
       return;
     }
 
-    document.title = buildDocumentTitle(...parts);
-  }, [...parts]);
+    document.title = title;
+  }, [title]);
 }

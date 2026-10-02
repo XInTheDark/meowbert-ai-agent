@@ -306,24 +306,30 @@ export function WorkspaceGlobalSearchPage() {
         {error ? <div className="error-banner" style={{ marginBottom: "1rem" }}>{error}</div> : null}
         {isLoading ? <InlineProgressBar pin="top" /> : null}
         {!isLoading && !hasSearched ? <div className="task-list-empty">Search tasks by title or conversation text.</div> : null}
-        {!isLoading && hasSearched && results.length === 0 ? <div className="task-list-empty">No tasks match the current filters.</div> : null}
+        {!isLoading && hasSearched && results.length === 0 ? (
+          <div className="task-list-empty">
+            {activeFilterCount > 0 ? "No tasks match your search and filters." : <>No tasks match &ldquo;{searchTerm}&rdquo;.</>}
+          </div>
+        ) : null}
         {results.length > 0 ? (
           <div className="global-search-results">
             {results.map((item) => <GlobalSearchResultRow key={item.id} item={item} onOpen={openResult} />)}
           </div>
         ) : null}
 
-        <div className="task-pagination task-pagination-spread">
-          <button className="btn ghost" disabled={!pagination.hasPreviousPage || isLoading} onClick={() => setPage((value) => value - 1)}>
-            Previous
-          </button>
-          <span className="muted-text" style={{ fontSize: "0.9rem" }}>
-            Page {results.length > 0 || page > 1 || pagination.hasNextPage ? page : 0}
-          </span>
-          <button className="btn ghost" disabled={!pagination.hasNextPage || isLoading} onClick={() => setPage((value) => value + 1)}>
-            Next
-          </button>
-        </div>
+        {page > 1 || pagination.hasNextPage ? (
+          <div className="task-pagination task-pagination-spread">
+            <button className="btn ghost" disabled={!pagination.hasPreviousPage || isLoading} onClick={() => setPage((value) => value - 1)}>
+              Previous
+            </button>
+            <span className="muted-text" style={{ fontSize: "0.9rem" }}>
+              Page {page}
+            </span>
+            <button className="btn ghost" disabled={!pagination.hasNextPage || isLoading} onClick={() => setPage((value) => value + 1)}>
+              Next
+            </button>
+          </div>
+        ) : null}
       </article>
     </section>
   );

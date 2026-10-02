@@ -1,3 +1,4 @@
+import { LoadingIndicator } from "../../components/LoadingIndicator";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { TaskDetailContent } from "./detail/TaskDetailContent";
 import {
@@ -59,14 +60,17 @@ function LoadedTaskDetail({ context }: { context: TaskDetailPageContext }) {
 
 export function TaskDetailPage(props: { taskId?: string; embedded?: boolean }) {
   const context = useTaskDetailPageContext(props.taskId);
+  const loading = props.embedded
+    ? <LoadingIndicator center size={28} label="Loading conversation…" />
+    : <LoadingScreen label="Loading task..." />;
   if (context.data.isTaskLoading && !context.data.taskDetail) {
-    return props.embedded ? null : <LoadingScreen label="Loading task..." />;
+    return loading;
   }
   if (context.data.taskLoadError && !context.data.taskDetail) {
     return <TaskLoadFailure context={context} />;
   }
   if (!context.data.taskDetail) {
-    return props.embedded ? null : <LoadingScreen label="Loading task..." />;
+    return loading;
   }
   if (!context.taskProjectId) {
     return <MissingProjectContext />;

@@ -797,7 +797,7 @@
 
 .workbench-toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto minmax(280px, auto);
+  grid-template-columns: minmax(220px, 1fr) auto;
   align-items: center;
   gap: var(--space-sm);
 }
@@ -826,11 +826,11 @@
   outline: none;
 }
 
-.workbench-toolbar .env-create-inline {
+.workbench-header .env-create-inline {
   justify-content: flex-end;
 }
 
-.workbench-toolbar .env-create-inline input {
+.workbench-header .env-create-inline input {
   width: clamp(180px, 22vw, 260px);
 }
 
@@ -859,21 +859,42 @@
 }
 
 .project-card {
-  display: flex;
-  flex-direction: column;
-  min-height: 145px;
-  gap: 1rem;
-}
-
-.project-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--space-sm);
+  padding: var(--space-md);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.project-card-head > div {
+.project-card:hover {
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--border-subtle));
+}
+
+.project-card:has(.project-card-title:focus-visible) {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.project-card.is-archived {
+  opacity: 0.78;
+}
+
+.project-card-icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
+  color: var(--text-muted);
+}
+
+.project-card-body {
   min-width: 0;
+  display: grid;
+  gap: 0.15rem;
 }
 
 .project-card-title {
@@ -884,14 +905,38 @@
   cursor: pointer;
   padding: 0;
   text-align: left;
-  font-size: 1.02rem;
+  font-size: 0.98rem;
   font-weight: 550;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.project-card-title:hover {
+/* Stretch the title's hit area over the whole card; the action buttons sit above it. */
+.project-card-title::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.project-card-title:focus-visible {
+  outline: none;
+}
+
+.project-card:hover .project-card-title {
   color: var(--brand);
+}
+
+.project-card-rename {
+  position: relative;
+  z-index: 1;
+}
+
+.project-card-rename input {
+  width: 100%;
+  font-size: 0.95rem;
 }
 
 .project-card-meta {
@@ -903,31 +948,17 @@
   margin-top: var(--space-xs);
 }
 
-.project-card-meta .project-command-path {
-  flex: 1 1 auto;
-  min-width: 0;
+.project-card .project-card-meta {
+  margin-top: 0;
+  font-size: 0.8rem;
 }
 
 .project-card-actions {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  min-width: 0;
-  margin-top: auto;
-  border-top: 1px solid var(--border-subtle);
-  padding-top: var(--space-sm);
-}
-
-.project-card-actions .btn:first-child {
-  flex: 1 1 0;
-  min-width: 0;
-  padding-inline: var(--space-sm);
-}
-
-.project-card-actions .btn:not(:first-child) {
-  flex: 0 0 2.25rem;
-  width: 2.25rem;
-  padding-inline: 0;
+  gap: 0.25rem;
 }
 
 .project-archive-panel {
@@ -955,15 +986,6 @@
   margin: 0;
   font-size: 1.45rem;
   line-height: 1.16;
-}
-
-.project-command-path {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .task-command-panel.workbench-panel.padded {

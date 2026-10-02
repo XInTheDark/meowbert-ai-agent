@@ -6,7 +6,7 @@ import { query } from "../../lib/db.js";
 import { createRedisSubscriber } from "../../lib/redis.js";
 import { issueScopedAccessTicket, verifyScopedAccessTicket } from "../../services/auth/scoped-access-tickets.js";
 import { assertWorkspaceMember } from "../../services/workspaces/workspace-access.js";
-import { personalityDefaultId, personalityOptions } from "../environments/shared.js";
+import { personalityDefaultId, personalityOptions } from "../../services/environments/personality-options.js";
 import {
   isWorkspaceOwner,
   workspaceNotificationsQuerySchema,

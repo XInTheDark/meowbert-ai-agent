@@ -5,7 +5,8 @@ import {
   terminatePersistentShellSessions
 } from "../../services/runtime/persistent-shell-sessions.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
-import { environmentParams, getEnvironmentForUser } from "./shared.js";
+import { getEnvironmentForUser } from "../../services/environments/environment-for-user.js";
+import { environmentParams } from "./shared.js";
 import { taskParams } from "../tasks/shared.js";
 
 const persistentShellQuery = z.object({

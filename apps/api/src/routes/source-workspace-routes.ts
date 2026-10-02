@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { query } from "../lib/db.js";
-import { getEnvironmentForUser, workspaceParams } from "./environments/shared.js";
+import { getEnvironmentForUser } from "../services/environments/environment-for-user.js";
+import { workspaceParams } from "./environments/shared.js";
 import { beginWorkspaceSourceOAuth } from "../services/sources/oauth-flow.js";
 import {
   getSourceProviderSettings,

@@ -19,7 +19,7 @@ import type {
   EnvironmentFileEntry,
   TaskAttachment
 } from "../../lib/types";
-import { EnvironmentFileBrowser } from "../../pages/environment/files/EnvironmentFileBrowser";
+import { FileBrowserEntries } from "../files/FileBrowserEntries";
 import type {
   SourceBrowseResponse,
   SourceFileEntry,
@@ -754,7 +754,7 @@ function SourceFilePickerFileModal(props: SourceFilePickerModalProps) {
             />
 
             <div className="files-main environment-file-picker-main">
-              <EnvironmentFileBrowser
+              <FileBrowserEntries
                 isLoadingList={isLoadingList}
                 entries={browserEntries}
                 sortedEntries={sortedEntries}

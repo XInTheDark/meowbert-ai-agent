@@ -8,7 +8,7 @@ import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { pipeline } from "node:stream/promises";
 import { isProjectContextPath } from "@meowbert/shared/project-context";
 import { query } from "../../lib/db.js";
-import { createAvailableFilePath, sanitizeUploadFilename } from "../../routes/environments/shared.js";
+import { createAvailableFilePath, sanitizeUploadFilename } from "../files/file-paths.js";
 import { getSourceCatalogEntry } from "../sources/source-catalog.js";
 import { downloadWorkspaceSourceFile } from "../sources/source-operations.js";
 import {

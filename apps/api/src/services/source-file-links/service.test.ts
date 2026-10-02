@@ -5,7 +5,7 @@ vi.mock("../../lib/db.js", () => ({
   query: vi.fn()
 }));
 
-vi.mock("../../routes/environments/shared.js", () => ({
+vi.mock("../files/file-paths.js", () => ({
   createAvailableFilePath: vi.fn(),
   sanitizeUploadFilename: vi.fn((value: string) => value)
 }));

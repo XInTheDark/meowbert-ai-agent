@@ -15,8 +15,8 @@ import type {
   EnvironmentFilePreview,
   TaskAttachment
 } from "../../lib/types";
-import { EnvironmentFileBrowser } from "../../pages/environment/files/EnvironmentFileBrowser";
-import { EnvironmentFilesPreviewPane } from "../../pages/environment/files/EnvironmentFilesPreviewPane";
+import { FileBrowserEntries } from "../files/FileBrowserEntries";
+import { FilePreviewPane } from "../files/FilePreviewPane";
 
 interface UploadedEnvironmentFilePayload {
   file: {
@@ -423,7 +423,7 @@ export function EnvironmentFilePickerModal(props: EnvironmentFilePickerModalProp
             </div>
 
             <div className="files-main environment-file-picker-main">
-              <EnvironmentFileBrowser
+              <FileBrowserEntries
                 isLoadingList={isLoadingList}
                 entries={entries}
                 sortedEntries={sortedEntries}
@@ -440,7 +440,7 @@ export function EnvironmentFilePickerModal(props: EnvironmentFilePickerModalProp
                 }}
                 onCheckboxClick={handleEntryCheckboxClick}
               />
-              <EnvironmentFilesPreviewPane
+              <FilePreviewPane
                 selectedEntry={selectedEntry}
                 filePreview={filePreview}
                 selectedCount={selectedPaths.size}

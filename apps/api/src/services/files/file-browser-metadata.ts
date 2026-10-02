@@ -2,6 +2,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { calculatePathUsageBytes } from "@meowbert/shared";
 import { resolveRealPathWithinRoot } from "@meowbert/shared/server-security";
+import { toWebPath } from "./file-paths.js";
 
 export interface DirectorySizeEntry {
   relativePath: string;
@@ -11,10 +12,6 @@ export interface DirectorySizeEntry {
 interface PendingTask<T> {
   index: number;
   task: () => Promise<T>;
-}
-
-function toWebPath(input: string): string {
-  return input.split(path.sep).join("/");
 }
 
 async function runWithConcurrency<T>(tasks: Array<() => Promise<T>>, concurrency: number): Promise<T[]> {

@@ -2,6 +2,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { calculatePathUsageBytes } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
+import { toIsoTimestamp } from "../files/file-paths.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -54,19 +55,6 @@ interface NormalizedCleanupFilters {
   modifiedBeforeMs: number | null;
   minSizeBytes: number | null;
   maxSizeBytes: number | null;
-}
-
-function toIsoTimestamp(value: Date | undefined | null): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const timestamp = value.getTime();
-  if (!Number.isFinite(timestamp)) {
-    return null;
-  }
-
-  return value.toISOString();
 }
 
 function clampTargetPercent(value: number): number {

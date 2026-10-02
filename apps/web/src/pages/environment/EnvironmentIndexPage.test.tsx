@@ -174,4 +174,54 @@ describe("EnvironmentIndexPage", () => {
 
     expect(container?.querySelector<HTMLButtonElement>('button[title="Create project"]')?.disabled).toBe(true);
   });
+  it("renames a project inline from the card menu and discards the draft on Escape", async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const contextValue = createWorkspaceContextValue();
+    const patchEnvironmentMock = vi.fn(async () => undefined);
+    contextValue.patchEnvironment = patchEnvironmentMock;
+
+    await act(async () => {
+      root?.render(
+        <MemoryRouter>
+          <WorkspaceContext.Provider value={contextValue}>
+            <EnvironmentIndexPage />
+          </WorkspaceContext.Provider>
+        </MemoryRouter>
+      );
+    });
+
+    async function startRename(): Promise<HTMLInputElement> {
+      await act(async () => {
+        container?.querySelector<HTMLButtonElement>('button[title="Project actions"]')?.click();
+      });
+      const rename = Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Rename");
+      await act(async () => rename?.click());
+      return container!.querySelector<HTMLInputElement>('input[aria-label="Project name"]')!;
+    }
+
+    async function typeName(input: HTMLInputElement, value: string): Promise<void> {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    }
+
+    const discarded = await startRename();
+    await typeName(discarded, "Draft name");
+    await act(async () => {
+      discarded.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector('input[aria-label="Project name"]')).toBeNull();
+    expect(patchEnvironmentMock).not.toHaveBeenCalled();
+
+    const saved = await startRename();
+    await typeName(saved, "Renamed project");
+    await act(async () => {
+      saved.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(patchEnvironmentMock).toHaveBeenCalledWith("env_active", { name: "Renamed project" });
+  });
 });

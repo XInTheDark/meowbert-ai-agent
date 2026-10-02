@@ -6,7 +6,7 @@ import {
   createAvailableFilePath,
   sanitizeUploadFilename,
   toIsoTimestamp
-} from "../../../routes/environments/shared.js";
+} from "../../files/file-paths.js";
 import { signGoogleWorkspaceReference } from "./reference-signing.js";
 import {
   decodeGoogleDriveItemReference,

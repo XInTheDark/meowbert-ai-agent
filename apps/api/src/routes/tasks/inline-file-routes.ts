@@ -5,6 +5,7 @@ import { issueScopedAccessTicket, verifyScopedAccessTicket } from "../../service
 import { getFileContentType } from "../../services/files/file-content-type.js";
 import { resolvePublicTaskInlineFile, resolveTaskInlineFile } from "../../services/tasks/task-inline-files.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
+import { applyUntrustedContentHeaders } from "../files/untrusted-content-headers.js";
 
 const taskIdParams = z.object({ taskId: z.string().uuid() });
 const publicTaskShareParams = z.object({ shareId: z.string().uuid() });
@@ -89,8 +90,7 @@ export async function registerTaskInlineFileRoutes(fastify: FastifyInstance): Pr
       reply.header("Content-Type", getFileContentType(file.absolutePath));
       reply.header("Content-Length", String(file.sizeBytes));
       reply.header("Cache-Control", "private, max-age=60");
-      reply.header("X-Content-Type-Options", "nosniff");
-      reply.header("Referrer-Policy", "no-referrer");
+      applyUntrustedContentHeaders(reply);
       return reply.send(fs.createReadStream(file.absolutePath));
     }
   );
@@ -104,7 +104,7 @@ export async function registerTaskInlineFileRoutes(fastify: FastifyInstance): Pr
       reply.header("Content-Type", getFileContentType(file.absolutePath));
       reply.header("Content-Length", String(file.sizeBytes));
       reply.header("Cache-Control", "public, max-age=60");
-      reply.header("X-Content-Type-Options", "nosniff");
+      applyUntrustedContentHeaders(reply);
       return reply.send(fs.createReadStream(file.absolutePath));
     }
   );

@@ -15,7 +15,7 @@ In the sidebar, click **All Projects**. Your default project should already be l
 
 ## Step 2 — Open the default project
 
-Click the project card or name to open it. You land in a conversation with the project's **Master**, who starts and follows up on tasks for you (see [Project Master](/getting-started/project-master)). Confirm that:
+Click anywhere on the project card to open it. You land in a conversation with the project's **Master**, who starts and follows up on tasks for you (see [Project Master](/getting-started/project-master)). Confirm that:
 
 - You can message the Master right away.
 - **All tasks** and **New Task** are available if you would rather manage tasks yourself.
@@ -25,7 +25,7 @@ If the project shows `error`, check the server logs or contact your server admin
 
 ## Step 3 — Rename it if you want
 
-If the default name is too generic, use the rename action on the project card and give it a clearer purpose, for example:
+If the default name is too generic, open the **⋯** menu on the project card, choose **Rename**, and type a clearer name in place, for example:
 
 - `production-api`
 - `data-analysis`
@@ -35,7 +35,7 @@ Good names help both teammates and connector routing pick the right project late
 
 ## Step 4 — Create more projects when you need them
 
-You can still create additional projects from the **All Projects** page whenever you want separate runtimes for different apps, environments, or experiments.
+You can create more projects from the **All Projects** page whenever you want separate runtimes for different apps, environments, or experiments. Type a name in the box at the top of the page and click **Create**.
 
 ## Optional setup
 
@@ -49,5 +49,5 @@ Once you open the project, you can also configure:
 ## Tips
 
 - A workspace can have many projects, but most people only need one to get started.
-- Archive projects you are no longer using to keep the list tidy.
+- Archive projects you are no longer using to keep the list tidy. **Archive** is in the card's **⋯** menu, and archived projects can be restored from the same menu.
 - Projects do not keep always-on containers running. Meowbert starts sandbox containers only while a task run or terminal session is active.

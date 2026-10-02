@@ -31,7 +31,7 @@ You rarely need to touch the config file after [setup](/getting-started/quicksta
 
 - `maxSteps`: the most tool calls one task run can make
 - `workerConcurrency`: how many task runs the worker handles at once
-- `sandbox.resources`: limits for each task's container
+- `sandbox.resources`: limits for each task's container. `storageMb` is the per-workspace storage limit (a user's plan or admin override can change it). Without [XFS project quotas](/reference/xfs-project-quotas) it is a soft limit: uploads and files copied in from connected sources are refused once a workspace is full, but files that tasks write are not capped.
 
 ### Skills
 

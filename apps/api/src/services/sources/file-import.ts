@@ -6,7 +6,7 @@ import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { pipeline } from "node:stream/promises";
 import { ensureSandboxWritablePath } from "@meowbert/shared";
 import { ensureDirectoryWithinRoot } from "@meowbert/shared/server-security";
-import { createAvailableFilePath, sanitizeUploadFilename, toIsoTimestamp } from "../../routes/environments/shared.js";
+import { createAvailableFilePath, sanitizeUploadFilename, toIsoTimestamp } from "../files/file-paths.js";
 import { downloadWorkspaceSourceFile } from "./source-operations.js";
 
 export async function importWorkspaceSourceFileToEnvironment(input: {
@@ -16,6 +16,7 @@ export async function importWorkspaceSourceFileToEnvironment(input: {
   itemId: string;
   destinationPath?: string | null;
   createDirectories?: boolean;
+  onSaved?: (sizeBytes: number) => void;
 }): Promise<{
   name: string;
   relativePath: string;
@@ -46,12 +47,17 @@ export async function importWorkspaceSourceFileToEnvironment(input: {
     Readable.fromWeb(download.response.body as unknown as NodeReadableStream),
     fs.createWriteStream(destinationPath)
   );
+  const savedStats = await fsPromises.stat(destinationPath);
+  try {
+    input.onSaved?.(savedStats.size);
+  } catch (error) {
+    await fsPromises.rm(destinationPath, { force: true });
+    throw error;
+  }
   await ensureSandboxWritablePath({
     rootPath: input.environmentRootPath,
     targetPath: destinationPath
   });
-
-  const savedStats = await fsPromises.stat(destinationPath);
 
   return {
     name: path.basename(destinationPath),

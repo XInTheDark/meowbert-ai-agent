@@ -1,5 +1,17 @@
 # Changelog
 
+## Oct 2, 2026
+
+### Files and projects
+
+- **Redesigned project cards** — Click anywhere on a project to open it. Rename, Files, Settings, and Archive now sit in a menu on each card, and renaming happens in place.
+- **Storage limits apply to uploads** — Once a workspace reaches its storage limit, uploads, new text files, and files copied in from connected sources are refused with a clear message.
+- **Large uploads** — Files over the 100 MB upload limit are now rejected instead of being saved cut short.
+
+### Security
+
+- **Artifacts stay sandboxed in new tabs** — Canvases and inline artifacts opened in their own tab now run in the same sandbox as they do inside the app.
+
 ## Sep 30, 2026
 
 ### Meowbert is open source

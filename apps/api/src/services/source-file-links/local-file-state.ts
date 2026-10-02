@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { isWithinPath } from "@meowbert/shared";
-import { toIsoTimestamp } from "../../routes/environments/shared.js";
+import { toIsoTimestamp } from "../files/file-paths.js";
 import type { SourceFileLinkLocalSnapshot } from "./types.js";
 import { snapshotLiveSyncPath } from "./linux-safe-fs.js";
 

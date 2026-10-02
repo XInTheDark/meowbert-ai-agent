@@ -280,17 +280,9 @@ async function registerCoreServerPlugins(app: Fastify.FastifyInstance): Promise<
   });
   app.decorate("authenticate", async (request, reply) => {
     try {
-      const queryToken = typeof (request.query as Record<string, unknown> | undefined)?.token === "string"
-        ? (request.query as Record<string, unknown>).token as string
-        : typeof (request.query as Record<string, unknown> | undefined)?.auth_token === "string"
-        ? (request.query as Record<string, unknown>).auth_token as string
-        : null;
-      let tokenPayload: SessionTokenPayload;
-      if (queryToken) {
-        tokenPayload = app.jwt.verify<SessionTokenPayload>(queryToken);
-      } else {
-        tokenPayload = await request.jwtVerify<SessionTokenPayload>();
-      }
+      // Session tokens are only read from the Authorization header. URLs end up in access logs,
+      // browser history and Referer headers, so URL-borne access uses short-lived scoped tickets.
+      const tokenPayload = await request.jwtVerify<SessionTokenPayload>();
       await assertSessionTokenAccepted({
         userId: tokenPayload.id,
         issuedAtSeconds: tokenPayload.iat
