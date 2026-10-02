@@ -56,14 +56,26 @@ export function ProjectTaskToolbar(props: ProjectTaskListSectionProps & { extraA
   );
 }
 
+function describeEmptyTaskList(taskList: ProjectTaskListSectionProps["browser"]["taskList"]): string {
+  if (taskList.folderFilter === "unfiled") return "No tasks in this folder.";
+  const hasNarrowingFilters = isTaskListContentFiltered({
+    searchTerm: taskList.searchTerm,
+    statusFilter: taskList.statusFilter,
+    taskTypeFilter: taskList.taskTypeFilter,
+    scopeFilter: "active",
+    folderFilter: taskList.folderFilter
+  });
+  if (hasNarrowingFilters) return "No tasks match the current filters.";
+  if (taskList.scopeFilter === "trashed") return "Trash is empty.";
+  return taskList.scopeFilter === "active" ? "No tasks yet." : "No tasks match the current filters.";
+}
+
 export function ProjectTaskTree(props: ProjectTaskListSectionProps & { activeTaskId?: string | null }) {
   const { project } = props;
   const { activeWorkspaceId, navigate, taskList, folders, actions, columns } = props.browser;
   if (taskList.isLoading && !taskList.hasLoadedTaskList) return <TaskListSkeleton />;
   if (taskList.hasLoadedTaskList && taskList.tasks.length === 0 && folders.taskFolders.length === 0) {
-    return <div className="task-list-empty">
-      {taskList.folderFilter === "unfiled" ? "No tasks in this folder." : "No tasks match the current filters."}
-    </div>;
+    return <div className="task-list-empty">{describeEmptyTaskList(taskList)}</div>;
   }
   if (taskList.isLoading) {
     return <TaskListSkeleton rows={Math.min(Math.max(taskList.tasks.length, 3), 8)} />;
@@ -123,13 +135,14 @@ export function ProjectTaskTree(props: ProjectTaskListSectionProps & { activeTas
 
 export function ProjectTaskPagination({ browser }: Pick<ProjectTaskListSectionProps, "browser">) {
   const { taskList } = browser;
+  if (taskList.page <= 1 && !taskList.pagination.hasNextPage) return null;
   return (
     <div className="task-pagination task-pagination-spread">
       <button className="btn ghost" disabled={taskList.page <= 1 || taskList.isLoading} onClick={() => taskList.setPage((value) => value - 1)}>
         Previous
       </button>
       <span className="muted-text task-pagination-label">
-        Page {taskList.tasks.length > 0 || taskList.page > 1 || taskList.pagination.hasNextPage ? taskList.page : 0}
+        Page {taskList.page}
       </span>
       <button className="btn ghost" disabled={!taskList.pagination.hasNextPage || taskList.isLoading} onClick={() => taskList.setPage((value) => value + 1)}>
         Next

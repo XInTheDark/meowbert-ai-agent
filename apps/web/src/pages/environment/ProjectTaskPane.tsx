@@ -15,7 +15,6 @@ export function ProjectTaskPane(props: { project: Project; masterTaskId: string 
   const browser = useProjectTaskBrowser();
   const { activeWorkspaceId, navigate, taskList } = browser;
   const base = `/app/${activeWorkspaceId}/projects/${project.id}`;
-  const hasMultiplePages = taskList.page > 1 || taskList.pagination.hasNextPage;
   useDismissTaskMenusOnOutsideClick(browser);
 
   function openFullList(): void {
@@ -43,7 +42,7 @@ export function ProjectTaskPane(props: { project: Project; masterTaskId: string 
       <div className="project-task-pane-list">
         <ProjectTaskTree project={project} browser={browser} activeTaskId={masterTaskId} />
       </div>
-      {hasMultiplePages ? <ProjectTaskPagination browser={browser} /> : null}
+      <ProjectTaskPagination browser={browser} />
       <ProjectTaskDialogs browser={browser} />
     </aside>
   );

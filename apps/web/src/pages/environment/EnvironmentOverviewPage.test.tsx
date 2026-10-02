@@ -205,7 +205,7 @@ describe("EnvironmentOverviewPage", () => {
       await deferred.promise;
     });
 
-    expect(container.textContent).toContain("No tasks match the current filters.");
+    expect(container.textContent).toContain("No tasks yet.");
   });
 
   it("renders task folders with nested task rows", async () => {
