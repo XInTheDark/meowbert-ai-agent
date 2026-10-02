@@ -174,7 +174,7 @@ async function maybeApplySubscriptionQuota(execution: AgentExecutionContext): Pr
   }
 
   execution.state.shouldRecordTokenUsage = true;
-  if (execution.prepared.resolvedRunActorIsSuperAdmin) {
+  if (execution.prepared.resolvedRunActorIsSuperAdmin || execution.prepared.subscriptionUserIsSuperAdmin) {
     return false;
   }
 

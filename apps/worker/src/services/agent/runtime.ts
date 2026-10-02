@@ -156,6 +156,8 @@ export interface PreparedAgentRunContext {
   runtimeQuickModelCompatibilityModes: PlatformModelCompatibilityMode[];
   maxContextTokens: number;
   subscriptionUserId: string | null;
+  // Super admins are billed for statistics but never blocked by subscription quota.
+  subscriptionUserIsSuperAdmin: boolean;
   runPersistedItems: ResponseInputItem[];
   currentLeafMessageId: string | null;
   dispatchState: ToolDispatchState | null;
@@ -566,8 +568,7 @@ async function resolveRuntimeConfig(
     hasPlatformInitiator:
       !usingByoProvider
       && typeof snapshot.task.initiator_user_id === "string"
-      && snapshot.task.initiator_user_id.length > 0
-      && snapshot.initiator_user?.is_super_admin !== true,
+      && snapshot.task.initiator_user_id.length > 0,
     hasGitHubAppConnection: snapshot.github_connection !== null
   };
 }
@@ -1421,6 +1422,7 @@ export async function prepareAgentRunContext(
       runtimeQuickModelCompatibilityModes: base.runtimeConfig.runtimeQuickModelCompatibilityModes,
       maxContextTokens: base.runtimeConfig.maxContextTokens,
       subscriptionUserId: base.runtimeConfig.hasPlatformInitiator ? base.snapshot.task.initiator_user_id : null,
+      subscriptionUserIsSuperAdmin: base.snapshot.initiator_user?.is_super_admin === true,
       runPersistedItems: [],
       currentLeafMessageId: base.snapshot.branch_leaf_message_id,
       dispatchState: null,

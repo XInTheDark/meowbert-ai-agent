@@ -229,6 +229,7 @@ function createExecutionContext() {
       refreshGitHubToken: vi.fn(),
       runActorUserId: null,
       subscriptionUserId: null,
+      subscriptionUserIsSuperAdmin: false,
       cancellationMonitor: {
         signal: abortController.signal,
         assertNotCancelled: vi.fn(async () => {})
@@ -949,6 +950,39 @@ describe("runAgentStepLoop", () => {
     expect(mockedGetUserMonthlySubscriptionQuotaStatus).not.toHaveBeenCalled();
     expect(execution.state.finalResponseFromTool).toEqual({ response: "Admin done.", notify: true });
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(1);
+    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "admin-1",
+      inputTokens: 42,
+      outputTokens: 8
+    }));
+  });
+
+  it("records usage for an admin-initiated task run by a non-admin without enforcing quota", async () => {
+    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
+      output: [],
+      output_text: "",
+      usage: {
+        input_tokens: 42,
+        output_tokens: 8
+      }
+    } as never);
+    mockedDispatchResponseOutput.mockResolvedValueOnce({
+      sawToolCall: true,
+      sawFunctionToolCall: true,
+      finalResponse: { response: "Done.", notify: true },
+      waitRequest: null,
+      stopRequest: null,
+      workflowPause: null
+    });
+
+    const execution = createExecutionContext();
+    execution.prepared.subscriptionUserId = "admin-1";
+    execution.prepared.subscriptionUserIsSuperAdmin = true;
+    execution.prepared.resolvedRunActorIsSuperAdmin = false;
+
+    await runAgentStepLoop(execution as never);
+
+    expect(mockedGetUserMonthlySubscriptionQuotaStatus).not.toHaveBeenCalled();
     expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(expect.objectContaining({
       userId: "admin-1",
       inputTokens: 42,
