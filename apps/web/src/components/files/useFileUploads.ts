@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { useAppRuntime } from "../../../contexts/AppRuntimeContext";
-import { useWorkspaceApp } from "../../../contexts/WorkspaceContext";
-import { buildViewerUploadQuery, planViewerUploads, selectionIncludesFolder } from "../../../project/fileUploadPlanning";
+import { useAppRuntime } from "../../contexts/AppRuntimeContext";
+import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
+import { buildViewerUploadQuery, planViewerUploads, selectionIncludesFolder } from "../../project/fileUploadPlanning";
+import type { FileScope } from "./fileScope";
 
-interface UseProjectFileUploadsOptions {
-  projectId: string | null;
+interface UseFileUploadsOptions {
+  scope: FileScope | null;
   cwd: string;
   storageStatus: "idle" | "loading" | "ready" | "error";
   loadFiles: (path?: string) => Promise<void>;
@@ -13,7 +14,7 @@ interface UseProjectFileUploadsOptions {
   onPickerOpening: () => void;
 }
 
-export function useProjectFileUploads(options: UseProjectFileUploadsOptions) {
+export function useFileUploads(options: UseFileUploadsOptions) {
   const { api, setFlash } = useWorkspaceApp();
   const { platform, capabilities } = useAppRuntime();
   const [isUploading, setIsUploading] = useState(false);
@@ -28,7 +29,8 @@ export function useProjectFileUploads(options: UseProjectFileUploadsOptions) {
   }, []);
 
   const uploadFiles = useCallback(async (files: FileList | File[] | null): Promise<void> => {
-    if (!options.projectId) {
+    const filesApiPath = options.scope?.filesApiPath;
+    if (!filesApiPath) {
       return;
     }
     const uploadPlans = planViewerUploads(options.cwd, files);
@@ -42,7 +44,7 @@ export function useProjectFileUploads(options: UseProjectFileUploadsOptions) {
         const formData = new FormData();
         formData.append("file", upload.file);
         try {
-          await api.postForm(`/api/projects/${options.projectId}/files/upload${buildViewerUploadQuery(upload)}`, formData);
+          await api.postForm(`${filesApiPath}/upload${buildViewerUploadQuery(upload)}`, formData);
         } catch (error) {
           throw new Error(`Failed to upload ${upload.label}: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -64,7 +66,7 @@ export function useProjectFileUploads(options: UseProjectFileUploadsOptions) {
         folderInputRef.current.value = "";
       }
     }
-  }, [api, options.cwd, options.loadFiles, options.loadStorageSummary, options.projectId, options.setError, options.storageStatus, setFlash]);
+  }, [api, options.cwd, options.loadFiles, options.loadStorageSummary, options.scope, options.setError, options.storageStatus, setFlash]);
 
   const openFilePicker = useCallback(async (): Promise<void> => {
     if (isUploading) {

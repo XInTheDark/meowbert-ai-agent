@@ -1,7 +1,7 @@
-import type { StorageSummary } from "../../../lib/types";
-import { formatBytes } from "../../../lib/utils";
+import type { StorageSummary } from "../../lib/types";
+import { formatBytes } from "../../lib/utils";
 
-export interface ProjectFileStorageMetrics {
+export interface FileStorageMetrics {
   usedBytes: number;
   limitBytes: number | null;
   usagePercent: number | null;
@@ -12,7 +12,7 @@ export interface ProjectFileStorageMetrics {
   tooltip: string;
 }
 
-export function getProjectFileStorageMetrics(storage: StorageSummary | null): ProjectFileStorageMetrics {
+export function getFileStorageMetrics(storage: StorageSummary | null): FileStorageMetrics {
   const usedBytes = storage?.usedBytes ?? 0;
   const limitBytes = storage && typeof storage.limitBytes === "number" ? storage.limitBytes : null;
   const rawUsagePercent = storage && typeof storage.usagePercent === "number" ? storage.usagePercent : null;

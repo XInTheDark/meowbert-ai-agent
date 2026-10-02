@@ -1,24 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ApiClient } from "../../../lib/api";
-import type { StorageSummary, StorageSummaryResponse } from "../../../lib/types";
-import { getProjectFileStorageMetrics } from "./projectFileStorage";
+import type { ApiClient } from "../../lib/api";
+import type { StorageSummary, StorageSummaryResponse } from "../../lib/types";
+import type { FileScope } from "./fileScope";
+import { getFileStorageMetrics } from "./fileStorageMetrics";
 
-export type ProjectFileStorageStatus = "idle" | "loading" | "ready" | "error";
+export type FileStorageStatus = "idle" | "loading" | "ready" | "error";
 
-export function useProjectFileStorage(api: ApiClient, projectId: string | null) {
+export function useFileStorage(api: ApiClient, scope: FileScope | null) {
+  const filesApiPath = scope?.filesApiPath ?? null;
   const [summary, setSummary] = useState<StorageSummary | null>(null);
-  const [status, setStatus] = useState<ProjectFileStorageStatus>("idle");
+  const [status, setStatus] = useState<FileStorageStatus>("idle");
   const [isExpanded, setIsExpanded] = useState(false);
   const latestRequestRef = useRef(0);
   const load = useCallback(async (): Promise<void> => {
-    if (!projectId) {
+    if (!filesApiPath) {
       return;
     }
     const requestId = latestRequestRef.current + 1;
     latestRequestRef.current = requestId;
     setStatus("loading");
     try {
-      const response = await api.get<StorageSummaryResponse>(`/api/projects/${projectId}/files/storage`);
+      const response = await api.get<StorageSummaryResponse>(`${filesApiPath}/storage`);
       if (latestRequestRef.current === requestId) {
         setSummary(response.storage);
         setStatus("ready");
@@ -29,20 +31,20 @@ export function useProjectFileStorage(api: ApiClient, projectId: string | null) 
         setStatus("error");
       }
     }
-  }, [api, projectId]);
+  }, [api, filesApiPath]);
 
   useEffect(() => {
     latestRequestRef.current += 1;
     setSummary(null);
     setStatus("idle");
     setIsExpanded(false);
-  }, [projectId]);
+  }, [filesApiPath]);
 
   return {
     summary,
     status,
     isExpanded,
-    metrics: useMemo(() => getProjectFileStorageMetrics(summary), [summary]),
+    metrics: useMemo(() => getFileStorageMetrics(summary), [summary]),
     setIsExpanded,
     load,
     update: (nextSummary: StorageSummary) => {

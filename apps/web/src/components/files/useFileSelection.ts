@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import type { ProjectFileEntry } from "../../../lib/types";
-import { sortProjectFileEntries, type FileSortColumn } from "../../../project/projectFiles";
+import type { ProjectFileEntry } from "../../lib/types";
+import { sortProjectFileEntries, type FileSortColumn } from "../../project/projectFiles";
 
-interface UseProjectFileSelectionOptions {
+interface UseFileSelectionOptions {
   entries: ProjectFileEntry[];
   onOpenDirectory: (relativePath: string) => void;
   onContextMenuOpening: () => void;
 }
 
-export function useProjectFileSelection(options: UseProjectFileSelectionOptions) {
+export function useFileSelection(options: UseFileSelectionOptions) {
   const [sortColumn, setSortColumn] = useState<FileSortColumn>("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");

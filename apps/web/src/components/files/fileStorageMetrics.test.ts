@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getProjectFileStorageMetrics } from "./projectFileStorage";
+import { getFileStorageMetrics } from "./fileStorageMetrics";
 
-describe("getProjectFileStorageMetrics", () => {
+describe("getFileStorageMetrics", () => {
   it("formats limited storage and clamps the meter", () => {
-    const metrics = getProjectFileStorageMetrics({
+    const metrics = getFileStorageMetrics({
       usedBytes: 150,
       limitBytes: 100,
       availableBytes: -50,
@@ -19,7 +19,7 @@ describe("getProjectFileStorageMetrics", () => {
   });
 
   it("describes storage without a configured limit", () => {
-    expect(getProjectFileStorageMetrics({
+    expect(getFileStorageMetrics({
       usedBytes: 1024,
       limitBytes: null,
       availableBytes: null,

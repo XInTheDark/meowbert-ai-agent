@@ -1,7 +1,7 @@
 import { Download, Loader2 } from "lucide-react";
-import { FileContextMenu } from "../../../components/files/FileContextMenu";
+import { FileContextMenu } from "./FileContextMenu";
 
-interface EnvironmentFilesContextMenuProps {
+interface FileBrowserContextMenuProps {
   contextMenu: { x: number; y: number; path: string | null } | null;
   selectedRelativePaths: string[];
   selectedPathSet: Set<string>;
@@ -11,7 +11,7 @@ interface EnvironmentFilesContextMenuProps {
   onClose: () => void;
 }
 
-export function EnvironmentFilesContextMenu(props: EnvironmentFilesContextMenuProps) {
+export function FileBrowserContextMenu(props: FileBrowserContextMenuProps) {
   if (!props.contextMenu) {
     return null;
   }

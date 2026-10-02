@@ -1,7 +1,7 @@
 import type { MouseEvent, ReactNode } from "react";
-import type { EnvironmentFileEntry } from "../../../lib/types";
-import { InlineProgressBar } from "../../../components/InlineProgressBar";
-import { formatBytes, formatDateTime } from "../../../lib/utils";
+import type { EnvironmentFileEntry } from "../../lib/types";
+import { InlineProgressBar } from "../InlineProgressBar";
+import { formatBytes, formatDateTime } from "../../lib/utils";
 import {
   ExplorerBody,
   ExplorerCell,
@@ -10,10 +10,10 @@ import {
   ExplorerRow,
   ExplorerSortButton,
   ExplorerTable
-} from "../../../components/explorer/ExplorerTable";
-import { getEnvironmentFileIcon } from "./environmentFilesIcons";
+} from "../explorer/ExplorerTable";
+import { getFileEntryIcon } from "./fileEntryIcons";
 
-interface EnvironmentFileBrowserProps {
+interface FileBrowserEntriesProps {
   isLoadingList: boolean;
   entries: EnvironmentFileEntry[];
   sortedEntries: EnvironmentFileEntry[];
@@ -29,7 +29,7 @@ interface EnvironmentFileBrowserProps {
   onCheckboxClick: (entry: EnvironmentFileEntry, index: number, event: MouseEvent<HTMLInputElement>) => void;
 }
 
-export function EnvironmentFileBrowser(props: EnvironmentFileBrowserProps) {
+export function FileBrowserEntries(props: FileBrowserEntriesProps) {
   const isEmpty = !props.isLoadingList && props.entries.length === 0;
   return (
     <div className="file-browser-area" onContextMenu={(event) => props.onContextMenu(event)}>
@@ -98,7 +98,7 @@ export function EnvironmentFileBrowser(props: EnvironmentFileBrowserProps) {
                     onClick={(event) => props.onCheckboxClick(entry, index, event)}
                   />
                 </ExplorerCell>
-                <ExplorerCell className="file-list-icon-cell" align="center">{getEnvironmentFileIcon(entry)}</ExplorerCell>
+                <ExplorerCell className="file-list-icon-cell" align="center">{getFileEntryIcon(entry)}</ExplorerCell>
                 <ExplorerCell className="file-entry-name">
                   <span className="file-entry-name-text">{entry.name}</span>
                   <span className="file-entry-badges">
@@ -146,7 +146,7 @@ export function EnvironmentFileBrowser(props: EnvironmentFileBrowserProps) {
                 onChange={() => undefined}
                 className="file-grid-item-checkbox"
               />
-              <div className="file-grid-item-icon">{getEnvironmentFileIcon(entry)}</div>
+              <div className="file-grid-item-icon">{getFileEntryIcon(entry)}</div>
               <span className="file-grid-item-name">{entry.name}</span>
               <span className="file-grid-item-badges">
                 {entry.note ? (

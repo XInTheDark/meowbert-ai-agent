@@ -1,32 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
-import type { ApiClient } from "../../../lib/api";
-import type { ProjectFileListResponse } from "../../../lib/types";
+import type { ApiClient } from "../../lib/api";
+import type { ProjectFileListResponse } from "../../lib/types";
+import type { FileScope } from "./fileScope";
 
-interface UseProjectFileListingOptions {
+interface UseFileListingOptions {
   api: ApiClient;
-  projectId: string | null;
+  scope: FileScope | null;
   setError: (error: string | null) => void;
   onLoadStart: () => void;
 }
 
-export function useProjectFileListing(options: UseProjectFileListingOptions) {
+export function useFileListing(options: UseFileListingOptions) {
   const [cwd, setCwd] = useState("");
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [entries, setEntries] = useState<ProjectFileListResponse["items"]>([]);
   const [pathInput, setPathInput] = useState("/");
   const [isLoading, setIsLoading] = useState(false);
+  const filesApiPath = options.scope?.filesApiPath ?? null;
 
   const loadFiles = useCallback(async (nextPath = ""): Promise<void> => {
-    if (!options.projectId) {
+    if (!filesApiPath) {
       return;
     }
     setIsLoading(true);
     options.onLoadStart();
     options.setError(null);
     try {
-      const response = await options.api.get<ProjectFileListResponse>(
-        `/api/projects/${options.projectId}/files?path=${encodeURIComponent(nextPath)}`
-      );
+      const response = await options.api.get<ProjectFileListResponse>(`${filesApiPath}?path=${encodeURIComponent(nextPath)}`);
       setCwd(response.cwd);
       setParentPath(response.parentPath);
       setEntries(response.items);
@@ -35,7 +35,7 @@ export function useProjectFileListing(options: UseProjectFileListingOptions) {
     } finally {
       setIsLoading(false);
     }
-  }, [options.api, options.onLoadStart, options.projectId, options.setError]);
+  }, [filesApiPath, options.api, options.onLoadStart, options.setError]);
 
   useEffect(() => {
     setPathInput(`/${cwd}`);

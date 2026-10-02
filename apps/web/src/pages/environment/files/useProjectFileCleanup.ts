@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { useNavigate } from "react-router-dom";
+import type { FileStorageMetrics } from "../../../components/files/fileStorageMetrics";
 import { useWorkspaceApp } from "../../../contexts/WorkspaceContext";
-import type { FileDeleteResponse, ProjectCleanupPlanResponse, StorageSummary } from "../../../lib/types";
+import type { ProjectCleanupPlanResponse, StorageSummary } from "../../../lib/types";
 import { formatBytes } from "../../../lib/utils";
 import { buildCleanupPlanQuery, buildDefaultCleanupSelection, EMPTY_CLEANUP_FILTERS, type CleanupFilterFormState } from "./projectFileCleanup";
-import type { ProjectFileStorageMetrics } from "./projectFileStorage";
 
 interface UseProjectFileCleanupOptions {
   projectId: string | null;
   workspaceId: string | null;
   projectRootPath: string | null;
-  cwd: string;
-  loadFiles: (path?: string) => Promise<void>;
   storageSummary: StorageSummary | null;
-  storageMetrics: ProjectFileStorageMetrics;
+  storageMetrics: FileStorageMetrics;
   updateStorage: (summary: StorageSummary) => void;
   setError: Dispatch<SetStateAction<string | null>>;
 }
@@ -35,7 +33,7 @@ function buildAiCleanupPrompt(options: UseProjectFileCleanupOptions): string {
 }
 
 export function useProjectFileCleanup(options: UseProjectFileCleanupOptions) {
-  const { api, setFlash } = useWorkspaceApp();
+  const { api } = useWorkspaceApp();
   const navigate = useNavigate();
   const [plan, setPlan] = useState<ProjectCleanupPlanResponse | null>(null);
   const [targetPercent, setTargetPercent] = useState(50);
@@ -66,24 +64,6 @@ export function useProjectFileCleanup(options: UseProjectFileCleanupOptions) {
     }
   };
 
-  const deletePaths = async (paths: string[]): Promise<void> => {
-    if (!options.projectId || paths.length === 0 || !window.confirm(paths.length === 1 ? `Delete ${paths[0]} permanently? This cannot be undone.` : `Delete ${paths.length} selected item(s) permanently? This cannot be undone.`)) {
-      return;
-    }
-    options.setError(null);
-    try {
-      const result = await api.post<FileDeleteResponse>(`/api/projects/${options.projectId}/files/delete`, { paths });
-      options.updateStorage(result.storage);
-      await options.loadFiles(options.cwd);
-      if (plan) {
-        await loadPlan(targetPercent, filters);
-      }
-      setFlash({ tone: "success", text: result.deletedCount === 1 ? "Deleted 1 item." : `Deleted ${result.deletedCount} items.` });
-    } catch (error) {
-      options.setError(error instanceof Error ? error.message : String(error));
-    }
-  };
-
   const startAiCleanup = async (): Promise<void> => {
     if (!options.projectId || !options.workspaceId) {
       return;
@@ -106,5 +86,12 @@ export function useProjectFileCleanup(options: UseProjectFileCleanupOptions) {
     setIsLoading(false);
   }, [options.projectId]);
 
-  return { plan, targetPercent, setTargetPercent, filters, setFilters, selectedPaths, setSelectedPaths, isLoading, selectedBytes, defaultSelectionCount, loadPlan, deletePaths, startAiCleanup };
+  // Re-runs the plan after a deletion so freed suggestions drop out of the panel.
+  const refreshPlan = async (): Promise<void> => {
+    if (plan) {
+      await loadPlan(targetPercent, filters);
+    }
+  };
+
+  return { plan, targetPercent, setTargetPercent, filters, setFilters, selectedPaths, setSelectedPaths, isLoading, selectedBytes, defaultSelectionCount, loadPlan, refreshPlan, startAiCleanup };
 }

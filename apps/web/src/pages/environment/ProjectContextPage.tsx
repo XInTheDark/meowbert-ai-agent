@@ -21,7 +21,7 @@ import {
 import { triggerAuthenticatedBrowserDownload } from "../../lib/authenticated-download";
 import { planViewerUploads, buildViewerUploadQuery, selectionIncludesFolder } from "../../project/fileUploadPlanning";
 import { type FileSortColumn, sortProjectFileEntries } from "../../project/projectFiles";
-import { ProjectFileBrowser } from "./files/ProjectFileBrowser";
+import { FileBrowserEntries } from "../../components/files/FileBrowserEntries";
 import { ProjectContextPreviewPane } from "./context/ProjectContextPreviewPane";
 import { ProjectContextMenu } from "./context/ProjectContextMenu";
 import { ProjectContextNoteModal } from "./context/ProjectContextNoteModal";
@@ -503,7 +503,7 @@ export function ProjectContextPage() {
         </div>
 
         <div className="files-main">
-          <ProjectFileBrowser
+          <FileBrowserEntries
             isLoadingList={isLoadingList}
             entries={entries}
             sortedEntries={sortedEntries}

@@ -3,10 +3,10 @@ import type {
   EnvironmentFileEntry,
   EnvironmentFileLiveSyncStatus,
   EnvironmentFilePreview
-} from "../../../lib/types";
-import { FilePreviewBody } from "../../../components/files/FilePreviewBody";
+} from "../../lib/types";
+import { FilePreviewBody } from "./FilePreviewBody";
 
-interface EnvironmentFilesPreviewPaneProps {
+interface FilePreviewPaneProps {
   selectedEntry: EnvironmentFileEntry | null;
   filePreview: EnvironmentFilePreview | null;
   selectedCount: number;
@@ -59,7 +59,7 @@ function formatLiveSyncStatusLabel(status: EnvironmentFileLiveSyncStatus["status
   }
 }
 
-export function EnvironmentFilesPreviewPane(props: EnvironmentFilesPreviewPaneProps) {
+export function FilePreviewPane(props: FilePreviewPaneProps) {
   if (props.selectedCount !== 1 || !props.selectedEntry) {
     return null;
   }

@@ -1,20 +1,22 @@
 import { useEffect, useState } from "react";
-import type { ApiClient } from "../../../lib/api";
-import type { ProjectFileEntry, ProjectFilePreview } from "../../../lib/types";
+import type { ApiClient } from "../../lib/api";
+import type { ProjectFileEntry, ProjectFilePreview } from "../../lib/types";
+import type { FileScope } from "./fileScope";
 
-interface UseProjectFilePreviewOptions {
+interface UseFilePreviewOptions {
   api: ApiClient;
-  projectId: string | null;
+  scope: FileScope | null;
   selectedEntry: ProjectFileEntry | null;
   setError: (error: string | null) => void;
 }
 
-export function useProjectFilePreview(options: UseProjectFilePreviewOptions) {
+export function useFilePreview(options: UseFilePreviewOptions) {
   const [preview, setPreview] = useState<ProjectFilePreview | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const filesApiPath = options.scope?.filesApiPath ?? null;
 
   useEffect(() => {
-    if (!options.projectId || !options.selectedEntry || options.selectedEntry.kind !== "file") {
+    if (!filesApiPath || !options.selectedEntry || options.selectedEntry.kind !== "file") {
       setPreview(null);
       setIsLoading(false);
       return;
@@ -24,7 +26,7 @@ export function useProjectFilePreview(options: UseProjectFilePreviewOptions) {
     setIsLoading(true);
     options.setError(null);
     void options.api.get<ProjectFilePreview>(
-      `/api/projects/${options.projectId}/files/content?path=${encodeURIComponent(options.selectedEntry.relativePath)}`
+      `${filesApiPath}/content?path=${encodeURIComponent(options.selectedEntry.relativePath)}`
     ).then((nextPreview) => {
       if (active) {
         setPreview(nextPreview);
@@ -38,7 +40,7 @@ export function useProjectFilePreview(options: UseProjectFilePreviewOptions) {
     return () => {
       active = false;
     };
-  }, [options.api, options.projectId, options.selectedEntry, options.setError]);
+  }, [filesApiPath, options.api, options.selectedEntry, options.setError]);
 
   return { preview, setPreview, isLoading };
 }
