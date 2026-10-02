@@ -903,11 +903,6 @@
   margin-top: var(--space-xs);
 }
 
-.project-card-meta .project-command-path {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 .project-card-actions {
   display: flex;
   align-items: center;
@@ -955,15 +950,6 @@
   margin: 0;
   font-size: 1.45rem;
   line-height: 1.16;
-}
-
-.project-command-path {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .task-command-panel.workbench-panel.padded {

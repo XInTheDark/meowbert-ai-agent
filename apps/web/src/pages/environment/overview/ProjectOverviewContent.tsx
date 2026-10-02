@@ -26,12 +26,11 @@ function ProjectCommandHeader(props: ProjectOverviewContentProps) {
     <div className="project-command-header">
       <div className="project-command-title">
         <h2>Tasks</h2>
-        <div className="project-card-meta">
-          <span className={badgeClass(project.status)}>{project.status}</span>
-          <span className="project-command-path" title={project.root_path ?? "path pending"}>
-            {project.root_path ?? "path pending"}
-          </span>
-        </div>
+        {project.status !== "active" ? (
+          <div className="project-card-meta">
+            <span className={badgeClass(project.status)}>{project.status}</span>
+          </div>
+        ) : null}
       </div>
       <div className="workbench-actions">
         {activePersistentShellCount > 0 ? (

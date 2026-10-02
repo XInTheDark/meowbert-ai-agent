@@ -7682,10 +7682,6 @@ a.managed-task-card:hover {
   .workbench-toolbar .env-create-inline input {
     width: 100%;
   }
-
-  .project-command-path {
-    white-space: normal;
-  }
 }
 
 @media (max-width: 640px) {
@@ -7717,10 +7713,6 @@ a.managed-task-card:hover {
 
   .project-card-meta {
     margin-top: 0;
-  }
-
-  .project-command-path {
-    display: none;
   }
 
   .project-command-header .workbench-actions {
