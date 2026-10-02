@@ -27,6 +27,7 @@ export interface TaskTreeListProps {
   folderViewMode: TaskFolderViewMode;
   collapsedFolderIds: Set<string>;
   selectedTaskIdSet: Set<string>;
+  activeTaskId?: string | null;
   openMenuId: string | null;
   isAnyTaskActionRunning: boolean;
   activeTaskActionId: string | null;
@@ -214,7 +215,7 @@ export function TaskTreeList(props: TaskTreeListProps) {
           return (
             <ExplorerRow
               key={task.id}
-              className={`task-item task-tree-task-item ${task.trashed_at ? "trashed" : ""} ${props.openMenuId === task.id ? "menu-open" : ""}`}
+              className={`task-item task-tree-task-item ${task.trashed_at ? "trashed" : ""} ${props.openMenuId === task.id ? "menu-open" : ""} ${props.activeTaskId === task.id ? "is-active" : ""}`}
               style={{ "--task-tree-depth": row.depth } as React.CSSProperties}
               title={taskTooltip}
               draggable={!props.isAnyTaskActionRunning}

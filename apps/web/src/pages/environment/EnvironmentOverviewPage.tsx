@@ -1,60 +1,24 @@
-import { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
-import { useAppRuntime } from "../../contexts/AppRuntimeContext";
-import { useProjectTaskActions } from "./overview/useProjectTaskActions";
-import { useProjectTaskFolders } from "./overview/useProjectTaskFolders";
-import { useProjectTaskList } from "./overview/useProjectTaskList";
-import { useTaskColumnWidths } from "./overview/useTaskColumnWidths";
+import { useProjectTaskBrowser } from "./overview/useProjectTaskBrowser";
 import { useProjectPersistentShellSessions } from "./overview/useProjectPersistentShellSessions";
 import { ProjectOverviewContent } from "./overview/ProjectOverviewContent";
 
 export function ProjectOverviewPage() {
   const workspaceApp = useWorkspaceApp();
-  const { api, activeWorkspaceId, setFlash } = workspaceApp;
-  const activeProjectId = workspaceApp.activeProjectId ?? workspaceApp.activeEnvironmentId;
+  const { api } = workspaceApp;
   const projects = workspaceApp.projects ?? workspaceApp.environments;
-  const { publicServerConfig } = useAppRuntime();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const browser = useProjectTaskBrowser(searchParams.get("q") ?? "");
+  const { activeProjectId } = browser;
   const env = projects.find((project) => project.id === activeProjectId);
   const cachedProject = activeProjectId ? api.peekGet?.<typeof env>(`/api/projects/${activeProjectId}`) ?? null : null;
   const project = env ?? cachedProject ?? null;
-  const publicBaseUrl = publicServerConfig?.appUrl ?? window.location.origin;
-
-  const taskList = useProjectTaskList(api, activeProjectId, searchParams.get("q") ?? "");
-  const taskFoldersState = useProjectTaskFolders(api, activeProjectId, taskList.refreshNonce);
-  const taskColumns = useTaskColumnWidths();
   const persistentShells = useProjectPersistentShellSessions({
     api,
     projectId: activeProjectId,
     includeOutput: false
   });
-  const taskActions = useProjectTaskActions({
-    api,
-    activeProjectId,
-    activeWorkspaceId,
-    publicBaseUrl,
-    navigate,
-    setFlash,
-    tasks: taskList.tasks,
-    folderFilter: taskList.folderFilter,
-    setFolderFilter: taskList.setFolderFilter,
-    setCollapsedFolderIds: taskFoldersState.setCollapsedFolderIds,
-    setRefreshNonce: taskList.setRefreshNonce
-  });
-
-  useEffect(() => {
-    taskActions.setSelectedTaskIds([]);
-    taskActions.setMoveTarget(null);
-    taskActions.setOpenMenuId(null);
-  }, [activeProjectId]);
-
-  useEffect(() => {
-    const visibleTaskIds = new Set(taskList.tasks.map((task) => task.id));
-    taskActions.setSelectedTaskIds((current) => current.filter((taskId) => visibleTaskIds.has(taskId)));
-  }, [taskList.tasks]);
-
 
   if (!project && (workspaceApp.isBootstrapping || workspaceApp.isEnvironmentsLoading)) {
     return (
@@ -85,12 +49,7 @@ export function ProjectOverviewPage() {
   return (
     <ProjectOverviewContent
       project={project}
-      activeWorkspaceId={activeWorkspaceId}
-      navigate={navigate}
-      taskList={taskList}
-      folders={taskFoldersState}
-      actions={taskActions}
-      columns={taskColumns}
+      browser={browser}
       activePersistentShellCount={persistentShells.items.length}
     />
   );

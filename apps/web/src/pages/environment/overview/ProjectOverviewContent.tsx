@@ -1,37 +1,25 @@
 import { useEffect, useRef, type Ref } from "react";
-import type { NavigateFunction } from "react-router-dom";
 import { RotateCw, Terminal } from "lucide-react";
-import type { Project } from "../../../lib/types";
 import { badgeClass } from "../../../lib/utils";
-import { TaskListSkeleton } from "../../../components/tasks/TaskListSkeleton";
-import { TaskForkDialog } from "../../../components/tasks/TaskForkDialog";
 import { DropdownDivider, DropdownItem } from "./ProjectOverviewDropdown";
-import { TaskFolderMoveDialog } from "./TaskFolderMoveDialog";
-import { TaskListToolbar } from "./TaskListToolbar";
-import { TaskTreeList } from "./TaskTreeList";
-import { isTaskListContentFiltered } from "./taskFolderTree";
-import { buildTaskListGridTemplate } from "./projectOverviewUtils";
-import type { TaskSortBy } from "./projectOverviewTypes";
-import type { useProjectTaskActions } from "./useProjectTaskActions";
-import type { useProjectTaskFolders } from "./useProjectTaskFolders";
-import type { useProjectTaskList } from "./useProjectTaskList";
-import type { useTaskColumnWidths } from "./useTaskColumnWidths";
+import {
+  ProjectTaskDialogs,
+  ProjectTaskPagination,
+  ProjectTaskToolbar,
+  ProjectTaskTree,
+  useDismissTaskMenusOnOutsideClick,
+  type ProjectTaskListSectionProps
+} from "./ProjectTaskListSections";
 
 const BULK_ACTION_MENU_ID = "__bulk_actions__";
 
-interface ProjectOverviewContentProps {
-  project: Project;
-  activeWorkspaceId: string;
-  navigate: NavigateFunction;
-  taskList: ReturnType<typeof useProjectTaskList>;
-  folders: ReturnType<typeof useProjectTaskFolders>;
-  actions: ReturnType<typeof useProjectTaskActions>;
-  columns: ReturnType<typeof useTaskColumnWidths>;
+interface ProjectOverviewContentProps extends ProjectTaskListSectionProps {
   activePersistentShellCount: number;
 }
 
 function ProjectCommandHeader(props: ProjectOverviewContentProps) {
-  const { project, activeWorkspaceId, navigate, taskList, actions, activePersistentShellCount } = props;
+  const { project, activePersistentShellCount } = props;
+  const { activeWorkspaceId, navigate, taskList, actions } = props.browser;
   const hasAnyMatchingTasks = taskList.tasks.length > 0 || taskList.page > 1 || taskList.pagination.hasNextPage;
   const isAnyTaskActionRunning = actions.activeTaskActionId !== null;
   return (
@@ -82,47 +70,8 @@ function ProjectCommandHeader(props: ProjectOverviewContentProps) {
   );
 }
 
-function ProjectTaskToolbar(props: ProjectOverviewContentProps) {
-  const { taskList, folders } = props;
-  const resetPage = () => taskList.setPage(1);
-  return (
-    <TaskListToolbar
-      searchDraft={taskList.searchDraft}
-      statusFilter={taskList.statusFilter}
-      scopeFilter={taskList.scopeFilter}
-      taskTypeFilter={taskList.taskTypeFilter}
-      folderFilter={taskList.folderFilter}
-      folders={folders.taskFolders}
-      sortBy={taskList.sortBy}
-      sortDir={taskList.sortDir}
-      folderViewMode={folders.folderViewMode}
-      includePreview={taskList.includePreview}
-      onSearchDraftChange={taskList.setSearchDraft}
-      onSearchSubmit={taskList.submitTaskSearch}
-      onStatusFilterChange={(value) => { taskList.setStatusFilter(value); resetPage(); }}
-      onScopeFilterChange={(value) => { taskList.setScopeFilter(value); resetPage(); }}
-      onTaskTypeFilterChange={(value) => { taskList.setTaskTypeFilter(value); resetPage(); }}
-      onFolderFilterChange={(value) => { taskList.setFolderFilter(value); resetPage(); }}
-      onSortByChange={(value) => { taskList.setSortBy(value); resetPage(); }}
-      onSortDirToggle={() => { taskList.setSortDir((value) => value === "asc" ? "desc" : "asc"); resetPage(); }}
-      onFolderViewModeChange={(value) => { folders.setFolderViewMode(value); resetPage(); }}
-      onIncludePreviewChange={(value) => { taskList.setIncludePreview(value); resetPage(); }}
-      onResetFilters={() => {
-        taskList.setStatusFilter([]);
-        taskList.setScopeFilter("active");
-        taskList.setTaskTypeFilter([]);
-        taskList.setFolderFilter("all");
-        taskList.setSortBy("relevance");
-        taskList.setSortDir("desc");
-        taskList.setIncludePreview(true);
-        resetPage();
-      }}
-    />
-  );
-}
-
 function BulkActionsMenu(props: ProjectOverviewContentProps) {
-  const { taskList, actions } = props;
+  const { taskList, actions } = props.browser;
   const hasSelectedTasks = actions.selectedTaskIds.length > 0;
   const hasAnyMatchingTasks = taskList.tasks.length > 0 || taskList.page > 1 || taskList.pagination.hasNextPage;
   const busy = actions.activeTaskActionId !== null;
@@ -184,7 +133,8 @@ function ProjectTaskBulkBar(props: ProjectOverviewContentProps & {
   selectAllCheckboxRef: Ref<HTMLInputElement>;
   allVisibleTasksSelected: boolean;
 }) {
-  const { taskList, actions, menuRef, selectAllCheckboxRef, allVisibleTasksSelected } = props;
+  const { menuRef, selectAllCheckboxRef, allVisibleTasksSelected } = props;
+  const { taskList, actions } = props.browser;
   const menuOpen = actions.openMenuId === BULK_ACTION_MENU_ID;
   const busy = actions.activeTaskActionId !== null;
   return (
@@ -218,134 +168,15 @@ function ProjectTaskBulkBar(props: ProjectOverviewContentProps & {
   );
 }
 
-function ProjectTaskTree(props: ProjectOverviewContentProps) {
-  const { project, activeWorkspaceId, navigate, taskList, folders, actions, columns } = props;
-  if (taskList.isLoading && !taskList.hasLoadedTaskList) return <TaskListSkeleton />;
-  if (taskList.hasLoadedTaskList && taskList.tasks.length === 0 && folders.taskFolders.length === 0) {
-    return <div className="task-list-empty">
-      {taskList.folderFilter === "unfiled" ? "No tasks in this folder." : "No tasks match the current filters."}
-    </div>;
-  }
-  if (taskList.isLoading) {
-    return <TaskListSkeleton rows={Math.min(Math.max(taskList.tasks.length, 3), 8)} />;
-  }
-
-  const filtered = isTaskListContentFiltered({
-    searchTerm: taskList.searchTerm,
-    statusFilter: taskList.statusFilter,
-    taskTypeFilter: taskList.taskTypeFilter,
-    scopeFilter: taskList.scopeFilter,
-    folderFilter: taskList.folderFilter
-  });
-  const sortBy: TaskSortBy = taskList.searchTerm.trim()
-    ? taskList.sortBy
-    : taskList.sortBy === "relevance" ? "updated_at" : taskList.sortBy;
-  return (
-    <TaskTreeList
-      folders={folders.taskFolders}
-      tasks={taskList.tasks}
-      filtered={filtered}
-      folderFilter={taskList.folderFilter}
-      sortBy={sortBy}
-      sortDir={taskList.sortDir}
-      folderViewMode={folders.folderViewMode}
-      collapsedFolderIds={folders.collapsedFolderIds}
-      selectedTaskIdSet={new Set(actions.selectedTaskIds)}
-      openMenuId={actions.openMenuId}
-      isAnyTaskActionRunning={actions.activeTaskActionId !== null}
-      activeTaskActionId={actions.activeTaskActionId}
-      forkingTaskId={actions.forkingTaskId}
-      gridColumns={buildTaskListGridTemplate(columns.taskColumnWidths)}
-      onToggleFolderCollapsed={actions.toggleFolderCollapsed}
-      onOpenMenuChange={actions.setOpenMenuId}
-      onToggleTaskSelection={actions.toggleTaskSelection}
-      onPrefetchTask={taskList.prefetchTaskRoute}
-      onOpenTask={(task) => navigate(`/app/${activeWorkspaceId}/projects/${project.id}/tasks/${task.id}`)}
-      onOpenTaskFiles={(task) => navigate(`/app/${activeWorkspaceId}/projects/${project.id}/files?path=${encodeURIComponent(
-        task.task_root_path ?? `.meowbert/task-runs/${task.id}`
-      )}`)}
-      onShareTask={(task) => void actions.handleShareTask(task)}
-      onUnshareTask={(task) => void actions.handleUnshareTask(task)}
-      onRenameTask={(task) => void actions.handleRename(task)}
-      onForkTask={actions.setForkDialogTask}
-      onCancelTask={(task) => void actions.handleCancelTask(task)}
-      onToggleTrashTask={(task) => void actions.handleToggleTrash(task)}
-      onPermanentDeleteTask={(task) => void actions.handlePermanentDelete(task)}
-      onMoveTask={(task) => actions.setMoveTarget({ kind: "task", task })}
-      onCreateSubfolder={(folder) => void actions.handleCreateFolder(folder)}
-      onRenameFolder={(folder) => void actions.handleRenameFolder(folder)}
-      onMoveFolder={(folder) => actions.setMoveTarget({ kind: "folder", folder })}
-      onDeleteFolder={(folder) => void actions.handleDeleteFolder(folder)}
-      onDropTasksToFolder={(taskIds, folderId) => void actions.handleDropTasksToFolder(taskIds, folderId)}
-    />
-  );
-}
-
-function ProjectTaskPagination({ taskList }: Pick<ProjectOverviewContentProps, "taskList">) {
-  return (
-    <div className="task-pagination task-pagination-spread">
-      <button className="btn ghost" disabled={taskList.page <= 1 || taskList.isLoading} onClick={() => taskList.setPage((value) => value - 1)}>
-        Previous
-      </button>
-      <span className="muted-text" style={{ fontSize: "0.9rem" }}>
-        Page {taskList.tasks.length > 0 || taskList.page > 1 || taskList.pagination.hasNextPage ? taskList.page : 0}
-      </span>
-      <button className="btn ghost" disabled={!taskList.pagination.hasNextPage || taskList.isLoading} onClick={() => taskList.setPage((value) => value + 1)}>
-        Next
-      </button>
-    </div>
-  );
-}
-
-function ProjectTaskDialogs(props: ProjectOverviewContentProps) {
-  const { folders, actions } = props;
-  return (
-    <>
-      {actions.moveTarget ? (
-        <TaskFolderMoveDialog
-          title={actions.moveTarget.kind === "folder" ? "Move folder" : "Move to folder"}
-          folders={folders.taskFolders}
-          currentFolderId={actions.moveTarget.kind === "task"
-            ? actions.moveTarget.task.folder_id ?? null
-            : actions.moveTarget.kind === "folder" ? actions.moveTarget.folder.parentFolderId : null}
-          disallowedFolderId={actions.moveTarget.kind === "folder" ? actions.moveTarget.folder.id : null}
-          onCancel={() => actions.setMoveTarget(null)}
-          onConfirm={(folderId) => void actions.handleMoveTargetConfirm(folderId)}
-        />
-      ) : null}
-      {actions.forkDialogTask ? (
-        <TaskForkDialog
-          title="Fork task"
-          initialTitle={`${actions.forkDialogTask.title?.trim() || "Untitled Task"} (Fork)`}
-          showTitleField
-          isSubmitting={actions.forkingTaskId === actions.forkDialogTask.id}
-          onCancel={() => actions.setForkDialogTask(null)}
-          onConfirm={(options) => {
-            void actions.handleFork(actions.forkDialogTask!, options);
-            actions.setForkDialogTask(null);
-          }}
-        />
-      ) : null}
-    </>
-  );
-}
-
 export function ProjectOverviewContent(props: ProjectOverviewContentProps) {
-  const { taskList, actions } = props;
+  const { taskList, actions } = props.browser;
   const menuRef = useRef<HTMLDivElement | null>(null);
   const selectAllCheckboxRef = useRef<HTMLInputElement | null>(null);
   const selectedIds = new Set(actions.selectedTaskIds);
   const allVisibleTasksSelected = taskList.tasks.length > 0 && taskList.tasks.every((task) => selectedIds.has(task.id));
   const someVisibleTasksSelected = !allVisibleTasksSelected && taskList.tasks.some((task) => selectedIds.has(task.id));
 
-  useEffect(() => {
-    const handleClick = (event: MouseEvent) => {
-      if (event.target instanceof Element && event.target.closest("[data-task-actions-menu]")) return;
-      if (!menuRef.current?.contains(event.target as Node)) actions.setOpenMenuId(null);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  useDismissTaskMenusOnOutsideClick(props.browser, menuRef);
 
   useEffect(() => {
     if (selectAllCheckboxRef.current) selectAllCheckboxRef.current.indeterminate = someVisibleTasksSelected;
@@ -364,9 +195,9 @@ export function ProjectOverviewContent(props: ProjectOverviewContentProps) {
         />
         {taskList.loadError ? <div className="error-banner" style={{ marginBottom: "1rem" }}>{taskList.loadError}</div> : null}
         <ProjectTaskTree {...props} />
-        <ProjectTaskPagination taskList={taskList} />
+        <ProjectTaskPagination browser={props.browser} />
       </article>
-      <ProjectTaskDialogs {...props} />
+      <ProjectTaskDialogs browser={props.browser} />
     </section>
   );
 }

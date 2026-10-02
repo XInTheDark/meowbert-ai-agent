@@ -13,6 +13,7 @@ import "./styles/themes.css";
 import "./styles/components.css";
 import "./styles/navigation.css";
 import "./styles/projects.css";
+import "./styles/project-master.css";
 import "./styles/secondary.css";
 import "./styles/conversation.css";
 import "./styles.css";

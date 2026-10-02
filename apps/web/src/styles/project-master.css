@@ -1,0 +1,393 @@
+/* Project landing: the Master conversation fills the main column below the project tabs. */
+.main-column:has(> .project-master-landing) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-column:has(> .project-master-landing) > .project-navigation {
+  flex: 0 0 auto;
+}
+
+.project-master-landing {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.project-master-conversation {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-master-conversation .task-detail-chat-layout {
+  --task-detail-main-content-width: 1120px;
+}
+
+/* Stacked layout (touch-sized viewports): one compact search/actions row above the conversation. */
+.project-master-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.project-master-header .task-toolbar-left {
+  min-width: 0;
+}
+
+/* Enter submits; a second primary button next to New Task would compete for attention. */
+.project-master-header .task-search-submit {
+  display: none;
+}
+
+.project-master-new-task {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .project-master-new-task span {
+    display: none;
+  }
+}
+
+/* Split layout: a resizable task list on the left, the Master conversation on the right. */
+.project-master-landing.is-split {
+  flex-direction: row;
+  gap: 0;
+  max-width: none;
+}
+
+.project-split-resizer {
+  position: relative;
+  flex: 0 0 auto;
+  width: 0.6rem;
+  margin-inline: 0.2rem;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.project-split-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border-subtle);
+  transition: background 0.15s, width 0.15s;
+}
+
+.project-split-resizer:hover::before,
+.project-split-resizer:focus-visible::before,
+body.is-resizing-split .project-split-resizer::before {
+  width: 2px;
+  background: color-mix(in srgb, var(--brand) 70%, var(--border));
+}
+
+.project-split-resizer:focus-visible {
+  outline: none;
+}
+
+body.is-resizing-split {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.is-resizing-split iframe {
+  pointer-events: none;
+}
+
+/*
+ * Task list pane. It reuses the full task list's components but is always narrow, so rows collapse to
+ * status icon, title and a trailing meta slot where the updated time gives way to the row menu on hover.
+ * Pointer input is assumed here (touch viewports use the stacked layout), so rows stay dense.
+ */
+.project-task-pane {
+  container: project-task-pane / inline-size;
+  flex: 0 0 var(--project-task-pane-width, 340px);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.project-task-pane .task-toolbar-shell {
+  flex: 0 0 auto;
+  gap: var(--space-xs);
+  margin-bottom: 0;
+  background: transparent;
+}
+
+.project-task-pane .task-toolbar {
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+}
+
+.project-task-pane .task-toolbar-left {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.project-task-pane .task-search-input {
+  height: 2.1rem;
+  padding-left: 2rem;
+  font-size: 0.84rem;
+}
+
+.project-task-pane .task-search-icon {
+  left: 0.65rem;
+}
+
+.project-task-pane .task-search-submit {
+  display: none;
+}
+
+.project-task-pane .task-toolbar-actions {
+  gap: 0.2rem;
+}
+
+.project-task-pane .task-toolbar-actions .btn {
+  position: relative;
+  width: 2.1rem;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  min-height: 2.1rem;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
+.project-task-pane .task-filter-toggle span:not(.task-filter-badge) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.project-task-pane .task-filter-badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+}
+
+.project-task-pane .task-filter-panel {
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: var(--space-sm);
+  gap: var(--space-sm);
+}
+
+.project-task-pane .task-filter-grid {
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.6rem;
+}
+
+.project-task-pane-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.project-task-pane .task-list-container {
+  overflow: visible;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+
+.project-task-pane .task-list-header {
+  display: none;
+}
+
+.project-task-pane .task-tree-container .explorer-body {
+  min-width: 0;
+  gap: 1px;
+}
+
+.project-task-pane .task-list-skeleton {
+  border: none;
+  padding: 0;
+}
+
+.project-task-pane .task-item,
+.project-task-pane .task-folder-row {
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  min-height: 0;
+  padding: 0.42rem 0.5rem 0.42rem calc(0.5rem + var(--task-tree-depth, 0) * 0.85rem);
+  border-bottom: none;
+  border-radius: var(--radius-sm);
+}
+
+.project-task-pane .task-item {
+  grid-template-areas: "status main meta";
+  align-items: start;
+}
+
+.project-task-pane .task-folder-row {
+  background: transparent;
+}
+
+.project-task-pane .task-folder-row:hover {
+  background: var(--surface-soft);
+}
+
+.project-task-pane .task-item.is-active {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+.project-task-pane .task-item.is-active .task-title {
+  color: var(--brand);
+}
+
+.project-task-pane .task-select-cell,
+.project-task-pane .task-created-cell,
+.project-task-pane .task-folder-count {
+  display: none;
+}
+
+.project-task-pane .task-tree-task-item .task-main-col,
+.project-task-pane .task-folder-main {
+  padding-left: 0;
+}
+
+.project-task-pane .task-main-col {
+  grid-area: main;
+  gap: 0.1rem;
+}
+
+.project-task-pane .task-title {
+  font-size: 0.86rem;
+  font-weight: 550;
+  line-height: 1.3;
+}
+
+.project-task-pane .task-result-preview,
+.project-task-pane .task-next-run,
+.project-task-pane .task-forking-status {
+  font-size: 0.75rem;
+}
+
+/* Status shows as its icon alone; the label stays available to screen readers and in the tooltip. */
+.project-task-pane .task-status-cell-wrapper {
+  grid-area: status;
+  padding-top: 0.12rem;
+}
+
+.project-task-pane .task-status-cell {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.project-task-pane .task-status-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.project-task-pane .task-updated-cell,
+.project-task-pane .task-item .task-actions-cell {
+  grid-area: meta;
+  justify-self: end;
+}
+
+.project-task-pane .task-updated-cell {
+  padding-top: 0.12rem;
+  font-size: 0.72rem;
+}
+
+.project-task-pane .task-item .task-actions-cell {
+  margin-top: -0.2rem;
+}
+
+.project-task-pane .task-folder-toggle-cell {
+  grid-column: 1;
+}
+
+.project-task-pane .task-folder-toggle {
+  width: 1rem;
+  height: 1rem;
+  min-height: 1rem;
+}
+
+.project-task-pane .task-folder-main {
+  grid-column: 2;
+  font-size: 0.85rem;
+}
+
+.project-task-pane .task-folder-actions-cell {
+  grid-column: 3;
+}
+
+.project-task-pane .task-folder-actions-cell .explorer-row-action-button,
+.project-task-pane .task-actions-cell .explorer-row-action-button {
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: 1.5rem;
+}
+
+.project-task-pane .task-actions-cell {
+  visibility: hidden;
+}
+
+.project-task-pane .task-item:is(:hover, :focus-within, .menu-open) .task-actions-cell,
+.project-task-pane .task-folder-row:is(:hover, :focus-within, .menu-open) .task-actions-cell {
+  visibility: visible;
+}
+
+.project-task-pane .task-item:is(:hover, :focus-within, .menu-open) .task-updated-cell {
+  visibility: hidden;
+}
+
+.project-task-pane .task-list-empty {
+  margin: 0;
+}
+
+.project-task-pane .task-pagination {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.project-task-pane .task-pagination .btn {
+  min-height: 1.9rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.project-task-pane .task-pagination-label {
+  font-size: 0.8rem;
+}
+
+@container project-task-pane (max-width: 300px) {
+  .task-updated-cell {
+    display: none;
+  }
+
+  .task-title-row .task-type-pill {
+    display: none;
+  }
+}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   DEFAULT_TASK_HISTORY_SCOPE,
   DEFAULT_TASK_HISTORY_SORT_BY,
@@ -89,6 +89,7 @@ interface TaskListToolbarProps {
   sortDir: TaskHistorySortDir;
   folderViewMode: TaskFolderViewMode;
   includePreview: boolean;
+  extraActions?: ReactNode;
   onSearchDraftChange: (value: string) => void;
   onSearchSubmit: () => void;
   onStatusFilterChange: (value: TaskHistoryStatusValue[]) => void;
@@ -137,11 +138,13 @@ export function TaskListToolbar(props: TaskListToolbarProps) {
             type="button"
             className={`btn ghost task-filter-toggle ${isFiltersOpen ? "is-open" : ""}`}
             onClick={() => setIsFiltersOpen((value) => !value)}
+            title="Options"
           >
             <SlidersHorizontal size={16} />
             <span>Options</span>
             {activeFilterCount > 0 ? <span className="task-filter-badge">{activeFilterCount}</span> : null}
           </button>
+          {props.extraActions}
         </div>
       </div>
 
