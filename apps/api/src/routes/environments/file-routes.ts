@@ -8,6 +8,12 @@ import { createTextFileWithinRoot } from "../../services/files/create-text-file.
 import { listDirectorySizeEntries } from "../../services/files/file-browser-metadata.js";
 import { resolveBatchDownloadEntries, resolveFileDownload } from "../../services/files/file-download.js";
 import { readFilePreview } from "../../services/files/file-preview.js";
+import {
+  assertWorkspaceStorageAvailable,
+  recordWorkspaceBytesAdded,
+  resolveAvailableWorkspaceBytes,
+  type WorkspaceStorageTarget
+} from "../../services/workspaces/workspace-storage-allowance.js";
 import { getWorkspaceStorageUsage } from "../../services/workspaces/workspace-storage-usage.js";
 import { sendBatchDownload, sendFileDownload } from "../files/file-download-replies.js";
 import {
@@ -21,12 +27,16 @@ import {
 import { receiveFileUpload } from "../files/file-upload.js";
 import { environmentCleanupQuery, environmentParams } from "./shared.js";
 
-async function loadWorkspaceStorage(environment: EnvironmentForUser, actorUserId: string) {
-  return getWorkspaceStorageUsage({
+function workspaceStorageTarget(environment: EnvironmentForUser, actorUserId: string): WorkspaceStorageTarget {
+  return {
     workspaceId: environment.workspace_id,
     workspaceRootPath: environment.workspace_root_path,
     actorUserId
-  });
+  };
+}
+
+async function loadWorkspaceStorage(environment: EnvironmentForUser, actorUserId: string) {
+  return getWorkspaceStorageUsage(workspaceStorageTarget(environment, actorUserId));
 }
 
 export async function registerEnvironmentFileRoutes(fastify: FastifyInstance): Promise<void> {
@@ -128,7 +138,11 @@ export async function registerEnvironmentFileRoutes(fastify: FastifyInstance): P
     const params = environmentParams.parse(request.params);
     const queryInput = fileUploadQuery.parse(request.query);
     const environment = await getEnvironmentForUser(params.envId, request.user.id);
-    const saved = await receiveFileUpload(request, { rootPath: environment.root_path, query: queryInput });
+    const saved = await receiveFileUpload(request, {
+      rootPath: environment.root_path,
+      query: queryInput,
+      storage: workspaceStorageTarget(environment, request.user.id)
+    });
     await ensureSandboxWritablePath({
       rootPath: environment.root_path,
       targetPath: saved.absolutePath
@@ -142,12 +156,15 @@ export async function registerEnvironmentFileRoutes(fastify: FastifyInstance): P
     const queryInput = fileUploadQuery.parse(request.query);
     const body = createTextFileBody.parse(request.body ?? {});
     const environment = await getEnvironmentForUser(params.envId, request.user.id);
+    const storage = workspaceStorageTarget(environment, request.user.id);
+    assertWorkspaceStorageAvailable(await resolveAvailableWorkspaceBytes(storage), Buffer.byteLength(body.content, "utf8"));
     const file = await createTextFileWithinRoot({
       rootPath: environment.root_path,
       requestedDirectoryPath: queryInput.path,
       name: body.name,
       content: body.content
     });
+    recordWorkspaceBytesAdded(storage.workspaceId, file.sizeBytes);
 
     return reply.status(201).send({ file });
   });

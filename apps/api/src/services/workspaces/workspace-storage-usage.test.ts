@@ -24,7 +24,7 @@ import { query } from "../../lib/db.js";
 import { ensureEnvironmentStorageRoot } from "../environments/environment-storage.js";
 import { resolveWorkspaceStorageLimitBytes } from "../users/resource-limits.js";
 import { ensureWorkspaceStorageRoot } from "./workspace-storage.js";
-import { getWorkspaceStorageUsage, throwIfWorkspaceStorageLimitExceeded } from "./workspace-storage-usage.js";
+import { getWorkspaceStorageUsage } from "./workspace-storage-usage.js";
 
 function buildRowsResult<Row extends object>(rows: Row[]): QueryResult<Row> {
   return {
@@ -125,6 +125,5 @@ describe("workspace storage usage service", () => {
       usagePercent: null,
       isOverLimit: false
     });
-    expect(() => throwIfWorkspaceStorageLimitExceeded(storage)).not.toThrow();
   });
 });

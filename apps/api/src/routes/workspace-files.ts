@@ -130,7 +130,11 @@ export const workspaceFileRoutes: FastifyPluginAsync = async (fastify) => {
     const params = workspaceParamsSchema.parse(request.params);
     const queryInput = fileUploadQuery.parse(request.query);
     const workspace = await getWorkspaceForUser(params.wsId, request.user.id);
-    const saved = await receiveFileUpload(request, { rootPath: workspace.root_path, query: queryInput });
+    const saved = await receiveFileUpload(request, {
+      rootPath: workspace.root_path,
+      query: queryInput,
+      storage: { workspaceId: workspace.id, workspaceRootPath: workspace.root_path, actorUserId: request.user.id }
+    });
     return reply.status(201).send({ file: saved.file });
   });
 };

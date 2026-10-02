@@ -16,6 +16,7 @@ export async function importWorkspaceSourceFileToEnvironment(input: {
   itemId: string;
   destinationPath?: string | null;
   createDirectories?: boolean;
+  onSaved?: (sizeBytes: number) => void;
 }): Promise<{
   name: string;
   relativePath: string;
@@ -46,12 +47,17 @@ export async function importWorkspaceSourceFileToEnvironment(input: {
     Readable.fromWeb(download.response.body as unknown as NodeReadableStream),
     fs.createWriteStream(destinationPath)
   );
+  const savedStats = await fsPromises.stat(destinationPath);
+  try {
+    input.onSaved?.(savedStats.size);
+  } catch (error) {
+    await fsPromises.rm(destinationPath, { force: true });
+    throw error;
+  }
   await ensureSandboxWritablePath({
     rootPath: input.environmentRootPath,
     targetPath: destinationPath
   });
-
-  const savedStats = await fsPromises.stat(destinationPath);
 
   return {
     name: path.basename(destinationPath),

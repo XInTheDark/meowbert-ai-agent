@@ -14,8 +14,11 @@ vi.mock("../services/workspaces/workspace-storage.js", () => ({
 vi.mock("../services/workspaces/workspace-storage-usage.js", () => ({
   getWorkspaceStorageUsage: vi.fn(async () => ({ usedBytes: 0, limitBytes: null, availableBytes: null, usagePercent: null, isOverLimit: false }))
 }));
+vi.mock("../services/users/resource-limits.js", () => ({ resolveWorkspaceStorageLimitBytes: vi.fn(async () => null) }));
 
 import { query } from "../lib/db.js";
+import { resolveWorkspaceStorageLimitBytes } from "../services/users/resource-limits.js";
+import { getWorkspaceStorageUsage } from "../services/workspaces/workspace-storage-usage.js";
 import { workspaceFileRoutes } from "./workspace-files.js";
 
 const WORKSPACE_ID = "11111111-1111-4111-8111-111111111111";
@@ -107,5 +110,33 @@ describe("workspace file routes", () => {
     expect(deleted.statusCode).toBe(200);
     expect(deleted.json()).toMatchObject({ deletedCount: 1, deletedPaths: ["docs"] });
     await expect(fs.readdir(rootPath)).resolves.toEqual(["a.txt"]);
+  });
+
+  it("refuses uploads that would exceed the workspace storage limit", async () => {
+    vi.mocked(resolveWorkspaceStorageLimitBytes).mockResolvedValue(20);
+    vi.mocked(getWorkspaceStorageUsage).mockResolvedValue({
+      usedBytes: 10, limitBytes: 20, availableBytes: 10, usagePercent: 50, isOverLimit: false
+    });
+    const app = await createApp();
+    const upload = (content: string) => {
+      const form = new FormData();
+      form.append("file", new Blob([content]), "upload.txt");
+      return app.inject({ method: "POST", url: `${base}/upload`, payload: form });
+    };
+
+    const tooBig = await upload("x".repeat(15));
+    expect(tooBig.statusCode).toBe(413);
+    expect(tooBig.body).toContain("Not enough workspace storage");
+    await expect(fs.readdir(rootPath)).resolves.toEqual(["a.txt", "docs"]);
+
+    const fits = await upload("x".repeat(5));
+    expect(fits.statusCode).toBe(201);
+
+    vi.mocked(getWorkspaceStorageUsage).mockResolvedValue({
+      usedBytes: 20, limitBytes: 20, availableBytes: 0, usagePercent: 100, isOverLimit: false
+    });
+    const full = await upload("x");
+    expect(full.statusCode).toBe(413);
+    expect(full.body).toContain("Workspace storage is full");
   });
 });
