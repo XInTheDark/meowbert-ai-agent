@@ -7673,13 +7673,13 @@ a.managed-task-card:hover {
     grid-template-columns: 1fr;
   }
 
-  .workbench-toolbar .env-create-inline {
+  .workbench-header .env-create-inline {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     width: 100%;
   }
 
-  .workbench-toolbar .env-create-inline input {
+  .workbench-header .env-create-inline input {
     width: 100%;
   }
 }
@@ -7724,14 +7724,6 @@ a.managed-task-card:hover {
   .project-command-header .workbench-actions .btn {
     min-height: 2.4rem;
     padding-inline: var(--space-sm);
-  }
-
-  .project-card-actions {
-    flex-wrap: wrap;
-  }
-
-  .project-card-actions .btn:first-child {
-    flex-basis: 100%;
   }
 
   .workbench-page {

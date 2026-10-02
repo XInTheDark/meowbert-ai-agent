@@ -1,128 +1,15 @@
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { ChevronDown, ChevronRight, Plus, Search } from "lucide-react";
 import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
 import { API_CACHE_TTLS } from "../../lib/api-cache";
-import { badgeClass, formatDateTime } from "../../lib/utils";
+import type { Project } from "../../lib/types";
 import { buildTaskListPath } from "./overview/projectOverviewUtils";
 import { DEFAULT_PAGE_SIZE } from "./overview/projectOverviewTypes";
-import {
-  Play,
-  Folder,
-  Settings,
-  Archive,
-  RotateCcw,
-  Edit2,
-  Plus,
-  Search,
-  ChevronRight,
-  ChevronDown
-} from "lucide-react";
-import type { Project } from "../../lib/types";
+import { ProjectCard } from "./projects/ProjectCard";
+import { useProjectCardMenu } from "./projects/useProjectCardMenu";
 
 type SortKey = "updated_at" | "created_at" | "name";
-
-function ProjectCard(props: {
-  project: Project;
-  activeWorkspaceId: string;
-  onPrefetchProject: (project: Project) => void;
-  busyProjectId: string | null;
-  navigate: ReturnType<typeof useNavigate>;
-  patchProject: NonNullable<ReturnType<typeof useWorkspaceApp>["patchProject"]>;
-  setBusyProjectId: (projectId: string | null) => void;
-  setFlash: ReturnType<typeof useWorkspaceApp>["setFlash"];
-  setError: (value: string | null) => void;
-}) {
-  const { project } = props;
-
-  return (
-    <article className="workbench-panel padded project-card">
-      <div className="project-card-head">
-        <div>
-          <button
-            type="button"
-            className="project-card-title"
-            onPointerEnter={() => props.onPrefetchProject(project)}
-            onFocus={() => props.onPrefetchProject(project)}
-            onClick={() => props.navigate(`/app/${props.activeWorkspaceId}/projects/${project.id}`)}
-          >
-            {project.name}
-          </button>
-          <div className="project-card-meta">
-            <span className={badgeClass(project.status)}>{project.status}</span>
-            <span className="muted-text" style={{ fontSize: "0.8rem" }}>
-              {project.updated_at
-                ? formatDateTime(project.updated_at)
-                : project.created_at
-                  ? formatDateTime(project.created_at)
-                  : "just now"}
-            </span>
-          </div>
-        </div>
-        <button
-          className="icon-btn"
-          onClick={() => {
-            const nextName = window.prompt("Rename project", project.name);
-            if (!nextName || !nextName.trim()) return;
-            props.setBusyProjectId(project.id);
-            props.patchProject(project.id, { name: nextName.trim() })
-              .then(() => props.setFlash({ tone: "success", text: "Project renamed." }))
-              .catch((err) => props.setError(err instanceof Error ? err.message : String(err)))
-              .finally(() => props.setBusyProjectId(null));
-          }}
-          disabled={props.busyProjectId === project.id}
-          title="Rename"
-        >
-          <Edit2 size={16} />
-        </button>
-      </div>
-
-      <div className="project-card-actions">
-        <button
-          className="btn ghost"
-          onClick={() => props.navigate(`/app/${props.activeWorkspaceId}/projects/${project.id}/tasks/new`)}
-          title="New Task"
-        >
-          <Play size={16} /> Task
-        </button>
-        <button
-          className="btn ghost"
-          onClick={() => props.navigate(`/app/${props.activeWorkspaceId}/projects/${project.id}/files`)}
-          title="Files"
-        >
-          <Folder size={16} />
-        </button>
-        <button
-          className="btn ghost"
-          onClick={() => props.navigate(`/app/${props.activeWorkspaceId}/projects/${project.id}/settings`)}
-          title="Settings"
-        >
-          <Settings size={16} />
-        </button>
-
-        <button
-          className={`btn ghost ${project.status === "archived" ? "" : "danger-outline"}`}
-          onClick={() => {
-            const nextStatus = project.status === "archived" ? "active" : "archived";
-            props.setBusyProjectId(project.id);
-            props.patchProject(project.id, { status: nextStatus })
-              .then(() =>
-                props.setFlash({
-                  tone: "success",
-                  text: nextStatus === "archived" ? "Project archived." : "Project restored."
-                })
-              )
-              .catch((err) => props.setError(err instanceof Error ? err.message : String(err)))
-              .finally(() => props.setBusyProjectId(null));
-          }}
-          disabled={props.busyProjectId === project.id}
-          title={project.status === "archived" ? "Restore" : "Archive"}
-        >
-          {project.status === "archived" ? <RotateCcw size={16} /> : <Archive size={16} />}
-        </button>
-      </div>
-    </article>
-  );
-}
 
 export function ProjectIndexPage() {
   const workspaceApp = useWorkspaceApp();
@@ -139,6 +26,7 @@ export function ProjectIndexPage() {
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const createProjectRequestRef = useRef<Promise<void> | null>(null);
+  const cardMenu = useProjectCardMenu();
 
   async function createFromPage(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -205,37 +93,54 @@ export function ProjectIndexPage() {
     }), { ttlMs: API_CACHE_TTLS.taskList }).catch(() => {});
   }
 
+  async function updateProject(project: Project, patch: { name?: string; status?: "active" | "archived" }, successText: string): Promise<void> {
+    setBusyProjectId(project.id);
+    try {
+      await patchProject(project.id, patch);
+      setFlash({ tone: "success", text: successText });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusyProjectId(null);
+    }
+  }
+
+  function renderCard(project: Project) {
+    const base = `/app/${activeWorkspaceId}/projects/${project.id}`;
+    const archived = project.status === "archived";
+    return (
+      <ProjectCard
+        key={project.id}
+        project={project}
+        busy={busyProjectId === project.id}
+        isMenuOpen={cardMenu.openMenuProjectId === project.id}
+        onMenuOpenChange={(open) => cardMenu.setMenuOpen(project.id, open)}
+        onOpen={() => navigate(base)}
+        onPrefetch={() => prefetchProject(project)}
+        onNewTask={() => navigate(`${base}/tasks/new`)}
+        onOpenFiles={() => navigate(`${base}/files`)}
+        onOpenSettings={() => navigate(`${base}/settings`)}
+        onRename={(name) => updateProject(project, { name }, "Project renamed.")}
+        onToggleArchived={() => void updateProject(
+          project,
+          { status: archived ? "active" : "archived" },
+          archived ? "Project restored." : "Project archived."
+        )}
+      />
+    );
+  }
+
   return (
     <section className="workbench-page">
       <div className="workbench-header">
         <div className="workbench-title-block">
           <span className="workbench-kicker">Workspace</span>
           <h1 className="workbench-title">Projects</h1>
-          <p className="workbench-subtitle">Open a project, start a task, or jump into files and terminal tools.</p>
         </div>
-      </div>
-
-      <div className="workbench-toolbar">
-        <div className="workbench-search">
-          <Search size={15} />
-          <input
-            placeholder="Search projects..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <select
-          className="btn ghost env-sort-select"
-          value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as SortKey)}
-        >
-          <option value="updated_at">Recently updated</option>
-          <option value="created_at">Recently created</option>
-          <option value="name">Name A–Z</option>
-        </select>
         <form data-onboarding-id="create-project-form" onSubmit={createFromPage} className="env-create-inline">
           <input
             placeholder="New project name..."
+            aria-label="New project name"
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
             disabled={isCreatingProject}
@@ -251,23 +156,32 @@ export function ProjectIndexPage() {
         </form>
       </div>
 
+      <div className="workbench-toolbar">
+        <div className="workbench-search">
+          <Search size={15} />
+          <input
+            placeholder="Search projects..."
+            aria-label="Search projects"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <select
+          className="btn ghost env-sort-select"
+          aria-label="Sort projects"
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as SortKey)}
+        >
+          <option value="updated_at">Recently updated</option>
+          <option value="created_at">Recently created</option>
+          <option value="name">Name A–Z</option>
+        </select>
+      </div>
+
       {error && <p className="error-text">{error}</p>}
 
       <div className="project-index-grid">
-        {activeProjects.map((project) => (
-          <ProjectCard
-            key={project.id}
-            project={project}
-            activeWorkspaceId={activeWorkspaceId}
-            onPrefetchProject={prefetchProject}
-            busyProjectId={busyProjectId}
-            navigate={navigate}
-            patchProject={patchProject}
-            setBusyProjectId={setBusyProjectId}
-            setFlash={setFlash}
-            setError={setError}
-          />
-        ))}
+        {activeProjects.map(renderCard)}
 
         {archivedProjects.length > 0 ? (
           <article className="workbench-panel padded project-archive-panel">
@@ -287,20 +201,7 @@ export function ProjectIndexPage() {
 
             {archivedExpanded ? (
               <div className="project-index-grid">
-                {archivedProjects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    project={project}
-                    activeWorkspaceId={activeWorkspaceId}
-                    onPrefetchProject={prefetchProject}
-                    busyProjectId={busyProjectId}
-                    navigate={navigate}
-                    patchProject={patchProject}
-                    setBusyProjectId={setBusyProjectId}
-                    setFlash={setFlash}
-                    setError={setError}
-                  />
-                ))}
+                {archivedProjects.map(renderCard)}
               </div>
             ) : null}
           </article>
