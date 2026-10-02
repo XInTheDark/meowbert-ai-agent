@@ -8,11 +8,14 @@ import { ProjectNavigation } from "./ProjectNavigation";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const workspaceSettings = vi.hoisted(() => ({ modelDefaults: { projectMasterEnabled: true } }));
+
 vi.mock("../../contexts/WorkspaceContext", () => ({
   useWorkspaceApp: () => ({
     activeWorkspaceId: "ws1",
     activeEnvironmentId: "p1",
-    environments: [{ id: "p1", name: "Product research" }]
+    environments: [{ id: "p1", name: "Product research" }],
+    workspaceSettings
   })
 }));
 
@@ -26,6 +29,7 @@ function renderNavigation(path: string): void {
 }
 
 beforeEach(() => {
+  workspaceSettings.modelDefaults.projectMasterEnabled = true;
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -38,7 +42,7 @@ afterEach(() => {
 
 describe("ProjectNavigation", () => {
   it.each([
-    ["", "Tasks"],
+    ["/tasks", "Tasks"],
     ["/files", "Files"],
     ["/context", "Context"],
     ["/canvases", "Canvases"],
@@ -52,6 +56,24 @@ describe("ProjectNavigation", () => {
     expect(selected).toHaveLength(1);
     expect(selected[0].textContent).toBe(label);
     expect(selected[0].getAttribute("href")).toBe(`/app/ws1/projects/p1${suffix}`);
+  });
+
+  it("leaves every tab unselected on the Master landing and links Tasks to the full list", () => {
+    renderNavigation("/app/ws1/projects/p1");
+
+    expect(container.querySelectorAll(".project-tab.active")).toHaveLength(0);
+    const tasksTab = [...container.querySelectorAll(".project-tab")].find((tab) => tab.textContent === "Tasks");
+    expect(tasksTab?.getAttribute("href")).toBe("/app/ws1/projects/p1/tasks");
+  });
+
+  it("treats the project root as the task list when the Master is off", () => {
+    workspaceSettings.modelDefaults.projectMasterEnabled = false;
+    renderNavigation("/app/ws1/projects/p1");
+
+    const selected = container.querySelectorAll(".project-tab.active");
+    expect(selected).toHaveLength(1);
+    expect(selected[0].textContent).toBe("Tasks");
+    expect(selected[0].getAttribute("href")).toBe("/app/ws1/projects/p1");
   });
 
   it.each(["/tasks/new", "/tasks/task-1", "/canvases/canvas-1"])(

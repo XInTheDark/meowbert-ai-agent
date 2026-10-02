@@ -50,6 +50,11 @@
   display: none;
 }
 
+.project-master-all-tasks {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .project-master-new-task {
   display: inline-flex;
   align-items: center;

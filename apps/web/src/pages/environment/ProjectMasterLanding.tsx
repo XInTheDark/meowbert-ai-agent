@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { ListTodo, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { TaskSearchInputBar } from "../../components/search/TaskSearchInputBar";
 import { useCompactViewport } from "../../hooks/useCompactViewport";
@@ -74,8 +74,8 @@ function ProjectMasterStackedLanding(props: ProjectMasterLandingProps) {
             }}
             placeholder="Search tasks and conversation history..."
           />
-          <button className="btn ghost icon-btn" onClick={() => navigate(`${base}/tasks`)} title="All tasks" aria-label="All tasks">
-            <ListTodo size={16} />
+          <button className="btn ghost project-master-all-tasks" onClick={() => navigate(`${base}/tasks`)}>
+            All Tasks
           </button>
           <button className="btn primary project-master-new-task" onClick={() => navigate(`${base}/tasks/new`)}>
             <Plus size={16} />
