@@ -9,7 +9,9 @@ import {
   sanitizeUploadFilename,
   toIsoTimestamp,
   toWebPath
-} from "../../routes/environments/shared.js";
+} from "./file-paths.js";
+
+export const FILE_UPLOAD_LIMIT_BYTES = 100 * 1024 * 1024;
 
 export class UploadTooLargeError extends Error {
   readonly statusCode = 413;

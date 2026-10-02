@@ -1,29 +1,28 @@
 import fsPromises from "node:fs/promises";
 import { resolveRealPathWithinRoot } from "@meowbert/shared/server-security";
 
-export interface ResolvedDeletionTarget {
+export interface ResolvedSelectedPath {
   relativePath: string;
   absolutePath: string;
   isDirectory: boolean;
 }
 
-export interface DeleteResolvedTargetsResult {
-  deletedCount: number;
-  deletedPaths: string[];
-}
-
-export async function resolveDeletionTargetsWithinRoot(input: {
+// Resolves a multi-file selection inside a root for deletion or download. Each path must be an
+// existing file or directory below the root, and entries already covered by a selected
+// directory are dropped so they are not processed twice.
+export async function resolveSelectedPathsWithinRoot(input: {
   rootPath: string;
   requestedPaths: string[];
   rootLabel: string;
-}): Promise<ResolvedDeletionTarget[]> {
+  action: string;
+}): Promise<ResolvedSelectedPath[]> {
   const uniquePaths = Array.from(new Set(input.requestedPaths.map((entry) => entry.trim()).filter((entry) => entry.length > 0)));
 
   const resolvedTargets = await Promise.all(
     uniquePaths.map(async (requestedPath) => {
       const target = await resolveRealPathWithinRoot(input.rootPath, requestedPath);
       if (!target.relativePath) {
-        throw new Error(`Cannot delete the ${input.rootLabel} root`);
+        throw new Error(`Cannot ${input.action} the ${input.rootLabel} root`);
       }
 
       const stats = await fsPromises.lstat(target.absolutePath).catch(() => null);
@@ -43,7 +42,7 @@ export async function resolveDeletionTargetsWithinRoot(input: {
   );
 
   const sortedTargets = [...resolvedTargets].sort((left, right) => left.relativePath.length - right.relativePath.length);
-  const deduplicatedTargets: ResolvedDeletionTarget[] = [];
+  const deduplicatedTargets: ResolvedSelectedPath[] = [];
   for (const target of sortedTargets) {
     const alreadyCoveredByDirectory = deduplicatedTargets.some(
       (existing) =>
@@ -57,21 +56,4 @@ export async function resolveDeletionTargetsWithinRoot(input: {
   }
 
   return deduplicatedTargets;
-}
-
-export async function deleteResolvedTargets(targets: ResolvedDeletionTarget[]): Promise<DeleteResolvedTargetsResult> {
-  const deletedPaths: string[] = [];
-
-  for (const target of targets) {
-    await fsPromises.rm(target.absolutePath, {
-      recursive: true,
-      force: false
-    });
-    deletedPaths.push(target.relativePath);
-  }
-
-  return {
-    deletedCount: deletedPaths.length,
-    deletedPaths
-  };
 }

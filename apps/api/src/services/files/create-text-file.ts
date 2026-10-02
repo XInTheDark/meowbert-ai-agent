@@ -8,7 +8,7 @@ import {
   sanitizeUploadFilename,
   toIsoTimestamp,
   toWebPath
-} from "../../routes/environments/shared.js";
+} from "./file-paths.js";
 
 export async function createTextFileWithinRoot(input: {
   rootPath: string;

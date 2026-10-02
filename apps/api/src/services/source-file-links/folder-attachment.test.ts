@@ -8,7 +8,7 @@ vi.mock("node:fs/promises", () => ({
   default: { realpath: vi.fn(async () => "/project") }
 }));
 vi.mock("../../lib/db.js", () => ({ query: vi.fn() }));
-vi.mock("../../routes/environments/shared.js", () => ({
+vi.mock("../files/file-paths.js", () => ({
   createAvailableFilePath: vi.fn(async (value: string) => value),
   sanitizeUploadFilename: vi.fn((value: string) => value)
 }));

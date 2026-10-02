@@ -6,7 +6,7 @@ import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { pipeline } from "node:stream/promises";
 import { ensureSandboxWritablePath } from "@meowbert/shared";
 import { ensureDirectoryWithinRoot } from "@meowbert/shared/server-security";
-import { createAvailableFilePath, sanitizeUploadFilename, toIsoTimestamp } from "../../routes/environments/shared.js";
+import { createAvailableFilePath, sanitizeUploadFilename, toIsoTimestamp } from "../files/file-paths.js";
 import { downloadWorkspaceSourceFile } from "./source-operations.js";
 
 export async function importWorkspaceSourceFileToEnvironment(input: {
