@@ -86,6 +86,17 @@ describe("runCodeModeScript", () => {
     expect(result.result).toEqual(["undefined", "undefined", "undefined", true]);
   });
 
+  it("points a script at the right tool when it uses a name that does not exist", async () => {
+    const result = await runCodeModeScript({
+      code: "await tools.upload_file({});",
+      toolNames: ["google_workspace__upload_file", "run_shell"],
+      callTool: async () => ({}),
+      timeoutMs: 5_000
+    });
+
+    expect(result.error).toContain("tools.upload_file does not exist. Did you mean tools.google_workspace__upload_file?");
+  });
+
   it("stops a busy loop at the deadline and keeps the runtime usable", async () => {
     const stuck = await runCodeModeScript({ code: "while (true) {}", toolNames: [], callTool: async () => ({}), timeoutMs: 200 });
     expect(stuck).toMatchObject({ timedOut: true, cancelled: false });

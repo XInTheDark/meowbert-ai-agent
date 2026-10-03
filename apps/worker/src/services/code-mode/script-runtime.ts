@@ -5,6 +5,7 @@ import {
   type QuickJSRuntime,
   type QuickJSWASMModule
 } from "quickjs-emscripten-core";
+import { SEARCH_TOOLS_TOOL_NAME } from "./search-tools-tool.js";
 
 const SCRIPT_MEMORY_LIMIT_BYTES = 64 * 1024 * 1024;
 const SCRIPT_MAX_STACK_BYTES = 1024 * 1024;
@@ -46,10 +47,19 @@ globalThis.console = Object.freeze(Object.fromEntries(["log", "info", "warn", "e
   level,
   (...args) => __hostLog(args.map(__format).join(" "))
 ])));
-globalThis.tools = Object.freeze(Object.fromEntries(${JSON.stringify(toolNames)}.map((name) => [
+const __tools = Object.freeze(Object.fromEntries(${JSON.stringify(toolNames)}.map((name) => [
   name,
   async (args = {}) => JSON.parse(await __hostCallTool(name, JSON.stringify(args ?? {})))
 ])));
+globalThis.tools = new Proxy(__tools, {
+  get(target, name) {
+    if (typeof name !== "string" || name in target || name === "then") return target[name];
+    const similar = Object.keys(target).filter((tool) => tool.endsWith("__" + name) || tool.includes(name)).slice(0, 3);
+    throw new TypeError("tools." + name + " does not exist. " + (similar.length > 0
+      ? "Did you mean " + similar.map((tool) => "tools." + tool).join(", ") + "?"
+      : "Look it up with ${SEARCH_TOOLS_TOOL_NAME}."));
+  }
+});
 (async () => {
 ${code}
 })().then((value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value) ?? "null"));

@@ -16,6 +16,10 @@ const TOOL_GROUP_BY_TOOL_NAME = new Map(
   Object.entries(TOOL_GROUPS).flatMap(([groupId, group]) => group.toolNames.map((toolName) => [toolName, groupId] as const))
 );
 
+export function isToolGroupTool(toolName: string): boolean {
+  return TOOL_GROUP_BY_TOOL_NAME.has(toolName);
+}
+
 export function getToolGroupSummary(groupId: string): { name: string; description: string } | null {
   const group = TOOL_GROUPS[groupId];
   return group ? { name: group.name, description: group.description } : null;

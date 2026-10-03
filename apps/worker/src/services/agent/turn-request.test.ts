@@ -82,6 +82,32 @@ describe("buildAgentTurnRequest", () => {
     expect(afterEnable.promptCacheKey).not.toBe(beforeEnable.promptCacheKey);
   });
 
+  it("keeps the code mode tool list, and so the cache key, the same when a skill or tool group loads", () => {
+    const promptEnvelope = createPromptEnvelope("Base prompt.");
+    const skillTool: FunctionTool = {
+      type: "function",
+      name: "pptx_studio__pptx_draw_slide_svg",
+      description: "Draw an SVG visual for a slide.",
+      strict: false,
+      parameters: { type: "object", properties: {}, required: [] }
+    };
+    const request = (activeSkillTools: FunctionTool[], loadedToolGroups: string[]) => buildAgentTurnRequest({
+      taskId: "task-1",
+      runToolOptions: { ...createBaseToolOptions(), scheduleTask: true },
+      activeSkillTools,
+      promptEnvelope,
+      availability: { allowScheduleTools: true, loadedToolGroups },
+      codeMode: true
+    });
+
+    const before = request([], []);
+    const after = request([skillTool], ["task-scheduling"]);
+
+    expect(after.responseTools).toEqual(before.responseTools);
+    expect(after.promptCacheKey).toBe(before.promptCacheKey);
+    expect(after.codeModeTools.map((tool) => tool.name)).toEqual(expect.arrayContaining([skillTool.name, "schedule_task"]));
+  });
+
   it("passes agent swarm tools through to the model request when enabled", () => {
     const promptEnvelope = createPromptEnvelope("Base prompt.");
     const request = buildAgentTurnRequest({

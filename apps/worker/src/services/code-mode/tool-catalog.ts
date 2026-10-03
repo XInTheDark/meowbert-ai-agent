@@ -26,13 +26,15 @@ import {
   SWARM_RECORD_FINAL_REVIEW_TOOL_NAME,
   SWARM_RECORD_REVIEW_TOOL_NAME,
   SWARM_SPAWN_NODE_TOOL_NAME,
-  VIEW_TASK_HISTORY_TOOL_NAME
+  VIEW_TASK_HISTORY_TOOL_NAME,
+  isToolGroupTool
 } from "../agent-tools/index.js";
 import { SUBAGENT_TOOL_NAMES } from "../agent-tools/subagents.js";
 
 // How exec presents the tools it can call. Warm tools, which most tasks reach for, are documented in
-// full in exec's description. Every other tool is cold: exec lists it by name under its group, and
-// search_tools documents it on demand. A loaded skill is one group; built-ins group by feature.
+// full in exec's description. Every other tool is cold and documented on demand by search_tools,
+// grouped by feature for built-ins and by skill for skill tools. Cold tools that are always there are
+// also listed by name in exec's description; tools loaded mid-task are announced by enable_skill.
 
 const WARM_TOOL_NAMES = new Set<string>([
   RUN_SHELL_TOOL_NAME,
@@ -71,6 +73,13 @@ export function isWarmTool(tool: FunctionTool): boolean {
   return WARM_TOOL_NAMES.has(tool.name);
 }
 
+// Skill tools and on-demand built-in groups arrive through enable_skill, whose prompt update names
+// them. Leaving them out of exec's description keeps the tool list, and so the cached prompt
+// prefix, the same when one loads mid-task.
+export function isLoadedOnDemand(tool: FunctionTool): boolean {
+  return parseSkillToolName(tool.name) !== null || isToolGroupTool(tool.name);
+}
+
 export function toolGroupId(tool: FunctionTool): string {
   return parseSkillToolName(tool.name)?.skillId ?? BUILT_IN_GROUP_BY_TOOL.get(tool.name) ?? OTHER_GROUP;
 }
@@ -78,11 +87,6 @@ export function toolGroupId(tool: FunctionTool): string {
 // Accepts a group as exec lists it or by its skill id ("google-workspace" for "google_workspace").
 export function normalizeGroupId(group: string): string {
   return providerSafeSkillToolId(group.trim());
-}
-
-// The name a tool goes by inside its group: a skill tool without its skill prefix.
-export function shortToolName(tool: FunctionTool): string {
-  return parseSkillToolName(tool.name)?.toolName ?? tool.name;
 }
 
 // Groups the cold tools, keeping the order they were offered in.
