@@ -72,6 +72,8 @@ import {
 } from "../agent/apply-patch.js";
 import { finishUnhandledToolFailure } from "./events.js";
 import { handleApplyPatch } from "./handlers/apply-patch.js";
+import { handleExec } from "./handlers/exec.js";
+import { EXEC_TOOL_NAME } from "../code-mode/exec-tool.js";
 import { handleMarkArtifact } from "./handlers/artifacts.js";
 import { handleComputerToolCall } from "./handlers/computer.js";
 import { handleContextManagementTool } from "./handlers/context-management.js";
@@ -154,6 +156,10 @@ async function dispatchFunctionToolCall(
   let workflowPause: ToolDispatchResult["workflowPause"] = null;
 
   switch (outputItem.name) {
+    case EXEC_TOOL_NAME:
+      await handleExec(outputItem, ctx, state, dispatchFunctionToolCall);
+      break;
+
     case "update_conversation_outline":
     case "update_conversation_map":
       handleConversationOrganization(outputItem, state);

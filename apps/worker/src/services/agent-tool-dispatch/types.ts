@@ -52,6 +52,10 @@ export interface ToolDispatchContext {
   isSkillAdmin: boolean;
   activeMcpConnections: Map<string, McpConnection>;
   activeSkillTools: FunctionTool[];
+  // Tools this turn offers only through exec (code mode); unset when code mode is off.
+  codeModeTools?: FunctionTool[];
+  // Set while a tool runs inside exec, so its display message is never replayed as a model call.
+  codeModeParentCallId?: string;
   enableSkillById: (skillId: string) => Promise<{ doc: string | null; toolNames: string[] }>;
   // Offered without being loaded; list_skills shows them even when the skill is hidden from the catalog.
   onDemandSkills?: SkillSummary[];

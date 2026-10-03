@@ -118,6 +118,7 @@ function hasOwnerManagedWorkspaceSettings(body: WorkspaceSettingsPatch): boolean
     || body.nativeCompactionEnabled !== undefined
     || body.sendMetadataToModel !== undefined
     || body.claudeCacheKeepalive !== undefined
+    || body.codeModeEnabled !== undefined
     || body.systemPrompt !== undefined
     || body.personalityId !== undefined
     || body.sandboxNetworkEnabled !== undefined
@@ -206,6 +207,14 @@ function applyWorkspaceModelDefaultsPatch(
       delete nextModelDefaults.claudeCacheKeepalive;
     } else {
       nextModelDefaults.claudeCacheKeepalive = false;
+    }
+  }
+
+  if (body.codeModeEnabled !== undefined) {
+    if (body.codeModeEnabled) {
+      nextModelDefaults.codeModeEnabled = true;
+    } else {
+      delete nextModelDefaults.codeModeEnabled;
     }
   }
 

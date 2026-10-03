@@ -33,7 +33,7 @@ describe("workspace organization experiment", () => {
     const label = Array.from(container.querySelectorAll("label")).find((item) => item.textContent?.includes("New message organization"))!;
     expect(label.querySelector("input")?.checked).toBe(true);
     await save();
-    expect(patch).toHaveBeenCalledWith("/api/workspaces/workspace/settings", { nativeCompactionEnabled: true, sendMetadataToModel: false, claudeCacheKeepalive: true });
+    expect(patch).toHaveBeenCalledWith("/api/workspaces/workspace/settings", { nativeCompactionEnabled: true, sendMetadataToModel: false, claudeCacheKeepalive: true, codeModeEnabled: false });
   });
   it("persists an explicit disable", async () => {
     await showExperiments();
@@ -41,5 +41,15 @@ describe("workspace organization experiment", () => {
     await act(async () => label.querySelector<HTMLInputElement>("input")!.click());
     await save();
     expect(patch).toHaveBeenCalledWith("/api/workspaces/workspace/settings", expect.objectContaining({ newMessageOrganizationEnabled: false }));
+  });
+});
+describe("workspace code mode experiment", () => {
+  it("starts off and saves when turned on", async () => {
+    await showExperiments();
+    const label = Array.from(container.querySelectorAll("label")).find((item) => item.textContent?.includes("Code mode"))!;
+    expect(label.querySelector("input")?.checked).toBe(false);
+    await act(async () => label.querySelector<HTMLInputElement>("input")!.click());
+    await save();
+    expect(patch).toHaveBeenCalledWith("/api/workspaces/workspace/settings", expect.objectContaining({ codeModeEnabled: true }));
   });
 });

@@ -501,6 +501,35 @@ describe("mapMessagesForResponsesInput", () => {
     expect(typeof mapped[1] === "object" && mapped[1] !== null && !("id" in mapped[1])).toBe(true);
   });
 
+  it("replays an interrupted exec call without the tool calls made inside it", async () => {
+    const toolMessage = (id: string, content: Record<string, unknown>): TaskMessageRow => ({
+      id,
+      role: "tool",
+      content_json: content,
+      parent_message_id: null,
+      edited_from_message_id: null,
+      created_at: "2026-10-03T00:00:00.000Z"
+    });
+    const messages: TaskMessageRow[] = [
+      toolMessage("m_nested", {
+        tool: "run_shell",
+        code_mode_parent_call_id: "call_exec",
+        response_function_call: { call_id: "call_exec.1", name: "run_shell", arguments: "{\"command\":\"ls\"}" },
+        response_function_output: { call_id: "call_exec.1", output: "{\"stdout\":\"a.txt\\n\"}" }
+      }),
+      toolMessage("m_exec", {
+        tool: "exec",
+        response_function_call: { call_id: "call_exec", name: "exec", arguments: "{\"code\":\"...\",\"timeout_seconds\":null}" },
+        response_function_output: { call_id: "call_exec", output: "{\"logs\":\"a.txt\",\"tool_calls\":1}" }
+      })
+    ];
+
+    await expect(mapMessagesForResponsesInput(messages, "/tmp/task-inputs", "high")).resolves.toEqual([
+      { type: "function_call", call_id: "call_exec", name: "exec", arguments: "{\"code\":\"...\",\"timeout_seconds\":null}" },
+      { type: "function_call_output", call_id: "call_exec", output: "{\"logs\":\"a.txt\",\"tool_calls\":1}" }
+    ]);
+  });
+
   it("replays persisted history exactly as the model saw it", async () => {
     const command = "python3 -c \"print('done')\"";
     const runItems = [

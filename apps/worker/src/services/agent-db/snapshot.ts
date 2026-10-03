@@ -4,6 +4,7 @@ import type { EnvironmentRow, TaskMessageRow, TaskRow, TaskSnapshot } from "../a
 import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
 import {
   resolveWorkspaceClaudeCacheKeepalive,
+  resolveWorkspaceCodeModeEnabled,
   resolveWorkspaceCompactionBackend,
   resolveWorkspaceContextManagementToolsEnabled,
   resolveWorkspaceMcpTimeoutMs,
@@ -290,6 +291,7 @@ export async function getTaskSnapshot(taskId: string, branchMessageId?: string |
     ...runtimeSettings,
     enable_prompt_caching: base.platformSettings?.enable_prompt_caching ?? true,
     claude_cache_keepalive: resolveWorkspaceClaudeCacheKeepalive(base.modelDefaults),
+    code_mode_enabled: resolveWorkspaceCodeModeEnabled(base.modelDefaults),
     platform_agent_presets: normalizePlatformAgentPresets(base.platformSettings?.agent_presets_json ?? null),
     platform_model_metadata: normalizePlatformModelMetadata(base.platformSettings?.model_metadata_json ?? null),
     platform_model_routers: normalizePlatformModelRouters(base.platformSettings?.model_routers_json ?? null),

@@ -1,5 +1,11 @@
 # Changelog
 
+## Oct 3, 2026
+
+### AI and agents
+
+- **Code mode (experimental)** — Meowbert can run several tool calls from one short script instead of spending a model turn on each, which can cut token use on long tasks. Workspace owners can turn it on under **Workspace Settings → Experiments**. Admins can turn it off for specific models with `"code_mode": false` in the model metadata.
+
 ## Oct 2, 2026
 
 ### Files and projects

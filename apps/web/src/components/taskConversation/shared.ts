@@ -118,6 +118,9 @@ export function formatToolPreviewName(name: string): string {
   if (normalized === "run_shell" || normalized === "shell" || normalized === "bash") {
     return "Shell";
   }
+  if (normalized === "exec") {
+    return "Code";
+  }
   if (normalized.includes("web") && normalized.includes("search")) {
     return "Web";
   }

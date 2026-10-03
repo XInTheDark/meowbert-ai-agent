@@ -32,7 +32,8 @@ export async function appendToolMessage(
   ctx: ToolDispatchContext,
   payload: Record<string, unknown>
 ): Promise<void> {
-  const messageId = await appendMessage(ctx.taskId, "tool", payload, {
+  const content = ctx.codeModeParentCallId ? { ...payload, code_mode_parent_call_id: ctx.codeModeParentCallId } : payload;
+  const messageId = await appendMessage(ctx.taskId, "tool", content, {
     parentMessageId: ctx.getCurrentLeafMessageId()
   });
   ctx.setCurrentLeafMessageId(messageId);

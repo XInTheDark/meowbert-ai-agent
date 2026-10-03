@@ -77,6 +77,28 @@ describe("registerWorkspaceCoreRoutes", () => {
     await app.close();
   });
 
+  it.each([
+    { previous: {}, patch: { codeModeEnabled: true }, stored: true, enabled: true },
+    { previous: { codeModeEnabled: true }, patch: { codeModeEnabled: false }, stored: undefined, enabled: false },
+    { previous: {}, patch: { nativeCompactionEnabled: true }, stored: undefined, enabled: false }
+  ])("keeps code mode off unless enabled: $patch", async ({ previous, patch, stored, enabled }) => {
+    const app = Fastify();
+    app.decorate("authenticate", async (request: Fastify.FastifyRequest) => { request.user = { id: "user", email: "user@example.com" }; });
+    mockedQuery.mockImplementation(async (sql) => createQueryResult(sql.includes("FROM workspace_members") ? [{ role: "owner" }] : []));
+    const transactionQuery = vi.fn(async (sql: string, params: unknown[]) => createQueryResult([{
+      model_defaults_json: sql.includes("UPDATE workspace_settings") ? JSON.parse(params[1] as string) : previous,
+      memory_enabled: false, run_as_root: false
+    }]));
+    vi.mocked(withTransaction).mockImplementation(async (fn) => fn({ query: transactionQuery } as never));
+    await registerWorkspaceCoreRoutes(app);
+    const response = await app.inject({ method: "PATCH", url: "/api/workspaces/11111111-1111-4111-8111-111111111111/settings", payload: patch });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().codeModeEnabled).toBe(enabled);
+    const saved = JSON.parse(transactionQuery.mock.calls.find(([sql]) => sql.includes("UPDATE workspace_settings"))![1][1] as string);
+    expect(saved.codeModeEnabled).toBe(stored);
+    await app.close();
+  });
+
   it("restricts the organization experiment to workspace owners", async () => {
     const app = Fastify();
     app.decorate("authenticate", async (request: Fastify.FastifyRequest) => { request.user = { id: "user", email: "user@example.com" }; });
