@@ -813,4 +813,39 @@
   .sidebar {
     width: min(88vw, 340px);
   }
+
+  /* Phones keep vertical space for content: workspace and project share one line in the shell header,
+     so the project heading above the tabs would only repeat it. */
+  .main-column {
+    gap: var(--space-sm);
+  }
+
+  .mobile-shell-title {
+    display: flex;
+    align-items: baseline;
+    gap: .4rem;
+  }
+
+  .mobile-shell-title strong {
+    flex: 0 1 auto;
+  }
+
+  .mobile-shell-title span {
+    flex: 0 1000 auto;
+    font-size: .8125rem;
+  }
+
+  .mobile-shell-title span::before {
+    content: "/";
+    margin-right: .4rem;
+    opacity: .6;
+  }
+
+  .project-navigation-identity {
+    display: none;
+  }
+
+  .project-tab {
+    padding-bottom: .55rem;
+  }
 }
