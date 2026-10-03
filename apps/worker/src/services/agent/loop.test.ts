@@ -65,6 +65,7 @@ vi.mock("../agent-tool-dispatch/index.js", () => ({
 vi.mock("./turn-request.js", () => ({
   buildAgentTurnRequest: vi.fn(() => ({
     responseTools: [],
+    codeModeTools: [],
     promptPrefixItems: [],
     promptPrefixHash: "prefix-hash",
     promptRevision: "prompt-revision",
@@ -421,6 +422,28 @@ describe("runAgentStepLoop", () => {
 
     expect(execution.runControl.runTimedOut).toBe(false);
     expect(execution.state.finalResponseFromTool).toBeNull();
+  });
+
+  it.each([
+    { label: "workspace experiment on", workspace: true, metadata: {}, codeMode: true },
+    { label: "model opted out", workspace: true, metadata: { "gpt-test": { code_mode: false } }, codeMode: false },
+    { label: "workspace experiment off", workspace: false, metadata: {}, codeMode: false }
+  ])("requests code mode only when it applies: $label", async ({ workspace, metadata, codeMode }) => {
+    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: [], output_text: "", usage: undefined } as never);
+    mockedDispatchResponseOutput.mockResolvedValueOnce({
+      sawToolCall: true,
+      sawFunctionToolCall: true,
+      finalResponse: { response: "done", notify: true, partial: false },
+      waitRequest: null,
+      stopRequest: null,
+      workflowPause: null
+    });
+    const execution = createExecutionContext();
+    Object.assign(execution.prepared.snapshot, { code_mode_enabled: workspace, platform_model_metadata: metadata });
+
+    await runAgentStepLoop(execution as never);
+
+    expect(buildAgentTurnRequest).toHaveBeenLastCalledWith(expect.objectContaining({ codeMode }));
   });
 
   it("continues to the next reasoning step after a non-terminal tool call", async () => {

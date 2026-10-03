@@ -1,6 +1,6 @@
 import { appendSubagentInbox } from "../subagents/inbox.js";
 import { appendProjectMasterInbox } from "../project-master/inbox.js";
-import { getVisiblePlatformAgentPresets, parseModelResponseUsage } from "@meowbert/shared";
+import { getVisiblePlatformAgentPresets, parseModelResponseUsage, resolveCodeModeForModel } from "@meowbert/shared";
 import { getPersistentRuntimeEnabled, getSandboxNetworkEnabled } from "@meowbert/shared";
 import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
 import { emitTaskEvent } from "../runtime/events.js";
@@ -22,6 +22,7 @@ import { resolveModelErrorAction } from "./model-error-actions.js";
 import { persistModelRequestRecovery } from "./model-request-recovery.js";
 import { dispatchResponseOutput, type ToolDispatchContext } from "../agent-tool-dispatch/index.js";
 import { buildAgentTurnRequest } from "./turn-request.js";
+import type { FunctionTool } from "openai/resources/responses/responses";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "./prompt-envelope.js";
 import { appendQueuedPromptDeltas } from "./queued-prompt-deltas.js";
 import { runClaudeWebSearch } from "./claude-web-search.js";
@@ -498,13 +499,26 @@ async function recordSubscriptionUsage(execution: AgentExecutionContext, respons
   }
 }
 
+interface ModelTurnResult {
+  response: ModelTurnResponse;
+  requireWorkflowToolAction: boolean;
+  codeModeTools: FunctionTool[];
+}
+
+// Code mode is a workspace experiment that each model can opt out of; the Master never uses it.
+function isCodeModeEnabled(execution: AgentExecutionContext): boolean {
+  return execution.prepared.snapshot.code_mode_enabled === true
+    && execution.prepared.isProjectMaster !== true
+    && resolveCodeModeForModel(execution.prepared.runtimeModel, execution.prepared.snapshot.platform_model_metadata);
+}
+
 async function requestModelTurn(input: {
   execution: AgentExecutionContext;
   step: number;
   availability: AgentStepAvailability;
   allowComputerLocalShell: boolean;
   allowComputerVisualTools: boolean;
-}): Promise<{ response: ModelTurnResponse; requireWorkflowToolAction: boolean }> {
+}): Promise<ModelTurnResult> {
   const { execution, step, availability } = input;
   await appendQueuedPromptDeltas(execution);
   const turnRequest = buildAgentTurnRequest({
@@ -552,7 +566,8 @@ async function requestModelTurn(input: {
         : undefined,
       allowPersistentShellSessions: getPersistentRuntimeEnabled(execution.prepared.runtimeEnvironmentPayload),
       useClaudeWebSearch: execution.prepared.runtimeModelType === "claude"
-    }
+    },
+    codeMode: isCodeModeEnabled(execution)
   });
   sealPromptEnvelope(execution.promptEnvelope);
   const toolChoice = resolveModelToolChoice(execution, availability);
@@ -707,7 +722,7 @@ async function requestModelTurn(input: {
   }
   await assertStepNotAborted(execution);
 
-  return { response, requireWorkflowToolAction: availability.requireWorkflowToolAction };
+  return { response, requireWorkflowToolAction: availability.requireWorkflowToolAction, codeModeTools: turnRequest.codeModeTools };
 }
 
 async function requestModelTurnWithRecovery(input: {
@@ -716,7 +731,7 @@ async function requestModelTurnWithRecovery(input: {
   availability: AgentStepAvailability;
   allowComputerLocalShell: boolean;
   allowComputerVisualTools: boolean;
-}): Promise<{ response: ModelTurnResponse; requireWorkflowToolAction: boolean }> {
+}): Promise<ModelTurnResult> {
   try {
     return await requestModelTurn(input);
   } catch (error) {
@@ -785,7 +800,7 @@ async function requestModelTurnWithRecovery(input: {
   }
 }
 
-function buildDispatchContext(execution: AgentExecutionContext): ToolDispatchContext {
+function buildDispatchContext(execution: AgentExecutionContext, codeModeTools: FunctionTool[]): ToolDispatchContext {
   const specializedModels = execution.prepared.snapshot.platform_specialized_models ?? {
     internalModel: null,
     fastModel: null,
@@ -845,6 +860,7 @@ function buildDispatchContext(execution: AgentExecutionContext): ToolDispatchCon
     isSkillAdmin: execution.prepared.resolvedRunActorIsSuperAdmin,
     activeMcpConnections: execution.prepared.activeMcpConnections,
     activeSkillTools: execution.prepared.activeSkillTools,
+    ...(codeModeTools.length > 0 ? { codeModeTools } : {}),
     enableSkillById: execution.enableSkillById,
     onDemandSkills: execution.onDemandCapabilities,
     appendPromptDelta: (promptDeltaInput) => {
@@ -1053,10 +1069,15 @@ async function processModelTurnResult(
   step: number,
   response: ModelTurnResponse,
   availability: AgentStepAvailability,
-  requireWorkflowToolAction: boolean
+  requireWorkflowToolAction: boolean,
+  codeModeTools: FunctionTool[]
 ): Promise<"continue" | "break"> {
   await updateBudgetTelemetry(execution);
-  const dispatchResult = await dispatchResponseOutput(response.output, buildDispatchContext(execution), execution.state.dispatchState);
+  const dispatchResult = await dispatchResponseOutput(
+    response.output,
+    buildDispatchContext(execution, codeModeTools),
+    execution.state.dispatchState
+  );
   if (execution.state.dispatchState.pendingContextV2Reset) {
     await resetV2ContextWindow(execution, "manual");
     return "continue";
@@ -1135,7 +1156,7 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
   maybeAppendWindingDownNotice(execution, availability);
   await maybeRunAutoCompaction(execution, step);
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);
-  const { response, requireWorkflowToolAction } = await requestModelTurnWithRecovery({
+  const { response, requireWorkflowToolAction, codeModeTools } = await requestModelTurnWithRecovery({
     execution,
     step,
     availability,
@@ -1143,7 +1164,7 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
     allowComputerVisualTools: computerAvailability.allowComputerVisualTools
   });
 
-  return processModelTurnResult(execution, step, response, availability, requireWorkflowToolAction);
+  return processModelTurnResult(execution, step, response, availability, requireWorkflowToolAction, codeModeTools);
 }
 
 function handleStepError(execution: AgentExecutionContext, error: unknown): "continue" | "break" | "throw" {

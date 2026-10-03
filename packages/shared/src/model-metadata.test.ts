@@ -3,6 +3,7 @@ import {
   DEFAULT_MODEL_TYPE,
   DEFAULT_MAX_CONTEXT_WINDOW_TOKENS,
   normalizePlatformModelMetadata,
+  resolveCodeModeForModel,
   resolveCompatibilityModesForModel,
   resolveContextManagementVersionForModel,
   resolveContextWindowForModel,
@@ -169,6 +170,16 @@ describe("resolveContextManagementVersionForModel", () => {
 
   it("uses V2 when old metadata has no context-management field", () => {
     expect(resolveContextManagementVersionForModel("gpt-5", { default: { context_window: 256_000 } })).toBe("v2");
+  });
+});
+
+describe("resolveCodeModeForModel", () => {
+  it("is on by default and can be turned off per model or for every model", () => {
+    expect(resolveCodeModeForModel("gpt-5", { default: { context_window: 256_000 } })).toBe(true);
+    expect(resolveCodeModeForModel("small-model", { "small-model": { code_mode: false } })).toBe(false);
+    expect(resolveCodeModeForModel("gpt-5", { default: { code_mode: false }, "gpt-5": { code_mode: true } })).toBe(true);
+    expect(resolveCodeModeForModel("other", { default: { code_mode: false } })).toBe(false);
+    expect(resolveCodeModeForModel("invalid", { invalid: { code_mode: "no" } })).toBe(true);
   });
 });
 

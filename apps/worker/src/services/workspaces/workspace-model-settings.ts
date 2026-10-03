@@ -112,6 +112,12 @@ export function resolveWorkspaceClaudeCacheKeepalive(
   return modelDefaults?.claudeCacheKeepalive !== false;
 }
 
+export function resolveWorkspaceCodeModeEnabled(
+  modelDefaults: Record<string, unknown> | null | undefined
+): boolean {
+  return modelDefaults?.codeModeEnabled === true;
+}
+
 export function resolveWorkspaceSendMetadataToModel(
   modelDefaults: Record<string, unknown> | null | undefined
 ): boolean {

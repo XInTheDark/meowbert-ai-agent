@@ -26,6 +26,7 @@ interface WorkspaceSettingsPatchBody {
   nativeCompactionEnabled?: boolean;
   sendMetadataToModel?: boolean;
   claudeCacheKeepalive?: boolean;
+  codeModeEnabled?: boolean;
   systemPrompt?: string | null;
   personalityId?: string | null;
   sandboxNetworkEnabled?: boolean | null;
@@ -53,6 +54,7 @@ interface WorkspaceSettingsDraftValues {
   nativeCompactionEnabled: boolean;
   sendMetadataToModel: boolean;
   claudeCacheKeepalive: boolean;
+  codeModeEnabled: boolean;
   memoryEnabled: boolean;
   thoughtPersistenceEnabled: boolean;
   memorySynthesisEnabled: boolean;
@@ -74,6 +76,7 @@ interface WorkspaceSettingsDraftController extends WorkspaceSettingsDraftValues 
   setNativeCompactionEnabled: (value: boolean) => void;
   setSendMetadataToModel: (value: boolean) => void;
   setClaudeCacheKeepalive: (value: boolean) => void;
+  setCodeModeEnabled: (value: boolean) => void;
   setMemoryEnabled: (value: boolean) => void;
   setThoughtPersistenceEnabled: (value: boolean) => void;
   setMemorySynthesisEnabled: (value: boolean) => void;
@@ -125,6 +128,7 @@ function useWorkspaceSettingsDrafts(workspaceSettings: WorkspaceSettings | null)
   const [nativeCompactionEnabled, setNativeCompactionEnabled] = useState(true);
   const [sendMetadataToModel, setSendMetadataToModel] = useState(false);
   const [claudeCacheKeepalive, setClaudeCacheKeepalive] = useState(true);
+  const [codeModeEnabled, setCodeModeEnabled] = useState(false);
   const [memoryEnabled, setMemoryEnabled] = useState(false);
   const [thoughtPersistenceEnabled, setThoughtPersistenceEnabled] = useState(false);
   const [memorySynthesisEnabled, setMemorySynthesisEnabled] = useState(false);
@@ -151,6 +155,7 @@ function useWorkspaceSettingsDrafts(workspaceSettings: WorkspaceSettings | null)
     setNativeCompactionEnabled(workspaceSettings?.nativeCompactionEnabled !== false);
     setSendMetadataToModel(workspaceSettings?.sendMetadataToModel === true);
     setClaudeCacheKeepalive(workspaceSettings?.claudeCacheKeepalive !== false);
+    setCodeModeEnabled(workspaceSettings?.codeModeEnabled === true);
     setMemoryEnabled(workspaceSettings?.memoryEnabled === true);
     setThoughtPersistenceEnabled(workspaceSettings?.thoughtPersistenceEnabled !== false);
     setMemorySynthesisEnabled(workspaceSettings?.memorySynthesisEnabled === true);
@@ -177,6 +182,7 @@ function useWorkspaceSettingsDrafts(workspaceSettings: WorkspaceSettings | null)
     nativeCompactionEnabled,
     sendMetadataToModel,
     claudeCacheKeepalive,
+    codeModeEnabled,
     memoryEnabled,
     thoughtPersistenceEnabled,
     memorySynthesisEnabled,
@@ -192,6 +198,7 @@ function useWorkspaceSettingsDrafts(workspaceSettings: WorkspaceSettings | null)
     setNativeCompactionEnabled,
     setSendMetadataToModel,
     setClaudeCacheKeepalive,
+    setCodeModeEnabled,
     setMemoryEnabled,
     setThoughtPersistenceEnabled,
     setMemorySynthesisEnabled,
@@ -273,7 +280,8 @@ function buildWorkspaceSettingsPatchForTab(
         ...(drafts.projectMasterSettingChanged ? { projectMasterEnabled: drafts.projectMasterEnabled } : {}),
         nativeCompactionEnabled: drafts.nativeCompactionEnabled,
         sendMetadataToModel: drafts.sendMetadataToModel,
-        claudeCacheKeepalive: drafts.claudeCacheKeepalive
+        claudeCacheKeepalive: drafts.claudeCacheKeepalive,
+        codeModeEnabled: drafts.codeModeEnabled
       },
       successText: "Workspace experiments saved.",
       error: null
@@ -458,10 +466,12 @@ function ExperimentSettingsSection(props: {
   nativeCompactionEnabled: boolean;
   sendMetadataToModel: boolean;
   claudeCacheKeepalive: boolean;
+  codeModeEnabled: boolean;
   disabled: boolean;
   onNativeCompactionEnabledChange: (value: boolean) => void;
   onSendMetadataToModelChange: (value: boolean) => void;
   onClaudeCacheKeepaliveChange: (value: boolean) => void;
+  onCodeModeEnabledChange: (value: boolean) => void;
 }) {
   return (
     <div className="stack-form">
@@ -499,6 +509,13 @@ function ExperimentSettingsSection(props: {
         onChange={props.onClaudeCacheKeepaliveChange}
         title="Cachebeat for Claude models"
         description="Experimental. Keeps a Claude task's prompt cache warm for 30 minutes after each request, so continuing after a pause doesn't reprocess the whole conversation."
+      />
+      <CheckboxSetting
+        checked={props.codeModeEnabled}
+        disabled={props.disabled}
+        onChange={props.onCodeModeEnabledChange}
+        title="Code mode"
+        description="Experimental. The agent runs several tool calls from one short script instead of spending a model turn on each, which can cut token use on long tasks."
       />
     </div>
   );
@@ -589,7 +606,7 @@ function WorkspaceSettingsEditor(props: {
         />
       ) : null}
       {props.activeTab === "requests" ? <RequestSettingsSection requestTimeoutMinutesDraft={props.drafts.requestTimeoutMinutesDraft} shellToolMaxTimeoutMinutesDraft={props.drafts.shellToolMaxTimeoutMinutesDraft} mcpTimeoutMinutesDraft={props.drafts.mcpTimeoutMinutesDraft} disabled={disabled} onRequestTimeoutMinutesChange={props.drafts.setRequestTimeoutMinutesDraft} onShellToolMaxTimeoutMinutesChange={props.drafts.setShellToolMaxTimeoutMinutesDraft} onMcpTimeoutMinutesChange={props.drafts.setMcpTimeoutMinutesDraft} /> : null}
-      {props.activeTab === "experiments" ? <ExperimentSettingsSection newMessageOrganizationEnabled={props.drafts.newMessageOrganizationEnabled} onNewMessageOrganizationEnabledChange={props.drafts.setNewMessageOrganizationEnabled} projectMasterEnabled={props.drafts.projectMasterEnabled} onProjectMasterEnabledChange={props.drafts.setProjectMasterEnabled} nativeCompactionEnabled={props.drafts.nativeCompactionEnabled} sendMetadataToModel={props.drafts.sendMetadataToModel} claudeCacheKeepalive={props.drafts.claudeCacheKeepalive} disabled={disabled} onNativeCompactionEnabledChange={props.drafts.setNativeCompactionEnabled} onSendMetadataToModelChange={props.drafts.setSendMetadataToModel} onClaudeCacheKeepaliveChange={props.drafts.setClaudeCacheKeepalive} /> : null}
+      {props.activeTab === "experiments" ? <ExperimentSettingsSection newMessageOrganizationEnabled={props.drafts.newMessageOrganizationEnabled} onNewMessageOrganizationEnabledChange={props.drafts.setNewMessageOrganizationEnabled} projectMasterEnabled={props.drafts.projectMasterEnabled} onProjectMasterEnabledChange={props.drafts.setProjectMasterEnabled} nativeCompactionEnabled={props.drafts.nativeCompactionEnabled} sendMetadataToModel={props.drafts.sendMetadataToModel} claudeCacheKeepalive={props.drafts.claudeCacheKeepalive} codeModeEnabled={props.drafts.codeModeEnabled} disabled={disabled} onNativeCompactionEnabledChange={props.drafts.setNativeCompactionEnabled} onSendMetadataToModelChange={props.drafts.setSendMetadataToModel} onClaudeCacheKeepaliveChange={props.drafts.setClaudeCacheKeepalive} onCodeModeEnabledChange={props.drafts.setCodeModeEnabled} /> : null}
       {props.activeTab === "sandbox" ? <SandboxSettingsSection runAsRootEnabled={props.drafts.runAsRootEnabled} disabled={disabled} onRunAsRootChange={props.drafts.setRunAsRootEnabled} /> : null}
       {props.error ? <p className="error-text">{props.error}</p> : null}
       <div className="row-actions" style={{ justifyContent: "flex-end" }}>

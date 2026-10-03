@@ -76,6 +76,7 @@ export const workspaceSettingsPatchSchema = z
     nativeCompactionEnabled: z.boolean().optional(),
     sendMetadataToModel: z.boolean().optional(),
     claudeCacheKeepalive: z.boolean().optional(),
+    codeModeEnabled: z.boolean().optional(),
     systemPrompt: z.string().max(100_000).nullable().optional(),
     personalityId: z.string().max(120).nullable().optional(),
     sandboxNetworkEnabled: z.boolean().nullable().optional(),
@@ -97,6 +98,7 @@ export const workspaceSettingsPatchSchema = z
       || value.nativeCompactionEnabled !== undefined
       || value.sendMetadataToModel !== undefined
       || value.claudeCacheKeepalive !== undefined
+      || value.codeModeEnabled !== undefined
       || value.systemPrompt !== undefined
       || value.personalityId !== undefined
       || value.sandboxNetworkEnabled !== undefined
@@ -214,6 +216,10 @@ function resolveWorkspaceClaudeCacheKeepalive(modelDefaults: Record<string, unkn
   return modelDefaults.claudeCacheKeepalive !== false;
 }
 
+function resolveWorkspaceCodeModeEnabled(modelDefaults: Record<string, unknown>): boolean {
+  return modelDefaults.codeModeEnabled === true;
+}
+
 function resolveWorkspaceSendMetadataToModel(modelDefaults: Record<string, unknown>): boolean {
   return modelDefaults.sendMetadataToModel === true;
 }
@@ -237,6 +243,7 @@ export function formatWorkspaceSettingsResponse(
   nativeCompactionEnabled: boolean;
   sendMetadataToModel: boolean;
   claudeCacheKeepalive: boolean;
+  codeModeEnabled: boolean;
   systemPrompt: string;
   personalityId: string | null;
   effectivePersonalityId: string | null;
@@ -270,6 +277,7 @@ export function formatWorkspaceSettingsResponse(
     nativeCompactionEnabled: contextCompactionBackend === "native",
     sendMetadataToModel: resolveWorkspaceSendMetadataToModel(modelDefaults),
     claudeCacheKeepalive: resolveWorkspaceClaudeCacheKeepalive(modelDefaults),
+    codeModeEnabled: resolveWorkspaceCodeModeEnabled(modelDefaults),
     systemPrompt: getWorkspaceSystemPrompt(modelDefaults),
     personalityId,
     effectivePersonalityId: resolveEnvironmentPersonalityId({

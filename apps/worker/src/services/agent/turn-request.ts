@@ -1,6 +1,7 @@
 import type { FunctionTool, ResponseInputItem, Tool } from "openai/resources/responses/responses";
 import { createHash } from "node:crypto";
-import { buildResponseTools, type ResponseToolAvailability } from "../agent-tools/index.js";
+import { buildResponseTools, RUN_SHELL_MAX_TIMEOUT_SECONDS, type ResponseToolAvailability } from "../agent-tools/index.js";
+import { buildCodeModeToolSet } from "../code-mode/code-mode-tools.js";
 import type { TaskMessageToolOptions } from "./types.js";
 import {
   computePromptPrefixHash,
@@ -11,6 +12,8 @@ import {
 
 export interface AgentTurnRequest {
   responseTools: Tool[];
+  // Tools reachable through exec this turn; empty when code mode is off.
+  codeModeTools: FunctionTool[];
   promptPrefixItems: ResponseInputItem[];
   promptPrefixHash: string;
   promptRevision: string;
@@ -27,8 +30,12 @@ export function buildAgentTurnRequest(input: {
   activeSkillTools: FunctionTool[];
   promptEnvelope: PromptEnvelope;
   availability: ResponseToolAvailability;
+  codeMode?: boolean;
 }): AgentTurnRequest {
-  const responseTools = buildResponseTools(input.runToolOptions, input.activeSkillTools, input.availability);
+  const tools = buildResponseTools(input.runToolOptions, input.activeSkillTools, input.availability);
+  const { responseTools, nestedTools } = input.codeMode === true
+    ? buildCodeModeToolSet(tools, input.availability.runShellMaxTimeoutSeconds ?? RUN_SHELL_MAX_TIMEOUT_SECONDS)
+    : { responseTools: tools, nestedTools: [] };
   const promptPrefixItems = promptEnvelopeToPrefixItems(input.promptEnvelope);
   const promptPrefixHash = computePromptPrefixHash({
     envelope: input.promptEnvelope,
@@ -37,6 +44,7 @@ export function buildAgentTurnRequest(input: {
 
   return {
     responseTools,
+    codeModeTools: nestedTools,
     promptPrefixItems,
     promptPrefixHash,
     promptRevision: getPromptEnvelopeRevision(input.promptEnvelope),

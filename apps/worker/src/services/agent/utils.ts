@@ -778,9 +778,16 @@ export function reconstructResponseInputItems(
   return result;
 }
 
+// A tool called from inside exec is shown in the task but was never a model call; exec's own output
+// already carries what the model saw.
+function isCodeModeNestedToolMessage(message: TaskMessageRow): boolean {
+  return message.role === "tool" && typeof message.content_json.code_mode_parent_call_id === "string";
+}
+
 export function collectTaskToolOutputItems(messages: TaskMessageRow[]): ResponseInputItem[] {
   const outputs: ResponseInputItem[] = [];
   for (const message of messages) {
+    if (isCodeModeNestedToolMessage(message)) continue;
     const candidates = [
       ...parsePersistedResponseItems(message),
       ...(message.role === "tool" ? parseToolMessageResponseItems(message.content_json) : [])
@@ -833,6 +840,10 @@ export async function mapMessagesForResponsesInput(
           if (metadataItem) output.push(metadataItem);
         }
       }
+      continue;
+    }
+
+    if (isCodeModeNestedToolMessage(message)) {
       continue;
     }
 

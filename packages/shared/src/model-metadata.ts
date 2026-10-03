@@ -1,4 +1,5 @@
 export interface PlatformModelMetadataEntry extends Record<string, unknown> {
+  code_mode?: boolean;
   compatibility?: PlatformModelCompatibilityMode[];
   context_management?: PlatformContextManagementVersion;
   context_window?: number;
@@ -146,6 +147,10 @@ function normalizeEntry(rawEntry: unknown, fallbackToDefaultContextWindow: boole
     entry.context_management = contextManagementVersion;
   }
 
+  if (typeof entry.code_mode !== "boolean") {
+    delete entry.code_mode;
+  }
+
   if (fallbackToDefaultContextWindow && !entry.type) {
     entry.type = DEFAULT_MODEL_TYPE;
   }
@@ -244,4 +249,16 @@ export function resolveContextManagementVersionForModel(
   }
 
   return normalizeContextManagementVersion(metadata.default?.context_management) ?? "v2";
+}
+
+// Code mode is on unless the model's entry (or the default entry) turns it off.
+export function resolveCodeModeForModel(model: string | null | undefined, rawMetadata: unknown): boolean {
+  const metadata = normalizePlatformModelMetadata(rawMetadata);
+  const normalizedModel = normalizeModelKey(model);
+  const exact = normalizedModel ? metadata[normalizedModel]?.code_mode : undefined;
+  if (typeof exact === "boolean") {
+    return exact;
+  }
+
+  return metadata.default?.code_mode !== false;
 }

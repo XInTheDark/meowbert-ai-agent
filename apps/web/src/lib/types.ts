@@ -713,6 +713,7 @@ export interface WorkspaceSettings {
   nativeCompactionEnabled: boolean;
   sendMetadataToModel: boolean;
   claudeCacheKeepalive?: boolean;
+  codeModeEnabled?: boolean;
   systemPrompt: string;
   personalityId: string | null;
   effectivePersonalityId: string | null;
