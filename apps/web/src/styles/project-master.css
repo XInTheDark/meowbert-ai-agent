@@ -396,3 +396,25 @@ body.is-resizing-split iframe {
     display: none;
   }
 }
+
+/* Suggested-action chips above the Master's input: one scrollable row so they never push the input around. */
+.project-master-composer-suggestions {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 0 0.5rem;
+  padding-bottom: 1px;
+}
+
+.project-master-composer-suggestions::-webkit-scrollbar {
+  display: none;
+}
+
+.project-master-composer-suggestions .task-composer-starter-pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  border-color: var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+}

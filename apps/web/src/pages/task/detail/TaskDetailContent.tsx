@@ -11,6 +11,8 @@ import { canSelectTaskModel } from "../../../task/taskModelSelection";
 import { getEffectiveTaskStatus } from "../../../lib/utils";
 import { TaskDetailArtifactsPane } from "./TaskDetailArtifactsPane";
 import { TaskDetailConversationPane } from "./TaskDetailConversationPane";
+import { ProjectMasterComposerSuggestions } from "./ProjectMasterComposerSuggestions";
+import { ProjectMasterGreeting } from "./ProjectMasterGreeting";
 import { TaskConversationSearchPanel } from "./TaskConversationSearchPanel";
 import { TaskDetailDebugPane } from "./TaskDetailDebugPane";
 import { TaskDetailEventsPane } from "./TaskDetailEventsPane";
@@ -272,6 +274,16 @@ function TaskConversationMain({ model }: ModelProps) {
         isNearBottom={conversation.isNearBottom}
         showScrollToBottomButton={model.actions.messageDisplayPreferences.showScrollToBottomButton}
         onScrollToBottomRequested={model.controllers.search.handleScrollToBottomRequested}
+        emptyConversation={task.is_project_master && !events.isThinking ? <ProjectMasterGreeting /> : null}
+        composerAccessory={task.is_project_master ? (
+          <ProjectMasterComposerSuggestions
+            api={model.context.workspace.api}
+            workspaceId={model.context.taskWorkspaceId}
+            projectId={model.context.taskProjectId}
+            visible={!model.composer.followUp.trim() && !model.composer.editingMessageId}
+            onSelect={(action) => model.composer.setFollowUp(action.prompt)}
+          />
+        ) : null}
       />
     </div>
   );

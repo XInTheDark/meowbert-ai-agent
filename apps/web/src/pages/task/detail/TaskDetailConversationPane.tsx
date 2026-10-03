@@ -115,6 +115,8 @@ interface TaskDetailConversationPaneProps {
   isNearBottom?: boolean;
   showScrollToBottomButton?: boolean;
   onScrollToBottomRequested?: () => void;
+  emptyConversation?: ReactNode;
+  composerAccessory?: ReactNode;
 }
 
 function getCollapsedInputLabel(editingMessageId: string | null, followUp: string): string {
@@ -159,43 +161,46 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
         {props.isConversationBootstrapping && props.messages.length === 0 ? (
           <LoadingIndicator center label="Loading conversation" />
         ) : (
-          <TaskConversationMessages
-            taskId={props.taskId}
-            messages={props.messages}
-            assistantMessageDisplayPreferences={props.assistantMessageDisplayPreferences}
-            showMessageActions={showMessageActions}
-            showMessageAuthors={props.showMessageAuthors ?? false}
-            showThinking={props.isThinking && props.isTaskRunning}
-            onConversationChanged={props.onConversationChanged}
-            onEditRequested={props.onEditRequested}
-            renderBranchSwitcher={props.renderBranchSwitcher}
-            threadCountsByParentMessageId={props.threadCountsByParentMessageId}
-            threadSummariesByParentMessageId={props.threadSummariesByParentMessageId}
-            onThreadComposerRequested={props.onThreadComposerRequested}
-            onAssistantSelectionChange={props.onAssistantSelectionChange}
-            onQuoteSelection={props.onQuoteSelection}
-            onAskSelectionInThread={props.onAskSelectionInThread}
-            onOpenSelectionThreads={props.onOpenSelectionThreads}
-            onSubmitSelectionThread={props.onSubmitSelectionThread}
-            onThreadListRequested={props.onThreadListRequested}
-            enableThreadSelectionPopup={props.enableThreadSelectionPopup}
-            liveToolCalls={props.isTaskRunning ? props.liveToolCalls : []}
-            onInterruptLiveToolCall={props.isTaskRunning ? props.onInterruptLiveToolCall : undefined}
-            interruptingLiveToolCallIds={props.interruptingLiveToolCallIds}
-            hydratedMessageIds={props.hydratedMessageIds}
-            onToolGroupExpandRequested={props.onToolGroupExpandRequested}
-            toolInspectorSelection={props.toolInspectorSelection}
-            onToolInspectorSelectionChange={props.onToolInspectorSelectionChange}
-            toolDisclosureState={props.toolDisclosureState}
-            onToolDisclosureStateChange={props.onToolDisclosureStateChange}
-            renderToolInspector={props.renderToolInspector ?? false}
-            buildInlineArtifactUrl={props.buildInlineArtifactUrl}
-            searchSelectedMessageId={props.searchSelectedMessageId}
-            searchForceExpandedMessageIds={props.searchForceExpandedMessageIds}
-            searchSelectedMatch={props.searchSelectedMatch}
-            conversationContainerRef={props.chatFeedRef}
-            stagedAnnotationCount={props.quotedFollowUpSelections?.length ?? 0}
-          />
+          <>
+            {props.messages.length === 0 ? props.emptyConversation : null}
+            <TaskConversationMessages
+              taskId={props.taskId}
+              messages={props.messages}
+              assistantMessageDisplayPreferences={props.assistantMessageDisplayPreferences}
+              showMessageActions={showMessageActions}
+              showMessageAuthors={props.showMessageAuthors ?? false}
+              showThinking={props.isThinking && props.isTaskRunning}
+              onConversationChanged={props.onConversationChanged}
+              onEditRequested={props.onEditRequested}
+              renderBranchSwitcher={props.renderBranchSwitcher}
+              threadCountsByParentMessageId={props.threadCountsByParentMessageId}
+              threadSummariesByParentMessageId={props.threadSummariesByParentMessageId}
+              onThreadComposerRequested={props.onThreadComposerRequested}
+              onAssistantSelectionChange={props.onAssistantSelectionChange}
+              onQuoteSelection={props.onQuoteSelection}
+              onAskSelectionInThread={props.onAskSelectionInThread}
+              onOpenSelectionThreads={props.onOpenSelectionThreads}
+              onSubmitSelectionThread={props.onSubmitSelectionThread}
+              onThreadListRequested={props.onThreadListRequested}
+              enableThreadSelectionPopup={props.enableThreadSelectionPopup}
+              liveToolCalls={props.isTaskRunning ? props.liveToolCalls : []}
+              onInterruptLiveToolCall={props.isTaskRunning ? props.onInterruptLiveToolCall : undefined}
+              interruptingLiveToolCallIds={props.interruptingLiveToolCallIds}
+              hydratedMessageIds={props.hydratedMessageIds}
+              onToolGroupExpandRequested={props.onToolGroupExpandRequested}
+              toolInspectorSelection={props.toolInspectorSelection}
+              onToolInspectorSelectionChange={props.onToolInspectorSelectionChange}
+              toolDisclosureState={props.toolDisclosureState}
+              onToolDisclosureStateChange={props.onToolDisclosureStateChange}
+              renderToolInspector={props.renderToolInspector ?? false}
+              buildInlineArtifactUrl={props.buildInlineArtifactUrl}
+              searchSelectedMessageId={props.searchSelectedMessageId}
+              searchForceExpandedMessageIds={props.searchForceExpandedMessageIds}
+              searchSelectedMatch={props.searchSelectedMatch}
+              conversationContainerRef={props.chatFeedRef}
+              stagedAnnotationCount={props.quotedFollowUpSelections?.length ?? 0}
+            />
+          </>
         )}
         {props.isConversationPageLoading && props.conversationPageLoadDirection !== "older" ? (
           <InlineProgressBar label="Loading newer messages" delayMs={0} />
@@ -284,6 +289,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
                   ))}
                 </div>
               ) : null}
+              {props.composerAccessory}
               <ChatInput
                 value={props.followUp}
                 onChange={props.onFollowUpChange}

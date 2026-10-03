@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Code, EyeOff, FileText, Globe, Search, Sparkles, Terminal, Zap } from "lucide-react";
+import { EyeOff, Zap } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { createDefaultProjectSuggestedActions, type ProjectSuggestedAction } from "@meowbert/shared/memory";
 import { useAppRuntime } from "../../contexts/AppRuntimeContext";
 import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
 import { ChatInput } from "../../components/taskConversation/ChatInput";
@@ -14,7 +13,8 @@ import { buildDefaultTaskParameters } from "../../task/taskParameters";
 import { buildCreateTaskParametersPayload, buildCreateTaskSchedulePayload } from "../../task/taskParameters";
 import { buildTaskInputAttachmentPath } from "../../task/taskFileDestinations";
 import { getTaskUiPreferencesForUser } from "../../task/taskPagePreferences";
-import { API_CACHE_TTLS } from "../../lib/api-cache";
+import { SuggestedActionPills } from "../../project/suggestedActions/SuggestedActionPills";
+import { useProjectSuggestedActions } from "../../project/suggestedActions/useProjectSuggestedActions";
 import type { ProjectCanvasResponse, ProjectCanvasSummary, TaskAttachment } from "../../lib/types";
 import { joinTaskMessage } from "../../lib/utils";
 import {
@@ -30,26 +30,6 @@ import {
 import { canSelectTaskModel } from "../../task/taskModelSelection";
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
 import { useSubscriptionUsageWarning } from "../../subscription/usageLimits";
-
-function renderActionIcon(iconName?: string) {
-  switch (iconName) {
-    case "code":
-      return <Code size={14} />;
-    case "globe":
-      return <Globe size={14} />;
-    case "terminal":
-      return <Terminal size={14} />;
-    case "search":
-      return <Search size={14} />;
-    case "zap":
-      return <Zap size={14} />;
-    case "file-text":
-      return <FileText size={14} />;
-    case "sparkles":
-    default:
-      return <Sparkles size={14} />;
-  }
-}
 
 function createPendingTaskId(): string {
   return crypto.randomUUID();
@@ -275,45 +255,7 @@ export function TaskComposerPage() {
     };
   }, [activeEnvironmentId, api, initialCanvasMode, queryCanvasId, updateDraft]);
 
-  const [suggestedActions, setSuggestedActions] = useState<ProjectSuggestedAction[]>([]);
-
-  useEffect(() => {
-    if (!api || !activeWorkspaceId || !activeEnvironmentId) {
-      setSuggestedActions([]);
-      return;
-    }
-
-    const path = `/api/workspaces/${activeWorkspaceId}/projects/${activeEnvironmentId}/suggested-actions`;
-    const snapshot = api.cachedGet?.<{ enabled: boolean; actions: ProjectSuggestedAction[] }>(path, {
-      ttlMs: API_CACHE_TTLS.catalog
-    });
-    if (snapshot?.data?.enabled && Array.isArray(snapshot.data.actions)) {
-      setSuggestedActions(snapshot.data.actions.slice(0, 8));
-    } else {
-      setSuggestedActions([]);
-    }
-
-    let cancelled = false;
-    void (snapshot?.promise ?? api.get<{ enabled: boolean; actions: ProjectSuggestedAction[] }>(path))
-      .then((res) => {
-        if (!cancelled) {
-          if (res?.enabled && Array.isArray(res.actions)) {
-            setSuggestedActions(res.actions.slice(0, 8));
-          } else {
-            setSuggestedActions([]);
-          }
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSuggestedActions([]);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeEnvironmentId, activeWorkspaceId, api]);
+  const suggestedActions = useProjectSuggestedActions(api, activeWorkspaceId, activeEnvironmentId);
 
   useEffect(() => {
     if (!activeEnvironmentId) {
@@ -570,26 +512,15 @@ export function TaskComposerPage() {
           />
         </div>
 
-        {suggestedActions.length > 0 ? (
-          <div className="task-composer-starters">
-            {suggestedActions.slice(0, 8).map((action, idx) => (
-              <button
-                key={action.id || `${action.label}-${idx}`}
-                type="button"
-                className="task-composer-starter-pill"
-                onClick={() => {
-                  updateDraft((current) => ({
-                    ...current,
-                    prompt: current.prompt.trim() ? `${current.prompt}\n${action.prompt}` : action.prompt
-                  }));
-                }}
-              >
-                {renderActionIcon(action.icon)}
-                <span>{action.label}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <SuggestedActionPills
+          actions={suggestedActions}
+          onSelect={(action) => {
+            updateDraft((current) => ({
+              ...current,
+              prompt: current.prompt.trim() ? `${current.prompt}\n${action.prompt}` : action.prompt
+            }));
+          }}
+        />
 
         {(error || uploadError) && (
           <p className="error-text" style={{ marginTop: "1rem", textAlign: "center" }}>
