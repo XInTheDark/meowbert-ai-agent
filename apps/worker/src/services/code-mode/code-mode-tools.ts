@@ -23,6 +23,8 @@ import {
   WAIT_TOOL_NAME
 } from "../agent-tools/index.js";
 import { buildExecTool } from "./exec-tool.js";
+import { SEARCH_TOOLS_TOOL } from "./search-tools-tool.js";
+import { isWarmTool } from "./tool-catalog.js";
 
 // Tools the model keeps calling directly in code mode: ones that end or pause the turn, change the
 // tool set or the context window, put media in front of the model, or edit files with a patch body
@@ -68,7 +70,11 @@ export function buildCodeModeToolSet(tools: Tool[], maxTimeoutSeconds: number): 
   }
 
   return {
-    responseTools: [...tools.filter((tool) => !isNestedTool(tool)), buildExecTool(nestedTools, maxTimeoutSeconds)],
+    responseTools: [
+      ...tools.filter((tool) => !isNestedTool(tool)),
+      buildExecTool(nestedTools, maxTimeoutSeconds),
+      ...(nestedTools.some((tool) => !isWarmTool(tool)) ? [SEARCH_TOOLS_TOOL] : [])
+    ],
     nestedTools
   };
 }

@@ -53,10 +53,36 @@ function renderObject(schema: JsonSchema, depth: number): string {
   return `{\n${lines.join("\n")}\n${"  ".repeat(depth)}}`;
 }
 
+function toolAccessor(tool: FunctionTool): string {
+  return /^[A-Za-z_$][\w$]*$/.test(tool.name) ? `tools.${tool.name}` : `tools[${JSON.stringify(tool.name)}]`;
+}
+
+function renderCall(tool: FunctionTool): string {
+  const parameters = isSchema(tool.parameters) ? renderObject(tool.parameters, 0) : "object";
+  return `${toolAccessor(tool)}(args: ${parameters}): Promise<any>`;
+}
+
+function collapseWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
 // Nullable fields render as optional because exec fills omitted ones with null.
 export function renderToolSignature(tool: FunctionTool): string {
-  const description = tool.description ? `// ${tool.description.replace(/\s+/g, " ").trim()}\n` : "";
-  const parameters = isSchema(tool.parameters) ? renderObject(tool.parameters, 0) : "object";
-  const accessor = /^[A-Za-z_$][\w$]*$/.test(tool.name) ? `tools.${tool.name}` : `tools[${JSON.stringify(tool.name)}]`;
-  return `${description}${accessor}(args: ${parameters}): Promise<any>`;
+  const description = tool.description ? `// ${collapseWhitespace(tool.description)}\n` : "";
+  return `${description}${renderCall(tool)}`;
+}
+
+// The full form search_tools returns: the description keeps its own line breaks.
+export function renderToolDocumentation(tool: FunctionTool): string {
+  const lines = tool.description?.trim().split("\n").map((line) => `// ${line.trimEnd()}`.trimEnd()) ?? [];
+  return [...lines, renderCall(tool)].join("\n");
+}
+
+const SUMMARY_MAX_CHARS = 140;
+
+// The first sentence of a tool's description, for listings that skip the arguments.
+export function summarizeTool(tool: FunctionTool): string {
+  const description = collapseWhitespace(tool.description ?? "");
+  const firstSentence = description.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? description;
+  return firstSentence.length > SUMMARY_MAX_CHARS ? `${firstSentence.slice(0, SUMMARY_MAX_CHARS - 1)}…` : firstSentence;
 }

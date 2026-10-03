@@ -1,5 +1,7 @@
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { z } from "zod";
+import { SEARCH_TOOLS_TOOL_NAME } from "./search-tools-tool.js";
+import { groupColdTools, isWarmTool, shortToolName, type ToolCatalogGroup } from "./tool-catalog.js";
 import { renderToolSignature } from "./tool-signatures.js";
 
 export const EXEC_TOOL_NAME = "exec";
@@ -18,11 +20,38 @@ const EXEC_DESCRIPTION = [
   "The code runs as the body of an async function. There is no filesystem, network or Node API besides `tools`, and nothing carries over between exec calls."
 ].join(" ");
 
+const MAX_NAMES_PER_GROUP = 10;
+
+function renderGroupLine(group: ToolCatalogGroup): string {
+  const names = group.tools.slice(0, MAX_NAMES_PER_GROUP).map(shortToolName).join(", ");
+  const more = group.tools.length > MAX_NAMES_PER_GROUP ? `, … (+${group.tools.length - MAX_NAMES_PER_GROUP} more)` : "";
+  return `- ${group.id}: ${names}${more}`;
+}
+
+function describeColdGroups(groups: ToolCatalogGroup[]): string {
+  const hasSkillGroups = groups.some((group) => group.tools.some((tool) => shortToolName(tool) !== tool.name));
+  return [
+    `More tools, by group. Before using one for the first time, look it up with ${SEARCH_TOOLS_TOOL_NAME}: pass a group to see what its tools do, then names for their arguments.`
+      + (hasSkillGroups ? " A skill's tools are called as tools.<group>__<name>." : ""),
+    ...groups.map(renderGroupLine)
+  ].join("\n");
+}
+
+function describeTools(nestedTools: FunctionTool[]): string {
+  const warmTools = nestedTools.filter(isWarmTool);
+  const coldGroups = groupColdTools(nestedTools);
+  return [
+    EXEC_DESCRIPTION,
+    ...(warmTools.length > 0 ? [`Tools:\n\n${warmTools.map(renderToolSignature).join("\n\n")}`] : []),
+    ...(coldGroups.length > 0 ? [describeColdGroups(coldGroups)] : [])
+  ].join("\n\n");
+}
+
 export function buildExecTool(nestedTools: FunctionTool[], maxTimeoutSeconds: number): FunctionTool {
   return {
     type: "function",
     name: EXEC_TOOL_NAME,
-    description: `${EXEC_DESCRIPTION}\n\nTools:\n\n${nestedTools.map(renderToolSignature).join("\n\n")}`,
+    description: describeTools(nestedTools),
     strict: true,
     parameters: {
       type: "object",

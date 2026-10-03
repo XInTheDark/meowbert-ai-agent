@@ -74,6 +74,8 @@ import { finishUnhandledToolFailure } from "./events.js";
 import { handleApplyPatch } from "./handlers/apply-patch.js";
 import { handleExec } from "./handlers/exec.js";
 import { EXEC_TOOL_NAME } from "../code-mode/exec-tool.js";
+import { handleSearchTools } from "./handlers/search-tools.js";
+import { SEARCH_TOOLS_TOOL_NAME } from "../code-mode/search-tools-tool.js";
 import { handleMarkArtifact } from "./handlers/artifacts.js";
 import { handleComputerToolCall } from "./handlers/computer.js";
 import { handleContextManagementTool } from "./handlers/context-management.js";
@@ -158,6 +160,10 @@ async function dispatchFunctionToolCall(
   switch (outputItem.name) {
     case EXEC_TOOL_NAME:
       await handleExec(outputItem, ctx, state, dispatchFunctionToolCall);
+      break;
+
+    case SEARCH_TOOLS_TOOL_NAME:
+      await handleSearchTools(outputItem, ctx, state);
       break;
 
     case "update_conversation_outline":
