@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prepareToolOutputForModel, pushCustomToolOutput, pushOutput, pushToolOutput } from "./state.js";
+import { prepareToolOutputForModel, recordCustomToolCallOutput, recordFunctionCallResult } from "./state.js";
 import type { ToolDispatchState } from "./types.js";
 
 function createState(contextUsage: ToolDispatchState["contextUsage"]): ToolDispatchState {
@@ -19,7 +19,7 @@ describe("tool output context notices", () => {
       percent: 25
     });
 
-    const item = pushOutput(state, "call-1", { ok: true }) as {
+    const item = recordFunctionCallResult(state, "call-1", "tool", { output: { ok: true } })[0] as {
       output: string;
     };
 
@@ -32,7 +32,7 @@ describe("tool output context notices", () => {
   it("does not substitute an estimate when the provider omitted input-token usage", () => {
     const state = createState(null);
 
-    const item = pushCustomToolOutput(state, "call-2", "plain result") as unknown as {
+    const item = recordCustomToolCallOutput(state, "call-2", "plain result")[0] as unknown as {
       output: string;
     };
 
@@ -44,7 +44,7 @@ describe("tool output context notices", () => {
 
   it("preserves a tool's existing context field inside result", () => {
     const state = createState({ usedTokens: 1, maxContextTokens: 10, percent: 10 });
-    const item = pushOutput(state, "call-3", { context: { source: "tool" } }) as { output: string };
+    const item = recordFunctionCallResult(state, "call-3", "tool", { output: { context: { source: "tool" } } })[0] as { output: string };
 
     expect(JSON.parse(item.output)).toEqual({
       result: { context: { source: "tool" } },
@@ -68,7 +68,7 @@ describe("tool output context notices", () => {
       commandStep: 0
     };
 
-    const item = pushOutput(state, "call-4", { ok: true }) as { output: string };
+    const item = recordFunctionCallResult(state, "call-4", "tool", { output: { ok: true } })[0] as { output: string };
     const parsed = JSON.parse(item.output);
     expect(parsed.context).toContain("Model request that produced this tool call: 5000 / 128000 tokens (4%).");
     expect(parsed.context).toContain("Token budget: 12,500 / 50,000 weighted tokens (37,500 remaining).");
@@ -92,7 +92,7 @@ describe("tool output context notices", () => {
       commandStep: 0
     };
 
-    const item = pushOutput(state, "call-5", { ok: true }) as { output: string };
+    const item = recordFunctionCallResult(state, "call-5", "tool", { output: { ok: true } })[0] as { output: string };
     const parsed = JSON.parse(item.output);
     expect(parsed.context).toContain("Token budget: 51,000 / 50,000 weighted tokens (0 remaining).");
     expect(parsed.context).toContain("Wrap-up required: You are approaching or have reached the budget limit.");
@@ -128,10 +128,10 @@ describe("tool output request shaping", () => {
 
   it("applies the same shaping to the function_call_output request item", () => {
     const state = createState(null);
-    const item = pushToolOutput(state, "call-shell", "run_shell", {
+    const item = recordFunctionCallResult(state, "call-shell", "run_shell", { output: {
       command: "python3 - <<'PY'\nprint('large command')\nPY",
       stdout: "done"
-    }) as { output: string };
+    } })[0] as { output: string };
 
     expect(JSON.parse(item.output)).toEqual({
       stdout: "done",
@@ -141,11 +141,11 @@ describe("tool output request shaping", () => {
 
   it("removes all input-only fields from partial final responses", () => {
     const state = createState(null);
-    const item = pushToolOutput(state, "call-final", "final_response", {
+    const item = recordFunctionCallResult(state, "call-final", "final_response", { output: {
       acknowledged: true,
       notify: true,
       partial: true
-    }) as { output: string };
+    } })[0] as { output: string };
 
     expect(JSON.parse(item.output)).toEqual({
       acknowledged: true,

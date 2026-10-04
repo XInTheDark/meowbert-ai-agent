@@ -17,7 +17,7 @@ import {
 import { detectImageMimeTypeFromBuffer, parseToolArguments } from "../../agent/utils.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
 import { preparePdfView } from "../pdf.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled } from "../utils.js";
 import {
@@ -51,12 +51,11 @@ export async function handleViewImage(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(VIEW_IMAGE_TOOL_NAME, outputItem.arguments, viewImageArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -98,20 +97,18 @@ export async function handleViewImage(
           imageContent
         ]
       };
-      state.conversationItems.push(imageItem);
-      state.runPersistedItems.push(imageItem);
-
-      await finishBuiltinToolSuccess(ctx, state, execution, output, {
+      const finished = await finishBuiltinToolSuccess(ctx, execution, output, {
         eventPayload: { file_path: opened.realPath },
         messagePayload: { file_path: opened.realPath }
       });
+      return { ...finished, shownItems: [imageItem] };
     } finally {
       await opened.fileHandle.close();
     }
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to read image: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to read image: ${message}`);
   }
 }
 
@@ -119,12 +116,11 @@ export async function handleViewPdf(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(VIEW_PDF_FILE_TOOL_NAME, outputItem.arguments, viewPdfArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const filePath = parsed.value.file_path;
@@ -166,10 +162,7 @@ export async function handleViewPdf(
         filename: preparedPdf.outputFileName
       };
       const fileItem: ResponseInputItem = { role: "user", content: [fileContent] };
-      state.conversationItems.push(fileItem);
-      state.runPersistedItems.push(fileItem);
-
-      await finishBuiltinToolSuccess(ctx, state, execution, output, {
+      const finished = await finishBuiltinToolSuccess(ctx, execution, output, {
         eventPayload: {
           file_path: opened.realPath,
           pageStart: preparedPdf.effectivePageStart,
@@ -186,12 +179,13 @@ export async function handleViewPdf(
           ...(preparedPdf.message ? { message: preparedPdf.message } : {})
         }
       });
+      return { ...finished, shownItems: [fileItem] };
     } finally {
       await opened.fileHandle.close();
     }
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to read PDF: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to read PDF: ${message}`);
   }
 }

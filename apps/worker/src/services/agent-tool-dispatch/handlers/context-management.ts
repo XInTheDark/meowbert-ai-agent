@@ -6,6 +6,7 @@ import {
 } from "../../agent-tools/index.js";
 import { assertContextTrimCountAvailable } from "../../context-management/index.js";
 import { finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
+import type { ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 
 function parseArguments(outputItem: ResponseFunctionToolCall): unknown {
@@ -20,7 +21,7 @@ export async function handleContextManagementTool(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   if (state.pendingContextManagementAction) {
     throw new Error("Only one context management action may be requested in a model turn.");
   }
@@ -33,7 +34,7 @@ export async function handleContextManagementTool(
       inputLabel: "Checkpoint",
       inputText: args.checkpoint
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    const finished = await finishBuiltinToolSuccess(ctx, execution, {
       accepted: true,
       action: "compact"
     });
@@ -42,7 +43,7 @@ export async function handleContextManagementTool(
       checkpoint: args.checkpoint,
       callId: outputItem.call_id
     };
-    return;
+    return finished;
   }
 
   const args = contextCheckpointAndTrimArgumentsSchema.parse(rawArguments);
@@ -55,7 +56,7 @@ export async function handleContextManagementTool(
     inputLabel: "Checkpoint",
     inputText: args.checkpoint
   });
-  await finishBuiltinToolSuccess(ctx, state, execution, {
+  const finished = await finishBuiltinToolSuccess(ctx, execution, {
     accepted: true,
     action: "trim",
     count: args.count
@@ -67,4 +68,5 @@ export async function handleContextManagementTool(
     count: args.count,
     callId: outputItem.call_id
   };
+  return finished;
 }

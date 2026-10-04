@@ -21,7 +21,7 @@ import {
   startBuiltinToolExecution
 } from "../events.js";
 import { startCommandInterruptMonitor } from "../interrupts.js";
-import { pushParseError, pushToolOutput } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { getErrorMessage, rethrowIfTaskCancelled } from "../utils.js";
 
@@ -107,7 +107,6 @@ function formatShellOutput(
 
 async function runForegroundShellCommand(input: {
   ctx: ToolDispatchContext;
-  state: ToolDispatchState;
   execution: BuiltinExecution;
   command: string;
   timeoutMs: number;
@@ -165,15 +164,14 @@ async function runForegroundShellCommand(input: {
 
 async function finishForegroundShellFailure(input: {
   ctx: ToolDispatchContext;
-  state: ToolDispatchState;
   execution: BuiltinExecution;
   command: string;
   error: unknown;
-}): Promise<void> {
+}): Promise<ToolCallResult> {
   rethrowIfTaskCancelled(input.error);
   const message = `Failed to run shell command: ${getErrorMessage(input.error)}`;
   const durationMs = Date.now() - input.execution.startedAtMs;
-  await finishBuiltinToolFailure(input.ctx, input.state, input.execution, message, {
+  return finishBuiltinToolFailure(input.ctx, input.execution, message, {
     output: {
       command: input.command,
       step: input.execution.step,
@@ -205,13 +203,12 @@ async function finishForegroundShellFailure(input: {
 
 async function finishForegroundShellResult(input: {
   ctx: ToolDispatchContext;
-  state: ToolDispatchState;
   execution: BuiltinExecution;
   command: string;
   shellResult: ShellExecutionResult & { cwd: string; stateReset: boolean };
   interruptedByRequest: boolean;
   outputLimits: ShellOutputLimits;
-}): Promise<void> {
+}): Promise<ToolCallResult> {
   const durationMs = Date.now() - input.execution.startedAtMs;
   const stdout = formatShellOutput(
     input.shellResult.stdout,
@@ -240,7 +237,7 @@ async function finishForegroundShellResult(input: {
       durationMs
     };
 
-    await finishBuiltinToolSuccess(input.ctx, input.state, input.execution, toolResult, {
+    return finishBuiltinToolSuccess(input.ctx, input.execution, toolResult, {
       eventPayload: {
         command: input.command,
         cwd: input.shellResult.cwd,
@@ -260,7 +257,6 @@ async function finishForegroundShellResult(input: {
         stateReset: input.shellResult.stateReset
       }
     });
-    return;
   }
 
   const toolResult = {
@@ -276,7 +272,7 @@ async function finishForegroundShellResult(input: {
     ...(input.shellResult.sandboxCrash ? { sandbox_crash: input.shellResult.sandboxCrash } : {})
   };
 
-  await finishBuiltinToolSuccess(input.ctx, input.state, input.execution, toolResult, {
+  return finishBuiltinToolSuccess(input.ctx, input.execution, toolResult, {
     eventPayload: {
       command: input.command,
       cwd: input.shellResult.cwd,
@@ -300,10 +296,9 @@ async function handleForegroundShell(
   ctx: ToolDispatchContext,
   state: ToolDispatchState,
   args: RunShellArguments
-): Promise<void> {
+): Promise<ToolCallResult> {
   if (typeof args.command !== "string") {
-    pushParseError(state, outputItem.call_id, "command is required for foreground run_shell calls.");
-    return;
+    return toolErrorResult("command is required for foreground run_shell calls.");
   }
 
   const timeoutMs = resolveCommandTimeoutMs(args, ctx);
@@ -318,20 +313,17 @@ async function handleForegroundShell(
   try {
     result = await runForegroundShellCommand({
       ctx,
-      state,
       execution,
       command: args.command,
       timeoutMs
     });
   } catch (error) {
-    await finishForegroundShellFailure({
+    return finishForegroundShellFailure({
       ctx,
-      state,
       execution,
       command: args.command,
       error
     });
-    return;
   }
 
   if (result.shellResult.aborted && !result.interruptWasConsumed) {
@@ -339,9 +331,8 @@ async function handleForegroundShell(
   }
   await ctx.assertNotCancelled();
 
-  await finishForegroundShellResult({
+  return finishForegroundShellResult({
     ctx,
-    state,
     execution,
     command: args.command,
     shellResult: result.shellResult,
@@ -354,7 +345,7 @@ export async function handleRunShell(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const shellTimeoutMaxSeconds = Math.max(1, Math.floor(ctx.shellToolMaxTimeoutMs / 1000));
   const parsed = parseToolArguments(
@@ -363,27 +354,20 @@ export async function handleRunShell(
     createRunShellArgumentsSchema(shellTimeoutMaxSeconds)
   );
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   await ctx.assertNotCancelled();
 
   if (parsed.value.background === true || parsed.value.background_id) {
-    pushParseError(
-      state,
-      outputItem.call_id,
-      "run_shell background mode was replaced by persistent shell_session. Start a session, then use run_shell with session_id."
-    );
-    return;
+    return toolErrorResult("run_shell background mode was replaced by persistent shell_session. Start a session, then use run_shell with session_id.");
   }
 
   if (parsed.value.session_id) {
     if (typeof parsed.value.command !== "string") {
-      pushParseError(state, outputItem.call_id, "command is required when session_id is provided.");
-      return;
+      return toolErrorResult("command is required when session_id is provided.");
     }
-    await handlePersistentRunShell({
+    return handlePersistentRunShell({
       outputItem,
       ctx,
       state,
@@ -391,32 +375,32 @@ export async function handleRunShell(
       sessionId: parsed.value.session_id,
       force: parsed.value.force === true
     });
-    return;
   }
 
-  await handleForegroundShell(outputItem, ctx, state, parsed.value);
+  return handleForegroundShell(outputItem, ctx, state, parsed.value);
 }
 
 
 export function handleFinalResponse(
   outputItem: ResponseFunctionToolCall,
   state: ToolDispatchState
-): { response: string; notify: boolean; partial: boolean; summary?: string } | null {
+): ToolCallResult {
   const parsed = parseToolArguments(FINAL_RESPONSE_TOOL_NAME, outputItem.arguments, finalResponseArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
 
   validateOrganizationFinalResponse(parsed.value, state);
   const notify = parsed.value.notify ?? true;
   const partial = parsed.value.partial ?? false;
-  pushToolOutput(state, outputItem.call_id, outputItem.name, { acknowledged: true, notify, partial });
   return {
-    response: parsed.value.response.trim(),
-    ...(state.organization && parsed.value.summary ? { summary: parsed.value.summary.trim() } : {}),
-    notify,
-    partial
+    output: { acknowledged: true, notify, partial },
+    finalResponse: {
+      response: parsed.value.response.trim(),
+      ...(state.organization && parsed.value.summary ? { summary: parsed.value.summary.trim() } : {}),
+      notify,
+      partial
+    }
   };
 }
 
@@ -424,15 +408,14 @@ export async function handleRefreshGitHubToken(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   const parsed = parseToolArguments(
     REFRESH_GH_TOKEN_TOOL_NAME,
     outputItem.arguments,
     refreshGhTokenArgumentsSchema
   );
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -441,28 +424,24 @@ export async function handleRefreshGitHubToken(
   });
 
   if (!ctx.refreshGitHubToken) {
-    await finishBuiltinToolFailure(
+    return finishBuiltinToolFailure(
       ctx,
-      state,
       execution,
       "GitHub token refresh is unavailable for this run."
     );
-    return;
   }
 
   const result = await ctx.refreshGitHubToken();
   if (!result.ok) {
-    await finishBuiltinToolFailure(
+    return finishBuiltinToolFailure(
       ctx,
-      state,
       execution,
       result.error ?? "Failed to refresh GitHub token.",
       { output: result }
     );
-    return;
   }
 
-  await finishBuiltinToolSuccess(ctx, state, execution, result, {
+  return finishBuiltinToolSuccess(ctx, execution, result, {
     eventPayload: result.login ? { login: result.login } : {}
   });
 }

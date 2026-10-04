@@ -2,9 +2,9 @@ import type { ResponseFunctionToolCall } from "openai/resources/responses/respon
 import { z } from "zod";
 import { conversationMapSchema, MESSAGE_LINK_PATTERN, validateConversationMap, turnSummarySchema } from "@meowbert/shared";
 import type { ToolDispatchState } from "../types.js";
-import { pushToolOutput } from "../state.js";
+import type { ToolCallResult } from "../tool-call-result.js";
 
-export function handleConversationOrganization(call: ResponseFunctionToolCall, state: ToolDispatchState): void {
+export function handleConversationOrganization(call: ResponseFunctionToolCall, state: ToolDispatchState): ToolCallResult {
   const organization = state.organization;
   if (!organization) throw new Error("New message organization is disabled for this run.");
   const input: unknown = JSON.parse(call.arguments);
@@ -28,7 +28,7 @@ export function handleConversationOrganization(call: ResponseFunctionToolCall, s
     organization.graph = graph;
     organization.mapChanged = true;
   }
-  pushToolOutput(state, call.call_id, call.name, { staged: true });
+  return { output: { staged: true } };
 }
 
 export function validateOrganizationFinalResponse(input: {

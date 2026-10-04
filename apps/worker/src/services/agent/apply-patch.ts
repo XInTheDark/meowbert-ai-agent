@@ -164,22 +164,6 @@ export function isApplyPatchCustomToolCallItem(value: unknown): value is ApplyPa
   return applyPatchCustomToolCallSchema.safeParse(value).success;
 }
 
-export function createApplyPatchCustomToolCallOutput(callId: string, output: string): ResponseInputItem {
-  return {
-    type: "custom_tool_call_output",
-    call_id: callId,
-    output
-  } as unknown as ResponseInputItem;
-}
-
-export function createApplyPatchFunctionToolCallOutput(callId: string, output: string): ResponseInputItem {
-  return {
-    type: "function_call_output",
-    call_id: callId,
-    output
-  } as unknown as ResponseInputItem;
-}
-
 export function parseApplyPatchDocument(patch: string): ApplyPatchOperation[] {
   const lines = patch.split(/\r?\n/).map((line) => line.replace(/\r$/, ""));
   if (lines.at(-1) === "") {

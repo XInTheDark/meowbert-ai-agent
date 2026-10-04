@@ -178,10 +178,10 @@ describe("exec", () => {
 
       await dispatchResponseOutput(execCall(`
         const viewed = await tools.view_image({ file_path: ${JSON.stringify(imagePath)} });
-        console.log(JSON.stringify(viewed));
+        console.log(viewed.file_path);
       `), ctx, state);
 
-      expect(execOutput(state)).toMatchObject({ logs: "{\"ok\":true}", tool_calls: 1 });
+      expect(execOutput(state)).toMatchObject({ logs: expect.stringMatching(/chart\.png$/), tool_calls: 1 });
       expect(state.conversationItems.map((item) => item.type ?? (item as { role: string }).role)).toEqual(["function_call", "function_call_output", "user"]);
       const shown = state.conversationItems[2] as { content: Array<{ type: string; image_url?: string }> };
       expect(shown.content.find((part) => part.type === "input_image")?.image_url).toMatch(/^data:image\/png;base64,/);

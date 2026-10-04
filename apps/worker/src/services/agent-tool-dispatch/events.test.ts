@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { appendMessage, setTaskBranchSelection } from "../agent-db/index.js";
 import { appendBuiltinToolMessage, finishBuiltinToolSuccess, type BuiltinToolExecution } from "./events.js";
+import { recordFunctionCallResult } from "./state.js";
 import type { ToolDispatchState } from "./types.js";
 import type { ToolDispatchContext } from "./types.js";
 
@@ -63,12 +64,13 @@ describe("appendBuiltinToolMessage", () => {
       commandStep: 0
     };
 
-    await finishBuiltinToolSuccess(context, state, createExecution(), {
+    const result = await finishBuiltinToolSuccess(context, createExecution(), {
       command: "pwd",
       stdout: "/tmp\n"
     }, {
       messagePayload: { stdout: "/tmp\n" }
     });
+    recordFunctionCallResult(state, "call-1", "run_shell", result);
 
     const requestOutput = JSON.parse((state.conversationItems[0] as { output: string }).output) as Record<string, unknown>;
     expect(requestOutput.command).toBeUndefined();

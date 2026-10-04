@@ -10,8 +10,7 @@ const mocks = vi.hoisted(() => ({
   getPersistentShellSessionStatus: vi.fn(),
   startBuiltinToolExecution: vi.fn(),
   finishBuiltinToolSuccess: vi.fn(),
-  finishBuiltinToolFailure: vi.fn(),
-  pushParseError: vi.fn()
+  finishBuiltinToolFailure: vi.fn()
 }));
 
 vi.mock("../../runtime/persistent-shell-sessions.js", () => ({
@@ -27,10 +26,6 @@ vi.mock("../events.js", () => ({
   startBuiltinToolExecution: mocks.startBuiltinToolExecution,
   finishBuiltinToolSuccess: mocks.finishBuiltinToolSuccess,
   finishBuiltinToolFailure: mocks.finishBuiltinToolFailure
-}));
-
-vi.mock("../state.js", () => ({
-  pushParseError: mocks.pushParseError
 }));
 
 import { handleShellSession } from "./persistent-shell.js";
@@ -120,7 +115,6 @@ describe("handleShellSession", () => {
     expect(mocks.listPersistentShellSessions).toHaveBeenCalledWith({ environmentId: "env-1" });
     expect(mocks.finishBuiltinToolSuccess).toHaveBeenCalledWith(
       ctx,
-      state,
       expect.anything(),
       {
         sessions: [
@@ -184,7 +178,6 @@ describe("handleShellSession", () => {
     );
     expect(mocks.finishBuiltinToolSuccess).toHaveBeenCalledWith(
       ctx,
-      state,
       expect.anything(),
       {
         session_id: "session-2",
@@ -223,7 +216,6 @@ describe("handleShellSession", () => {
 
     expect(mocks.finishBuiltinToolFailure).toHaveBeenCalledWith(
       ctx,
-      state,
       expect.anything(),
       "Persistent project shell sessions are disabled for this project."
     );

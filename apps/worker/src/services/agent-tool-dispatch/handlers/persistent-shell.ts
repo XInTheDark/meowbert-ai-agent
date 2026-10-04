@@ -20,7 +20,7 @@ import {
   startBuiltinToolExecution,
   type BuiltinToolExecution
 } from "../events.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { getErrorMessage } from "../utils.js";
 
@@ -55,11 +55,10 @@ function getPersistentContext(ctx: ToolDispatchContext) {
 
 async function handlePersistentShellList(
   ctx: ToolDispatchContext,
-  state: ToolDispatchState,
   execution: BuiltinToolExecution
-): Promise<void> {
+): Promise<ToolCallResult> {
   const sessions = await listPersistentShellSessions({ environmentId: ctx.environmentId });
-  await finishBuiltinToolSuccess(ctx, state, execution, {
+  return finishBuiltinToolSuccess(ctx, execution, {
     sessions: sessions.map((session) => ({
       session_id: session.id,
       status: session.status,
@@ -79,12 +78,11 @@ async function handlePersistentShellList(
 
 async function handlePersistentShellStatus(
   ctx: ToolDispatchContext,
-  state: ToolDispatchState,
   execution: BuiltinToolExecution,
   sessionId: string,
   tailLines?: number | null,
   saveOutputPath?: string | null
-): Promise<void> {
+): Promise<ToolCallResult> {
   const result = await getPersistentShellSessionStatus({
     sessionId,
     environmentId: ctx.environmentId,
@@ -92,7 +90,7 @@ async function handlePersistentShellStatus(
     tailLines,
     saveOutputPath
   });
-  await finishBuiltinToolSuccess(ctx, state, execution, {
+  return finishBuiltinToolSuccess(ctx, execution, {
     session_id: result.sessionId,
     status: result.status,
     command: result.command,
@@ -116,11 +114,10 @@ export async function handleShellSession(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   const parsed = parseToolArguments(SHELL_SESSION_TOOL_NAME, outputItem.arguments, shellSessionArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Persistent shell session",
@@ -129,8 +126,7 @@ export async function handleShellSession(
   try {
     const persistentContext = getPersistentContext(ctx);
     if (parsed.value.action === "list") {
-      await handlePersistentShellList(ctx, state, execution);
-      return;
+      return await handlePersistentShellList(ctx, execution);
     }
     if (parsed.value.action === "start") {
       const lifetimeSeconds = parsed.value.lifetime_seconds ?? parsed.value.lifetime ?? null;
@@ -140,7 +136,7 @@ export async function handleShellSession(
         mode: parsed.value.mode,
         lifetimeSeconds
       });
-      await finishBuiltinToolSuccess(ctx, state, execution, {
+      return await finishBuiltinToolSuccess(ctx, execution, {
         session_id: result.sessionId,
         status: parsed.value.command ? "running" : "idle",
         lifetime_seconds: result.lifetimeSeconds,
@@ -151,15 +147,13 @@ export async function handleShellSession(
           pids: result.limits.pids
         }
       });
-      return;
     }
     if (parsed.value.action === "stop") {
       await stopPersistentShellSession({
         sessionId: parsed.value.session_id!,
         environmentId: ctx.environmentId
       });
-      await finishBuiltinToolSuccess(ctx, state, execution, { status: "stopped" });
-      return;
+      return await finishBuiltinToolSuccess(ctx, execution, { status: "stopped" });
     }
     if (["input", "interrupt", "eof", "resize"].includes(parsed.value.action)) {
       const result = await controlPersistentShellSession({
@@ -167,25 +161,23 @@ export async function handleShellSession(
         action: parsed.value.action as "input" | "interrupt" | "eof" | "resize",
         data: parsed.value.data, cols: parsed.value.cols, rows: parsed.value.rows
       });
-      await finishBuiltinToolSuccess(ctx, state, execution, {
+      return await finishBuiltinToolSuccess(ctx, execution, {
         session_id: parsed.value.session_id, status: result.status,
         command_id: result.commandId, exit_code: result.exitCode, cwd: result.cwd,
         mode: result.mode, output_truncated: result.outputTruncated,
         bytes_accepted: result.bytesAccepted, complete: result.complete,
         status_sync_pending: result.statusSyncPending
       });
-      return;
     }
-    await handlePersistentShellStatus(
+    return await handlePersistentShellStatus(
       ctx,
-      state,
       execution,
       parsed.value.session_id!,
       parsed.value.tail_lines,
       parsed.value.save_output_path
     );
   } catch (error) {
-    await finishBuiltinToolFailure(ctx, state, execution, getErrorMessage(error));
+    return finishBuiltinToolFailure(ctx, execution, getErrorMessage(error));
   }
 }
 
@@ -196,7 +188,7 @@ export async function handlePersistentRunShell(input: {
   command: string;
   sessionId: string;
   force: boolean;
-}): Promise<void> {
+}): Promise<ToolCallResult> {
   const execution = await startBuiltinToolExecution(input.ctx, input.state, input.outputItem, {
     inputLabel: "Persistent shell command",
     inputText: input.command,
@@ -209,7 +201,7 @@ export async function handlePersistentRunShell(input: {
       sessionId: input.sessionId,
       force: input.force
     });
-    await finishBuiltinToolSuccess(input.ctx, input.state, execution, {
+    return await finishBuiltinToolSuccess(input.ctx, execution, {
       session_id: result.sessionId,
       status: result.status,
       command: input.command,
@@ -217,6 +209,6 @@ export async function handlePersistentRunShell(input: {
       command_id: result.commandId
     });
   } catch (error) {
-    await finishBuiltinToolFailure(input.ctx, input.state, execution, getErrorMessage(error));
+    return finishBuiltinToolFailure(input.ctx, execution, getErrorMessage(error));
   }
 }

@@ -14,6 +14,7 @@ import {
 import { listenToNewTask, setTaskListening } from "../../project-master/listeners.js";
 import { createScheduledManagedTask } from "../../project-master/scheduled-tasks.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
+import type { ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled } from "../utils.js";
 
@@ -90,7 +91,7 @@ export async function handleProjectMasterTool(
   call: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   const execution = await startBuiltinToolExecution(ctx, state, call, {
     inputLabel: "Task",
     inputText: summarizeMasterToolInput(call)
@@ -99,9 +100,9 @@ export async function handleProjectMasterTool(
     if (!ctx.isProjectMaster) throw new Error("Only the Project Master can manage tasks.");
     await ctx.assertNotCancelled();
     const result = await runProjectMasterTool(call, ctx);
-    await finishBuiltinToolSuccess(ctx, state, execution, result);
+    return await finishBuiltinToolSuccess(ctx, execution, result);
   } catch (error) {
     rethrowIfTaskCancelled(error);
-    await finishBuiltinToolFailure(ctx, state, execution, error instanceof Error ? error.message : String(error));
+    return finishBuiltinToolFailure(ctx, execution, error instanceof Error ? error.message : String(error));
   }
 }

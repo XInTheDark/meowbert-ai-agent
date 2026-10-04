@@ -15,7 +15,7 @@ import { loadListenedTaskIds } from "../../project-master/listeners.js";
 import { parseToolArguments } from "../../agent/utils.js";
 import { searchMemoryIndex } from "../../memory/index.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
 
@@ -23,12 +23,11 @@ export async function handleQueryTasks(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(QUERY_TASKS_TOOL_NAME, outputItem.arguments, queryTasksArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const filters = normalizeTaskHistorySearchInput({ ...parsed.value, folderId: parsed.value.folder }, {
@@ -67,13 +66,13 @@ export async function handleQueryTasks(
       pagination: results.pagination,
       count: tasks.length
     };
-    await finishBuiltinToolSuccess(ctx, state, execution, output, {
+    return await finishBuiltinToolSuccess(ctx, execution, output, {
       eventPayload: { resultCount: tasks.length }
     });
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to query tasks: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to query tasks: ${message}`);
   }
 }
 
@@ -86,16 +85,14 @@ export async function handleViewTaskHistory(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   if (state.organization) {
-    await handleOrganizedHistory(outputItem, ctx, state);
-    return;
+    return handleOrganizedHistory(outputItem, ctx, state);
   }
   const parsed = parseToolArguments(VIEW_TASK_HISTORY_TOOL_NAME, outputItem.arguments, viewTaskHistoryArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -111,36 +108,34 @@ export async function handleViewTaskHistory(
     );
 
     if (!result) {
-      await finishBuiltinToolFailure(
+      return await finishBuiltinToolFailure(
         ctx,
-        state,
         execution,
         "Task not found or not accessible in this project."
       );
-      return;
     }
 
-    await finishBuiltinToolSuccess(ctx, state, execution, result);
+    return await finishBuiltinToolSuccess(ctx, execution, result);
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to view task history: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to view task history: ${message}`);
   }
 }
 
-async function handleOrganizedHistory(outputItem: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<void> {
+async function handleOrganizedHistory(outputItem: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
   const parsed = parseToolArguments(VIEW_TASK_HISTORY_TOOL_NAME, outputItem.arguments, organizationHistoryArgumentsSchema);
-  if (!parsed.ok) { pushParseError(state, outputItem.call_id, parsed.error); return; }
+  if (!parsed.ok) { return toolErrorResult(parsed.error); }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Conversation", inputText: parsed.value.task_id ?? ctx.taskId
   });
   try {
     const result = await readOrganizedTaskHistory(parsed.value, { taskId: ctx.taskId, environmentId: ctx.environmentId,
       branchLeafId: ctx.getCurrentLeafMessageId(), allowOtherTasks: ctx.allowTaskHistoryTools === true, staged: state.organization });
-    await finishBuiltinToolSuccess(ctx, state, execution, result);
+    return await finishBuiltinToolSuccess(ctx, execution, result);
   } catch (error) {
     rethrowIfTaskCancelled(error);
-    await finishBuiltinToolFailure(ctx, state, execution, error instanceof Error ? error.message : String(error));
+    return finishBuiltinToolFailure(ctx, execution, error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -148,12 +143,11 @@ export async function handleMemorySearch(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(MEMORY_SEARCH_TOOL_NAME, outputItem.arguments, memorySearchArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const query = parsed.value.query.trim();
@@ -163,8 +157,7 @@ export async function handleMemorySearch(
   });
 
   if (ctx.runToolOptions.memorySearch !== true) {
-    await finishBuiltinToolFailure(ctx, state, execution, "Memory search is disabled for this run.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "Memory search is disabled for this run.");
   }
 
   try {
@@ -183,7 +176,7 @@ export async function handleMemorySearch(
       items: output.items
     };
 
-    await finishBuiltinToolSuccess(ctx, state, execution, result, {
+    return await finishBuiltinToolSuccess(ctx, execution, result, {
       eventPayload: {
         memoryResultCount: output.items.length,
         memorySyncState: output.sync_status.state
@@ -192,6 +185,6 @@ export async function handleMemorySearch(
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to search Memory: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to search Memory: ${message}`);
   }
 }

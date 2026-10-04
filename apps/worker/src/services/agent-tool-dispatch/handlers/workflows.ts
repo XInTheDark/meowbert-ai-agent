@@ -37,7 +37,7 @@ import {
 } from "../../agent-tools/index.js";
 import { parseToolArguments } from "../../agent/utils.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
-import { pushOutput, pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
 
@@ -45,7 +45,7 @@ export async function handleStartLongHorizonTask(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<"long_horizon_started" | null> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(
     START_LONG_HORIZON_TASK_TOOL_NAME,
@@ -53,8 +53,7 @@ export async function handleStartLongHorizonTask(
     startLongHorizonTaskArgumentsSchema
   );
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -63,39 +62,35 @@ export async function handleStartLongHorizonTask(
   });
 
   if (!ctx.workflowActions?.startLongHorizonTask) {
-    await finishBuiltinToolFailure(ctx, state, execution, "start_long_horizon_task is not available in this run.");
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, "start_long_horizon_task is not available in this run.");
   }
 
   try {
     const result = await ctx.workflowActions.startLongHorizonTask(parsed.value.plan);
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    const finished = await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       plan_path: result.planPath,
       next_run_id: result.nextRunId
     });
-    return "long_horizon_started";
+    return { ...finished, workflowPause: { kind: "long_horizon_started" } };
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to start Long Horizon task: ${message}`);
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, `Failed to start Long Horizon task: ${message}`);
   }
 }
 
 export function handleRequestClarification(
   outputItem: ResponseFunctionToolCall,
-  ctx: ToolDispatchContext,
-  state: ToolDispatchState
-): string | null {
+  ctx: ToolDispatchContext
+): ToolCallResult {
   const parsed = parseToolArguments(
     REQUEST_CLARIFICATION_TOOL_NAME,
     outputItem.arguments,
     requestClarificationArgumentsSchema
   );
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
 
   const workflow = ctx.workflowContext;
@@ -104,26 +99,24 @@ export function handleRequestClarification(
     || ctx.runMode !== "long_horizon_clarify"
     || workflow.phase !== "clarify"
   ) {
-    pushOutput(state, outputItem.call_id, {
-      error: "request_clarification is only available during the Long Horizon clarify stage."
-    });
-    return null;
+    return toolErrorResult("request_clarification is only available during the Long Horizon clarify stage.");
   }
 
-  pushOutput(state, outputItem.call_id, { ok: true, awaiting_input: true });
-  return parsed.value.question;
+  return {
+    output: { ok: true, awaiting_input: true },
+    workflowPause: { kind: "long_horizon_clarification_requested", response: parsed.value.question }
+  };
 }
 
 export async function handleSubmitResponse(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<"long_horizon_submitted" | null> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SUBMIT_RESPONSE_TOOL_NAME, outputItem.arguments, submitResponseArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -132,23 +125,21 @@ export async function handleSubmitResponse(
   });
 
   if (!ctx.workflowActions?.submitLongHorizonResponse) {
-    await finishBuiltinToolFailure(ctx, state, execution, "submit_response is not available in this run.");
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, "submit_response is not available in this run.");
   }
 
   try {
     const result = await ctx.workflowActions.submitLongHorizonResponse(parsed.value.message);
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    const finished = await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       round_no: result.roundNo,
       reviewer_task_ids: result.reviewerTaskIds
     });
-    return "long_horizon_submitted";
+    return { ...finished, workflowPause: { kind: "long_horizon_submitted" } };
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to submit Long Horizon work: ${message}`);
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, `Failed to submit Long Horizon work: ${message}`);
   }
 }
 
@@ -156,12 +147,11 @@ export async function handleSubmitReview(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<"long_horizon_reviewed" | null> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SUBMIT_REVIEW_TOOL_NAME, outputItem.arguments, submitReviewArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -170,13 +160,12 @@ export async function handleSubmitReview(
   });
 
   if (!ctx.workflowActions?.submitLongHorizonReview) {
-    await finishBuiltinToolFailure(ctx, state, execution, "submit_review is not available in this run.");
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, "submit_review is not available in this run.");
   }
 
   try {
     const result = await ctx.workflowActions.submitLongHorizonReview(parsed.value.review, parsed.value.approved);
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    const finished = await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       round_no: result.roundNo,
       approved_count: result.approvedCount,
@@ -185,12 +174,11 @@ export async function handleSubmitReview(
       majority: result.majority,
       outcome: result.outcome
     });
-    return "long_horizon_reviewed";
+    return { ...finished, workflowPause: { kind: "long_horizon_reviewed" } };
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to submit review: ${message}`);
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, `Failed to submit review: ${message}`);
   }
 }
 
@@ -198,12 +186,11 @@ export async function handleRefreshInbox(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(REFRESH_INBOX_TOOL_NAME, outputItem.arguments, refreshInboxArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -212,15 +199,14 @@ export async function handleRefreshInbox(
   });
 
   if (!ctx.workflowActions?.refreshSwarmInbox) {
-    await finishBuiltinToolFailure(ctx, state, execution, "refresh_inbox is not available in this run.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "refresh_inbox is not available in this run.");
   }
 
   try {
     const result = parsed.value.target_swarm
       ? await ctx.workflowActions.refreshSwarmInbox("explicit", parsed.value.target_swarm)
       : await ctx.workflowActions.refreshSwarmInbox("explicit");
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       delivered: result.delivered,
       unread_message_count: result.unreadMessageCount,
@@ -230,7 +216,7 @@ export async function handleRefreshInbox(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to refresh swarm inbox: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to refresh swarm inbox: ${message}`);
   }
 }
 
@@ -238,12 +224,11 @@ export async function handleSwarmManage(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SWARM_MANAGE_TOOL_NAME, outputItem.arguments, swarmManageArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -252,8 +237,7 @@ export async function handleSwarmManage(
   });
 
   if (!ctx.workflowActions?.manageSwarmWorkers) {
-    await finishBuiltinToolFailure(ctx, state, execution, "swarm_manage is only available to an Agent Swarm leader.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "swarm_manage is only available to an Agent Swarm leader.");
   }
 
   try {
@@ -264,7 +248,7 @@ export async function handleSwarmManage(
       grantBudget: parsed.value.grant_budget ?? [],
       viewOnly: parsed.value.view_only
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       started: result.started,
       stopped: result.stopped,
@@ -295,7 +279,7 @@ export async function handleSwarmManage(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to manage swarm workers: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to manage swarm workers: ${message}`);
   }
 }
 
@@ -303,7 +287,7 @@ export async function handleSwarmBudgetStatus(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(
     SWARM_BUDGET_STATUS_TOOL_NAME,
@@ -311,8 +295,7 @@ export async function handleSwarmBudgetStatus(
     swarmBudgetStatusArgumentsSchema
   );
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -320,13 +303,12 @@ export async function handleSwarmBudgetStatus(
     inputText: "Inspect Swarm budget"
   });
   if (!ctx.workflowActions?.getSwarmBudgetStatus) {
-    await finishBuiltinToolFailure(ctx, state, execution, "swarm_budget_status is only available during Agent Swarm runs.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "swarm_budget_status is only available during Agent Swarm runs.");
   }
 
   try {
     const result = await ctx.workflowActions.getSwarmBudgetStatus(parsed.value.target_swarm ?? undefined);
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       status: result.status,
       remaining_tokens: result.remainingTokens,
@@ -350,7 +332,7 @@ export async function handleSwarmBudgetStatus(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to inspect Swarm budget: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to inspect Swarm budget: ${message}`);
   }
 }
 
@@ -358,20 +340,18 @@ export async function handleSwarmSpawnNode(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SWARM_SPAWN_NODE_TOOL_NAME, outputItem.arguments, swarmSpawnNodeArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Spawn Swarm node",
     inputText: parsed.value.title
   });
   if (!ctx.workflowActions?.spawnSwarmNode) {
-    await finishBuiltinToolFailure(ctx, state, execution, "swarm_spawn_node is only available to an Agent Swarm leader.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "swarm_spawn_node is only available to an Agent Swarm leader.");
   }
   try {
     const result = await ctx.workflowActions.spawnSwarmNode({
@@ -382,7 +362,7 @@ export async function handleSwarmSpawnNode(
       tokenBudget: parsed.value.token_budget,
       timeBudgetMinutes: parsed.value.time_budget_minutes
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       node_id: result.nodeId,
       title: result.title,
@@ -395,7 +375,7 @@ export async function handleSwarmSpawnNode(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to spawn Swarm node: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to spawn Swarm node: ${message}`);
   }
 }
 
@@ -403,20 +383,18 @@ export async function handleSwarmGrantBudget(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SWARM_GRANT_BUDGET_TOOL_NAME, outputItem.arguments, swarmGrantBudgetArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Grant Swarm budget",
     inputText: `${parsed.value.node_id}: ${parsed.value.additional_tokens}`
   });
   if (!ctx.workflowActions?.grantSwarmBudget) {
-    await finishBuiltinToolFailure(ctx, state, execution, "swarm_grant_budget is only available to an Agent Swarm leader.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "swarm_grant_budget is only available to an Agent Swarm leader.");
   }
   try {
     const result = await ctx.workflowActions.grantSwarmBudget({
@@ -425,7 +403,7 @@ export async function handleSwarmGrantBudget(
       additionalTokens: parsed.value.additional_tokens,
       extendDeadlineMinutes: parsed.value.extend_deadline_minutes
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       node_id: result.nodeId,
       allocated_tokens: result.allocatedTokens,
@@ -436,7 +414,7 @@ export async function handleSwarmGrantBudget(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to grant Swarm budget: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to grant Swarm budget: ${message}`);
   }
 }
 
@@ -444,20 +422,18 @@ export async function handleSwarmCancelNode(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SWARM_CANCEL_NODE_TOOL_NAME, outputItem.arguments, swarmCancelNodeArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Cancel Swarm node",
     inputText: parsed.value.reason
   });
   if (!ctx.workflowActions?.cancelSwarmNode) {
-    await finishBuiltinToolFailure(ctx, state, execution, "swarm_cancel_node is only available to an Agent Swarm leader.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "swarm_cancel_node is only available to an Agent Swarm leader.");
   }
   try {
     const result = await ctx.workflowActions.cancelSwarmNode({
@@ -465,7 +441,7 @@ export async function handleSwarmCancelNode(
       nodeId: parsed.value.node_id,
       reason: parsed.value.reason
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       node_id: result.nodeId,
       cancelled_node_ids: result.cancelledNodeIds
@@ -473,7 +449,7 @@ export async function handleSwarmCancelNode(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to cancel Swarm node: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to cancel Swarm node: ${message}`);
   }
 }
 
@@ -481,20 +457,18 @@ export async function handleSwarmRecordReview(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SWARM_RECORD_REVIEW_TOOL_NAME, outputItem.arguments, swarmRecordReviewArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Swarm review",
     inputText: parsed.value.summary
   });
   if (!ctx.workflowActions?.recordSwarmReviewRound) {
-    await finishBuiltinToolFailure(ctx, state, execution, "swarm_record_review is only available when a swarm review round is required.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "swarm_record_review is only available when a swarm review round is required.");
   }
   try {
     const result = await ctx.workflowActions.recordSwarmReviewRound({
@@ -502,7 +476,7 @@ export async function handleSwarmRecordReview(
       reviewer: parsed.value.reviewer,
       summary: parsed.value.summary
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       reviewer: result.reviewerLabel,
       completed_rounds: result.completedRounds,
@@ -511,7 +485,7 @@ export async function handleSwarmRecordReview(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to record swarm review: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to record swarm review: ${message}`);
   }
 }
 
@@ -519,20 +493,18 @@ export async function handleSwarmRecordFinalReview(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SWARM_RECORD_FINAL_REVIEW_TOOL_NAME, outputItem.arguments, swarmRecordFinalReviewArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Final swarm review",
     inputText: parsed.value.summary
   });
   if (!ctx.workflowActions?.recordSwarmFinalReview) {
-    await finishBuiltinToolFailure(ctx, state, execution, "swarm_record_final_review is not available in this run.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "swarm_record_final_review is not available in this run.");
   }
   try {
     const result = await ctx.workflowActions.recordSwarmFinalReview({
@@ -541,7 +513,7 @@ export async function handleSwarmRecordFinalReview(
       approved: parsed.value.approved,
       summary: parsed.value.summary
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       reviewer: result.reviewerLabel,
       approved: result.approved
@@ -549,7 +521,7 @@ export async function handleSwarmRecordFinalReview(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to record final swarm review: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to record final swarm review: ${message}`);
   }
 }
 
@@ -557,12 +529,11 @@ export async function handleListChannels(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(LIST_CHANNELS_TOOL_NAME, outputItem.arguments, listChannelsArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -571,21 +542,20 @@ export async function handleListChannels(
   });
 
   if (!ctx.workflowActions?.listSwarmChannels) {
-    await finishBuiltinToolFailure(ctx, state, execution, "list_channels is not available in this run.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "list_channels is not available in this run.");
   }
 
   try {
     const channels = parsed.value.target_swarm
       ? await ctx.workflowActions.listSwarmChannels(parsed.value.target_swarm)
       : await ctx.workflowActions.listSwarmChannels();
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       items: channels
     });
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to list swarm channels: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to list swarm channels: ${message}`);
   }
 }
 
@@ -593,12 +563,11 @@ export async function handleReadChannel(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(READ_CHANNEL_TOOL_NAME, outputItem.arguments, readChannelArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -607,8 +576,7 @@ export async function handleReadChannel(
   });
 
   if (!ctx.workflowActions?.readSwarmChannel) {
-    await finishBuiltinToolFailure(ctx, state, execution, "read_channel is not available in this run.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "read_channel is not available in this run.");
   }
 
   try {
@@ -617,14 +585,14 @@ export async function handleReadChannel(
       channelId: parsed.value.channel_id,
       sinceMessageNo: parsed.value.since_message_no ?? null
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       channel_id: result.channelId,
       messages: result.messages
     });
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to read swarm channel: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to read swarm channel: ${message}`);
   }
 }
 
@@ -632,12 +600,11 @@ export async function handleCreateChannel(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(CREATE_CHANNEL_TOOL_NAME, outputItem.arguments, createChannelArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -646,8 +613,7 @@ export async function handleCreateChannel(
   });
 
   if (!ctx.workflowActions?.createSwarmChannel) {
-    await finishBuiltinToolFailure(ctx, state, execution, "create_channel is not available in this run.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "create_channel is not available in this run.");
   }
 
   try {
@@ -656,7 +622,7 @@ export async function handleCreateChannel(
       memberAgentTaskIds: parsed.value.member_agent_task_ids,
       title: parsed.value.title ?? null
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       channel_id: result.channelId,
       kind: result.kind,
@@ -666,7 +632,7 @@ export async function handleCreateChannel(
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to create swarm channel: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to create swarm channel: ${message}`);
   }
 }
 
@@ -674,12 +640,11 @@ export async function handleSendChannelMessage(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<{ kind: "agent_swarm_paused"; response: string } | null> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SEND_CHANNEL_MESSAGE_TOOL_NAME, outputItem.arguments, sendChannelMessageArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -688,8 +653,7 @@ export async function handleSendChannelMessage(
   });
 
   if (!ctx.workflowActions?.sendSwarmChannelMessage) {
-    await finishBuiltinToolFailure(ctx, state, execution, "send_channel_message is not available in this run.");
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, "send_channel_message is not available in this run.");
   }
 
   try {
@@ -700,18 +664,17 @@ export async function handleSendChannelMessage(
       pauseAfterSend: parsed.value.pause_after_send,
       waitingForTaskIds: parsed.value.waiting_for_task_ids
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    const finished = await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       message_no: result.messageNo,
       created_at: result.createdAt,
       paused: result.paused
     });
-    return result.paused ? { kind: "agent_swarm_paused", response: parsed.value.message } : null;
+    return result.paused ? { ...finished, workflowPause: { kind: "agent_swarm_paused", response: parsed.value.message } } : finished;
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to send swarm message: ${message}`);
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, `Failed to send swarm message: ${message}`);
   }
 }
 
@@ -719,30 +682,27 @@ export async function handleSubmitSwarmOutput(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<null> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SUBMIT_SWARM_OUTPUT_TOOL_NAME, outputItem.arguments, submitSwarmOutputArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Swarm output",
     inputText: parsed.value.response
   });
   if (!ctx.workflowActions?.submitSwarmOutput) {
-    await finishBuiltinToolFailure(ctx, state, execution, "submit_swarm_output is not available in this run.");
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, "submit_swarm_output is not available in this run.");
   }
   try {
     const result = parsed.value.target_swarm
       ? await ctx.workflowActions.submitSwarmOutput(parsed.value.response, parsed.value.target_swarm)
       : await ctx.workflowActions.submitSwarmOutput(parsed.value.response);
-    await finishBuiltinToolSuccess(ctx, state, execution, { ok: true, message_no: result.messageNo });
+    return await finishBuiltinToolSuccess(ctx, execution, { ok: true, message_no: result.messageNo });
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to publish swarm output: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to publish swarm output: ${message}`);
   }
-  return null;
 }

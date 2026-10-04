@@ -1,4 +1,4 @@
-import type { ResponseFunctionToolCall, ResponseInputItem } from "openai/resources/responses/responses";
+import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { isSkillEnabledByConfig } from "@meowbert/shared";
 import { callMcpTool, parseSkillToolName, providerSafeSkillToolId, type McpConnection } from "../../agent/mcp-client.js";
 import { getAvailableSkills } from "../../agent/skill-registry.js";
@@ -9,15 +9,13 @@ import {
 } from "../../agent-tools/index.js";
 import { parseToolArguments } from "../../agent/utils.js";
 import {
-  appendBuiltinToolMessage,
   finishBuiltinToolFailure,
   finishBuiltinToolSuccess,
   startBuiltinToolExecution
 } from "../events.js";
-import { pushParseError, serializeToolOutput } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
-import { emitTaskEvent } from "../../runtime/events.js";
 import { config } from "../../../lib/config.js";
 import { buildSkillEnabledPromptDelta } from "../../agent/skill-prompt.js";
 import { normalizeSkillToolArguments } from "../../agent/skill-tool-paths.js";
@@ -44,7 +42,7 @@ export async function handleListSkills(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Action",
     inputText: "List available skills"
@@ -60,7 +58,7 @@ export async function handleListSkills(
     skills,
     enabled: Array.from(ctx.activeMcpConnections.keys())
   };
-  await finishBuiltinToolSuccess(ctx, state, execution, output, {
+  return finishBuiltinToolSuccess(ctx, execution, output, {
     eventPayload: {
       skillCount: skills.length,
       enabledSkillCount: output.enabled.length
@@ -72,12 +70,11 @@ export async function handleEnableSkill(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(ENABLE_SKILL_TOOL_NAME, outputItem.arguments, enableSkillArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -106,7 +103,7 @@ export async function handleEnableSkill(
       });
     }
 
-    await finishBuiltinToolSuccess(ctx, state, execution, skillOutput, {
+    return await finishBuiltinToolSuccess(ctx, execution, skillOutput, {
       eventPayload: {
         skill: parsed.value.skill,
         toolCount: result.toolNames.length
@@ -115,7 +112,7 @@ export async function handleEnableSkill(
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to enable skill: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to enable skill: ${message}`);
   }
 }
 
@@ -123,11 +120,11 @@ export async function handleSkillToolCall(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<boolean> {
+): Promise<ToolCallResult | null> {
   await ctx.assertNotCancelled();
   const parsedSkillTool = parseSkillToolName(outputItem.name);
   if (!parsedSkillTool) {
-    return false;
+    return null;
   }
 
   let args: Record<string, unknown> = {};
@@ -149,19 +146,16 @@ export async function handleSkillToolCall(
 
   const resolvedConnection = getActiveMcpConnection(ctx.activeMcpConnections, parsedSkillTool.skillId);
   if (!resolvedConnection) {
-    await finishBuiltinToolFailure(
+    return finishBuiltinToolFailure(
       ctx,
-      state,
       execution,
       `Skill "${parsedSkillTool.skillId}" is not enabled. Call enable_skill first.`
     );
-    return true;
   }
 
   try {
     const result = await callMcpTool(resolvedConnection.connection, parsedSkillTool.toolName, normalizedArgs);
     await ctx.assertNotCancelled();
-    const durationMs = Date.now() - execution.startedAtMs;
 
     let parsedResult: unknown = result;
     try {
@@ -169,27 +163,10 @@ export async function handleSkillToolCall(
     } catch {
       // keep raw string output
     }
-
-    const item: ResponseInputItem = {
-      type: "function_call_output",
-      call_id: outputItem.call_id,
-      output: serializeToolOutput(parsedResult, state)
-    };
-    state.conversationItems.push(item);
-    state.runPersistedItems.push(item);
-
-    await appendBuiltinToolMessage(ctx, execution, parsedResult, { durationMs });
-    await emitTaskEvent(ctx.taskId, "command_end", {
-      step: execution.step,
-      callId: execution.callId,
-      tool: execution.toolName,
-      durationMs
-    });
+    return await finishBuiltinToolSuccess(ctx, execution, parsedResult);
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Skill tool error: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Skill tool error: ${message}`);
   }
-
-  return true;
 }

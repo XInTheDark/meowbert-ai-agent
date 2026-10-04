@@ -1,18 +1,9 @@
-import type { ResponseCustomToolCall, ResponseFunctionToolCall } from "openai/resources/responses/responses";
+import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { parseInlineArtifact, serializeInlineArtifact } from "@meowbert/shared/inline-artifacts";
 import { appendMessage, setTaskBranchSelection } from "../agent-db/index.js";
 import { emitTaskEvent } from "../runtime/events.js";
-import {
-  hasCustomToolOutput,
-  hasApplyPatchCallOutput,
-  hasFunctionCallOutput,
-  prepareToolOutputForModel,
-  pushApplyPatchFailureOutput,
-  pushCustomToolOutput,
-  pushOutput,
-  pushToolOutput,
-  serializeToolOutput
-} from "./state.js";
+import { prepareToolOutputForModel, serializeToolOutput } from "./state.js";
+import type { ToolCallResult } from "./tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "./types.js";
 import { getErrorMessage, normalizeToolEventText, rethrowIfTaskCancelled } from "./utils.js";
 
@@ -118,16 +109,14 @@ export async function appendBuiltinToolMessage(
 
 export async function finishBuiltinToolSuccess(
   ctx: ToolDispatchContext,
-  state: ToolDispatchState,
   execution: BuiltinToolExecution,
   output: unknown,
   options: {
     eventPayload?: Record<string, unknown>;
     messagePayload?: Record<string, unknown>;
   } = {}
-): Promise<void> {
+): Promise<ToolCallResult> {
   const durationMs = Date.now() - execution.startedAtMs;
-  pushToolOutput(state, execution.callId, execution.toolName, output);
   await appendBuiltinToolMessage(ctx, execution, output, {
     durationMs,
     ...(options.messagePayload ?? {})
@@ -139,11 +128,11 @@ export async function finishBuiltinToolSuccess(
     durationMs,
     ...(options.eventPayload ?? {})
   });
+  return { output };
 }
 
 export async function finishBuiltinToolFailure(
   ctx: ToolDispatchContext,
-  state: ToolDispatchState,
   execution: BuiltinToolExecution,
   errorMessage: string,
   options: {
@@ -151,13 +140,12 @@ export async function finishBuiltinToolFailure(
     messagePayload?: Record<string, unknown>;
     output?: Record<string, unknown>;
   } = {}
-): Promise<void> {
+): Promise<ToolCallResult> {
   const durationMs = Date.now() - execution.startedAtMs;
   const output = {
     ...(options.output ?? {}),
     error: errorMessage
   };
-  pushToolOutput(state, execution.callId, execution.toolName, output);
   await appendBuiltinToolMessage(ctx, execution, output, {
     durationMs,
     error: errorMessage,
@@ -177,37 +165,27 @@ export async function finishBuiltinToolFailure(
     callId: execution.callId,
     tool: execution.toolName
   });
+  return { output };
 }
 
-export async function finishUnhandledToolFailure(
-  outputItem: ResponseFunctionToolCall | ResponseCustomToolCall | { type: "apply_patch_call"; call_id: string; name?: string },
+// A handler threw instead of returning a result. Reports the failure and returns the message the
+// caller records as the call's output.
+export async function reportUnhandledToolFailure(
+  toolName: string,
+  callId: string,
   ctx: ToolDispatchContext,
-  state: ToolDispatchState,
   error: unknown
-): Promise<void> {
+): Promise<string> {
   rethrowIfTaskCancelled(error);
-  const toolName = typeof outputItem.name === "string" ? outputItem.name : "apply_patch";
   const errorMessage = `Tool ${toolName} failed: ${getErrorMessage(error)}`;
-
-  if (outputItem.type === "custom_tool_call") {
-    if (!hasCustomToolOutput(state, outputItem.call_id)) {
-      pushCustomToolOutput(state, outputItem.call_id, `Error: ${errorMessage}`);
-    }
-  } else if (outputItem.type === "apply_patch_call") {
-    if (!hasApplyPatchCallOutput(state, outputItem.call_id)) {
-      pushApplyPatchFailureOutput(state, outputItem.call_id, errorMessage);
-    }
-  } else if (!hasFunctionCallOutput(state, outputItem.call_id)) {
-    pushOutput(state, outputItem.call_id, { error: errorMessage });
-  }
-
   try {
     await emitTaskEvent(ctx.taskId, "error", {
       message: errorMessage,
-      callId: outputItem.call_id,
+      callId,
       tool: toolName
     });
   } catch {
     // Best-effort error logging only; keep the run alive if event emission fails too.
   }
+  return errorMessage;
 }

@@ -70,8 +70,8 @@ import {
   type ApplyPatchCustomToolCall,
   type ApplyPatchFunctionToolCall
 } from "../agent/apply-patch.js";
-import { finishUnhandledToolFailure } from "./events.js";
-import { handleApplyPatch } from "./handlers/apply-patch.js";
+import { reportUnhandledToolFailure } from "./events.js";
+import { handleApplyPatch, type ApplyPatchResult } from "./handlers/apply-patch.js";
 import { handleExec } from "./handlers/exec.js";
 import { EXEC_TOOL_NAME } from "../code-mode/exec-tool.js";
 import { handleSearchTools } from "./handlers/search-tools.js";
@@ -123,7 +123,15 @@ import {
   handleSubmitReview,
   handleSubmitSwarmOutput
 } from "./handlers/workflows.js";
-import { hasApplyPatchCallOutput, hasCustomToolOutput, hasFunctionCallOutput, pushCustomToolOutput, pushOutput } from "./state.js";
+import {
+  hasApplyPatchCallOutput,
+  hasCustomToolOutput,
+  hasFunctionCallOutput,
+  recordApplyPatchCallOutput,
+  recordCustomToolCallOutput,
+  recordFunctionCallResult
+} from "./state.js";
+import { toolErrorResult, type ToolCallResult } from "./tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchResult, ToolDispatchState } from "./types.js";
 import { recordContextItems } from "../context-management-v2/index.js";
 import { trackRepeatedToolCall } from "./repeated-tool-calls.js";
@@ -151,59 +159,44 @@ async function dispatchFunctionToolCall(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<Pick<ToolDispatchResult, "finalResponse" | "waitRequest" | "stopRequest" | "workflowPause">> {
-  let finalResponse: ToolDispatchResult["finalResponse"] = null;
-  let waitRequest: ToolDispatchResult["waitRequest"] = null;
-  let stopRequest: ToolDispatchResult["stopRequest"] = null;
-  let workflowPause: ToolDispatchResult["workflowPause"] = null;
-
+): Promise<ToolCallResult> {
   switch (outputItem.name) {
     case EXEC_TOOL_NAME:
-      await handleExec(outputItem, ctx, state, dispatchFunctionToolCall);
-      break;
+      return handleExec(outputItem, ctx, state, dispatchFunctionToolCall);
 
     case SEARCH_TOOLS_TOOL_NAME:
-      await handleSearchTools(outputItem, ctx, state);
-      break;
+      return handleSearchTools(outputItem, ctx, state);
 
     case "update_conversation_outline":
     case "update_conversation_map":
-      handleConversationOrganization(outputItem, state);
-      break;
+      return handleConversationOrganization(outputItem, state);
     case "spawn_subagent":
     case "send_subagent_message":
     case "followup_subagent":
     case "wait_subagent":
     case "list_subagents":
     case "interrupt_subagent":
-      await handleSubagentTool(outputItem, ctx, state);
-      break;
+      return handleSubagentTool(outputItem, ctx, state);
     case "create_task":
     case "message_task":
     case "cancel_task":
     case "listen_to_tasks":
-      await handleProjectMasterTool(outputItem, ctx, state);
-      break;
+      return handleProjectMasterTool(outputItem, ctx, state);
     case APPLY_PATCH_TOOL_NAME:
-      await handleApplyPatch(outputItem as ApplyPatchFunctionToolCall, ctx, state);
-      break;
+      return handleApplyPatch(outputItem as ApplyPatchFunctionToolCall, ctx, state);
 
     case RUN_SHELL_TOOL_NAME:
-      await handleRunShell(outputItem, ctx, state);
-      break;
+      return handleRunShell(outputItem, ctx, state);
 
     case SHELL_SESSION_TOOL_NAME:
-      await handleShellSession(outputItem, ctx, state);
-      break;
+      return handleShellSession(outputItem, ctx, state);
 
     case CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME:
     case CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME:
-      await handleContextManagementTool(outputItem, ctx, state);
-      break;
+      return handleContextManagementTool(outputItem, ctx, state);
 
     case REFRESH_GH_TOKEN_TOOL_NAME:
-      await handleRefreshGitHubToken(outputItem, ctx, state);
-      break;
+      return handleRefreshGitHubToken(outputItem, ctx, state);
 
     case FINAL_RESPONSE_TOOL_NAME:
       if (ctx.runToolOptions.subtasks) await assertSubagentsFinished(ctx.taskId);
@@ -214,10 +207,7 @@ async function dispatchFunctionToolCall(
           || ctx.workflowContext.taskId !== ctx.workflowContext.workflowTaskId
         )
       ) {
-        pushOutput(state, outputItem.call_id, {
-          error: "Only the top Agent Swarm leader can call final_response. Complete your swarm work with send_channel_message or submit_swarm_output."
-        });
-        break;
+        return toolErrorResult("Only the top Agent Swarm leader can call final_response. Complete your swarm work with send_channel_message or submit_swarm_output.");
       }
       if (
         ctx.workflowContext?.workflowType === "agent_swarm"
@@ -225,10 +215,7 @@ async function dispatchFunctionToolCall(
         && (ctx.workflowContext.swarm?.pendingNestedSwarmNodeIds?.length ?? 0) > 0
         && !isForcedFinalResponse(outputItem)
       ) {
-        pushOutput(state, outputItem.call_id, {
-          error: `Started nested swarms have not published their output: ${ctx.workflowContext.swarm!.pendingNestedSwarmNodeIds!.join(", ")}.`
-        });
-        break;
+        return toolErrorResult(`Started nested swarms have not published their output: ${ctx.workflowContext.swarm!.pendingNestedSwarmNodeIds!.join(", ")}.`);
       }
       if (
         ctx.workflowContext?.workflowType === "long_horizon"
@@ -237,231 +224,172 @@ async function dispatchFunctionToolCall(
           || (ctx.workflowContext.longHorizon?.enableReviewPhase !== false && ctx.workflowContext.phase !== "approved")
         )
       ) {
-        pushOutput(state, outputItem.call_id, {
-          error: "Long Horizon review approval is required before final_response. Continue the workflow with its available action."
-        });
-        break;
+        return toolErrorResult("Long Horizon review approval is required before final_response. Continue the workflow with its available action.");
       }
       if (
         ctx.workflowContext?.workflowType === "agent_swarm"
         && (ctx.runMode !== "agent_swarm_leader" || !hasApprovedSwarmFinalReview(ctx.workflowContext))
         && !isForcedFinalResponse(outputItem)
       ) {
-        pushOutput(state, outputItem.call_id, {
-          error: "The final swarm review is missing. Record it first, or call final_response again with force: true to deliver now."
-        });
-        break;
+        return toolErrorResult("The final swarm review is missing. Record it first, or call final_response again with force: true to deliver now.");
       }
-      finalResponse = handleFinalResponse(outputItem, state);
-      break;
+      return handleFinalResponse(outputItem, state);
 
     case MARK_ARTIFACT_TOOL_NAME:
-      await handleMarkArtifact(outputItem, ctx, state);
-      break;
+      return handleMarkArtifact(outputItem, ctx, state);
 
     case CREATE_INTERACTIVE_CANVAS_TOOL_NAME:
-      await handleCreateInteractiveCanvas(outputItem, ctx, state);
-      break;
+      return handleCreateInteractiveCanvas(outputItem, ctx, state);
 
     case INIT_SANDBOX_TOOL_NAME: {
       const result = await ctx.initializeSandbox?.();
-      pushOutput(state, outputItem.call_id, {
-        ok: true,
-        alreadyInitialized: result?.alreadyInitialized === true,
-        message: result?.alreadyInitialized === true
-          ? "Sandbox was already initialized. Full tools are available."
-          : "Sandbox initialized. Full tools are available on the next turn."
-      });
-      break;
+      return {
+        output: {
+          ok: true,
+          alreadyInitialized: result?.alreadyInitialized === true,
+          message: result?.alreadyInitialized === true
+            ? "Sandbox was already initialized. Full tools are available."
+            : "Sandbox initialized. Full tools are available on the next turn."
+        }
+      };
     }
 
     case WAIT_TOOL_NAME:
-      waitRequest = await handleWaitTool(outputItem, ctx, state);
-      break;
+      return handleWaitTool(outputItem, ctx, state);
 
     case SWARM_PAUSE_TOOL_NAME:
-      workflowPause = await handleSwarmPauseTool(outputItem, ctx, state);
-      break;
+      return handleSwarmPauseTool(outputItem, ctx, state);
 
     case SWARM_MANAGE_TOOL_NAME:
-      await handleSwarmManage(outputItem, ctx, state);
-      break;
+      return handleSwarmManage(outputItem, ctx, state);
 
     case SWARM_BUDGET_STATUS_TOOL_NAME:
-      await handleSwarmBudgetStatus(outputItem, ctx, state);
-      break;
+      return handleSwarmBudgetStatus(outputItem, ctx, state);
 
     case SWARM_SPAWN_NODE_TOOL_NAME:
-      await handleSwarmSpawnNode(outputItem, ctx, state);
-      break;
+      return handleSwarmSpawnNode(outputItem, ctx, state);
 
     case SWARM_GRANT_BUDGET_TOOL_NAME:
-      await handleSwarmGrantBudget(outputItem, ctx, state);
-      break;
+      return handleSwarmGrantBudget(outputItem, ctx, state);
 
     case SWARM_CANCEL_NODE_TOOL_NAME:
-      await handleSwarmCancelNode(outputItem, ctx, state);
-      break;
+      return handleSwarmCancelNode(outputItem, ctx, state);
 
     case SWARM_RECORD_REVIEW_TOOL_NAME:
-      await handleSwarmRecordReview(outputItem, ctx, state);
-      break;
+      return handleSwarmRecordReview(outputItem, ctx, state);
 
     case SWARM_RECORD_FINAL_REVIEW_TOOL_NAME:
-      await handleSwarmRecordFinalReview(outputItem, ctx, state);
-      break;
+      return handleSwarmRecordFinalReview(outputItem, ctx, state);
 
     case STOP_TASK_TOOL_NAME:
-      stopRequest = await handleStopTask(outputItem, ctx, state);
-      break;
+      return handleStopTask(outputItem, ctx, state);
 
     case VIEW_IMAGE_TOOL_NAME:
-      await handleViewImage(outputItem, ctx, state);
-      break;
+      return handleViewImage(outputItem, ctx, state);
 
     case VIEW_PDF_FILE_TOOL_NAME:
       if (ctx.compatibilityModes?.includes("disablePdfFile")) {
         throw new Error("view_pdf_file is disabled for this model.");
       }
-      await handleViewPdf(outputItem, ctx, state);
-      break;
+      return handleViewPdf(outputItem, ctx, state);
 
     case QUERY_TASKS_TOOL_NAME:
     case LEGACY_SEARCH_TASK_HISTORY_TOOL_NAME:
-      await handleQueryTasks(outputItem, ctx, state);
-      break;
+      return handleQueryTasks(outputItem, ctx, state);
 
     case VIEW_TASK_HISTORY_TOOL_NAME:
-      await handleViewTaskHistory(outputItem, ctx, state);
-      break;
+      return handleViewTaskHistory(outputItem, ctx, state);
 
     case MEMORY_SEARCH_TOOL_NAME:
-      await handleMemorySearch(outputItem, ctx, state);
-      break;
+      return handleMemorySearch(outputItem, ctx, state);
 
     case SEARCH_WEB_TOOL_NAME:
-      await handleSearchWeb(outputItem, ctx, state);
-      break;
+      return handleSearchWeb(outputItem, ctx, state);
 
     case LIST_LIVE_SYNC_FILES_TOOL_NAME:
-      await handleListLiveSyncFiles(outputItem, ctx, state);
-      break;
+      return handleListLiveSyncFiles(outputItem, ctx, state);
 
     case GET_LIVE_SYNC_STATUS_TOOL_NAME:
-      await handleGetLiveSyncStatus(outputItem, ctx, state);
-      break;
+      return handleGetLiveSyncStatus(outputItem, ctx, state);
 
     case PULL_LIVE_SYNC_FILE_TOOL_NAME:
-      await handlePullLiveSyncFile(outputItem, ctx, state);
-      break;
+      return handlePullLiveSyncFile(outputItem, ctx, state);
 
     case PUSH_LIVE_SYNC_FILE_TOOL_NAME:
-      await handlePushLiveSyncFile(outputItem, ctx, state);
-      break;
+      return handlePushLiveSyncFile(outputItem, ctx, state);
 
     case LIST_SKILLS_TOOL_NAME:
-      await handleListSkills(outputItem, ctx, state);
-      break;
+      return handleListSkills(outputItem, ctx, state);
 
     case ENABLE_SKILL_TOOL_NAME:
-      await handleEnableSkill(outputItem, ctx, state);
-      break;
+      return handleEnableSkill(outputItem, ctx, state);
 
     case SCHEDULE_TASK_TOOL_NAME:
-      await handleScheduleTask(outputItem, ctx, state);
-      break;
+      return handleScheduleTask(outputItem, ctx, state);
 
     case EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME:
-      await handleEditCurrentTaskSchedule(outputItem, ctx, state);
-      break;
+      return handleEditCurrentTaskSchedule(outputItem, ctx, state);
 
     case CREATE_SUBTASK_TOOL_NAME:
-      await handleCreateSubtask(outputItem, ctx, state);
-      break;
+      return handleCreateSubtask(outputItem, ctx, state);
 
     case START_SUBTASK_TOOL_NAME:
-      await handleStartSubtask(outputItem, ctx, state);
-      break;
+      return handleStartSubtask(outputItem, ctx, state);
 
-    case START_LONG_HORIZON_TASK_TOOL_NAME: {
-      const action = await handleStartLongHorizonTask(outputItem, ctx, state);
-      workflowPause = action ? { kind: action } : null;
-      break;
-    }
+    case START_LONG_HORIZON_TASK_TOOL_NAME:
+      return handleStartLongHorizonTask(outputItem, ctx, state);
 
-    case REQUEST_CLARIFICATION_TOOL_NAME: {
-      const response = handleRequestClarification(outputItem, ctx, state);
-      workflowPause = response
-        ? { kind: "long_horizon_clarification_requested", response }
-        : null;
-      break;
-    }
+    case REQUEST_CLARIFICATION_TOOL_NAME:
+      return handleRequestClarification(outputItem, ctx);
 
-    case SUBMIT_RESPONSE_TOOL_NAME: {
-      const action = await handleSubmitResponse(outputItem, ctx, state);
-      workflowPause = action ? { kind: action } : null;
-      break;
-    }
+    case SUBMIT_RESPONSE_TOOL_NAME:
+      return handleSubmitResponse(outputItem, ctx, state);
 
-    case SUBMIT_REVIEW_TOOL_NAME: {
-      const action = await handleSubmitReview(outputItem, ctx, state);
-      workflowPause = action ? { kind: action } : null;
-      break;
-    }
+    case SUBMIT_REVIEW_TOOL_NAME:
+      return handleSubmitReview(outputItem, ctx, state);
 
     case REFRESH_INBOX_TOOL_NAME:
-      await handleRefreshInbox(outputItem, ctx, state);
-      break;
+      return handleRefreshInbox(outputItem, ctx, state);
 
     case LIST_CHANNELS_TOOL_NAME:
-      await handleListChannels(outputItem, ctx, state);
-      break;
+      return handleListChannels(outputItem, ctx, state);
 
     case READ_CHANNEL_TOOL_NAME:
-      await handleReadChannel(outputItem, ctx, state);
-      break;
+      return handleReadChannel(outputItem, ctx, state);
 
     case CREATE_CHANNEL_TOOL_NAME:
-      await handleCreateChannel(outputItem, ctx, state);
-      break;
+      return handleCreateChannel(outputItem, ctx, state);
 
-    case SEND_CHANNEL_MESSAGE_TOOL_NAME: {
-      workflowPause = await handleSendChannelMessage(outputItem, ctx, state);
-      break;
-    }
+    case SEND_CHANNEL_MESSAGE_TOOL_NAME:
+      return handleSendChannelMessage(outputItem, ctx, state);
 
     case SUBMIT_SWARM_OUTPUT_TOOL_NAME:
-      await handleSubmitSwarmOutput(outputItem, ctx, state);
-      break;
+      return handleSubmitSwarmOutput(outputItem, ctx, state);
 
-    default: {
-      const handledComputerTool = await handleComputerToolCall(outputItem, ctx, state);
-      if (handledComputerTool) {
-        break;
-      }
-      const handled = await handleSkillToolCall(outputItem, ctx, state);
-      if (!handled) {
-        pushOutput(state, outputItem.call_id, { error: `Unknown tool: ${outputItem.name}` });
-      }
-      break;
-    }
+    default:
+      return await handleComputerToolCall(outputItem, ctx, state)
+        ?? await handleSkillToolCall(outputItem, ctx, state)
+        ?? toolErrorResult(`Unknown tool: ${outputItem.name}`);
   }
-
-  return { finalResponse, waitRequest, stopRequest, workflowPause };
 }
 
 async function dispatchCustomToolCall(
   outputItem: ApplyPatchCustomToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ApplyPatchResult> {
   switch (outputItem.name) {
     case APPLY_PATCH_TOOL_NAME:
-      await handleApplyPatch(outputItem, ctx, state);
-      break;
+      return handleApplyPatch(outputItem, ctx, state);
 
     default:
       throw new Error(`Unknown custom tool: ${outputItem.name}`);
+  }
+}
+
+async function recordInContext(ctx: ToolDispatchContext, items: ResponseInputItem[]): Promise<void> {
+  if (ctx.contextManagementV2 && items.length > 0) {
+    await recordContextItems(ctx.contextManagementV2, items);
   }
 }
 
@@ -587,17 +515,17 @@ export async function dispatchResponseOutput(
     if (isFunctionCallItem(outputItem) && ctx.contextManagementV2 && isContextManagementV2Tool(outputItem.name)) {
       sawToolCall = true;
       sawFunctionToolCall = true;
+      let result: ToolCallResult;
       try {
-        await handleContextManagementV2Tool(outputItem, ctx, state);
+        result = await handleContextManagementV2Tool(outputItem, ctx, state);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const failure = pushOutput(state, outputItem.call_id, { error: message });
-        await recordContextItems(ctx.contextManagementV2, [failure]);
+        result = toolErrorResult(error instanceof Error ? error.message : String(error));
         console.info("[context-management-v2]", JSON.stringify({
           version: "v2",
           failureClass: error instanceof Error ? error.name : "unknown"
         }));
       }
+      await recordInContext(ctx, recordFunctionCallResult(state, outputItem.call_id, outputItem.name, result));
       continue;
     }
 
@@ -610,15 +538,13 @@ export async function dispatchResponseOutput(
     if (isApplyPatchCallItem(outputItem)) {
       sawToolCall = true;
       invalidatePendingSwarmSendAfterRefresh(ctx);
-      const outputStart = state.conversationItems.length;
+      let result: ApplyPatchResult;
       try {
-        await handleApplyPatch(outputItem, ctx, state);
+        result = await handleApplyPatch(outputItem, ctx, state);
       } catch (error) {
-        await finishUnhandledToolFailure(outputItem, ctx, state, error);
+        result = { output: await reportUnhandledToolFailure(APPLY_PATCH_TOOL_NAME, outputItem.call_id, ctx, error), status: "failed" };
       }
-      if (ctx.contextManagementV2 && state.conversationItems.length > outputStart) {
-        await recordContextItems(ctx.contextManagementV2, state.conversationItems.slice(outputStart));
-      }
+      await recordInContext(ctx, recordApplyPatchCallOutput(state, outputItem.call_id, result.output, result.status));
       continue;
     }
 
@@ -626,18 +552,15 @@ export async function dispatchResponseOutput(
       sawToolCall = true;
       sawFunctionToolCall = true;
       invalidatePendingSwarmSendAfterRefresh(ctx);
-      const outputStart = state.conversationItems.length;
       await ctx.assertNotCancelled();
 
+      let output: string;
       try {
-        await dispatchCustomToolCall(outputItem, ctx, state);
+        output = (await dispatchCustomToolCall(outputItem, ctx, state)).output;
       } catch (error) {
-        await finishUnhandledToolFailure(outputItem, ctx, state, error);
+        output = `Error: ${await reportUnhandledToolFailure(outputItem.name, outputItem.call_id, ctx, error)}`;
       }
-
-      if (ctx.contextManagementV2 && state.conversationItems.length > outputStart) {
-        await recordContextItems(ctx.contextManagementV2, state.conversationItems.slice(outputStart));
-      }
+      await recordInContext(ctx, recordCustomToolCallOutput(state, outputItem.call_id, output));
 
       await ctx.assertNotCancelled();
       continue;
@@ -648,15 +571,7 @@ export async function dispatchResponseOutput(
       sawFunctionToolCall = true;
       invalidatePendingSwarmSendAfterRefresh(ctx);
       if (!hasCustomToolOutput(state, outputItem.call_id)) {
-        const outputStart = state.conversationItems.length;
-        pushCustomToolOutput(
-          state,
-          outputItem.call_id,
-          `Error: Unsupported custom tool: ${outputItem.name}`
-        );
-        if (ctx.contextManagementV2) {
-          await recordContextItems(ctx.contextManagementV2, state.conversationItems.slice(outputStart));
-        }
+        await recordInContext(ctx, recordCustomToolCallOutput(state, outputItem.call_id, `Error: Unsupported custom tool: ${outputItem.name}`));
       }
       continue;
     }
@@ -673,18 +588,18 @@ export async function dispatchResponseOutput(
     await ctx.assertNotCancelled();
 
     try {
-      const conversationLength = state.conversationItems.length;
-      const result = await dispatchFunctionToolCall(outputItem, ctx, state);
-      if (ctx.contextManagementV2 && state.conversationItems.length > conversationLength) {
-        await recordContextItems(ctx.contextManagementV2, state.conversationItems.slice(conversationLength));
+      let result: ToolCallResult;
+      try {
+        result = await dispatchFunctionToolCall(outputItem, ctx, state);
+      } catch (error) {
+        result = toolErrorResult(await reportUnhandledToolFailure(outputItem.name, outputItem.call_id, ctx, error));
       }
+      await recordInContext(ctx, recordFunctionCallResult(state, outputItem.call_id, outputItem.name, result));
       if (repeatedCallReminder) {
         const reminder = { role: "developer" as const, content: repeatedCallReminder };
         state.conversationItems.push(reminder);
         state.runPersistedItems.push(reminder);
-        if (ctx.contextManagementV2) {
-          await recordContextItems(ctx.contextManagementV2, [reminder]);
-        }
+        await recordInContext(ctx, [reminder]);
       }
       if (result.finalResponse) {
         (state.finalResponseSegments ??= []).push(result.finalResponse);
@@ -699,8 +614,6 @@ export async function dispatchResponseOutput(
       if (result.workflowPause) {
         workflowPause = result.workflowPause;
       }
-    } catch (error) {
-      await finishUnhandledToolFailure(outputItem, ctx, state, error);
     } finally {
       if (outputItem.name === SEND_CHANNEL_MESSAGE_TOOL_NAME) {
         invalidatePendingSwarmSendAfterRefresh(ctx);

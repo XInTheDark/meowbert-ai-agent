@@ -15,7 +15,7 @@ import {
   finishBuiltinToolSuccess,
   startBuiltinToolExecution
 } from "../events.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled } from "../utils.js";
 
@@ -71,12 +71,11 @@ export async function handleMarkArtifact(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(MARK_ARTIFACT_TOOL_NAME, outputItem.arguments, markArtifactArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -100,7 +99,7 @@ export async function handleMarkArtifact(
         removedFiles: relativePaths.map((relativePath) => ({ relativePath }))
       });
 
-      await finishBuiltinToolSuccess(ctx, state, execution, {
+      return await finishBuiltinToolSuccess(ctx, execution, {
         ok: true,
         removed: true,
         artifacts: relativePaths.map((relativePath) => ({ relative_path: relativePath }))
@@ -108,7 +107,6 @@ export async function handleMarkArtifact(
         eventPayload: { artifactCount: 0, removedArtifactCount: relativePaths.length },
         messagePayload: { artifact_count: 0, removed_artifact_count: relativePaths.length }
       });
-      return;
     }
 
     const envRootRealPath = await realpath(ctx.envRoot).catch(() => path.resolve(ctx.envRoot));
@@ -153,7 +151,7 @@ export async function handleMarkArtifact(
       }))
     });
 
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       artifacts: artifacts.map((artifact) => ({
         relative_path: artifact.relativePath,
@@ -168,6 +166,6 @@ export async function handleMarkArtifact(
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
     const action = parsed.value.remove === true ? "unmark" : "mark";
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to ${action} artifacts: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to ${action} artifacts: ${message}`);
   }
 }

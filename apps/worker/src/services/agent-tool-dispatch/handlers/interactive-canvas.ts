@@ -13,7 +13,7 @@ import {
   finishBuiltinToolSuccess,
   startBuiltinToolExecution
 } from "../events.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { getErrorMessage } from "../utils.js";
 
@@ -92,15 +92,14 @@ export async function handleCreateInteractiveCanvas(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   const parsed = parseToolArguments(
     CREATE_INTERACTIVE_CANVAS_TOOL_NAME,
     outputItem.arguments,
     createInteractiveCanvasArgumentsSchema
   );
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
   const args = parsed.value;
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -204,7 +203,7 @@ export async function handleCreateInteractiveCanvas(
       }
     });
 
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       canvas_id: canvas.id,
       name: canvas.name,
       root_path: canvas.root_path,
@@ -215,6 +214,6 @@ export async function handleCreateInteractiveCanvas(
       next_steps: "Create or update the website files in canvas_dir, then keep canvas.json current."
     });
   } catch (error) {
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to create Interactive Canvas: ${getErrorMessage(error)}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to create Interactive Canvas: ${getErrorMessage(error)}`);
   }
 }

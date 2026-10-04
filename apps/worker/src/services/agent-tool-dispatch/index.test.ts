@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { ResponseOutputItem } from "openai/resources/responses/responses";
+import type { ResponseInputItem, ResponseOutputItem } from "openai/resources/responses/responses";
 import { PDFDocument } from "pdf-lib";
 import { dispatchResponseOutput, type ToolDispatchContext, type ToolDispatchState } from "./index.js";
 import { appendMessage, consumeCommandInterruptForStep, queryTasks } from "../agent-db/index.js";
@@ -1119,6 +1119,9 @@ describe("dispatchResponseOutput", () => {
       });
       expect(imageItem?.content?.[1]?.image_url).toContain("data:image/png;base64,");
       expect((imageItem?.content?.[1] as { detail?: string } | undefined)?.detail).toBe("high");
+      // The image follows the call's output, so the call and its output stay adjacent.
+      expect(state.conversationItems.indexOf(imageItem as ResponseInputItem)).toBe(state.conversationItems.indexOf(outputItem!) + 1);
+      expect(state.runPersistedItems).toEqual(state.conversationItems);
     } finally {
       fs.rmSync(taskDir, { recursive: true, force: true });
     }

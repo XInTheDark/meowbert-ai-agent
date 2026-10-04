@@ -5,6 +5,7 @@ import { chooseSubagentRuntime } from "../../subagents/runtime.js";
 import { hasSubagentMail, listSubagents, sendSubagentMessage } from "../../subagents/mail.js";
 import { interruptSubagent } from "../../subagents/interrupt.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
+import type { ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled } from "../utils.js";
 
@@ -43,16 +44,16 @@ async function runSubagentTool(call: ResponseFunctionToolCall, ctx: ToolDispatch
   }
 }
 
-export async function handleSubagentTool(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<void> {
+export async function handleSubagentTool(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
   const execution = await startBuiltinToolExecution(ctx, state, call, { inputLabel: "Subagent" });
   try {
     if (ctx.isThreadTask || !ctx.runToolOptions.subtasks) throw new Error("Subagents are disabled for this task.");
     await ctx.assertNotCancelled();
     const result = await runSubagentTool(call, ctx, state);
-    await finishBuiltinToolSuccess(ctx, state, execution, result);
+    return await finishBuiltinToolSuccess(ctx, execution, result);
   } catch (error) {
     state.subagentWaitDeadline = undefined;
     rethrowIfTaskCancelled(error);
-    await finishBuiltinToolFailure(ctx, state, execution, error instanceof Error ? error.message : String(error));
+    return finishBuiltinToolFailure(ctx, execution, error instanceof Error ? error.message : String(error));
   }
 }

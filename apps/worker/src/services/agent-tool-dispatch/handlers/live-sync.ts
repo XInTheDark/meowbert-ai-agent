@@ -11,7 +11,7 @@ import {
 import { fetchTaskLiveSyncStatus, pullTaskLiveSyncFile, pushTaskLiveSyncFile } from "../../agent/live-sync-client.js";
 import { parseToolArguments } from "../../agent/utils.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled } from "../utils.js";
 
@@ -28,12 +28,11 @@ export async function handleListLiveSyncFiles(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(LIST_LIVE_SYNC_FILES_TOOL_NAME, outputItem.arguments, listLiveSyncFilesArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -42,7 +41,7 @@ export async function handleListLiveSyncFiles(
   });
 
   try {
-    await finishBuiltinToolSuccess(ctx, state, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       count: ctx.liveSyncFiles.length,
       items: ctx.liveSyncFiles
     }, {
@@ -51,7 +50,7 @@ export async function handleListLiveSyncFiles(
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to list live sync paths: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to list live sync paths: ${message}`);
   }
 }
 
@@ -59,12 +58,11 @@ export async function handleGetLiveSyncStatus(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(GET_LIVE_SYNC_STATUS_TOOL_NAME, outputItem.arguments, liveSyncStatusArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const path = parsed.value.path.trim();
@@ -81,13 +79,13 @@ export async function handleGetLiveSyncStatus(
       workspaceId: ctx.workspaceId,
       taskRelativePath: summary.taskRelativePath
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, status, {
+    return await finishBuiltinToolSuccess(ctx, execution, status, {
       eventPayload: { path: summary.taskRelativePath, status: status.status }
     });
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to fetch live sync status: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to fetch live sync status: ${message}`);
   }
 }
 
@@ -96,13 +94,12 @@ async function handleLiveSyncMutation(input: {
   outputItem: ResponseFunctionToolCall;
   ctx: ToolDispatchContext;
   state: ToolDispatchState;
-}): Promise<void> {
+}): Promise<ToolCallResult> {
   await input.ctx.assertNotCancelled();
   const toolName = input.action === "pull" ? PULL_LIVE_SYNC_FILE_TOOL_NAME : PUSH_LIVE_SYNC_FILE_TOOL_NAME;
   const parsed = parseToolArguments(toolName, input.outputItem.arguments, liveSyncMutationArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(input.state, input.outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const path = parsed.value.path.trim();
@@ -129,7 +126,7 @@ async function handleLiveSyncMutation(input: {
           force: parsed.value.force
         });
 
-    await finishBuiltinToolSuccess(input.ctx, input.state, execution, result, {
+    return await finishBuiltinToolSuccess(input.ctx, execution, result, {
       eventPayload: {
         path: summary.taskRelativePath,
         action: input.action,
@@ -141,7 +138,7 @@ async function handleLiveSyncMutation(input: {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
     const actionLabel = input.action === "pull" ? "pull" : "push";
-    await finishBuiltinToolFailure(input.ctx, input.state, execution, `Failed to ${actionLabel} live sync file: ${message}`);
+    return finishBuiltinToolFailure(input.ctx, execution, `Failed to ${actionLabel} live sync file: ${message}`);
   }
 }
 
@@ -149,7 +146,7 @@ export async function handlePullLiveSyncFile(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   return handleLiveSyncMutation({
     action: "pull",
     outputItem,
@@ -162,7 +159,7 @@ export async function handlePushLiveSyncFile(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   return handleLiveSyncMutation({
     action: "push",
     outputItem,

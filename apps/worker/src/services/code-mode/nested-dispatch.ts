@@ -1,29 +1,12 @@
-import type { FunctionTool, ResponseFunctionToolCall, ResponseInputItem } from "openai/resources/responses/responses";
+import type { FunctionTool, ResponseFunctionToolCall } from "openai/resources/responses/responses";
+import type { ToolCallResult } from "../agent-tool-dispatch/tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../agent-tool-dispatch/types.js";
 
 export type NestedToolDispatcher = (
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-) => Promise<unknown>;
-
-// Handlers write their output into the conversation. A nested call's output belongs to the script,
-// not the model, so the handler gets a view of the run state whose conversation arrays are scratch
-// space; every other field (command step counter, organization, budgets) stays shared with the run.
-function createNestedState(state: ToolDispatchState, conversationItems: ResponseInputItem[]): ToolDispatchState {
-  const runPersistedItems: ResponseInputItem[] = [];
-  return new Proxy(state, {
-    get(target, property, receiver) {
-      if (property === "conversationItems") return conversationItems;
-      if (property === "runPersistedItems") return runPersistedItems;
-      return Reflect.get(target, property, receiver);
-    },
-    set(target, property, value, receiver) {
-      if (property === "conversationItems" || property === "runPersistedItems") return false;
-      return Reflect.set(target, property, value, receiver);
-    }
-  });
-}
+) => Promise<ToolCallResult>;
 
 // Strict schemas mark every key required; scripts may leave nullable ones out.
 function fillOmittedNullableArguments(tool: FunctionTool, args: Record<string, unknown>): Record<string, unknown> {
@@ -38,36 +21,6 @@ function fillOmittedNullableArguments(tool: FunctionTool, args: Record<string, u
   return filled;
 }
 
-function readCallOutput(items: ResponseInputItem[], callId: string): unknown {
-  const item = items.find((entry) => entry.type === "function_call_output" && entry.call_id === callId);
-  if (!item || item.type !== "function_call_output") {
-    return { error: "The tool finished without returning output." };
-  }
-  if (typeof item.output !== "string") {
-    return item.output;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(item.output);
-  } catch {
-    return item.output;
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return parsed;
-  }
-  // serializeToolOutput adds a context-usage notice meant for the model; the script doesn't need it.
-  const { context: _context, ...rest } = parsed as Record<string, unknown>;
-  const keys = Object.keys(rest);
-  return keys.length === 1 && keys[0] === "result" ? rest.result : rest;
-}
-
-// Media tools put the image or PDF in a message next to their output. The script can't use it, so it
-// goes to the model once exec returns.
-function collectShownItems(items: ResponseInputItem[]): ResponseInputItem[] {
-  return items.filter((item) => "role" in item && item.role === "user");
-}
-
 export async function dispatchNestedToolCall(input: {
   execCall: ResponseFunctionToolCall;
   index: number;
@@ -76,26 +29,16 @@ export async function dispatchNestedToolCall(input: {
   ctx: ToolDispatchContext;
   state: ToolDispatchState;
   dispatch: NestedToolDispatcher;
-  // Receives the messages the call shows the model, such as a loaded image.
-  shownItems: ResponseInputItem[];
-}): Promise<unknown> {
+}): Promise<ToolCallResult> {
   if (!input.args || typeof input.args !== "object" || Array.isArray(input.args)) {
     throw new Error(`tools.${input.tool.name} takes one arguments object.`);
   }
 
-  const callId = `${input.execCall.call_id}.${input.index}`;
   const outputItem: ResponseFunctionToolCall = {
     type: "function_call",
-    call_id: callId,
+    call_id: `${input.execCall.call_id}.${input.index}`,
     name: input.tool.name,
     arguments: JSON.stringify(fillOmittedNullableArguments(input.tool, input.args as Record<string, unknown>))
   };
-  const conversationItems: ResponseInputItem[] = [];
-  await input.dispatch(
-    outputItem,
-    { ...input.ctx, codeModeParentCallId: input.execCall.call_id },
-    createNestedState(input.state, conversationItems)
-  );
-  input.shownItems.push(...collectShownItems(conversationItems));
-  return readCallOutput(conversationItems, callId);
+  return input.dispatch(outputItem, { ...input.ctx, codeModeParentCallId: input.execCall.call_id }, input.state);
 }

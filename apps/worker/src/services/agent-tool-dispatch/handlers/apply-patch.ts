@@ -1,9 +1,6 @@
 import { APPLY_PATCH_TOOL_NAME } from "../../agent-tools/index.js";
 import {
   applyPatchOperationToWorkspace,
-  createApplyPatchCallOutput,
-  createApplyPatchFunctionToolCallOutput,
-  createApplyPatchCustomToolCallOutput,
   formatApplyPatchOperationSummary,
   applyPatchFunctionToolArgumentsSchema,
   parseApplyPatchDocument,
@@ -18,6 +15,13 @@ import { appendToolMessage } from "../events.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { serializeTextToolOutput } from "../state.js";
 import { rethrowIfTaskCancelled } from "../utils.js";
+
+// apply_patch reaches the model as a function, custom or native call; dispatch records the text in
+// the output item that matches, with the status native calls carry.
+export interface ApplyPatchResult {
+  output: string;
+  status: "completed" | "failed";
+}
 
 interface ApplyPatchInvocation {
   callId: string;
@@ -82,23 +86,6 @@ function buildApplyPatchInvocation(
   };
 }
 
-function pushApplyPatchOutput(
-  outputItem: ApplyPatchCall | ApplyPatchCustomToolCall | ApplyPatchFunctionToolCall,
-  state: ToolDispatchState,
-  output: string,
-  status: "completed" | "failed"
-): string {
-  const contextAwareOutput = serializeTextToolOutput(output, state);
-  const result = isNativeApplyPatchCall(outputItem)
-    ? createApplyPatchCallOutput(outputItem.call_id, status, contextAwareOutput)
-    : isFunctionApplyPatchCall(outputItem)
-      ? createApplyPatchFunctionToolCallOutput(outputItem.call_id, contextAwareOutput)
-      : createApplyPatchCustomToolCallOutput(outputItem.call_id, contextAwareOutput);
-  state.conversationItems.push(result);
-  state.runPersistedItems.push(result);
-  return contextAwareOutput;
-}
-
 function buildApplyPatchMessageResponseItems(
   outputItem: ApplyPatchCall | ApplyPatchCustomToolCall | ApplyPatchFunctionToolCall,
   callId: string,
@@ -147,7 +134,7 @@ export async function handleApplyPatch(
   outputItem: ApplyPatchCall | ApplyPatchCustomToolCall | ApplyPatchFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ApplyPatchResult> {
   await ctx.assertNotCancelled();
   const invocation = buildApplyPatchInvocation(outputItem);
   const step = state.commandStep;
@@ -186,7 +173,7 @@ export async function handleApplyPatch(
     }
 
     const outputText = outputs.join("\n");
-    const contextAwareOutput = pushApplyPatchOutput(outputItem, state, outputText, "completed");
+    const contextAwareOutput = serializeTextToolOutput(outputText, state);
     const durationMs = Date.now() - startedAtMs;
 
     await appendToolMessage(ctx, {
@@ -212,13 +199,14 @@ export async function handleApplyPatch(
       paths: invocation.operations.map((operation) => operation.path),
       absolutePaths
     });
+    return { output: outputText, status: "completed" };
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
     const failureText = outputs.length > 0
       ? `${outputs.join("\n")}\nError: ${message}`
       : `Error: ${message}`;
-    const contextAwareFailure = pushApplyPatchOutput(outputItem, state, failureText, "failed");
+    const contextAwareFailure = serializeTextToolOutput(failureText, state);
     const durationMs = Date.now() - startedAtMs;
 
     await appendToolMessage(ctx, {
@@ -252,5 +240,6 @@ export async function handleApplyPatch(
       callId: invocation.callId,
       tool: APPLY_PATCH_TOOL_NAME
     });
+    return { output: failureText, status: "failed" };
   }
 }

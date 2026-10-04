@@ -36,7 +36,7 @@ import {
 import { parseToolArguments } from "../../agent/utils.js";
 import { getDesktopComputerPresence, requestDesktopComputerAction } from "../../computer/computer-use.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled } from "../utils.js";
 
@@ -171,17 +171,16 @@ export async function handleComputerToolCall(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<boolean> {
+): Promise<ToolCallResult | null> {
   if (!COMPUTER_RESPONSE_FUNCTION_TOOLS.some((tool) => tool.name === outputItem.name)) {
-    return false;
+    return null;
   }
 
   await ctx.assertNotCancelled();
   const toolName = outputItem.name as ComputerToolName;
   const parsed = parseComputerToolArguments(outputItem);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return true;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -194,19 +193,16 @@ export async function handleComputerToolCall(
 
   try {
     if (!ctx.actorUserId) {
-      await finishBuiltinToolFailure(ctx, state, execution, "Computer use requires a signed-in desktop user.");
-      return true;
+      return await finishBuiltinToolFailure(ctx, execution, "Computer use requires a signed-in desktop user.");
     }
 
     const presence = await getDesktopComputerPresence(ctx.actorUserId);
     if (!presence || presence.status.available !== true) {
-      await finishBuiltinToolFailure(
+      return await finishBuiltinToolFailure(
         ctx,
-        state,
         execution,
         presence?.status.reason ?? "No connected Meowbert Desktop executor is available for this user."
       );
-      return true;
     }
 
     const result = await requestDesktopComputerAction({
@@ -218,26 +214,22 @@ export async function handleComputerToolCall(
     });
 
     if (!result.ok) {
-      await finishBuiltinToolFailure(
+      return await finishBuiltinToolFailure(
         ctx,
-        state,
         execution,
         result.error ?? "The desktop computer executor reported an unknown error."
       );
-      return true;
     }
 
-    if (result.observation?.imageDataUrl) {
-      const observationItem = buildObservationItem({
-        text: result.observation.text,
-        imageDataUrl: result.observation.imageDataUrl,
-        detail: ctx.imageDetail ?? "high"
-      });
-      state.conversationItems.push(observationItem);
-      state.runPersistedItems.push(observationItem);
-    }
+    const shownItems = result.observation?.imageDataUrl
+      ? [buildObservationItem({
+          text: result.observation.text,
+          imageDataUrl: result.observation.imageDataUrl,
+          detail: ctx.imageDetail ?? "high"
+        })]
+      : [];
 
-    await finishBuiltinToolSuccess(ctx, state, execution, result.output ?? { ok: true }, {
+    const finished = await finishBuiltinToolSuccess(ctx, execution, result.output ?? { ok: true }, {
       eventPayload: {
         computerUse: true,
         ...(result.observation?.display ? { display: result.observation.display } : {}),
@@ -251,15 +243,13 @@ export async function handleComputerToolCall(
         ...(result.observation?.cursor ? { cursor: result.observation.cursor } : {})
       }
     });
+    return { ...finished, shownItems };
   } catch (error) {
     rethrowIfTaskCancelled(error);
-    await finishBuiltinToolFailure(
+    return finishBuiltinToolFailure(
       ctx,
-      state,
       execution,
       error instanceof Error ? error.message : String(error)
     );
   }
-
-  return true;
 }

@@ -52,7 +52,7 @@ describe("Master create_task with repeat", () => {
       {} as ToolDispatchState
     );
 
-    const output = vi.mocked(finishBuiltinToolSuccess).mock.calls[0]?.[3];
+    const output = vi.mocked(finishBuiltinToolSuccess).mock.calls[0]?.[2];
     expect(output).toMatchObject({ first_run: "started_now", next_scheduled_run_at: "2026-10-05T01:00:00.000Z" });
     expect(output).not.toHaveProperty("next_run_at");
   });

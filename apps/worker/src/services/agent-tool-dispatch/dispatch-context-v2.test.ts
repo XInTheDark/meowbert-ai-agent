@@ -37,17 +37,9 @@ const contextManagementV2: ContextManagementV2State = {
 };
 
 describe("dispatchResponseOutput Context Management V2 persistence", () => {
-  it("records the output added by apply_patch after a custom tool call", async () => {
+  it("records the output apply_patch returns for a custom tool call", async () => {
     mocks.recordContextItems.mockClear();
-    mocks.handleApplyPatch.mockImplementationOnce(async (outputItem, _ctx, state) => {
-      const output = {
-        type: "custom_tool_call_output",
-        call_id: outputItem.call_id,
-        output: "done"
-      };
-      state.conversationItems.push(output);
-      state.runPersistedItems.push(output);
-    });
+    mocks.handleApplyPatch.mockResolvedValueOnce({ output: "done", status: "completed" });
     const state: ToolDispatchState = {
       conversationItems: [],
       runPersistedItems: [],

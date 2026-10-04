@@ -28,11 +28,10 @@ import {
   mutateContextNote,
   readContextItem,
   readContextNote,
-  recordContextItems,
   searchContextHistory,
   searchContextNotes
 } from "../../context-management-v2/index.js";
-import { pushToolOutput } from "../state.js";
+import type { ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 
 const V2_TOOL_NAMES = new Set([
@@ -61,18 +60,11 @@ function parseArguments(call: ResponseFunctionToolCall): unknown {
   }
 }
 
-async function pushContextOutput(ctx: ToolDispatchContext, state: ToolDispatchState, toolName: string, callId: string, output: unknown): Promise<void> {
-  const context = ctx.contextManagementV2;
-  if (!context) throw new Error("Context management V2 is unavailable for this run.");
-  const item = pushToolOutput(state, callId, toolName, output);
-  await recordContextItems(context, [item]);
-}
-
 export async function handleContextManagementV2Tool(
   call: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   const context = ctx.contextManagementV2;
   if (!context) throw new Error("Context management V2 is unavailable for this run.");
   const raw = parseArguments(call);
@@ -123,5 +115,5 @@ export async function handleContextManagementV2Tool(
     default:
       throw new Error(`Unknown Context Management V2 tool: ${call.name}`);
   }
-  await pushContextOutput(ctx, state, call.name, call.call_id, output);
+  return { output };
 }

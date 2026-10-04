@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../context-management-v2/index.js", () => mocks);
 
-import { handleContextManagementV2Tool } from "./context-management-v2.js";
+import { dispatchResponseOutput } from "../dispatch.js";
 
 const contextManagementV2: ContextManagementV2State = {
   version: "v2",
@@ -32,7 +32,7 @@ const contextManagementV2: ContextManagementV2State = {
   recoveryPhase: "normal"
 };
 
-describe("handleContextManagementV2Tool", () => {
+describe("Context Management V2 tool calls", () => {
   it("persists the context tool output for the task conversation", async () => {
     mocks.mutateContextNote.mockResolvedValue({ path: "notes/continuity.md", updated: true });
     const call = {
@@ -47,16 +47,14 @@ describe("handleContextManagementV2Tool", () => {
       contextUsage: { usedTokens: 64_000, maxContextTokens: 256_000, percent: 25 },
       commandStep: 0
     } as ToolDispatchState;
-    const ctx = { contextManagementV2 } as ToolDispatchContext;
+    const ctx = { contextManagementV2, compatibilityModes: [], assertNotCancelled: async () => {} } as unknown as ToolDispatchContext;
 
-    await handleContextManagementV2Tool(call, ctx, state);
+    await dispatchResponseOutput([call], ctx, state);
 
-    expect(state.runPersistedItems).toHaveLength(1);
-    expect(state.runPersistedItems[0]).toMatchObject({
-      type: "function_call_output",
-      call_id: "call-1"
-    });
-    expect(JSON.parse((state.runPersistedItems[0] as { output: string }).output)).toEqual({
+    const output = state.runPersistedItems.find((item) => item.type === "function_call_output");
+    expect(output).toMatchObject({ call_id: "call-1" });
+    expect(mocks.recordContextItems).toHaveBeenLastCalledWith(contextManagementV2, [output]);
+    expect(JSON.parse((output as { output: string }).output)).toEqual({
       updated: true,
       context: "Model request that produced this tool call: 64000 / 256000 tokens (25%)."
     });

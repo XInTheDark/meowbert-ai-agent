@@ -4,7 +4,7 @@ import { parseToolArguments } from "../../agent/utils.js";
 import { waitForConditions } from "../../runtime/wait.js";
 import { applyInfiniteWait } from "../../task-schedules/service.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
 
@@ -12,12 +12,11 @@ export async function handleWaitTool(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<{ response: string; notify: boolean; seconds: number; nextRunAt: string } | null> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(WAIT_TOOL_NAME, outputItem.arguments, waitArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Wait",
@@ -33,16 +32,19 @@ export async function handleWaitTool(
         throw new Error("Infinite recurring time-only waits require seconds between 60 and 604800 and a response.");
       }
       const nextRunAt = await applyInfiniteWait(ctx.taskId, parsed.value.seconds);
-      await finishBuiltinToolSuccess(ctx, state, execution, {
+      const finished = await finishBuiltinToolSuccess(ctx, execution, {
         acknowledged: true,
         seconds: parsed.value.seconds,
         next_run_at: nextRunAt
       }, { eventPayload: { waitSeconds: parsed.value.seconds, nextRunAt } });
       return {
-        response: parsed.value.response.trim(),
-        notify: parsed.value.notify ?? true,
-        seconds: parsed.value.seconds,
-        nextRunAt
+        ...finished,
+        waitRequest: {
+          response: parsed.value.response.trim(),
+          notify: parsed.value.notify ?? true,
+          seconds: parsed.value.seconds,
+          nextRunAt
+        }
       };
     }
     if (shellSessions.length > 0 && (!ctx.persistentRuntimeEnabled || !ctx.actorUserId)) {
@@ -56,14 +58,12 @@ export async function handleWaitTool(
       signal: ctx.cancellationSignal,
       assertNotCancelled: ctx.assertNotCancelled
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, result);
-    return null;
+    return await finishBuiltinToolSuccess(ctx, execution, result);
   } catch (err) {
     if (ctx.cancellationSignal?.aborted) throw err;
     rethrowIfTaskCancelled(err);
     if (err instanceof Error && err.message === "RUN_TIME_LIMIT_REACHED") throw err;
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to wait: ${message}`);
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, `Failed to wait: ${message}`);
   }
 }

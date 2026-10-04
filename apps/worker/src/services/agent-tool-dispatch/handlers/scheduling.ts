@@ -12,7 +12,7 @@ import {
 import { parseToolArguments } from "../../agent/utils.js";
 import { createRecurringTaskFromTool, editCurrentTaskSchedule, pauseRecurringSchedule } from "../../task-schedules/service.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
-import { pushParseError } from "../state.js";
+import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
 
@@ -20,21 +20,19 @@ export async function handleScheduleTask(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   if (ctx.isThreadTask) {
     const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
       inputLabel: "Schedule",
       inputText: "Thread runs cannot schedule new tasks."
     });
-    await finishBuiltinToolFailure(ctx, state, execution, "schedule_task is unavailable in read-only threads.");
-    return;
+    return finishBuiltinToolFailure(ctx, execution, "schedule_task is unavailable in read-only threads.");
   }
 
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(SCHEDULE_TASK_TOOL_NAME, outputItem.arguments, scheduleTaskArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -70,7 +68,7 @@ export async function handleScheduleTask(
       next_run_at: result.nextRunAt
     };
 
-    await finishBuiltinToolSuccess(ctx, state, execution, output, {
+    return await finishBuiltinToolSuccess(ctx, execution, output, {
       eventPayload: {
         scheduledTaskId: result.taskId,
         scheduledMode: result.mode
@@ -79,7 +77,7 @@ export async function handleScheduleTask(
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to schedule task: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to schedule task: ${message}`);
   }
 }
 
@@ -87,7 +85,7 @@ export async function handleEditCurrentTaskSchedule(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<void> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(
     EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
@@ -95,8 +93,7 @@ export async function handleEditCurrentTaskSchedule(
     editCurrentTaskScheduleArgumentsSchema
   );
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -124,7 +121,7 @@ export async function handleEditCurrentTaskSchedule(
       timezone: result.timezone,
       next_run_at: result.nextRunAt
     };
-    await finishBuiltinToolSuccess(ctx, state, execution, output, {
+    return await finishBuiltinToolSuccess(ctx, execution, output, {
       eventPayload: {
         mode: result.mode,
         scheduleState: result.state
@@ -133,7 +130,7 @@ export async function handleEditCurrentTaskSchedule(
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to edit task schedule: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to edit task schedule: ${message}`);
   }
 }
 
@@ -141,7 +138,7 @@ export async function handleSwarmPauseTool(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<{ kind: "agent_swarm_paused"; response: string } | null> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(
     SWARM_PAUSE_TOOL_NAME,
@@ -149,8 +146,7 @@ export async function handleSwarmPauseTool(
     swarmPauseArgumentsSchema
   );
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Swarm pause",
@@ -158,32 +154,28 @@ export async function handleSwarmPauseTool(
   });
 
   if (ctx.runMode !== "agent_swarm_leader" && ctx.runMode !== "agent_swarm_worker") {
-    await finishBuiltinToolFailure(
+    return finishBuiltinToolFailure(
       ctx,
-      state,
       execution,
       "swarm_pause can only be used during Agent Swarm runs."
     );
-    return null;
   }
 
   try {
     if (!ctx.workflowActions?.pauseSwarmAgent) {
-      await finishBuiltinToolFailure(ctx, state, execution, "swarm_pause is not available for this run.");
-      return null;
+      return await finishBuiltinToolFailure(ctx, execution, "swarm_pause is not available for this run.");
     }
     await ctx.workflowActions.pauseSwarmAgent({
       ...(parsed.value.target_swarm ? { targetSwarm: parsed.value.target_swarm } : {}),
       status: parsed.value.status,
       waitingForTaskIds: parsed.value.waiting_for_task_ids
     });
-    await finishBuiltinToolSuccess(ctx, state, execution, { acknowledged: true, paused: true });
-    return { kind: "agent_swarm_paused", response: parsed.value.status };
+    const finished = await finishBuiltinToolSuccess(ctx, execution, { acknowledged: true, paused: true });
+    return { ...finished, workflowPause: { kind: "agent_swarm_paused", response: parsed.value.status } };
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to apply swarm wait: ${message}`);
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, `Failed to apply swarm wait: ${message}`);
   }
 }
 
@@ -191,12 +183,11 @@ export async function handleStopTask(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
-): Promise<{ response: string; notify: boolean } | null> {
+): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const parsed = parseToolArguments(STOP_TASK_TOOL_NAME, outputItem.arguments, stopTaskArgumentsSchema);
   if (!parsed.ok) {
-    pushParseError(state, outputItem.call_id, parsed.error);
-    return null;
+    return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -224,18 +215,16 @@ export async function handleStopTask(
       notify: stopResponse.notify
     };
 
-    await finishBuiltinToolSuccess(ctx, state, execution, output, {
+    const finished = await finishBuiltinToolSuccess(ctx, execution, output, {
       eventPayload: {
         scheduleState: pauseResult.state,
         mode: pauseResult.mode
       }
     });
-
-    return stopResponse;
+    return { ...finished, stopRequest: stopResponse };
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
-    await finishBuiltinToolFailure(ctx, state, execution, `Failed to stop recurring task: ${message}`);
-    return null;
+    return finishBuiltinToolFailure(ctx, execution, `Failed to stop recurring task: ${message}`);
   }
 }

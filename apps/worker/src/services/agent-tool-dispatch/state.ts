@@ -1,4 +1,6 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
+import { createApplyPatchCallOutput } from "../agent/apply-patch.js";
+import type { ToolCallResult } from "./tool-call-result.js";
 import type { ToolDispatchState } from "./types.js";
 
 const TOOL_OUTPUT_INPUT_FIELDS = new Map<string, readonly string[]>([
@@ -82,71 +84,42 @@ export function serializeTextToolOutput(output: string, state: ToolDispatchState
   return serializeToolOutput(output, state);
 }
 
-export function pushOutput(
-  state: ToolDispatchState,
-  callId: string,
-  output: unknown,
-  persistOnly = false
-): ResponseInputItem {
-  const item: ResponseInputItem = {
-    type: "function_call_output",
-    call_id: callId,
-    output: serializeToolOutput(output, state)
-  };
-  state.conversationItems.push(item);
-  if (!persistOnly) {
-    state.runPersistedItems.push(item);
-  }
-  return item;
+function record(state: ToolDispatchState, items: ResponseInputItem[]): ResponseInputItem[] {
+  state.conversationItems.push(...items);
+  state.runPersistedItems.push(...items);
+  return items;
 }
 
-export function pushToolOutput(
+// Records a function call the model made: its output, then anything it shows the model.
+export function recordFunctionCallResult(
   state: ToolDispatchState,
   callId: string,
   toolName: string,
-  output: unknown,
-  persistOnly = false
-): ResponseInputItem {
-  return pushOutput(state, callId, prepareToolOutputForModel(toolName, output), persistOnly);
+  result: ToolCallResult
+): ResponseInputItem[] {
+  const outputItem: ResponseInputItem = {
+    type: "function_call_output",
+    call_id: callId,
+    output: serializeToolOutput(prepareToolOutputForModel(toolName, result.output), state)
+  };
+  return record(state, [outputItem, ...(result.shownItems ?? [])]);
 }
 
-export function pushCustomToolOutput(
+export function recordCustomToolCallOutput(state: ToolDispatchState, callId: string, output: string): ResponseInputItem[] {
+  return record(state, [{
+    type: "custom_tool_call_output",
+    call_id: callId,
+    output: serializeTextToolOutput(output, state)
+  } as ResponseInputItem]);
+}
+
+export function recordApplyPatchCallOutput(
   state: ToolDispatchState,
   callId: string,
   output: string,
-  persistOnly = false
-): ResponseInputItem {
-  const item: ResponseInputItem = {
-    type: "custom_tool_call_output",
-    call_id: callId,
-    output: serializeTextToolOutput(output, state)
-  } as ResponseInputItem;
-  state.conversationItems.push(item);
-  if (!persistOnly) {
-    state.runPersistedItems.push(item);
-  }
-  return item;
-}
-
-export function pushCustomToolParseError(state: ToolDispatchState, callId: string, error: string): void {
-  const item: ResponseInputItem = {
-    type: "custom_tool_call_output",
-    call_id: callId,
-    output: serializeTextToolOutput(`Error: ${error}`, state)
-  } as ResponseInputItem;
-  state.conversationItems.push(item);
-  state.runPersistedItems.push(item);
-}
-
-export function pushApplyPatchFailureOutput(state: ToolDispatchState, callId: string, output: string): void {
-  const item = {
-    type: "apply_patch_call_output",
-    call_id: callId,
-    status: "failed",
-    output: serializeTextToolOutput(output, state)
-  } as unknown as ResponseInputItem;
-  state.conversationItems.push(item);
-  state.runPersistedItems.push(item);
+  status: "completed" | "failed"
+): ResponseInputItem[] {
+  return record(state, [createApplyPatchCallOutput(callId, status, serializeTextToolOutput(output, state))]);
 }
 
 export function hasCustomToolOutput(state: ToolDispatchState, callId: string): boolean {
@@ -157,16 +130,6 @@ export function hasCustomToolOutput(state: ToolDispatchState, callId: string): b
 export function hasApplyPatchCallOutput(state: ToolDispatchState, callId: string): boolean {
   const hasOutput = (item: ResponseInputItem) => item.type === "apply_patch_call_output" && item.call_id === callId;
   return state.conversationItems.some(hasOutput) || state.runPersistedItems.some(hasOutput);
-}
-
-export function pushParseError(state: ToolDispatchState, callId: string, error: string): void {
-  const item: ResponseInputItem = {
-    type: "function_call_output",
-    call_id: callId,
-    output: serializeToolOutput({ error }, state)
-  };
-  state.conversationItems.push(item);
-  state.runPersistedItems.push(item);
 }
 
 export function hasFunctionCallOutput(state: ToolDispatchState, callId: string): boolean {
