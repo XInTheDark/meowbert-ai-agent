@@ -156,6 +156,7 @@ describe("ToolActivityInspectorPanel", () => {
       command: "npm test",
       inputLabel: "Command",
       inputText: "npm test",
+      summary: null,
       startedAt: "2026-08-28T10:00:00.000Z",
       step: 1,
       interruptible: true

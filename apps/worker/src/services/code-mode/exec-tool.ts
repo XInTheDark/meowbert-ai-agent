@@ -8,7 +8,8 @@ export const EXEC_TOOL_NAME = "exec";
 
 export const execArgumentsSchema = z.object({
   code: z.string().min(1),
-  timeout_seconds: z.number().positive().nullable()
+  timeout_seconds: z.number().positive().nullable(),
+  summary: z.string().nullable().optional()
 }).strict();
 
 export type ExecArguments = z.infer<typeof execArgumentsSchema>;
@@ -57,9 +58,13 @@ export function buildExecTool(nestedTools: FunctionTool[], maxTimeoutSeconds: nu
           minimum: 1,
           maximum: maxTimeoutSeconds,
           description: `Limit for the whole script in seconds (max ${maxTimeoutSeconds}). A tool call already running finishes first. Use null for the default.`
+        },
+        summary: {
+          type: ["string", "null"],
+          description: "One short line the user sees about what this step does, e.g. \"Checking which tests fail\". Use null when the step is routine or no different from the last one."
         }
       },
-      required: ["code", "timeout_seconds"],
+      required: ["code", "timeout_seconds", "summary"],
       additionalProperties: false
     }
   };

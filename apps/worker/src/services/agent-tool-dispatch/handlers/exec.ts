@@ -11,7 +11,15 @@ import { runCodeModeScript } from "../../code-mode/script-runtime.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
 import { pushParseError } from "../state.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
-import { getErrorMessage } from "../utils.js";
+import { getErrorMessage, normalizeToolEventText } from "../utils.js";
+
+const SUMMARY_MAX_CHARS = 160;
+
+// The summary is one line in the activity view; keep it that way whatever the model sends.
+function normalizeSummary(summary: string | null | undefined): string | null {
+  const line = normalizeToolEventText(summary?.replace(/\s+/g, " "));
+  return line && line.length > SUMMARY_MAX_CHARS ? `${line.slice(0, SUMMARY_MAX_CHARS - 1)}…` : line;
+}
 
 function limitText(text: string): string {
   const limit = RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS + RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS;
@@ -44,7 +52,13 @@ export async function handleExec(
   }
 
   const tools = new Map((ctx.codeModeTools ?? []).map((tool) => [tool.name, tool]));
-  const execution = await startBuiltinToolExecution(ctx, state, outputItem, { inputLabel: "Code", inputText: parsed.value.code });
+  const summary = normalizeSummary(parsed.value.summary);
+  const summaryPayload = summary ? { summary } : {};
+  const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
+    inputLabel: "Code",
+    inputText: parsed.value.code,
+    extraEventPayload: summaryPayload
+  });
   let toolCallCount = 0;
   let cancelledByTask = false;
   const script = await runCodeModeScript({
@@ -76,8 +90,8 @@ export async function handleExec(
     tool_calls: toolCallCount
   };
   if (script.error) {
-    await finishBuiltinToolFailure(ctx, state, execution, script.error, { output });
+    await finishBuiltinToolFailure(ctx, state, execution, script.error, { output, messagePayload: summaryPayload });
     return;
   }
-  await finishBuiltinToolSuccess(ctx, state, execution, output);
+  await finishBuiltinToolSuccess(ctx, state, execution, output, { messagePayload: summaryPayload });
 }

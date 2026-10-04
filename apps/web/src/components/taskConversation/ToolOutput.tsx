@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Square } from "lucide-react";
 import { stripAnsi } from "@meowbert/shared/ansi";
 import type { LiveToolCall, TaskMessage } from "../../lib/types";
+import { getToolMessageStepSummary } from "../../task/activityStepSummaries";
 
 type ToolOutputProps = (
   | {
@@ -32,6 +33,7 @@ interface ToolSection {
 
 interface ParsedToolDisplay {
   title: string;
+  summary: string | null;
   isContextManagementTool: boolean;
   status: "running" | "completed" | "interrupted";
   callId: string | null;
@@ -186,6 +188,7 @@ function buildFromLiveCall(liveCall: LiveToolCall): ParsedToolDisplay {
 
   return {
     title: formatToolName(liveCall.toolName),
+    summary: liveCall.summary,
     isContextManagementTool: CONTEXT_MANAGEMENT_TOOL_NAMES.has(liveCall.toolName),
     status: "running",
     callId: liveCall.callId,
@@ -210,6 +213,7 @@ const HIDDEN_TOOL_PAYLOAD_KEYS = new Set([
   "command",
   "inputLabel",
   "inputText",
+  "summary",
   "stdout",
   "stderr",
   "error",
@@ -494,6 +498,7 @@ function buildFromMessage(message: TaskMessage): ParsedToolDisplay {
 
   return {
     title: formatToolName(toolName),
+    summary: getToolMessageStepSummary(message),
     isContextManagementTool: CONTEXT_MANAGEMENT_TOOL_NAMES.has(toolName),
     status: webSearchStatus === "in_progress" || webSearchStatus === "searching"
       ? "running"
@@ -577,6 +582,7 @@ export function ToolOutput(props: ToolOutputProps) {
               </span>
             </span>
           </span>
+          {display.summary ? <span className="tool-call-summary">{display.summary}</span> : null}
           <span className="tool-call-bottom-row">
             <span className="tool-call-meta-chips">
               {display.step !== null ? <span className="tool-chip">step {display.step}</span> : null}

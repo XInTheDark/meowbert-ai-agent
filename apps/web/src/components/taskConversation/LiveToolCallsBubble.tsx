@@ -1,5 +1,6 @@
 import { ToolActivitySummaryCard } from "./ToolActivitySummaryCard";
 import type { LiveToolCall } from "../../lib/types";
+import { getLiveToolCallStepSummaries } from "../../task/activityStepSummaries";
 import { getLiveToolCallsPreview } from "./shared";
 
 export function LiveToolCallsBubble(props: {
@@ -20,6 +21,7 @@ export function LiveToolCallsBubble(props: {
         title="Live tool activity"
         count={props.liveToolCalls.length}
         preview={preview}
+        steps={getLiveToolCallStepSummaries(props.liveToolCalls)}
         badgeTone="running"
         active={props.isSelected === true}
         onClick={() =>

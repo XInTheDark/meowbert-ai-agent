@@ -1,5 +1,11 @@
 # Changelog
 
+## Oct 4, 2026
+
+### AI and agents
+
+- **Step summaries in code mode** — While Meowbert works in code mode, it can describe each step in one short line. The Activity card now lists the last few steps, and the step that's still running shimmers so you can follow along without opening each tool call.
+
 ## Oct 3, 2026
 
 ### AI and agents

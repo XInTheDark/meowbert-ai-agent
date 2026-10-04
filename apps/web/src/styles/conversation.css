@@ -1706,6 +1706,133 @@
   background: color-mix(in srgb, var(--brand) 10%, var(--surface));
 }
 
+.tool-activity-card.has-steps {
+  padding: 0.46rem 0.56rem;
+}
+
+.tool-activity-card.has-steps .tool-activity-card-main {
+  flex: 1;
+}
+
+.tool-activity-steps {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.3rem;
+  padding-top: 0.38rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+}
+
+/* Thread joining the step markers; it collapses to nothing when there is a single step. */
+.tool-activity-steps::before {
+  content: "";
+  position: absolute;
+  left: 0.16rem;
+  top: calc(0.38rem + 0.6em);
+  bottom: 0.6em;
+  width: 1px;
+  background: color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.tool-activity-step {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+  opacity: 0.68;
+}
+
+.tool-activity-step.latest {
+  color: color-mix(in srgb, var(--text) 88%, var(--text-muted) 12%);
+  opacity: 1;
+  animation: tool-activity-step-enter 0.32s ease-out both;
+}
+
+.tool-activity-step-marker {
+  position: relative;
+  width: 0.34rem;
+  height: 0.34rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 70%, var(--surface-soft));
+}
+
+.tool-activity-step.latest .tool-activity-step-marker {
+  background: var(--brand);
+}
+
+.tool-activity-step.running .tool-activity-step-marker {
+  animation: tool-activity-step-pulse 1.6s ease-in-out infinite;
+}
+
+.tool-activity-step-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-activity-step.running .tool-activity-step-text {
+  color: transparent;
+  background: linear-gradient(
+    90deg,
+    var(--text-muted) 0%,
+    var(--text-muted) 38%,
+    var(--text) 50%,
+    var(--text-muted) 62%,
+    var(--text-muted) 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: tool-activity-step-shimmer 2.4s linear infinite;
+}
+
+@keyframes tool-activity-step-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0% 0;
+  }
+}
+
+@keyframes tool-activity-step-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--brand) 0%, transparent);
+  }
+}
+
+@keyframes tool-activity-step-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.2rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-activity-step.latest,
+  .tool-activity-step.running .tool-activity-step-marker {
+    animation: none;
+  }
+
+  .tool-activity-step.running .tool-activity-step-text {
+    animation: none;
+    background: none;
+    color: var(--text);
+  }
+}
+
 .tool-group-content {
   border-top: 1px solid var(--border);
   background: var(--surface);
@@ -2011,6 +2138,14 @@
 .tool-call-bottom-row {
   justify-content: space-between;
   gap: 0.6rem;
+}
+
+.tool-call-summary {
+  min-width: 0;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
 }
 
 .tool-call-title-wrap {

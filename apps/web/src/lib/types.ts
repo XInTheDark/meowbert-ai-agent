@@ -522,6 +522,7 @@ export interface LiveToolCall {
   command: string | null;
   inputLabel: string;
   inputText: string;
+  summary: string | null;
   interruptible: boolean;
   startedAt: string;
 }
