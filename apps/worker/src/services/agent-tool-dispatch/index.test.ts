@@ -1589,17 +1589,10 @@ describe("dispatchResponseOutput", () => {
   it("rejects legacy background output polling", async () => {
     vi.clearAllMocks();
     const ctx = createBaseContext();
-    const backgroundCommand = {
-      id: "bg-existing",
-      command: "npm run dev",
-      cwd: "/tmp/task",
-      done: Promise.resolve()
-    } as never;
     const state: ToolDispatchState = {
       conversationItems: [],
       runPersistedItems: [],
-      commandStep: 0,
-      backgroundShellCommands: new Map([["bg-existing", backgroundCommand]])
+      commandStep: 0
     };
 
     await dispatchResponseOutput([
@@ -1628,17 +1621,10 @@ describe("dispatchResponseOutput", () => {
   it("does not expose legacy background output limits", async () => {
     vi.clearAllMocks();
     const ctx = createBaseContext();
-    const backgroundCommand = {
-      id: "bg-output-limit",
-      command: "generate output",
-      cwd: "/tmp/task",
-      done: Promise.resolve()
-    } as never;
     const state: ToolDispatchState = {
       conversationItems: [],
       runPersistedItems: [],
-      commandStep: 0,
-      backgroundShellCommands: new Map([["bg-output-limit", backgroundCommand]])
+      commandStep: 0
     };
 
     await dispatchResponseOutput([{
@@ -1685,12 +1671,10 @@ describe("dispatchResponseOutput", () => {
         expiresAt: "2026-06-08T23:00:00.000Z"
       };
     });
-    const shellSession = {} as never;
     const state: ToolDispatchState = {
       conversationItems: [],
       runPersistedItems: [],
-      commandStep: 0,
-      shellSession
+      commandStep: 0
     };
 
     const outputItems: ResponseOutputItem[] = [
@@ -1787,12 +1771,10 @@ describe("dispatchResponseOutput", () => {
     executeShellCommandMock.mockRejectedValueOnce(new Error("sandbox unavailable"));
 
     const ctx = createBaseContext();
-    const existingSession = { mock: true } as never;
     const state: ToolDispatchState = {
       conversationItems: [],
       runPersistedItems: [],
-      commandStep: 0,
-      shellSession: existingSession
+      commandStep: 0
     };
     const outputItems: ResponseOutputItem[] = [
       {
