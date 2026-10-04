@@ -48,7 +48,7 @@ import { resolveWorkflowWritableSharedPaths } from "./task-write-scope.js";
 import { loadProjectContextPromptData } from "./project-context.js";
 import type { AgentExecutionContext, AgentRunControlState, WorkflowCapabilityState } from "./execution-types.js";
 import type { PreparedAgentRunContext } from "./runtime.js";
-import type { TaskDebugLogger } from "../runtime/debug-task-events.js";
+import { isTaskDebugModeEnabled, type TaskDebugLogger } from "../runtime/debug-task-events.js";
 
 async function inspectProjectContextDirectory(envRoot: string): Promise<Record<string, unknown>> {
   const resolvedEnvRoot = path.resolve(envRoot);
@@ -80,9 +80,10 @@ async function loadProjectContextInitData(
   projectContext: Awaited<ReturnType<typeof loadProjectContextPromptData>>;
   inspection: Record<string, unknown>;
 }> {
+  // The directory listing only feeds the debug log, and project storage can be a network mount.
   const [projectContext, inspection] = await Promise.all([
     loadProjectContextPromptData(envRoot, envPayload),
-    inspectProjectContextDirectory(envRoot)
+    isTaskDebugModeEnabled().then((enabled) => enabled ? inspectProjectContextDirectory(envRoot) : {})
   ]);
 
   return {
