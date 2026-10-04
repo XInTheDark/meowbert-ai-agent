@@ -73,13 +73,8 @@ function FilesToolbarSection(props: FilesViewProps) {
       storageIndicator={(
         <FileStorageIndicator
           summary={storage.summary}
-          status={storage.status}
           metrics={storage.metrics}
           isExpanded={storage.isExpanded}
-          onRequest={() => {
-            storage.setIsExpanded(true);
-            void storage.load();
-          }}
           onExpandedChange={storage.setIsExpanded}
         />
       )}

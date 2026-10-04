@@ -40,6 +40,10 @@ export function useFileStorage(api: ApiClient, scope: FileScope | null) {
     setIsExpanded(false);
   }, [filesApiPath]);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   return {
     summary,
     status,
@@ -47,7 +51,7 @@ export function useFileStorage(api: ApiClient, scope: FileScope | null) {
     metrics: useMemo(() => getFileStorageMetrics(summary), [summary]),
     setIsExpanded,
     load,
-    update: (nextSummary: StorageSummary) => {
+    update: (nextSummary: StorageSummary | null) => {
       setSummary(nextSummary);
       setStatus("ready");
     }

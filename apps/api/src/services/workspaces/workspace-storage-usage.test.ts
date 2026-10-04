@@ -1,129 +1,62 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { QueryResult } from "pg";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../lib/db.js", () => ({
-  query: vi.fn()
+vi.mock("../storage/local-xfs-project-quotas.js", () => ({
+  hasLocalXfsProjectQuota: vi.fn()
 }));
 
 vi.mock("../users/resource-limits.js", () => ({
   resolveWorkspaceStorageLimitBytes: vi.fn()
 }));
 
-vi.mock("../environments/environment-storage.js", () => ({
-  ensureEnvironmentStorageRoot: vi.fn()
-}));
-
 vi.mock("./workspace-storage.js", () => ({
-  ensureWorkspaceStorageRoot: vi.fn()
+  ensureWorkspaceStorageRoot: vi.fn(),
+  resolveWorkspaceBackendId: vi.fn(async () => "backend-1")
 }));
 
-import { query } from "../../lib/db.js";
-import { ensureEnvironmentStorageRoot } from "../environments/environment-storage.js";
+import { hasLocalXfsProjectQuota } from "../storage/local-xfs-project-quotas.js";
 import { resolveWorkspaceStorageLimitBytes } from "../users/resource-limits.js";
 import { ensureWorkspaceStorageRoot } from "./workspace-storage.js";
 import { getWorkspaceStorageUsage } from "./workspace-storage-usage.js";
 
-function buildRowsResult<Row extends object>(rows: Row[]): QueryResult<Row> {
-  return {
-    command: "SELECT",
-    fields: [],
-    oid: 0,
-    rows,
-    rowCount: rows.length
-  };
-}
-
-function createStorageRoots(prefix: string): { baseDir: string; workspaceRoot: string; environmentRoot: string } {
-  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  const workspaceRoot = path.join(baseDir, "workspace");
-  const environmentRoot = path.join(baseDir, "environment");
-  fs.mkdirSync(workspaceRoot, { recursive: true });
-  fs.mkdirSync(environmentRoot, { recursive: true });
-  fs.writeFileSync(path.join(workspaceRoot, "workspace.bin"), Buffer.alloc(256, "w"));
-  fs.writeFileSync(path.join(environmentRoot, "environment.bin"), Buffer.alloc(256, "e"));
-  return { baseDir, workspaceRoot, environmentRoot };
-}
-
 describe("workspace storage usage service", () => {
-  const mockedQuery = vi.mocked(query);
-  const mockedEnsureEnvironmentStorageRoot = vi.mocked(ensureEnvironmentStorageRoot);
-  const mockedEnsureWorkspaceStorageRoot = vi.mocked(ensureWorkspaceStorageRoot);
-  const mockedResolveWorkspaceStorageLimitBytes = vi.mocked(resolveWorkspaceStorageLimitBytes);
   const tempDirs: string[] = [];
-
-  afterEach(() => {
-    while (tempDirs.length > 0) {
-      const tempDir = tempDirs.pop();
-      if (tempDir) {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      }
-    }
-  });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedQuery.mockResolvedValue(buildRowsResult([]));
-    mockedResolveWorkspaceStorageLimitBytes.mockResolvedValue(1024 * 1024);
+    vi.mocked(resolveWorkspaceStorageLimitBytes).mockResolvedValue(1024 * 1024);
   });
 
-  it("uses the resolved workspace-owner storage limit", async () => {
-    const roots = createStorageRoots("meowbert-api-storage-");
-    tempDirs.push(roots.baseDir);
-    mockedEnsureWorkspaceStorageRoot.mockResolvedValue(roots.workspaceRoot);
-    mockedEnsureEnvironmentStorageRoot.mockResolvedValue(roots.environmentRoot);
-    mockedQuery.mockResolvedValueOnce(buildRowsResult([
-      {
-        id: "env-1",
-        workspace_id: "ws-1",
-        root_path: "/env-one"
-      }
-    ]));
-
-    const storage = await getWorkspaceStorageUsage({
-      workspaceId: "ws-1",
-      workspaceRootPath: "/workspace-root",
-      actorUserId: "user-1"
-    });
-
-    expect(storage).toEqual({
-      usedBytes: 512,
-      limitBytes: 1024 * 1024,
-      availableBytes: 1024 * 1024 - 512,
-      usagePercent: (512 / (1024 * 1024)) * 100,
-      isOverLimit: false
-    });
-    expect(mockedResolveWorkspaceStorageLimitBytes).toHaveBeenCalledWith("ws-1");
+  afterEach(() => {
+    for (const tempDir of tempDirs.splice(0)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
-  it("treats the workspace as unlimited when no owner limit resolves", async () => {
-    const roots = createStorageRoots("meowbert-api-storage-");
-    tempDirs.push(roots.baseDir);
-    mockedEnsureWorkspaceStorageRoot.mockResolvedValue(roots.workspaceRoot);
-    mockedEnsureEnvironmentStorageRoot.mockResolvedValue(roots.environmentRoot);
-    mockedQuery.mockResolvedValueOnce(buildRowsResult([
-      {
-        id: "env-1",
-        workspace_id: "ws-1",
-        root_path: "/env-one"
-      }
-    ]));
-    mockedResolveWorkspaceStorageLimitBytes.mockResolvedValue(null);
+  it("reports no usage for backends without an XFS project quota and leaves the filesystem alone", async () => {
+    vi.mocked(hasLocalXfsProjectQuota).mockReturnValue(false);
 
-    const storage = await getWorkspaceStorageUsage({
-      workspaceId: "ws-1",
-      workspaceRootPath: "/workspace-root",
-      actorUserId: "admin-1"
-    });
+    await expect(getWorkspaceStorageUsage({ workspaceId: "ws-1", workspaceRootPath: "/mnt/drive/ws-1/workspace" }))
+      .resolves.toBeNull();
+    expect(ensureWorkspaceStorageRoot).not.toHaveBeenCalled();
+  });
 
-    expect(storage).toEqual({
-      usedBytes: 512,
-      limitBytes: null,
-      availableBytes: null,
-      usagePercent: null,
-      isOverLimit: false
-    });
+  it("reads usage for quota-backed workspaces from statfs on the storage unit", async () => {
+    const unitRoot = fs.mkdtempSync(path.join(os.tmpdir(), "meowbert-storage-unit-"));
+    tempDirs.push(unitRoot);
+    const workspaceRoot = path.join(unitRoot, "workspace");
+    fs.mkdirSync(workspaceRoot);
+    vi.mocked(hasLocalXfsProjectQuota).mockReturnValue(true);
+    vi.mocked(ensureWorkspaceStorageRoot).mockResolvedValue(workspaceRoot);
+    const statfsSpy = vi.spyOn(fs.promises, "statfs");
+
+    const storage = await getWorkspaceStorageUsage({ workspaceId: "ws-1", workspaceRootPath: workspaceRoot });
+
+    expect(statfsSpy).toHaveBeenCalledWith(unitRoot);
+    expect(storage).toMatchObject({ limitBytes: 1024 * 1024 });
+    expect(storage?.usedBytes).toBeGreaterThanOrEqual(0);
+    statfsSpy.mockRestore();
   });
 });

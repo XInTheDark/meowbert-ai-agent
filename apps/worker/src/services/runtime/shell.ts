@@ -59,10 +59,11 @@ export async function ensureTaskWorkspace(taskDir: string, envRoot: string): Pro
     resolvedTaskDir
   );
 
+  // Only the directory chain down to the inputs folder: a recursive pass would touch every
+  // file in the task directory on each run, which takes minutes on network-mounted storage.
   await ensureSandboxWritablePath({
     rootPath: resolvedEnvRoot,
-    targetPath: resolvedTaskDir,
-    recursive: true
+    targetPath: taskInputDir
   });
 }
 

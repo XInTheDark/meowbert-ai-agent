@@ -12,7 +12,7 @@ interface UseProjectFileCleanupOptions {
   projectRootPath: string | null;
   storageSummary: StorageSummary | null;
   storageMetrics: FileStorageMetrics;
-  updateStorage: (summary: StorageSummary) => void;
+  updateStorage: (summary: StorageSummary | null) => void;
   setError: Dispatch<SetStateAction<string | null>>;
 }
 

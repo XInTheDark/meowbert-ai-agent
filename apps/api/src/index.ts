@@ -300,7 +300,7 @@ async function registerCoreServerPlugins(app: Fastify.FastifyInstance): Promise<
 }
 
 function registerServerErrorHandler(app: Fastify.FastifyInstance): void {
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
       return reply.status(400).send({ error: "Invalid request", issues: error.issues });
     }
@@ -330,7 +330,7 @@ function registerServerErrorHandler(app: Fastify.FastifyInstance): void {
         error: error instanceof Error ? error.message : "Bad request"
       });
     }
-    app.log.error(error);
+    request.log.error(error);
     return reply.status(500).send({ error: "Internal server error" });
   });
 }

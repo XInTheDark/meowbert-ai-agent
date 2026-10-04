@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EnvironmentFileEntry } from "../lib/types";
 import {
-  mergeDirectorySizes,
   normalizeEnvironmentPathInput,
   sortEnvironmentFileEntries
 } from "./environmentFiles";
@@ -51,21 +50,5 @@ describe("environmentFiles", () => {
 
     const sorted = sortEnvironmentFileEntries(entries, "sizeBytes", "asc");
     expect(sorted.map((entry) => entry.name)).toEqual(["beta.log", "alpha.log", "zeta.log"]);
-  });
-
-  it("merges directory sizes without changing file sizes", () => {
-    const entries = [
-      createEntry("docs", { kind: "directory", sizeBytes: null, relativePath: "docs" }),
-      createEntry("notes.txt", { kind: "file", sizeBytes: 4, relativePath: "notes.txt" })
-    ];
-
-    expect(
-      mergeDirectorySizes(entries, [
-        { relativePath: "docs", sizeBytes: 42 }
-      ])
-    ).toEqual([
-      createEntry("docs", { kind: "directory", sizeBytes: 42, relativePath: "docs" }),
-      createEntry("notes.txt", { kind: "file", sizeBytes: 4, relativePath: "notes.txt" })
-    ]);
   });
 });

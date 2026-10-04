@@ -1,5 +1,4 @@
 export {
-  mergeDirectorySizes,
   normalizeEnvironmentPathInput as normalizeProjectPathInput,
   sortEnvironmentFileEntries as sortProjectFileEntries,
   type FileSortColumn,

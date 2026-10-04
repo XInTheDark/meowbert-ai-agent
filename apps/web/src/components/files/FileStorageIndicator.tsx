@@ -1,29 +1,21 @@
-import { Loader2 } from "lucide-react";
 import type { StorageSummary } from "../../lib/types";
 import { formatBytes } from "../../lib/utils";
 import type { FileStorageMetrics } from "./fileStorageMetrics";
-import type { FileStorageStatus } from "./useFileStorage";
 
 interface FileStorageIndicatorProps {
   summary: StorageSummary | null;
-  status: FileStorageStatus;
   metrics: FileStorageMetrics;
   isExpanded: boolean;
-  onRequest: () => void;
   onExpandedChange: (expanded: boolean) => void;
 }
 
-// Storage usage is loaded on demand: "?%" until asked, then a percentage that expands to details.
+// A percentage that expands to details. Hidden when the server has no usage to report.
 export function FileStorageIndicator(props: FileStorageIndicatorProps) {
-  const warning = props.summary?.isOverLimit === true;
+  if (!props.summary) {
+    return null;
+  }
+  const warning = props.summary.isOverLimit;
   const { metrics } = props;
-  if (props.status === "loading") {
-    return <span className="context-usage-pill project-storage-loading" title="Checking storage..." aria-label="Checking storage"><Loader2 className="spin" size={14} /></span>;
-  }
-  if (props.status !== "ready") {
-    const label = props.status === "error" ? "Retry storage summary" : "Load storage summary";
-    return <button className={`context-usage-pill ${props.status === "error" ? "warning" : ""}`} type="button" onClick={props.onRequest} title={label} aria-label={label}>?%</button>;
-  }
   if (!metrics.hasLimit || metrics.usagePercent === null) {
     return <span className={`muted-text project-storage-label${warning ? " warning" : ""}`} title={metrics.label}>{metrics.label}</span>;
   }

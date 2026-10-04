@@ -566,13 +566,6 @@
   border-radius: 0;
 }
 
-.project-storage-loading {
-  min-width: 2.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .project-storage-label {
   max-width: 20rem;
   overflow: hidden;

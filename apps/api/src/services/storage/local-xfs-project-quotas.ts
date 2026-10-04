@@ -74,6 +74,10 @@ async function claimWorkspaceStorageProjectId(workspaceId: string, projectIdBase
   });
 }
 
+export function hasLocalXfsProjectQuota(backendId: string): boolean {
+  return getLocalXfsProjectQuotaBackend(backendId) !== null;
+}
+
 export function listConfiguredLocalXfsProjectQuotaBackends(): LocalStorageBackendConfig[] {
   return storageBackendRegistry.listBackends().filter((backend): backend is LocalStorageBackendConfig =>
     backend.type === "local" && Boolean(backend.xfsProjectQuota)

@@ -1,4 +1,4 @@
-import type { DirectorySizeEntry, EnvironmentFileEntry } from "../lib/types";
+import type { EnvironmentFileEntry } from "../lib/types";
 
 export type FileSortColumn = "name" | "sizeBytes" | "kind" | "createdAt" | "modifiedAt";
 export type FileSortDirection = "asc" | "desc";
@@ -78,25 +78,4 @@ export function normalizeEnvironmentPathInput(value: string): string {
   const withoutLeadingSlash = slashNormalized.replace(/^\/+/, "");
   const collapsed = withoutLeadingSlash.replace(/\/+/g, "/");
   return collapsed.replace(/\/$/, "");
-}
-
-export function mergeDirectorySizes(
-  entries: EnvironmentFileEntry[],
-  directorySizes: DirectorySizeEntry[]
-): EnvironmentFileEntry[] {
-  if (directorySizes.length === 0) {
-    return entries;
-  }
-
-  const sizeByRelativePath = new Map(directorySizes.map((entry) => [entry.relativePath, entry.sizeBytes]));
-  return entries.map((entry) => {
-    if (entry.kind !== "directory") {
-      return entry;
-    }
-
-    const sizeBytes = sizeByRelativePath.get(entry.relativePath);
-    return typeof sizeBytes === "number"
-      ? { ...entry, sizeBytes }
-      : entry;
-  });
 }

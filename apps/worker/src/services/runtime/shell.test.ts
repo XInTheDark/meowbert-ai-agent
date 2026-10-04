@@ -95,7 +95,7 @@ describe("executeShellCommand", () => {
 });
 
 describe("ensureTaskWorkspace", () => {
-  it("normalizes task directories and existing inputs for writable sandbox access", async () => {
+  it("opens the task directory chain to the sandbox without touching the files inside", async () => {
     const envRoot = await fs.mkdtemp(path.join(os.tmpdir(), "meowbert-task-workspace-"));
     tempRoots.push(envRoot);
     const taskDir = path.join(envRoot, ".meowbert", "task-runs", "task-1");
@@ -115,6 +115,6 @@ describe("ensureTaskWorkspace", () => {
     expect((await fs.stat(path.join(envRoot, ".meowbert"))).mode & 0o775).toBe(0o775);
     expect((await fs.stat(taskDir)).mode & 0o775).toBe(0o775);
     expect((await fs.stat(inputsDir)).mode & 0o775).toBe(0o775);
-    expect((await fs.stat(docPath)).mode & 0o7777).toBe(0o664);
+    expect((await fs.stat(docPath)).mode & 0o7777).toBe(0o644);
   });
 });

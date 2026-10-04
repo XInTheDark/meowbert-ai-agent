@@ -398,8 +398,7 @@ export async function getPendingWorkspaceInviteDetail(input: {
   try {
     storage = await getWorkspaceStorageUsage({
       workspaceId: row.workspace_id,
-      workspaceRootPath: row.workspace_root_path,
-      actorUserId: input.userId
+      workspaceRootPath: row.workspace_root_path
     });
   } catch {
     storage = null;

@@ -7,11 +7,6 @@ import type { SourceFileLinkSummary } from "../source-file-links/types.js";
 import { createGoogleWorkspaceReferenceFile } from "./google-workspace/reference-files.js";
 import { upsertGoogleWorkspaceProjectReference } from "./google-workspace/reference-allowlist.js";
 import { isGoogleWorkspaceReferenceMimeType } from "./google-workspace/reference-types.js";
-import {
-  assertWorkspaceStorageAvailable,
-  recordWorkspaceBytesAdded,
-  resolveAvailableWorkspaceBytes
-} from "../workspaces/workspace-storage-allowance.js";
 
 export type WorkspaceSourceAttachment =
   | {
@@ -168,21 +163,14 @@ export async function attachWorkspaceSource(input: {
     });
   }
 
-  const storage = input.workspaceRootPath
-    ? { workspaceId: input.workspaceId, workspaceRootPath: input.workspaceRootPath, actorUserId: input.actorUserId }
-    : null;
-  const availableBytes = storage ? await resolveAvailableWorkspaceBytes(storage) : null;
-  assertWorkspaceStorageAvailable(availableBytes, 0);
   const file = await importWorkspaceSourceFileToEnvironment({
     workspaceId: input.workspaceId,
     environmentRootPath: input.environmentRootPath,
     sourceId: input.sourceId,
     itemId: input.itemId.trim(),
     destinationPath: input.destinationPath ?? null,
-    createDirectories: input.createDirectories,
-    onSaved: (sizeBytes) => assertWorkspaceStorageAvailable(availableBytes, sizeBytes)
+    createDirectories: input.createDirectories
   });
-  recordWorkspaceBytesAdded(input.workspaceId, file.sizeBytes ?? 0);
 
   return {
     kind: "file",

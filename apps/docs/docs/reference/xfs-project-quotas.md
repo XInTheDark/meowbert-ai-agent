@@ -24,7 +24,7 @@ Meowbert can provision XFS project quotas for **local** storage backends when:
 3. the backend `workspacesRoot` lives on an XFS mount with project quotas enabled
 4. `runtime.sandbox.resources.storageMb` is set
 
-The hard XFS quota uses the same workspace limit Meowbert checks before accepting uploads.
+The XFS quota is set to that workspace storage limit. It is the only thing that enforces the limit, and it is also where the storage usage in the file browser comes from.
 
 If you are migrating an existing install, use a **new XFS-backed workspaces path** first instead of mounting over the old one. Otherwise the old data becomes hidden under the new mount and Meowbert cannot relocate it for you.
 
@@ -183,7 +183,7 @@ XFS project quotas only apply to local filesystem paths that Meowbert controls d
 
 ## Notes
 
-- Meowbert’s own limit check still runs on uploads, so users get a clear "storage full" message there instead of a failed write.
+- Meowbert never walks a workspace to measure it. On backends without XFS quotas, the file browser shows no storage usage.
 - XFS quota failures show up as normal filesystem write failures (`ENOSPC`) once the hard limit is reached.
 - If you already had old project paths under a separate legacy tree, run the project nesting migration first.
 - A helper host script now exists at `scripts/setup-xfs-storage.sh` to prepare workspace XFS mountpoints.

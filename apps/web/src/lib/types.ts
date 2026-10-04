@@ -654,24 +654,15 @@ export interface EnvironmentFileListResponse {
 
 export type ProjectFileListResponse = EnvironmentFileListResponse;
 
+// Storage is null when the server can't measure usage cheaply (anything but XFS quotas).
 export interface StorageSummaryResponse {
-  storage: StorageSummary;
-}
-
-export interface DirectorySizeEntry {
-  relativePath: string;
-  sizeBytes: number;
-}
-
-export interface DirectorySizeResponse {
-  cwd: string;
-  items: DirectorySizeEntry[];
+  storage: StorageSummary | null;
 }
 
 export interface FileDeleteResponse {
   deletedCount: number;
   deletedPaths: string[];
-  storage: StorageSummary;
+  storage: StorageSummary | null;
 }
 
 export interface EnvironmentCleanupSuggestion {
@@ -693,7 +684,7 @@ export interface EnvironmentCleanupPlanResponse {
   reclaimableBytes: number;
   suggestedBytes: number;
   suggestions: EnvironmentCleanupSuggestion[];
-  storage: StorageSummary;
+  storage: StorageSummary | null;
 }
 
 export type ProjectCleanupPlanResponse = EnvironmentCleanupPlanResponse;

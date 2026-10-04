@@ -76,7 +76,7 @@ describe("cloneTaskIntoFork", () => {
     await fsPromises.mkdir(path.join(sourceTaskDir, "threads", "thread-task-1"), { recursive: true });
     await fsPromises.mkdir(path.join(sourceTaskDir, "subtasks", "subtask-1"), { recursive: true });
     await fsPromises.writeFile(path.join(sourceTaskDir, "plan.md"), "# plan");
-    await fsPromises.writeFile(path.join(sourceTaskDir, "inputs", "brief.txt"), "brief");
+    await fsPromises.writeFile(path.join(sourceTaskDir, "inputs", "brief.txt"), "brief", { mode: 0o644 });
     await fsPromises.writeFile(path.join(sourceTaskDir, "analysis", "result.json"), "{\"ok\":true}");
     await fsPromises.writeFile(path.join(sourceTaskDir, "threads", "thread-task-1", "notes.txt"), "thread");
     await fsPromises.writeFile(path.join(sourceTaskDir, "subtasks", "subtask-1", "notes.txt"), "subtask");
@@ -123,6 +123,7 @@ describe("cloneTaskIntoFork", () => {
     });
     await expect(fsPromises.readFile(path.join(forkTaskDir, "plan.md"), "utf8")).resolves.toBe("# plan");
     await expect(fsPromises.readFile(path.join(forkTaskDir, "inputs", "brief.txt"), "utf8")).resolves.toBe("brief");
+    expect((await fsPromises.stat(path.join(forkTaskDir, "inputs", "brief.txt"))).mode & 0o777).toBe(0o664);
     await expect(fsPromises.readFile(path.join(forkTaskDir, "analysis", "result.json"), "utf8")).resolves.toBe("{\"ok\":true}");
     await expect(pathExists(path.join(forkTaskDir, "threads"))).resolves.toBe(false);
     await expect(pathExists(path.join(forkTaskDir, "subtasks"))).resolves.toBe(false);

@@ -7,7 +7,7 @@ interface UseFileDeletionOptions {
   scope: FileScope | null;
   cwd: string;
   loadFiles: (path?: string) => Promise<void>;
-  updateStorage: (summary: StorageSummary) => void;
+  updateStorage: (summary: StorageSummary | null) => void;
   setError: Dispatch<SetStateAction<string | null>>;
 }
 

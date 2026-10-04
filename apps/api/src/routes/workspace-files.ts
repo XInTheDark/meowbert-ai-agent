@@ -4,7 +4,6 @@ import { resolveRealPathWithinRoot } from "@meowbert/shared/server-security";
 import { query } from "../lib/db.js";
 import { deleteSelectedPaths } from "../services/files/delete-files.js";
 import { listDirectory } from "../services/files/directory-listing.js";
-import { listDirectorySizeEntries } from "../services/files/file-browser-metadata.js";
 import { resolveBatchDownloadEntries, resolveFileDownload } from "../services/files/file-download.js";
 import { readFilePreview } from "../services/files/file-preview.js";
 import { resolveSelectedPathsWithinRoot } from "../services/files/selected-paths.js";
@@ -58,22 +57,10 @@ export const workspaceFileRoutes: FastifyPluginAsync = async (fastify) => {
     const workspace = await getWorkspaceForUser(params.wsId, request.user.id);
     const storage = await getWorkspaceStorageUsage({
       workspaceId: workspace.id,
-      workspaceRootPath: workspace.root_path,
-      actorUserId: request.user.id
+      workspaceRootPath: workspace.root_path
     });
 
     return { storage };
-  });
-
-  fastify.get("/api/workspaces/:wsId/files/directory-sizes", { preHandler: fastify.authenticate }, async (request) => {
-    const params = workspaceParamsSchema.parse(request.params);
-    const queryInput = fileQuery.parse(request.query);
-    const workspace = await getWorkspaceForUser(params.wsId, request.user.id);
-
-    return listDirectorySizeEntries({
-      rootPath: workspace.root_path,
-      requestedPath: queryInput.path
-    });
   });
 
   fastify.get("/api/workspaces/:wsId/files/content", { preHandler: fastify.authenticate }, async (request) => {
@@ -116,8 +103,7 @@ export const workspaceFileRoutes: FastifyPluginAsync = async (fastify) => {
     const deleted = await deleteSelectedPaths(targets);
     const storage = await getWorkspaceStorageUsage({
       workspaceId: workspace.id,
-      workspaceRootPath: workspace.root_path,
-      actorUserId: request.user.id
+      workspaceRootPath: workspace.root_path
     });
 
     return {
@@ -130,11 +116,7 @@ export const workspaceFileRoutes: FastifyPluginAsync = async (fastify) => {
     const params = workspaceParamsSchema.parse(request.params);
     const queryInput = fileUploadQuery.parse(request.query);
     const workspace = await getWorkspaceForUser(params.wsId, request.user.id);
-    const saved = await receiveFileUpload(request, {
-      rootPath: workspace.root_path,
-      query: queryInput,
-      storage: { workspaceId: workspace.id, workspaceRootPath: workspace.root_path, actorUserId: request.user.id }
-    });
+    const saved = await receiveFileUpload(request, { rootPath: workspace.root_path, query: queryInput });
     return reply.status(201).send({ file: saved.file });
   });
 };

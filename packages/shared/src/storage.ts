@@ -59,19 +59,6 @@ export async function calculatePathUsageBytes(absolutePath: string): Promise<num
   });
 }
 
-export async function calculatePathsUsageBytes(paths: string[]): Promise<number> {
-  const state: UsageTraversalState = {
-    seenInodes: new Set<string>()
-  };
-
-  let totalBytes = 0;
-  for (const entryPath of paths) {
-    totalBytes += await calculatePathUsageBytesInternal(path.resolve(entryPath), state);
-  }
-
-  return totalBytes;
-}
-
 export function buildStorageUsageSummary(input: {
   usedBytes: number;
   limitBytes?: number | null;

@@ -19,7 +19,7 @@ async function persistWorkspaceRoot(workspaceId: string, rootPath: string): Prom
   );
 }
 
-async function resolveWorkspaceBackendId(workspaceId: string, providedBackendId?: string | null): Promise<string> {
+export async function resolveWorkspaceBackendId(workspaceId: string, providedBackendId?: string | null): Promise<string> {
   const trimmedProvided = providedBackendId?.trim();
   if (trimmedProvided) {
     return trimmedProvided;
