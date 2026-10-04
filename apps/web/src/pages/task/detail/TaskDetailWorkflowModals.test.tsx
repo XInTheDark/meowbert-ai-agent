@@ -72,6 +72,7 @@ describe("SwarmWorkerPovModal", () => {
       await Promise.resolve();
     });
 
+    await act(async () => document.body.querySelector<HTMLButtonElement>(".activity-disclosure-toggle")?.click());
     const toolActivity = document.body.querySelector<HTMLButtonElement>(".tool-activity-card");
     expect(toolActivity).not.toBeNull();
 

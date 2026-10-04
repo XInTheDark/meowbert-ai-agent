@@ -3,12 +3,14 @@ import type { HistoricalConversationItemsProps } from "./HistoricalConversationI
 import type { ConversationActivityGroup } from "./conversationActivityEntries";
 import { getInlineResponseSegments } from "../../task/inlineResponseSegments";
 import { getModelRetryMessageDetails } from "../../task/taskConversationDisplay";
+import { buildTaskMessageExpansionKey } from "../../task/taskMessageExpansionPreferences";
 import { ThoughtSummaryBubble } from "./ThoughtSummaryBubble";
 import { ToolGroupBubble } from "./ToolGroupBubble";
 
 export function HistoricalActivityGroup(props: HistoricalConversationItemsProps & {
   group: ConversationActivityGroup;
   groupKey: string;
+  isComplete: boolean;
 }): JSX.Element {
   const { group, groupKey } = props;
   const thoughtSummary = props.resolvedAssistantMessageDisplayPreferences.showThoughts && group.thoughts.length > 0 ? {
@@ -32,7 +34,8 @@ export function HistoricalActivityGroup(props: HistoricalConversationItemsProps 
         <ToolGroupBubble toolGroup={group.toolGroup} groupKey={groupKey} messageIds={sourceMessageIds}
           hydratedMessageIds={hydratedIds} onExpandRequested={props.onToolGroupExpandRequested}
           isSelected={props.selectedToolGroupKey === groupKey} thoughtSummary={thoughtSummary}
-          onInspectRequested={props.onToolGroupInspectorRequested} />
+          onInspectRequested={props.onToolGroupInspectorRequested} collapsed={props.isComplete}
+          expansionKey={props.taskId ? buildTaskMessageExpansionKey(props.taskId, groupKey) : undefined} />
       ) : thoughtSummary ? <ThoughtSummaryBubble {...thoughtSummary} /> : null}
       {group.notices.length > 0 ? (
         <div className="chat-bubble activity-notices" data-message-id={noticeIds[0]}

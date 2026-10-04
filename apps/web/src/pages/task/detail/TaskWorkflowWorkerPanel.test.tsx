@@ -72,6 +72,7 @@ describe("TaskWorkflowWorkerPanel", () => {
     });
 
     expect(container.textContent).toContain("succeeded");
+    await act(async () => container?.querySelector<HTMLButtonElement>(".activity-disclosure-toggle")?.click());
     const toolActivity = container.querySelector<HTMLButtonElement>(".tool-activity-card");
     expect(toolActivity).not.toBeNull();
 

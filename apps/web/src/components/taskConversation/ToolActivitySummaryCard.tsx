@@ -10,6 +10,7 @@ export interface ToolActivitySummaryCardProps {
   steps?: string[];
   badgeTone?: "default" | "running";
   active?: boolean;
+  showTitle?: boolean;
   onClick: () => void;
 }
 
@@ -23,6 +24,7 @@ export function ToolActivitySummaryCard(props: ToolActivitySummaryCardProps): JS
     steps = [],
     badgeTone = "default",
     active = false,
+    showTitle = true,
     onClick
   } = props;
 
@@ -39,21 +41,21 @@ export function ToolActivitySummaryCard(props: ToolActivitySummaryCardProps): JS
             {kicker}
           </span>
           {preview ? <span className="tool-activity-card-preview">{preview}</span> : null}
+          <ChevronRight size={13} className="tool-activity-card-chevron" aria-hidden="true" />
         </div>
-        <div className="tool-activity-card-title-row">
-          <span className="tool-activity-card-title">{title}</span>
-          <span className={`tool-count-badge${badgeTone === "running" ? " running" : ""}`}>
-            {count} call{count !== 1 ? "s" : ""}
-          </span>
-          {secondaryLabel ? (
-            <span className="tool-activity-card-secondary-pill">{secondaryLabel}</span>
-          ) : null}
-        </div>
+        {showTitle ? (
+          <div className="tool-activity-card-title-row">
+            <span className="tool-activity-card-title">{title}</span>
+            <span className={`tool-count-badge${badgeTone === "running" ? " running" : ""}`}>
+              {count} call{count !== 1 ? "s" : ""}
+            </span>
+            {secondaryLabel ? (
+              <span className="tool-activity-card-secondary-pill">{secondaryLabel}</span>
+            ) : null}
+          </div>
+        ) : null}
         <ActivityStepTrail steps={steps} running={badgeTone === "running"} />
       </div>
-      <span className="tool-activity-card-chevron" aria-hidden="true">
-        <ChevronRight size={16} />
-      </span>
     </button>
   );
 }

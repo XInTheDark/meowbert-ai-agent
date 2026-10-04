@@ -1713,7 +1713,8 @@ describe("TaskConversationMessages", () => {
       />
     );
 
-    expect(html).toContain("Apply Patch");
+    expect(html).toContain('data-message-ids="tool-1 assistant-1:response-tool:call_patch"');
+    expect(html).toContain("2 calls");
     expect(html).toContain("Patched.");
   });
 
@@ -1751,7 +1752,7 @@ describe("TaskConversationMessages", () => {
       />
     );
 
-    expect(html).toContain("Web");
+    expect(html).toContain('data-message-ids="assistant-1:response-tool:ws_1"');
     expect(html).toContain("1 call");
     expect(html).toContain("Search complete.");
   });
@@ -1814,7 +1815,7 @@ describe("TaskConversationMessages", () => {
 
     expect(html.match(/Worked for/g)).toHaveLength(1);
     expect(html).toContain("2 calls");
-    expect(html).toContain("Shell · Apply Patch");
+    expect(html).toContain('data-message-ids="tool-1 tool-2"');
     expect(html).not.toContain("Ran tool");
     expect(html).not.toContain("tool-group-cluster");
   });

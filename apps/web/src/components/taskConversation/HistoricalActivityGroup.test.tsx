@@ -31,7 +31,7 @@ describe("consolidated conversation activity", () => {
   it("shows one activity card and a separate notice list with working inspectors", () => {
     const onExpandRequested = vi.fn();
     act(() => root.render(<TaskConversationMessages messages={[tools[0], notice, tools[1], recovery, tools[2]]}
-      onToolGroupExpandRequested={onExpandRequested} />));
+      onToolGroupExpandRequested={onExpandRequested} isTaskRunning />));
     expect(container.querySelectorAll(".tool-activity-card")).toHaveLength(1);
     expect(container.querySelector(".tool-activity-card")?.textContent).toContain("3 calls");
     expect(container.querySelectorAll(".activity-notices-button")).toHaveLength(1);
@@ -48,9 +48,9 @@ describe("consolidated conversation activity", () => {
   });
 
   it("updates a selected activity group as tools arrive after a retry", () => {
-    act(() => root.render(<TaskConversationMessages messages={[tools[0]]} hydratedMessageIds={new Set(["tool-1"])} />));
+    act(() => root.render(<TaskConversationMessages messages={[tools[0]]} hydratedMessageIds={new Set(["tool-1"])} isTaskRunning />));
     act(() => container.querySelector<HTMLButtonElement>(".tool-activity-card")?.click());
-    act(() => root.render(<TaskConversationMessages messages={[tools[0], notice, tools[1]]} hydratedMessageIds={new Set(["tool-1", "tool-2"])} />));
+    act(() => root.render(<TaskConversationMessages messages={[tools[0], notice, tools[1]]} hydratedMessageIds={new Set(["tool-1", "tool-2"])} isTaskRunning />));
     expect(container.querySelectorAll(".tool-activity-card")).toHaveLength(1);
     expect(container.querySelectorAll(".tool-inspector-call-item")).toHaveLength(2);
     expect(container.querySelector(".tool-activity-card.active")).not.toBeNull();
@@ -65,5 +65,31 @@ describe("consolidated conversation activity", () => {
     expect(container.querySelectorAll(".activity-notices-list li")).toHaveLength(2);
     act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
     expect(container.querySelector(".tool-inspector-panel")).toBeNull();
+  });
+
+  it("folds finished activity to one line and remembers when it is opened", () => {
+    const reply = message("assistant-1", "assistant", { text: "Done." });
+    const stored = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", { configurable: true, value: {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value)
+    } });
+    act(() => root.render(<TaskConversationMessages taskId="task-1" messages={[tools[0], tools[1]]} isTaskRunning />));
+    expect(container.querySelector(".activity-disclosure")).toBeNull();
+    expect(container.querySelectorAll(".tool-activity-card")).toHaveLength(1);
+
+    act(() => root.render(<TaskConversationMessages taskId="task-1" messages={[tools[0], tools[1], reply]} isTaskRunning />));
+    const toggle = () => container.querySelector<HTMLButtonElement>(".activity-disclosure-toggle");
+    expect(toggle()?.textContent).toContain("2 calls");
+    expect(container.querySelector(".tool-activity-card")).toBeNull();
+
+    act(() => toggle()?.click());
+    expect(toggle()?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(".tool-activity-card .tool-activity-card-title")).toBeNull();
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    act(() => root.render(<TaskConversationMessages taskId="task-1" messages={[tools[0], tools[1], reply]} />));
+    expect(container.querySelectorAll(".tool-activity-card")).toHaveLength(1);
   });
 });

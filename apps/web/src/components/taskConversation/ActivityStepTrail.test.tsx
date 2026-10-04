@@ -59,15 +59,16 @@ describe("activity step trail", () => {
       execMessage("tool-6", "Re-running the tests")
     ];
     act(() => root.render(<TaskConversationMessages messages={messages} />));
+    act(() => container.querySelector<HTMLButtonElement>(".activity-disclosure-toggle")?.click());
 
     const card = container.querySelector(".tool-activity-card");
     expect(card?.classList.contains("has-steps")).toBe(true);
-    expect(stepTexts(card)).toEqual(["Finding the failing test", "Patching the parser", "Re-running the tests"]);
+    expect(stepTexts(card)).toEqual(["Reading the config", "Finding the failing test", "Patching the parser", "Re-running the tests"]);
     expect(card?.querySelector(".tool-activity-step.running")).toBeNull();
   });
 
   it("keeps the card compact when no step has a summary", () => {
-    act(() => root.render(<TaskConversationMessages messages={[execMessage("tool-1", null)]} />));
+    act(() => root.render(<TaskConversationMessages messages={[execMessage("tool-1", null)]} isTaskRunning />));
     const card = container.querySelector(".tool-activity-card");
     expect(card?.classList.contains("has-steps")).toBe(false);
     expect(stepTexts(card)).toEqual([]);

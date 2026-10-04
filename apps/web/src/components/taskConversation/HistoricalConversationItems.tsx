@@ -62,6 +62,7 @@ export interface HistoricalConversationItemsProps {
   searchSelectedMessageId?: string | null;
   searchForceExpandedMessageIds?: Set<string>;
   stagedAnnotationCount?: number;
+  isTaskRunning?: boolean;
 }
 
 function CompactionMessageBubble(props: {
@@ -416,10 +417,13 @@ function HistoricalMessageItem(props: HistoricalConversationItemsProps & {
 }
 
 export function HistoricalConversationItems(props: HistoricalConversationItemsProps): JSX.Element[] {
-  return buildConversationDisplayEntries(props.messages).map((entry) => {
+  const entries = buildConversationDisplayEntries(props.messages);
+  return entries.map((entry, index) => {
     if (entry.kind === "activity") {
       const key = props.historicalToolGroupDescriptorsByStartIndex.get(entry.startIndex)?.key ?? entry.key;
-      return <HistoricalActivityGroup key={key} {...props} group={entry} groupKey={key} />;
+      // Only the trailing group of a running task is still in progress.
+      const isComplete = !props.isTaskRunning || index < entries.length - 1;
+      return <HistoricalActivityGroup key={key} {...props} group={entry} groupKey={key} isComplete={isComplete} />;
     }
     if (entry.kind === "artifact") {
       return <InlineArtifactBubble key={entry.key} messageId={entry.key} artifact={entry.artifact}

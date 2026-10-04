@@ -170,6 +170,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
               showMessageActions={showMessageActions}
               showMessageAuthors={props.showMessageAuthors ?? false}
               showThinking={props.isThinking && props.isTaskRunning}
+              isTaskRunning={props.isTaskRunning}
               onConversationChanged={props.onConversationChanged}
               onEditRequested={props.onEditRequested}
               renderBranchSwitcher={props.renderBranchSwitcher}

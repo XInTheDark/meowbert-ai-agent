@@ -1,3 +1,4 @@
+import { CompletedActivityDisclosure } from "./CompletedActivityDisclosure";
 import type { ThoughtSummaryContentProps } from "./ThoughtSummaryBubble";
 import { ToolActivitySummaryCard } from "./ToolActivitySummaryCard";
 import type { TaskMessage } from "../../lib/types";
@@ -17,6 +18,8 @@ export function ToolGroupBubble(props: {
     thoughtSummary?: ThoughtSummaryContentProps;
   }) => void;
   thoughtSummary?: ThoughtSummaryContentProps;
+  collapsed?: boolean;
+  expansionKey?: string;
 }): JSX.Element {
   const {
     toolGroup,
@@ -25,7 +28,8 @@ export function ToolGroupBubble(props: {
     onExpandRequested,
     isSelected = false,
     onInspectRequested,
-    thoughtSummary
+    thoughtSummary,
+    collapsed = false
   } = props;
   const toolMessageIds = toolGroup.map((toolMessage) => toolMessage.id);
   const summary = getToolGroupSummary(toolGroup);
@@ -43,6 +47,20 @@ export function ToolGroupBubble(props: {
     });
   }
 
+  const card = (
+    <ToolActivitySummaryCard
+      kicker="Activity"
+      title={summary.label}
+      count={summary.count}
+      preview={summary.preview}
+      secondaryLabel={thoughtSummary?.label ?? null}
+      steps={getToolGroupStepSummaries(toolGroup)}
+      active={isSelected}
+      showTitle={!collapsed}
+      onClick={handleInspectRequested}
+    />
+  );
+
   return (
     <div
       key={groupKey}
@@ -51,16 +69,12 @@ export function ToolGroupBubble(props: {
       data-last-message-id={toolGroup[toolGroup.length - 1]?.id}
       data-message-ids={[...new Set([...toolMessageIds, ...(props.messageIds ?? [])])].join(" ")}
     >
-      <ToolActivitySummaryCard
-        kicker="Activity"
-        title={summary.label}
-        count={summary.count}
-        preview={summary.preview}
-        secondaryLabel={thoughtSummary?.label ?? null}
-        steps={getToolGroupStepSummaries(toolGroup)}
-        active={isSelected}
-        onClick={handleInspectRequested}
-      />
+      {collapsed ? (
+        <CompletedActivityDisclosure title={summary.label} count={summary.count}
+          secondaryLabel={thoughtSummary?.label ?? null} expansionKey={props.expansionKey} active={isSelected}>
+          {card}
+        </CompletedActivityDisclosure>
+      ) : card}
     </div>
   );
 }

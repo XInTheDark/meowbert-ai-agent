@@ -1,4 +1,4 @@
-const VISIBLE_STEP_COUNT = 3;
+const VISIBLE_STEP_COUNT = 4;
 
 // Rendered inside the activity card's button, so it uses spans rather than a list element.
 export function ActivityStepTrail(props: { steps: string[]; running: boolean }): JSX.Element | null {
