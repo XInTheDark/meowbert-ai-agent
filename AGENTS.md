@@ -69,6 +69,7 @@
 ### Development notes
 
 - After completing the task, you should ask if the user wants you to commit and push. 
+- When the user says to commit, commit directly to `main` by default. Use a separate branch only for really big or risky changes, and say so when you do.
 - Do not modify CHANGELOG.md unless given permission to.
 - If a runtime dependency is supposed to be guaranteed by the Docker image / environment image, bundle it there and use it directly. Do not add runtime fallback implementations or runtime self-installs for those dependencies.
 - Hosted deploys must use the published sandbox runtime image instead of rebuilding `apps/sandbox-runtime/Dockerfile` on every deploy. The hosted/base compose uses `MEOWBERT_SANDBOX_RUNTIME_IMAGE` (default `ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main`), and so does a plain `docker compose up`. To test sandbox changes locally, add `-f docker-compose.yml -f docker-compose.local-sandbox.yml`, which builds and uses `meowbert-sandbox-runtime:local`.
