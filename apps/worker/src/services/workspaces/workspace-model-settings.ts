@@ -115,7 +115,7 @@ export function resolveWorkspaceClaudeCacheKeepalive(
 export function resolveWorkspaceCodeModeEnabled(
   modelDefaults: Record<string, unknown> | null | undefined
 ): boolean {
-  return modelDefaults?.codeModeEnabled === true;
+  return modelDefaults?.codeModeEnabled !== false;
 }
 
 export function resolveWorkspaceSendMetadataToModel(

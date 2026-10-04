@@ -212,9 +212,9 @@ function applyWorkspaceModelDefaultsPatch(
 
   if (body.codeModeEnabled !== undefined) {
     if (body.codeModeEnabled) {
-      nextModelDefaults.codeModeEnabled = true;
-    } else {
       delete nextModelDefaults.codeModeEnabled;
+    } else {
+      nextModelDefaults.codeModeEnabled = false;
     }
   }
 

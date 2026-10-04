@@ -60,6 +60,8 @@ A small, fast model is a good choice for `internalModel` and `fastModel`.
 
 Meowbert needs to know each model's context window to decide when to compact long conversations. Add entries in **Admin Panel → Model → Model metadata**. See [Context Compaction](/core-workflows/context-compaction).
 
+[Code mode](/core-workflows/code-mode) is on for every model by default. If a model handles it poorly, add `"code_mode": false` to that model's entry, or to the `default` entry to turn it off for all models. A workspace only uses code mode when both the model and the workspace allow it.
+
 ## Letting users bring their own provider
 
 Users can connect their own API key or, experimentally, a ChatGPT subscription in their settings. Their tasks then use their provider instead of yours. See [Bring Your Own Provider](/core-workflows/byo-providers).

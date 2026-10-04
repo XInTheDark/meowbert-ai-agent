@@ -128,7 +128,7 @@ function useWorkspaceSettingsDrafts(workspaceSettings: WorkspaceSettings | null)
   const [nativeCompactionEnabled, setNativeCompactionEnabled] = useState(true);
   const [sendMetadataToModel, setSendMetadataToModel] = useState(false);
   const [claudeCacheKeepalive, setClaudeCacheKeepalive] = useState(true);
-  const [codeModeEnabled, setCodeModeEnabled] = useState(false);
+  const [codeModeEnabled, setCodeModeEnabled] = useState(true);
   const [memoryEnabled, setMemoryEnabled] = useState(false);
   const [thoughtPersistenceEnabled, setThoughtPersistenceEnabled] = useState(false);
   const [memorySynthesisEnabled, setMemorySynthesisEnabled] = useState(false);
@@ -155,7 +155,7 @@ function useWorkspaceSettingsDrafts(workspaceSettings: WorkspaceSettings | null)
     setNativeCompactionEnabled(workspaceSettings?.nativeCompactionEnabled !== false);
     setSendMetadataToModel(workspaceSettings?.sendMetadataToModel === true);
     setClaudeCacheKeepalive(workspaceSettings?.claudeCacheKeepalive !== false);
-    setCodeModeEnabled(workspaceSettings?.codeModeEnabled === true);
+    setCodeModeEnabled(workspaceSettings?.codeModeEnabled !== false);
     setMemoryEnabled(workspaceSettings?.memoryEnabled === true);
     setThoughtPersistenceEnabled(workspaceSettings?.thoughtPersistenceEnabled !== false);
     setMemorySynthesisEnabled(workspaceSettings?.memorySynthesisEnabled === true);

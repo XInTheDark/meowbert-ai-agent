@@ -4,6 +4,7 @@
 
 ### AI and agents
 
+- **Code mode is on by default** — Every workspace now uses code mode unless a workspace owner turns it off under **Workspace Settings → Experiments**. Images and PDFs that Meowbert opens during a script are now shown to it, so it can view them without leaving code mode. See **Code Mode** in the docs.
 - **Step summaries in code mode** — While Meowbert works in code mode, it can describe each step in one short line. The Activity card now lists the last few steps, and the step that's still running shimmers so you can follow along without opening each tool call.
 
 ## Oct 3, 2026

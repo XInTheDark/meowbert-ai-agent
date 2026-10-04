@@ -103,6 +103,7 @@ export default defineConfig({
           { text: "Agents & Personalities", link: "/core-workflows/agents-and-personalities" },
           { text: "Workspace Memory", link: "/core-workflows/workspace-memory" },
           { text: "Context Compaction", link: "/core-workflows/context-compaction" },
+          { text: "Code Mode", link: "/core-workflows/code-mode" },
           { text: "Bring Your Own Provider", link: "/core-workflows/byo-providers" },
           { text: "Computer Use", link: "/core-workflows/computer-use" }
         ]

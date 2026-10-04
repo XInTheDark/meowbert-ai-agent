@@ -78,10 +78,10 @@ describe("registerWorkspaceCoreRoutes", () => {
   });
 
   it.each([
-    { previous: {}, patch: { codeModeEnabled: true }, stored: true, enabled: true },
-    { previous: { codeModeEnabled: true }, patch: { codeModeEnabled: false }, stored: undefined, enabled: false },
-    { previous: {}, patch: { nativeCompactionEnabled: true }, stored: undefined, enabled: false }
-  ])("keeps code mode off unless enabled: $patch", async ({ previous, patch, stored, enabled }) => {
+    { previous: {}, patch: { codeModeEnabled: false }, stored: false, enabled: false },
+    { previous: { codeModeEnabled: false }, patch: { codeModeEnabled: true }, stored: undefined, enabled: true },
+    { previous: {}, patch: { nativeCompactionEnabled: true }, stored: undefined, enabled: true }
+  ])("keeps code mode on unless disabled: $patch", async ({ previous, patch, stored, enabled }) => {
     const app = Fastify();
     app.decorate("authenticate", async (request: Fastify.FastifyRequest) => { request.user = { id: "user", email: "user@example.com" }; });
     mockedQuery.mockImplementation(async (sql) => createQueryResult(sql.includes("FROM workspace_members") ? [{ role: "owner" }] : []));
