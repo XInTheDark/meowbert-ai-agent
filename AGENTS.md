@@ -58,6 +58,14 @@
 - Never edit an already-applied migration to repair this contract. Add a new numbered migration that carries forward every existing allowed value plus the new one, then verify the migration is applied before retrying a failed workflow.
 - A missing run-kind value can reject reviewer/run creation after workflow state has been persisted and strand the task without its completion path.
 
+### Filesystem cost contract
+
+- Workspace and project storage can be a network mount (rclone over Google Drive, NFS), where every `stat`, `readdir` or `chmod` is a remote call and walking a tree takes minutes.
+- Never walk a workspace, project or task directory on a request path, at run start, or in any automatic or recurring job: no recursive size scans, recursive `chmod`/`chown`, or "find everything under X". Caching a walk's result does not make it acceptable, since the first request still pays for it.
+- Touch only the paths you are creating or changing. Set permissions on files when you write them, not by sweeping a tree later.
+- If you need a total such as storage usage, get it from one cheap call (for example `statfs` on an XFS project quota) or don't show it. Don't add a check that depends on a walk.
+- A walk is acceptable only when the user explicitly asks for one (for example the project cleanup plan), or when it is scoped to a small directory Meowbert owns (`context/`, memory, a linked source folder).
+
 ### Development notes
 
 - After completing the task, you should ask if the user wants you to commit and push. 
