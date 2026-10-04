@@ -62,6 +62,12 @@ function readCallOutput(items: ResponseInputItem[], callId: string): unknown {
   return keys.length === 1 && keys[0] === "result" ? rest.result : rest;
 }
 
+// Media tools put the image or PDF in a message next to their output. The script can't use it, so it
+// goes to the model once exec returns.
+function collectShownItems(items: ResponseInputItem[]): ResponseInputItem[] {
+  return items.filter((item) => "role" in item && item.role === "user");
+}
+
 export async function dispatchNestedToolCall(input: {
   execCall: ResponseFunctionToolCall;
   index: number;
@@ -70,6 +76,8 @@ export async function dispatchNestedToolCall(input: {
   ctx: ToolDispatchContext;
   state: ToolDispatchState;
   dispatch: NestedToolDispatcher;
+  // Receives the messages the call shows the model, such as a loaded image.
+  shownItems: ResponseInputItem[];
 }): Promise<unknown> {
   if (!input.args || typeof input.args !== "object" || Array.isArray(input.args)) {
     throw new Error(`tools.${input.tool.name} takes one arguments object.`);
@@ -88,5 +96,6 @@ export async function dispatchNestedToolCall(input: {
     { ...input.ctx, codeModeParentCallId: input.execCall.call_id },
     createNestedState(input.state, conversationItems)
   );
+  input.shownItems.push(...collectShownItems(conversationItems));
   return readCallOutput(conversationItems, callId);
 }

@@ -1,4 +1,4 @@
-import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
+import type { ResponseFunctionToolCall, ResponseInputItem } from "openai/resources/responses/responses";
 import { config } from "../../../lib/config.js";
 import {
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS,
@@ -34,6 +34,12 @@ function limitResult(result: unknown): unknown {
     : result;
 }
 
+// Images and PDFs loaded by nested calls follow exec's own output, as they would a direct call.
+function showNestedItems(state: ToolDispatchState, items: ResponseInputItem[]): void {
+  state.conversationItems.push(...items);
+  state.runPersistedItems.push(...items);
+}
+
 function resolveTimeoutMs(timeoutSeconds: number | null, ctx: ToolDispatchContext): number {
   const requestedMs = timeoutSeconds === null ? config.runtime.commandTimeoutMs : timeoutSeconds * 1000;
   return Math.max(1_000, Math.min(requestedMs, ctx.shellToolMaxTimeoutMs));
@@ -61,6 +67,7 @@ export async function handleExec(
   });
   let toolCallCount = 0;
   let cancelledByTask = false;
+  const shownItems: ResponseInputItem[] = [];
   const script = await runCodeModeScript({
     code: parsed.value.code,
     toolNames: [...tools.keys()],
@@ -71,7 +78,7 @@ export async function handleExec(
       if (!tool) throw new Error(`Unknown tool: ${name}`);
       toolCallCount += 1;
       try {
-        return await dispatchNestedToolCall({ execCall: outputItem, index: toolCallCount, tool, args, ctx, state, dispatch });
+        return await dispatchNestedToolCall({ execCall: outputItem, index: toolCallCount, tool, args, ctx, state, dispatch, shownItems });
       } catch (error) {
         if (getErrorMessage(error) === "TASK_CANCELLED") cancelledByTask = true;
         throw new Error(`Tool ${name} failed: ${getErrorMessage(error)}`);
@@ -91,7 +98,8 @@ export async function handleExec(
   };
   if (script.error) {
     await finishBuiltinToolFailure(ctx, state, execution, script.error, { output, messagePayload: summaryPayload });
-    return;
+  } else {
+    await finishBuiltinToolSuccess(ctx, state, execution, output, { messagePayload: summaryPayload });
   }
-  await finishBuiltinToolSuccess(ctx, state, execution, output, { messagePayload: summaryPayload });
+  showNestedItems(state, shownItems);
 }

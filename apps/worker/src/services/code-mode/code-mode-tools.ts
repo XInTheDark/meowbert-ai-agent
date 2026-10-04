@@ -18,16 +18,14 @@ import {
   SUBMIT_REVIEW_TOOL_NAME,
   SUBMIT_SWARM_OUTPUT_TOOL_NAME,
   SWARM_PAUSE_TOOL_NAME,
-  VIEW_IMAGE_TOOL_NAME,
-  VIEW_PDF_FILE_TOOL_NAME,
   WAIT_TOOL_NAME
 } from "../agent-tools/index.js";
 import { buildExecTool } from "./exec-tool.js";
 import { SEARCH_TOOLS_TOOL } from "./search-tools-tool.js";
 
 // Tools the model keeps calling directly in code mode: ones that end or pause the turn, change the
-// tool set or the context window, put media in front of the model, or edit files with a patch body
-// that is awkward to embed in a JavaScript string.
+// tool set or the context window, drive the computer, or edit files with a patch body that is awkward
+// to embed in a JavaScript string.
 const DIRECT_TOOL_NAMES = new Set<string>([
   FINAL_RESPONSE_TOOL_NAME,
   WAIT_TOOL_NAME,
@@ -42,8 +40,6 @@ const DIRECT_TOOL_NAMES = new Set<string>([
   ENABLE_SKILL_TOOL_NAME,
   LIST_SKILLS_TOOL_NAME,
   INIT_SANDBOX_TOOL_NAME,
-  VIEW_IMAGE_TOOL_NAME,
-  VIEW_PDF_FILE_TOOL_NAME,
   APPLY_PATCH_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,

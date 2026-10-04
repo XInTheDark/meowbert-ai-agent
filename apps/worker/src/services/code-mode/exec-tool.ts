@@ -17,7 +17,7 @@ export type ExecArguments = z.infer<typeof execArgumentsSchema>;
 const EXEC_DESCRIPTION = [
   "Run JavaScript that calls your other tools, so several steps happen in one go: chain calls, loop over results, and keep only what you need.",
   "Each tool is an async function on `tools` that takes one arguments object and resolves to the tool's result. Omitted nullable arguments are sent as null, and a failed tool usually resolves to an object with an `error` field.",
-  "Tool calls run one at a time. Only what you console.log and return comes back to you, so trim large outputs in the script.",
+  "Tool calls run one at a time. Only what you console.log and return comes back to you, so trim large outputs in the script. Images and PDFs that tools load are shown to you after exec returns.",
   "The code runs as the body of an async function. There is no filesystem, network or Node API besides `tools`, and nothing carries over between exec calls."
 ].join(" ");
 

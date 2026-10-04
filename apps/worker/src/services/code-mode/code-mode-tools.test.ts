@@ -10,14 +10,14 @@ function toolName(tool: Tool): string {
 }
 
 describe("buildCodeModeToolSet", () => {
-  it("keeps turn-ending, context and media tools direct and moves the rest behind exec", () => {
+  it("keeps turn-ending and context tools direct and moves the rest behind exec", () => {
     const tools = buildResponseTools(options, [], { allowWaitTool: true, contextManagementVersion: "v2" });
     const { responseTools, nestedTools } = buildCodeModeToolSet(tools, 600);
     const directNames = responseTools.map(toolName);
     const nestedNames = nestedTools.map((tool) => tool.name);
 
-    expect(directNames).toEqual(expect.arrayContaining(["final_response", "wait", "new_context", "view_image", "enable_skill", "web_search", "exec"]));
-    expect(nestedNames).toEqual(expect.arrayContaining(["run_shell", "memory_search", "spawn_subagent"]));
+    expect(directNames).toEqual(expect.arrayContaining(["final_response", "wait", "new_context", "enable_skill", "web_search", "exec"]));
+    expect(nestedNames).toEqual(expect.arrayContaining(["run_shell", "memory_search", "spawn_subagent", "view_image", "view_pdf_file"]));
     expect(directNames.filter((name) => nestedNames.includes(name))).toEqual([]);
     expect(responseTools.length + nestedTools.length).toBe(tools.length + 2);
     expect(directNames).toContain("search_tools");
@@ -53,6 +53,16 @@ describe("buildCodeModeToolSet", () => {
     expect(exec.description).not.toContain("tools.list_live_sync_files(");
     expect(exec.description).toContain("- subagents: spawn_subagent, send_subagent_message");
     expect(exec.description).not.toContain("tools.spawn_subagent(");
+  });
+
+  it("documents the media viewers in exec and leaves out the PDF viewer when the model can't take PDFs", () => {
+    const execDescription = (allowPdfFileTool: boolean) => buildCodeModeToolSet(buildResponseTools(options, [], { allowPdfFileTool }), 600)
+      .responseTools.find((tool): tool is FunctionTool => tool.type === "function" && tool.name === "exec")!.description;
+
+    expect(execDescription(true)).toContain("tools.view_image(args:");
+    expect(execDescription(true)).toContain("tools.view_pdf_file(args:");
+    expect(execDescription(false)).toContain("tools.view_image(args:");
+    expect(execDescription(false)).not.toContain("view_pdf_file");
   });
 
   it("always offers search_tools alongside exec", () => {

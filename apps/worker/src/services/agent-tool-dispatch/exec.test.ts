@@ -1,10 +1,13 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { ResponseOutputItem } from "openai/resources/responses/responses";
+import type { FunctionTool, ResponseOutputItem } from "openai/resources/responses/responses";
 import { dispatchResponseOutput, type ToolDispatchContext, type ToolDispatchState } from "./index.js";
 import { appendMessage } from "../agent-db/index.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { executeShellCommand } from "../runtime/shell.js";
-import { buildRunShellFunctionTool } from "../agent-tools/index.js";
+import { buildResponseTools, buildRunShellFunctionTool } from "../agent-tools/index.js";
 
 vi.mock("../agent-db/index.js", () => ({
   appendMessage: vi.fn(async () => "msg-1"),
@@ -67,6 +70,17 @@ function createContext(): ToolDispatchContext {
     setCurrentLeafMessageId: () => {},
     assertNotCancelled: async () => {}
   };
+}
+
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64"
+);
+
+function findTool(name: string): FunctionTool {
+  return buildResponseTools(createContext().runToolOptions, []).find(
+    (tool): tool is FunctionTool => tool.type === "function" && tool.name === name
+  )!;
 }
 
 function execCall(code: string, summary: string | null | undefined = null): ResponseOutputItem[] {
@@ -151,5 +165,29 @@ describe("exec", () => {
 
     const contents = vi.mocked(appendMessage).mock.calls.map(([, , content]) => content as Record<string, unknown>);
     expect(contents.find((content) => content.tool === "exec")).not.toHaveProperty("summary");
+  });
+
+  it("shows an image loaded inside the script to the model after exec's output", async () => {
+    vi.clearAllMocks();
+    const taskDir = await mkdtemp(path.join(os.tmpdir(), "exec-view-image-"));
+    try {
+      const imagePath = path.join(taskDir, "chart.png");
+      await writeFile(imagePath, ONE_PIXEL_PNG);
+      const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+      const ctx = { ...createContext(), taskDir, codeModeTools: [buildRunShellFunctionTool(), findTool("view_image")] };
+
+      await dispatchResponseOutput(execCall(`
+        const viewed = await tools.view_image({ file_path: ${JSON.stringify(imagePath)} });
+        console.log(JSON.stringify(viewed));
+      `), ctx, state);
+
+      expect(execOutput(state)).toMatchObject({ logs: "{\"ok\":true}", tool_calls: 1 });
+      expect(state.conversationItems.map((item) => item.type ?? (item as { role: string }).role)).toEqual(["function_call", "function_call_output", "user"]);
+      const shown = state.conversationItems[2] as { content: Array<{ type: string; image_url?: string }> };
+      expect(shown.content.find((part) => part.type === "input_image")?.image_url).toMatch(/^data:image\/png;base64,/);
+      expect(state.runPersistedItems).toEqual(state.conversationItems);
+    } finally {
+      await rm(taskDir, { recursive: true, force: true });
+    }
   });
 });
