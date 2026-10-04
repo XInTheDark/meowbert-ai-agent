@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 import type { PoolClient } from "pg";
-import { createTaskMessageMetadata, ensureSandboxWritablePath, isWithinPath } from "@meowbert/shared";
+import { createTaskMessageMetadata, isWithinPath } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { ensureEnvironmentStorageRoot } from "../environments/environment-storage.js";
 
@@ -253,13 +253,6 @@ async function copyTaskWorkspaceContents(input: {
       { recursive: true }
     );
   }
-
-  // The copies keep the modes of files the sandbox wrote, so open them up for the sandbox once here.
-  await ensureSandboxWritablePath({
-    rootPath: input.destinationEnvRoot,
-    targetPath: destinationTaskDir,
-    recursive: true
-  });
 }
 
 async function rollbackForkTaskOnFileCopyFailure(input: {

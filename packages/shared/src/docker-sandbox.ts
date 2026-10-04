@@ -13,6 +13,7 @@ import {
   buildSandboxStateFilePath,
   buildWrappedCommand,
   waitForExecExit,
+  withGroupWritableUmask,
   withTimeout
 } from "./docker-sandbox-process.js";
 import {
@@ -233,6 +234,7 @@ export const dockerSandboxTestUtils = {
   buildSandboxStateFilePath,
   buildWrappedCommand,
   buildKillCommand,
+  withGroupWritableUmask,
   buildMissingSandboxImageMessage,
   buildMissingSandboxRuntimeMessage,
   dedupeNestedPaths,
@@ -346,9 +348,9 @@ export class DockerSandboxHandle {
 
   async startAttachedProcess(input: StartAttachedProcessInput): Promise<SandboxAttachedProcess> {
     const pidFilePath = input.trackProcessGroup ? buildSandboxStateFilePath() : null;
-    const finalCommand = pidFilePath
+    const finalCommand = withGroupWritableUmask(pidFilePath
       ? buildWrappedCommand({ command: input.command, pidFilePath })
-      : input.command;
+      : input.command);
 
     const exec = await this.container.exec({
       AttachStdin: input.stdin === true,

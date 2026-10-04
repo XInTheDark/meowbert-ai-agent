@@ -36,6 +36,12 @@ function joinShellScriptLines(lines: string[]): string {
   return lines.join("\n");
 }
 
+// Runs the command with umask 0002, like the API and worker, so files the sandbox creates are
+// group-writable and stay writable for the sandbox when the API copies them (e.g. task forks).
+export function withGroupWritableUmask(command: string[]): string[] {
+  return ["/bin/sh", "-c", 'umask 0002 && exec "$@"', "sh", ...command];
+}
+
 export function buildWrappedCommand(input: {
   command: string[];
   pidFilePath: string;

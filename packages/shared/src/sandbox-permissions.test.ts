@@ -41,56 +41,32 @@ describe("ensureSandboxReadablePath", () => {
     expect((await fs.stat(nestedDir)).mode & 0o777).toBe(0o755);
     expect((await fs.stat(targetFile)).mode & 0o777).toBe(0o644);
   });
-
-  it("can normalize an existing directory tree recursively", async () => {
-    const root = await createTempRoot();
-    const inputsDir = path.join(root, ".meowbert", "task-runs", "task-1", "inputs");
-    const nestedDir = path.join(inputsDir, "nested");
-    const nestedFile = path.join(nestedDir, "note.md");
-
-    await fs.mkdir(nestedDir, { recursive: true, mode: 0o700 });
-    await fs.writeFile(nestedFile, "hello", { mode: 0o600 });
-
-    await ensureSandboxReadablePath({
-      rootPath: root,
-      targetPath: inputsDir,
-      recursive: true
-    });
-
-    expect((await fs.stat(inputsDir)).mode & 0o777).toBe(0o755);
-    expect((await fs.stat(nestedDir)).mode & 0o777).toBe(0o755);
-    expect((await fs.stat(nestedFile)).mode & 0o777).toBe(0o644);
-  });
 });
 
 describe("ensureSandboxWritablePath", () => {
-  it("normalizes directory trees for writable sandbox task workspaces", async () => {
+  it("opens a written file and its directory chain for the sandbox", async () => {
     const root = await createTempRoot();
     const taskDir = path.join(root, ".meowbert", "task-runs", "task-1");
     const inputsDir = path.join(taskDir, "inputs");
-    const nestedDir = path.join(inputsDir, "nested");
-    const nestedFile = path.join(nestedDir, "draft.docx");
+    const targetFile = path.join(inputsDir, "draft.docx");
 
-    await fs.mkdir(nestedDir, { recursive: true, mode: 0o755 });
-    await fs.writeFile(nestedFile, "hello", { mode: 0o644 });
+    await fs.mkdir(inputsDir, { recursive: true, mode: 0o755 });
+    await fs.writeFile(targetFile, "hello", { mode: 0o644 });
     await fs.chmod(path.join(root, ".meowbert"), 0o755);
     await fs.chmod(path.join(root, ".meowbert", "task-runs"), 0o755);
     await fs.chmod(taskDir, 0o755);
     await fs.chmod(inputsDir, 0o755);
-    await fs.chmod(nestedDir, 0o755);
-    await fs.chmod(nestedFile, 0o644);
+    await fs.chmod(targetFile, 0o644);
 
     await ensureSandboxWritablePath({
       rootPath: root,
-      targetPath: taskDir,
-      recursive: true
+      targetPath: targetFile
     });
 
     expect((await fs.stat(path.join(root, ".meowbert"))).mode & 0o775).toBe(0o775);
     expect((await fs.stat(path.join(root, ".meowbert", "task-runs"))).mode & 0o775).toBe(0o775);
     expect((await fs.stat(taskDir)).mode & 0o775).toBe(0o775);
     expect((await fs.stat(inputsDir)).mode & 0o775).toBe(0o775);
-    expect((await fs.stat(nestedDir)).mode & 0o775).toBe(0o775);
-    expect((await fs.stat(nestedFile)).mode & 0o7777).toBe(0o664);
+    expect((await fs.stat(targetFile)).mode & 0o7777).toBe(0o664);
   });
 });

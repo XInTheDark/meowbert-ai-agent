@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { DockerSandboxManager, dockerSandboxTestUtils } from "./docker-sandbox.js";
 
@@ -45,6 +48,20 @@ describe("docker sandbox shell wrappers", () => {
     const syntaxCheck = spawnSync(command[0], ["-n", "-c", command[2]], { encoding: "utf8" });
     expect(syntaxCheck.status).toBe(0);
     expect(syntaxCheck.stderr).toBe("");
+  });
+
+  it("runs sandbox processes with a group-writable umask and their arguments intact", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "meowbert-umask-"));
+    try {
+      const target = path.join(dir, "it's made.txt");
+      const [executable, ...args] = dockerSandboxTestUtils.withGroupWritableUmask(["/bin/sh", "-c", 'echo hi > "$1"', "sh", target]);
+      const result = spawnSync(executable, args, { encoding: "utf8" });
+
+      expect(result.status).toBe(0);
+      expect(fs.statSync(target).mode & 0o777).toBe(0o664);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("builds a valid kill wrapper", () => {

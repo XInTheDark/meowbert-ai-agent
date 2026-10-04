@@ -80,31 +80,10 @@ async function ensureDirectoryChainMinimumMode(
   }
 }
 
-async function ensureTreeMinimumMode(targetPath: string, profile: SandboxPermissionProfile): Promise<void> {
-  const stats = await fs.lstat(targetPath).catch(() => null);
-  if (!stats || stats.isSymbolicLink()) {
-    return;
-  }
-
-  if (stats.isDirectory()) {
-    await ensureMinimumMode(targetPath, profile.directoryMode);
-    const entries = await fs.readdir(targetPath, { withFileTypes: true });
-    await Promise.all(entries.map(async (entry) => {
-      await ensureTreeMinimumMode(path.join(targetPath, entry.name), profile);
-    }));
-    return;
-  }
-
-  if (stats.isFile()) {
-    await ensureMinimumMode(targetPath, profile.fileMode);
-  }
-}
-
 async function ensureSandboxPathPermissions(
   input: {
     rootPath: string;
     targetPath: string;
-    recursive?: boolean;
   },
   profile: SandboxPermissionProfile
 ): Promise<void> {
@@ -121,9 +100,6 @@ async function ensureSandboxPathPermissions(
 
   if (stats.isDirectory()) {
     await ensureDirectoryChainMinimumMode(resolvedRoot, resolvedTarget, profile);
-    if (input.recursive === true) {
-      await ensureTreeMinimumMode(resolvedTarget, profile);
-    }
     return;
   }
 
@@ -136,7 +112,6 @@ async function ensureSandboxPathPermissions(
 export async function ensureSandboxReadablePath(input: {
   rootPath: string;
   targetPath: string;
-  recursive?: boolean;
 }): Promise<void> {
   await ensureSandboxPathPermissions(input, READABLE_PROFILE);
 }
@@ -144,7 +119,6 @@ export async function ensureSandboxReadablePath(input: {
 export async function ensureSandboxWritablePath(input: {
   rootPath: string;
   targetPath: string;
-  recursive?: boolean;
 }): Promise<void> {
   await ensureSandboxPathPermissions(input, WRITABLE_PROFILE);
 }
