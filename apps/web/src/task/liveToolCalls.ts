@@ -65,6 +65,7 @@ export function toLiveToolCall(event: LiveEvent): LiveToolCall | null {
     command,
     inputLabel,
     inputText,
+    summary: readString(event.payload.summary),
     interruptible: readBoolean(event.payload.interruptible) === true,
     startedAt: event.createdAt
   };

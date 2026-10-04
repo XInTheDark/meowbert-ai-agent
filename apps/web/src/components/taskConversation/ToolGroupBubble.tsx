@@ -1,6 +1,7 @@
 import type { ThoughtSummaryContentProps } from "./ThoughtSummaryBubble";
 import { ToolActivitySummaryCard } from "./ToolActivitySummaryCard";
 import type { TaskMessage } from "../../lib/types";
+import { getToolGroupStepSummaries } from "../../task/activityStepSummaries";
 import { getToolGroupSummary } from "./shared";
 
 export function ToolGroupBubble(props: {
@@ -56,6 +57,7 @@ export function ToolGroupBubble(props: {
         count={summary.count}
         preview={summary.preview}
         secondaryLabel={thoughtSummary?.label ?? null}
+        steps={getToolGroupStepSummaries(toolGroup)}
         active={isSelected}
         onClick={handleInspectRequested}
       />

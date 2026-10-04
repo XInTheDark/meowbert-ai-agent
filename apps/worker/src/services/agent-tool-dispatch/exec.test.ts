@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ResponseOutputItem } from "openai/resources/responses/responses";
 import { dispatchResponseOutput, type ToolDispatchContext, type ToolDispatchState } from "./index.js";
 import { appendMessage } from "../agent-db/index.js";
+import { emitTaskEvent } from "../runtime/events.js";
 import { executeShellCommand } from "../runtime/shell.js";
 import { buildRunShellFunctionTool } from "../agent-tools/index.js";
 
@@ -68,13 +69,13 @@ function createContext(): ToolDispatchContext {
   };
 }
 
-function execCall(code: string): ResponseOutputItem[] {
+function execCall(code: string, summary: string | null | undefined = null): ResponseOutputItem[] {
   return [{
     id: "fc_exec",
     type: "function_call",
     name: "exec",
     call_id: "call_exec",
-    arguments: JSON.stringify({ code, timeout_seconds: null }),
+    arguments: JSON.stringify({ code, timeout_seconds: null, summary }),
     status: "completed"
   }];
 }
@@ -125,5 +126,30 @@ describe("exec", () => {
 
     expect(result.finalResponse).toBeNull();
     expect(execOutput(state)).toMatchObject({ logs: "run_shell", error: expect.stringContaining("TypeError") });
+  });
+
+  it("shows the step summary on the live call and the stored activity as one line", async () => {
+    vi.clearAllMocks();
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+
+    await dispatchResponseOutput(execCall(`await tools.run_shell({ command: "ls" });`, "  Listing the\n project files "), createContext(), state);
+
+    const execStart = vi.mocked(emitTaskEvent).mock.calls.find(([, type, payload]) => type === "command_start" && payload.tool === "exec");
+    expect(execStart?.[2]).toMatchObject({ summary: "Listing the project files" });
+    const contents = vi.mocked(appendMessage).mock.calls.map(([, , content]) => content as Record<string, unknown>);
+    expect(contents.find((content) => content.tool === "exec")).toMatchObject({ summary: "Listing the project files" });
+    expect(contents.find((content) => content.tool === "run_shell")).not.toHaveProperty("summary");
+  });
+
+  it("runs without a summary when the model leaves the key out", async () => {
+    vi.clearAllMocks();
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+
+    await dispatchResponseOutput(execCall(`await tools.run_shell({ command: "ls" });`, undefined), createContext(), state);
+
+    expect(execOutput(state)).not.toHaveProperty("error");
+
+    const contents = vi.mocked(appendMessage).mock.calls.map(([, , content]) => content as Record<string, unknown>);
+    expect(contents.find((content) => content.tool === "exec")).not.toHaveProperty("summary");
   });
 });

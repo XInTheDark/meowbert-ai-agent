@@ -29,6 +29,7 @@ describe("toLiveToolCall", () => {
       command: null,
       inputLabel: "Query",
       inputText: "recent deployment notes",
+      summary: null,
       interruptible: false,
       startedAt: "2026-03-08T10:00:00.000Z"
     });
@@ -105,6 +106,7 @@ describe("deriveLiveToolCalls", () => {
         command: null,
         inputLabel: "Query",
         inputText: "deployment notes",
+        summary: null,
         interruptible: false,
         startedAt: "2026-03-08T10:00:04.000Z"
       }

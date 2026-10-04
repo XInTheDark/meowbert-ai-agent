@@ -419,6 +419,7 @@ describe("TaskThreadSidebar", () => {
           command: "npm test",
           inputLabel: "npm test",
           inputText: "npm test",
+          summary: null,
           interruptible: true,
           startedAt: "2026-05-04T10:00:30.000Z"
         }

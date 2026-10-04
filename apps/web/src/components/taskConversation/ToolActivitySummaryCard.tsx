@@ -1,4 +1,5 @@
 import { ChevronRight, LoaderCircle } from "lucide-react";
+import { ActivityStepTrail } from "./ActivityStepTrail";
 
 export interface ToolActivitySummaryCardProps {
   kicker: string;
@@ -6,6 +7,7 @@ export interface ToolActivitySummaryCardProps {
   count: number;
   preview?: string | null;
   secondaryLabel?: string | null;
+  steps?: string[];
   badgeTone?: "default" | "running";
   active?: boolean;
   onClick: () => void;
@@ -18,13 +20,18 @@ export function ToolActivitySummaryCard(props: ToolActivitySummaryCardProps): JS
     count,
     preview,
     secondaryLabel,
+    steps = [],
     badgeTone = "default",
     active = false,
     onClick
   } = props;
 
   return (
-    <button type="button" className={`tool-activity-card${active ? " active" : ""}`} onClick={onClick}>
+    <button
+      type="button"
+      className={`tool-activity-card${steps.length > 0 ? " has-steps" : ""}${active ? " active" : ""}`}
+      onClick={onClick}
+    >
       <div className="tool-activity-card-main">
         <div className="tool-activity-card-kicker-row">
           <span className="tool-activity-card-kicker">
@@ -42,6 +49,7 @@ export function ToolActivitySummaryCard(props: ToolActivitySummaryCardProps): JS
             <span className="tool-activity-card-secondary-pill">{secondaryLabel}</span>
           ) : null}
         </div>
+        <ActivityStepTrail steps={steps} running={badgeTone === "running"} />
       </div>
       <span className="tool-activity-card-chevron" aria-hidden="true">
         <ChevronRight size={16} />
