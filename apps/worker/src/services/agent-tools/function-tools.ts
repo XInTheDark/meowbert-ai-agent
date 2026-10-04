@@ -604,7 +604,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: VIEW_IMAGE_TOOL_NAME,
-    description: "Load an image file and display it for visual inspection.",
+    description: "Load an image file and display it for visual inspection. To look closer, crop, zoom, rotate, or enhance it first with Python (Pillow, or OpenCV for deskew and perspective fixes), save the result, and view that.",
     strict: true,
     parameters: {
       type: "object",

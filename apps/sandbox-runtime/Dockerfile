@@ -106,6 +106,7 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages --ignore-insta
   'markdown-it-py==3.0.0' \
   'matplotlib==3.11.1' \
   'numpy<2.5' \
+  'opencv-python-headless==5.0.0.93' \
   'Pillow==12.3.0' \
   'pdf2image==1.17.0' \
   'pydantic==2.13.4' \
@@ -121,7 +122,7 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages --ignore-insta
 COPY package.json package-lock.json ./
 COPY apps/sandbox-runtime/package.json apps/sandbox-runtime/package.json
 COPY apps/worker/scripts apps/worker/scripts
-RUN MPLCONFIGDIR=/tmp/matplotlib MPLBACKEND=Agg python3 -c 'import IPython, ipykernel, jupyter_client, matplotlib, matplotlib.pyplot as plt; fig, ax = plt.subplots(); ax.plot([0, 1], [0, 1]); fig.savefig("/tmp/python-runtime-smoke.png"); plt.close(fig)' \
+RUN MPLCONFIGDIR=/tmp/matplotlib MPLBACKEND=Agg python3 -c 'import cv2, PIL, IPython, ipykernel, jupyter_client, matplotlib, matplotlib.pyplot as plt; fig, ax = plt.subplots(); ax.plot([0, 1], [0, 1]); fig.savefig("/tmp/python-runtime-smoke.png"); plt.close(fig)' \
   && test -s /tmp/python-runtime-smoke.png
 RUN --mount=type=bind,source=config,target=/tmp/build-config,readonly \
   MEOWBERT_BROWSER_USE_ENABLED="${MEOWBERT_BROWSER_USE_ENABLED}" \
@@ -200,6 +201,7 @@ RUN cat > /app/build-meta/runtime-tools.json <<'EOF'
     "markdown-it-py==3.0.0",
     "matplotlib==3.11.1",
     "numpy<2.5",
+    "opencv-python-headless==5.0.0.93",
     "Pillow==12.3.0",
     "pdf2image==1.17.0",
     "openpyxl==3.1.5",
@@ -279,7 +281,8 @@ Installed tools and libraries are summarized here for quick shell planning. Use 
 - markitdown[all]
 - matplotlib 3.11.1 for plotting (use the Agg backend without a display)
 - numpy<2.5, scipy
-- Pillow 12.3.0, pdf2image 1.17.0
+- Pillow 12.3.0 for image crop/rotate/resize/enhance, pdf2image 1.17.0
+- opencv-python-headless 5.0.0.93 (`cv2`) for deskew, perspective correction, and contour/edge detection
 - pydantic 2.13.4, pyhumps 3.8.0
 - openpyxl 3.1.5
 - pdfplumber, pymupdf, pypdf, pypdfium2, reportlab
