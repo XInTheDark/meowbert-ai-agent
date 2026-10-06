@@ -213,7 +213,7 @@ function resolveWorkspaceCompactionBackend(
 }
 
 function resolveWorkspaceClaudeCacheKeepalive(modelDefaults: Record<string, unknown>): boolean {
-  return modelDefaults.claudeCacheKeepalive !== false;
+  return modelDefaults.claudeCacheKeepalive === true;
 }
 
 function resolveWorkspaceCodeModeEnabled(modelDefaults: Record<string, unknown>): boolean {

@@ -33,7 +33,7 @@ describe("workspace organization experiment", () => {
     const label = Array.from(container.querySelectorAll("label")).find((item) => item.textContent?.includes("New message organization"))!;
     expect(label.querySelector("input")?.checked).toBe(true);
     await save();
-    expect(patch).toHaveBeenCalledWith("/api/workspaces/workspace/settings", { nativeCompactionEnabled: true, sendMetadataToModel: false, claudeCacheKeepalive: true, codeModeEnabled: true });
+    expect(patch).toHaveBeenCalledWith("/api/workspaces/workspace/settings", { nativeCompactionEnabled: true, sendMetadataToModel: false, claudeCacheKeepalive: false, codeModeEnabled: true });
   });
   it("persists an explicit disable", async () => {
     await showExperiments();

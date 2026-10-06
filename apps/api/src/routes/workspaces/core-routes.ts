@@ -204,9 +204,9 @@ function applyWorkspaceModelDefaultsPatch(
 
   if (body.claudeCacheKeepalive !== undefined) {
     if (body.claudeCacheKeepalive) {
-      delete nextModelDefaults.claudeCacheKeepalive;
+      nextModelDefaults.claudeCacheKeepalive = true;
     } else {
-      nextModelDefaults.claudeCacheKeepalive = false;
+      delete nextModelDefaults.claudeCacheKeepalive;
     }
   }
 
