@@ -58,6 +58,11 @@
 - Never edit an already-applied migration to repair this contract. Add a new numbered migration that carries forward every existing allowed value plus the new one, then verify the migration is applied before retrying a failed workflow.
 - A missing run-kind value can reject reviewer/run creation after workflow state has been persisted and strand the task without its completion path.
 
+### Agent Swarm preset contract
+
+- Every Agent Swarm task parameter the composer can set (roster, review rounds, token/time budget, disable spawning and budgets, and any you add) must also be configurable on an `agent_swarm` agent preset, so a swarm in the models list can carry its own defaults.
+- When adding or changing one, update together: `PlatformAgentPreset` and its normalizer in `packages/shared/src/agent-presets.ts`, the admin preset schema in `apps/api/src/routes/admin-core-routes.ts`, the admin JSON draft parser and the swarm generator under `apps/web/src/pages/admin/settings/`, `resolveAgentSwarmTaskSettings` in `apps/api/src/services/tasks/agent-swarm-task-settings.ts`, and the composer prefill in `apps/web/src/task/agentSwarmPresetWorkflow.ts`.
+
 ### Filesystem cost contract
 
 - Workspace and project storage can be a network mount (rclone over Google Drive, NFS), where every `stat`, `readdir` or `chmod` is a remote call and walking a tree takes minutes.

@@ -5,11 +5,31 @@ import {
   isPlatformAgentPresetPickerVisible,
   resolveDefaultPlatformAgentId,
   resolvePlatformAgentPresetMode,
-  resolveWorkspaceDefaultAgentId
+  resolveWorkspaceDefaultAgentId,
+  type PlatformAgentPreset
 } from "@meowbert/shared";
+import { resolveAgentSwarmTaskSettings } from "../services/tasks/agent-swarm-task-settings.js";
 import { getVisiblePlatformAgentsForUser } from "../services/platform/platform-agents.js";
 import { assertWorkspaceMember } from "../services/workspaces/workspace-access.js";
 import { loadWorkspaceDefaultAgentId } from "../services/workspaces/workspace-default-agent.js";
+
+// The composer edits a selected swarm's top-level roster, so it needs the members' names even when they
+// are hidden from the agent picker.
+function buildSwarmAgentSummary(preset: PlatformAgentPreset, presets: PlatformAgentPreset[]) {
+  const settings = resolveAgentSwarmTaskSettings(undefined, preset);
+  const memberIds = new Set([settings.leaderAgentId, ...settings.modelAllocations.map((item) => item.agentId)]);
+  return {
+    leaderAgentId: settings.leaderAgentId,
+    modelAllocations: settings.modelAllocations,
+    reviewRounds: settings.reviewRounds,
+    tokenBudget: settings.tokenBudget,
+    timeBudgetMinutes: settings.timeBudgetMinutes,
+    disableSpawningAndBudgets: settings.disableSpawningAndBudgets,
+    members: presets
+      .filter((member) => memberIds.has(member.id))
+      .map((member) => ({ id: member.id, name: member.name, mode: resolvePlatformAgentPresetMode(member) }))
+  };
+}
 
 const agentsQuery = z.object({ workspaceId: z.string().uuid().optional() });
 
@@ -46,7 +66,13 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
         name: preset.name,
         description: preset.description,
         mode,
-        ...(swarmWorkerCount !== null ? { swarmWorkerCount, swarmReviewRounds: preset.reviewRounds ?? 0 } : {})
+        ...(swarmWorkerCount !== null
+          ? {
+              swarmWorkerCount,
+              swarmReviewRounds: preset.reviewRounds ?? 0,
+              swarm: buildSwarmAgentSummary(preset, presets)
+            }
+          : {})
       };
     });
 

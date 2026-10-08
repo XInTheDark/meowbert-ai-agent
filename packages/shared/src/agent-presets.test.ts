@@ -112,6 +112,25 @@ describe("normalizePlatformAgentPresets", () => {
     expect(normalized[0]).toMatchObject({ id: "research-swarm", spawnableAsNode: false });
   });
 
+  it("keeps Swarm budget defaults, and drops them when spawning and budgets are disabled", () => {
+    const [withBudgets, withoutBudgets] = normalizePlatformAgentPresets([
+      {
+        id: "budgeted", name: "Budgeted", description: "Swarm", payload: {}, mode: "agent_swarm",
+        leaderAgentId: "luna", modelAllocations: [{ agentId: "luna", workerCount: 2 }],
+        tokenBudget: 20_000_000, timeBudgetMinutes: 90
+      },
+      {
+        id: "roster-only", name: "Roster only", description: "Swarm", payload: {}, mode: "agent_swarm",
+        leaderAgentId: "luna", modelAllocations: [{ agentId: "luna", workerCount: 2 }],
+        tokenBudget: 20_000_000, disableSpawningAndBudgets: true
+      }
+    ]);
+
+    expect(withBudgets).toMatchObject({ tokenBudget: 20_000_000, timeBudgetMinutes: 90 });
+    expect(withoutBudgets).toMatchObject({ disableSpawningAndBudgets: true });
+    expect(withoutBudgets.tokenBudget).toBeUndefined();
+  });
+
   it("preserves an individual agent's explicit node opt-in", () => {
     const normalized = normalizePlatformAgentPresets([{
       id: "luna", name: "Luna", description: "Fast research", payload: {}, spawnableAsNode: true

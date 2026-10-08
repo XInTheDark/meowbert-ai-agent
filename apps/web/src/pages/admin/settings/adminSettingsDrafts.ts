@@ -15,6 +15,9 @@ interface AgentPresetDraft {
   leaderAgentId?: string;
   modelAllocations?: Array<{ agentId: string; workerCount: number }>;
   reviewRounds?: number;
+  tokenBudget?: number;
+  timeBudgetMinutes?: number;
+  disableSpawningAndBudgets?: boolean;
 }
 
 interface ModelRouterTargetDraft {
@@ -266,9 +269,33 @@ export function parseAgentPresetsDraft(raw: string): AgentPresetDraft[] {
       ...(modelAllocations ? { modelAllocations } : {}),
       ...(typeof record.reviewRounds === "number" && Number.isInteger(record.reviewRounds)
         ? { reviewRounds: record.reviewRounds }
-        : {})
+        : {}),
+      ...parseSwarmBudgetFields(id, record)
     };
   });
+}
+
+function parseSwarmBudgetFields(id: string, record: Record<string, unknown>): {
+  tokenBudget?: number;
+  timeBudgetMinutes?: number;
+  disableSpawningAndBudgets?: boolean;
+} {
+  for (const key of ["tokenBudget", "timeBudgetMinutes"] as const) {
+    const value = record[key];
+    if (value !== undefined && (typeof value !== "number" || !Number.isInteger(value) || value <= 0)) {
+      throw new Error(`Agent preset ${id} ${key} must be a positive whole number when provided.`);
+    }
+  }
+  if (record.disableSpawningAndBudgets !== undefined && typeof record.disableSpawningAndBudgets !== "boolean") {
+    throw new Error(`Agent preset ${id} disableSpawningAndBudgets must be a boolean when provided.`);
+  }
+  return {
+    ...(typeof record.tokenBudget === "number" ? { tokenBudget: record.tokenBudget } : {}),
+    ...(typeof record.timeBudgetMinutes === "number" ? { timeBudgetMinutes: record.timeBudgetMinutes } : {}),
+    ...(typeof record.disableSpawningAndBudgets === "boolean"
+      ? { disableSpawningAndBudgets: record.disableSpawningAndBudgets }
+      : {})
+  };
 }
 
 export function parseModelRoutersDraft(raw: string): ModelRouterDraft[] {

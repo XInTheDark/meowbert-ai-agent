@@ -1,6 +1,8 @@
 import {
   AGENT_SWARM_MAX_REVIEW_ROUNDS,
   AGENT_SWARM_MAX_WORKERS,
+  normalizeAgentSwarmTimeBudgetMinutes,
+  normalizeAgentSwarmTokenBudget,
   AGENT_SWARM_MIN_WORKERS,
   type AgentSwarmAgentAllocation
 } from "@meowbert/shared/agent-swarm";
@@ -23,6 +25,10 @@ export interface SwarmDraft {
   spawnableAsNode: boolean;
   leader: SwarmSeat | null;
   workers: SwarmSeat[];
+  // Task budgets only apply when the swarm is picked as the task's agent, so the editor shows them on the root.
+  tokenBudget: number | null;
+  timeBudgetMinutes: number | null;
+  disableSpawningAndBudgets: boolean;
 }
 
 export interface GeneratedSwarmPreset {
@@ -36,6 +42,9 @@ export interface GeneratedSwarmPreset {
   modelAllocations: AgentSwarmAgentAllocation[];
   reviewRounds: number;
   spawnableAsNode: boolean;
+  tokenBudget?: number;
+  timeBudgetMinutes?: number;
+  disableSpawningAndBudgets?: boolean;
 }
 
 export function parseSwarmModelOptions(raw: string): SwarmModelOption[] {
@@ -64,7 +73,23 @@ export function createSwarmDraft(key: string, index = 1): SwarmDraft {
     reviewRounds: 0,
     spawnableAsNode: false,
     leader: null,
-    workers: []
+    workers: [],
+    tokenBudget: null,
+    timeBudgetMinutes: null,
+    disableSpawningAndBudgets: false
+  };
+}
+
+function swarmBudgetFields(node: SwarmDraft): Pick<
+  GeneratedSwarmPreset,
+  "tokenBudget" | "timeBudgetMinutes" | "disableSpawningAndBudgets"
+> {
+  if (node.disableSpawningAndBudgets) return { disableSpawningAndBudgets: true };
+  const tokenBudget = normalizeAgentSwarmTokenBudget(node.tokenBudget);
+  const timeBudgetMinutes = normalizeAgentSwarmTimeBudgetMinutes(node.timeBudgetMinutes);
+  return {
+    ...(tokenBudget !== null ? { tokenBudget } : {}),
+    ...(timeBudgetMinutes !== null ? { timeBudgetMinutes } : {})
   };
 }
 
@@ -118,7 +143,8 @@ function collectSwarmPresets(node: SwarmDraft, output: GeneratedSwarmPreset[]): 
     leaderAgentId: seatAgentId(node.leader),
     modelAllocations,
     reviewRounds: Math.max(0, Math.min(AGENT_SWARM_MAX_REVIEW_ROUNDS, Math.floor(node.reviewRounds))),
-    spawnableAsNode: node.spawnableAsNode && nestedSeats.length === 0
+    spawnableAsNode: node.spawnableAsNode && nestedSeats.length === 0,
+    ...swarmBudgetFields(node)
   });
 }
 

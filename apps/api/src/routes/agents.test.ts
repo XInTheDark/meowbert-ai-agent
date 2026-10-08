@@ -139,7 +139,16 @@ describe("agentRoutes", () => {
 
     expect(response.json().agents).toContainEqual({
       id: "solo-swarm", name: "Solo Swarm", description: "Leader only", mode: "agent_swarm",
-      swarmWorkerCount: 0, swarmReviewRounds: 0
+      swarmWorkerCount: 0, swarmReviewRounds: 0,
+      swarm: {
+        leaderAgentId: "luna-xhigh",
+        modelAllocations: [],
+        reviewRounds: 0,
+        tokenBudget: 50_000_000,
+        timeBudgetMinutes: null,
+        disableSpawningAndBudgets: false,
+        members: [{ id: "luna-xhigh", name: "Luna", mode: "standard" }]
+      }
     });
     await app.close();
   });

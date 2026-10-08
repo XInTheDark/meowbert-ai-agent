@@ -4,7 +4,11 @@ import {
   AGENT_SWARM_MAX_REVIEW_ROUNDS,
   AGENT_SWARM_MAX_WORKERS,
   AGENT_SWARM_MIN_WORKERS,
+  AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
+  AGENT_SWARM_MAX_TOKEN_BUDGET,
   clampAgentSwarmWorkerCount,
+  normalizeAgentSwarmTimeBudgetMinutes,
+  normalizeAgentSwarmTokenBudget,
   limitAgentSwarmAgentAllocations,
   normalizeAgentSwarmAgentAllocations,
   sumAgentSwarmAgentAllocations,
@@ -20,6 +24,7 @@ import { buildDefaultTaskParameters, hasCustomTaskParameters, normalizeTaskParam
 import type { TaskParameters, TaskType, TaskWorkflowComposerConfig } from "../../lib/types";
 import type { AgentSummary } from "./AgentDropdown";
 import type { ChatToolsPopoverPlacement } from "./useChatToolsDropdownPlacement";
+import { mergeSwarmMemberAgents } from "../../task/agentSwarmPresetWorkflow";
 
 export type TaskParametersPanel =
   | "menu"
@@ -32,8 +37,8 @@ export type TaskParametersPanel =
   | "agentSwarm";
 export const MAX_LONG_HORIZON_TOKEN_BUDGET = 100_000_000;
 export const MAX_LONG_HORIZON_TIME_BUDGET_MINUTES = 10_080;
-export const MAX_AGENT_SWARM_TOKEN_BUDGET = 100_000_000;
-export const MAX_AGENT_SWARM_TIME_BUDGET_MINUTES = 10_080;
+export const MAX_AGENT_SWARM_TOKEN_BUDGET = AGENT_SWARM_MAX_TOKEN_BUDGET;
+export const MAX_AGENT_SWARM_TIME_BUDGET_MINUTES = AGENT_SWARM_MAX_TIME_BUDGET_MINUTES;
 const EMPTY_AGENTS: AgentSummary[] = [];
 
 export interface PendingTypeChange {
@@ -88,16 +93,6 @@ function normalizeLongHorizonTimeBudget(value: number | null | undefined): numbe
   return Math.min(MAX_LONG_HORIZON_TIME_BUDGET_MINUTES, Math.max(1, Math.floor(value)));
 }
 
-function normalizeAgentSwarmTokenBudget(value: number | null | undefined): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
-  return Math.min(MAX_AGENT_SWARM_TOKEN_BUDGET, Math.max(1, Math.floor(value)));
-}
-
-function normalizeAgentSwarmTimeBudget(value: number | null | undefined): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
-  return Math.min(MAX_AGENT_SWARM_TIME_BUDGET_MINUTES, Math.max(1, Math.floor(value)));
-}
-
 function formatTokenBudgetCompact(value: number): string {
   if (value >= 1_000_000) {
     const amount = value / 1_000_000;
@@ -131,10 +126,32 @@ function buildWorkflowSummary(config: TaskWorkflowComposerConfig | undefined): s
   const modelCount = (config.modelAllocations ?? []).filter((item) => item.workerCount > 0).length;
   const budgetParts = [
     normalizeAgentSwarmTokenBudget(config.tokenBudget),
-    normalizeAgentSwarmTimeBudget(config.timeBudgetMinutes)
+    normalizeAgentSwarmTimeBudgetMinutes(config.timeBudgetMinutes)
   ].flatMap((value, index) => value === null ? [] : [index === 0 ? `${formatTokenBudgetCompact(value)} tokens` : `${value}m`]);
   const reviewRounds = config.reviewRounds > 0 ? ` · ${config.reviewRounds} review round${config.reviewRounds === 1 ? "" : "s"}` : "";
   return `Agent Swarm · ${config.workerCount} workers${modelCount > 1 ? ` · ${modelCount} models` : ""}${budgetParts.length > 0 ? ` · ${budgetParts.join(" · ")}` : ""}${reviewRounds}`;
+}
+
+// Returns an error message for an invalid swarm budget, or null when the value can be applied.
+export function validateAgentSwarmBudget(
+  key: "tokenBudget" | "timeBudgetMinutes",
+  value: number,
+  workerSlots: number
+): string | null {
+  if (key === "timeBudgetMinutes") {
+    return Number.isInteger(value) && value > 0 && value <= MAX_AGENT_SWARM_TIME_BUDGET_MINUTES
+      ? null
+      : `Time budget must be a whole number from 1 to ${MAX_AGENT_SWARM_TIME_BUDGET_MINUTES.toLocaleString()} minutes.`;
+  }
+  if (!Number.isInteger(value) || value <= 0 || value > MAX_AGENT_SWARM_TOKEN_BUDGET) {
+    return `Token budget must be a whole number from 1 to ${MAX_AGENT_SWARM_TOKEN_BUDGET.toLocaleString()}.`;
+  }
+  const estimate = calculateAgentSwarmBudgetEstimate({
+    minimumStepTokens: AGENT_SWARM_MINIMUM_INFERENCE_TOKENS,
+    workerSlots
+  });
+  const minimum = calculateAgentSwarmSystemReserve(value, estimate.minimumStepTokens) + estimate.minimumSpawnAllocationTokens;
+  return value < minimum ? `This roster needs at least ${minimum.toLocaleString()} weighted tokens.` : null;
 }
 
 function resolveDefaultSwarmAgentId(props: TaskParametersDropdownProps, agents: AgentSummary[]): string | null {
@@ -160,7 +177,11 @@ function normalizeAllocations(
 }
 
 function useTaskParameterDraft(props: TaskParametersDropdownProps, resolved: TaskParameters) {
-  const agents = props.availableAgents ?? EMPTY_AGENTS;
+  const availableAgents = props.availableAgents ?? EMPTY_AGENTS;
+  const agents = useMemo(
+    () => mergeSwarmMemberAgents(availableAgents, availableAgents.find((agent) => agent.id === props.selectedAgentId)),
+    [availableAgents, props.selectedAgentId]
+  );
   const [panel, setPanel] = useState<TaskParametersPanel>("menu");
   const [scheduledCron, setScheduledCron] = useState("");
   const [scheduledTimezone, setScheduledTimezone] = useState(getLocalTimezone());
@@ -340,7 +361,7 @@ function useWorkflowActions(
       timeBudgetMinutes: budgetsDisabled
         ? null
         : next.type === "agent_swarm"
-        ? normalizeAgentSwarmTimeBudget(next.timeBudgetMinutes)
+        ? normalizeAgentSwarmTimeBudgetMinutes(next.timeBudgetMinutes)
         : next.type === "long_horizon" || next.type === "deep_research" || next.type === "quality_control"
           ? normalizeLongHorizonTimeBudget(next.timeBudgetMinutes)
           : null,
@@ -392,50 +413,10 @@ function useWorkflowActions(
   const saveLongHorizon = () => saveLongHorizonVariant("long_horizon");
   const saveDeepResearch = () => saveLongHorizonVariant("deep_research");
   const saveQualityControl = () => saveLongHorizonVariant("quality_control");
-  async function saveAgentSwarm() {
-    const allocated = sumAgentSwarmAgentAllocations(draft.agentSwarmAllocations);
-    const hasAllocations = draft.agents.length > 0 && draft.defaultSwarmAgentId !== null;
-    const count = hasAllocations ? allocated : Number.parseInt(draft.agentSwarmWorkerCount.trim(), 10);
-    if (!Number.isInteger(count) || count < AGENT_SWARM_MIN_WORKERS || count > AGENT_SWARM_MAX_WORKERS) {
-      return setError(`Worker count must be a whole number from ${AGENT_SWARM_MIN_WORKERS} to ${AGENT_SWARM_MAX_WORKERS}.`);
-    }
-    const budgetsDisabled = draft.agentSwarmDisableSpawningAndBudgets;
-    const tokenVal = budgetsDisabled ? "" : draft.agentSwarmTokenBudget.trim();
-    const tokenParsed = tokenVal ? Number(tokenVal) : Number.NaN;
-    if (tokenVal && (!Number.isInteger(tokenParsed) || tokenParsed <= 0 || tokenParsed > MAX_AGENT_SWARM_TOKEN_BUDGET)) {
-      return setError(`Token budget must be a whole number from 1 to ${MAX_AGENT_SWARM_TOKEN_BUDGET.toLocaleString()}.`);
-    }
-    if (tokenVal) {
-      const estimate = calculateAgentSwarmBudgetEstimate({
-        minimumStepTokens: AGENT_SWARM_MINIMUM_INFERENCE_TOKENS,
-        workerSlots: count
-      });
-      const minimum = calculateAgentSwarmSystemReserve(tokenParsed, estimate.minimumStepTokens)
-        + estimate.minimumSpawnAllocationTokens;
-      if (tokenParsed < minimum) return setError(`This roster needs at least ${minimum.toLocaleString()} weighted tokens.`);
-    }
-    const timeVal = budgetsDisabled ? "" : draft.agentSwarmTimeBudgetMinutes.trim();
-    const timeParsed = timeVal ? Number(timeVal) : Number.NaN;
-    if (timeVal && (!Number.isInteger(timeParsed) || timeParsed <= 0 || timeParsed > MAX_AGENT_SWARM_TIME_BUDGET_MINUTES)) {
-      return setError(`Time budget must be a whole number from 1 to ${MAX_AGENT_SWARM_TIME_BUDGET_MINUTES.toLocaleString()} minutes.`);
-    }
-    if (!tokenVal && !budgetsDisabled) {
-      return setError("Agent Swarm needs a token budget.");
-    }
-    await applyWorkflow({
-      type: "agent_swarm", workerCount: count,
-      reviewRounds: draft.agentSwarmReviewRounds,
-      leaderAgentId: draft.agentSwarmLeaderAgentId ?? draft.defaultSwarmAgentId,
-      modelAllocations: hasAllocations ? draft.agentSwarmAllocations : [],
-      tokenBudget: tokenVal ? tokenParsed : null,
-      timeBudgetMinutes: timeVal ? timeParsed : null,
-      disableSpawningAndBudgets: budgetsDisabled
-    });
-  }
   function updateAgentSwarm(next: TaskWorkflowComposerConfig): Promise<void> {
     return applyWorkflow(next, false);
   }
-  return { applyWorkflow, clearWorkflow, saveLongHorizon, saveDeepResearch, saveQualityControl, saveAgentSwarm, updateAgentSwarm };
+  return { applyWorkflow, clearWorkflow, saveLongHorizon, saveDeepResearch, saveQualityControl, updateAgentSwarm };
 }
 
 export function useTaskParametersDropdown(props: TaskParametersDropdownProps) {
@@ -522,8 +503,12 @@ export function useTaskParametersDropdown(props: TaskParametersDropdownProps) {
       reviewRounds: overrides.reviewRounds ?? draft.agentSwarmReviewRounds,
       leaderAgentId: overrides.leaderAgentId ?? draft.agentSwarmLeaderAgentId ?? draft.defaultSwarmAgentId,
       modelAllocations: allocations,
-      tokenBudget: overrides.tokenBudget ?? (draft.agentSwarmTokenBudget.trim() ? Number(draft.agentSwarmTokenBudget) : null),
-      timeBudgetMinutes: overrides.timeBudgetMinutes ?? (draft.agentSwarmTimeBudgetMinutes.trim() ? Number(draft.agentSwarmTimeBudgetMinutes) : null),
+      tokenBudget: "tokenBudget" in overrides
+        ? overrides.tokenBudget ?? null
+        : draft.agentSwarmTokenBudget.trim() ? Number(draft.agentSwarmTokenBudget) : null,
+      timeBudgetMinutes: "timeBudgetMinutes" in overrides
+        ? overrides.timeBudgetMinutes ?? null
+        : draft.agentSwarmTimeBudgetMinutes.trim() ? Number(draft.agentSwarmTimeBudgetMinutes) : null,
       disableSpawningAndBudgets: overrides.disableSpawningAndBudgets ?? draft.agentSwarmDisableSpawningAndBudgets
     });
   };
@@ -539,6 +524,19 @@ export function useTaskParametersDropdown(props: TaskParametersDropdownProps) {
     agentSwarmAllocatedWorkers: sumAgentSwarmAgentAllocations(draft.agentSwarmAllocations),
     agentSwarmHasAgentAllocations: draft.agents.length > 0 && draft.defaultSwarmAgentId !== null,
     applySwarmUpdate,
+    applySwarmBudget(key: "tokenBudget" | "timeBudgetMinutes", rawValue: string) {
+      const trimmed = rawValue.trim();
+      const value = trimmed ? Number(trimmed) : null;
+      if ((props.workflowConfig?.[key] ?? null) === value) return;
+      const error = value === null
+        ? null
+        : validateAgentSwarmBudget(key, value, sumAgentSwarmAgentAllocations(draft.agentSwarmAllocations));
+      if (error) {
+        setApplyError(error);
+        return;
+      }
+      applySwarmUpdate({ [key]: value });
+    },
     adjustSwarmAllocation(agentId: string, delta: 1 | -1) {
       draft.setAgentSwarmAllocations((current) => {
         const total = sumAgentSwarmAgentAllocations(current);

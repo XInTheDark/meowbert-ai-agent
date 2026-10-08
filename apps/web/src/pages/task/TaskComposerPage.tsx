@@ -28,6 +28,7 @@ import {
   writeTaskInputDrafts
 } from "../../task/taskInputDrafts";
 import { canSelectTaskModel } from "../../task/taskModelSelection";
+import { resolveWorkflowForAgentChange } from "../../task/agentSwarmPresetWorkflow";
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
 import { useSubscriptionUsageWarning } from "../../subscription/usageLimits";
 
@@ -479,28 +480,23 @@ export function TaskComposerPage() {
             defaultAgentId={defaultAgentId}
             modelSliderAgentIds={modelSliderAgentIds}
             onAgentChange={(nextAgentId) => {
-              const selectedSwarm = availableAgents.find((agent) => agent.id === nextAgentId && agent.mode === "agent_swarm");
-              updateDraft((current) => ({
-                ...current,
-                agentId: nextAgentId,
-                workflow: selectedSwarm && current.workflow.type === "agent_swarm"
-                  ? {
-                    ...current.workflow,
-                    workerCount: selectedSwarm.swarmWorkerCount ?? 0,
-                    reviewRounds: selectedSwarm.swarmReviewRounds ?? 0,
-                    leaderAgentId: null,
-                    modelAllocations: []
-                  }
-                  : current.workflow.type === "agent_swarm" && current.workflow.modelAllocations.length === 0
-                  ? {
-                    ...current.workflow,
-                    leaderAgentId: current.workflow.leaderAgentId ?? nextAgentId,
-                    modelAllocations: current.workflow.workerCount > 0
-                      ? [{ agentId: nextAgentId, workerCount: current.workflow.workerCount }]
-                      : []
-                  }
-                  : current.workflow
-              }));
+              updateDraft((current) => {
+                const workflow = resolveWorkflowForAgentChange({
+                  workflow: current.workflow,
+                  previousAgent: availableAgents.find((agent) => agent.id === selectedAgentId),
+                  nextAgent: availableAgents.find((agent) => agent.id === nextAgentId),
+                  nextAgentId
+                });
+                return {
+                  ...current,
+                  agentId: nextAgentId,
+                  workflow,
+                  quickMode: workflow.type === "standard" ? current.quickMode : false,
+                  taskParameters: workflow.type === "standard"
+                    ? current.taskParameters
+                    : { ...current.taskParameters, schedule: buildDefaultTaskParameters().schedule }
+                };
+              });
             }}
             onSourceSetupRequested={() => {
               navigate(`/app/${activeWorkspaceId}/connectors?tab=sources`);

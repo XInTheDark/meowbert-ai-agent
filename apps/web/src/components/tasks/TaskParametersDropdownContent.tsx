@@ -27,6 +27,7 @@ import {
   formatMinutes,
   type TaskParametersDropdownController
 } from "./taskParametersDropdownController";
+import { AGENT_SWARM_DEFAULT_TOKEN_BUDGET } from "@meowbert/shared/agent-swarm-quota";
 import { TaskTypeChangeConfirmModal } from "./TaskTypeChangeConfirmModal";
 import { useChatToolsDropdownPlacement } from "./useChatToolsDropdownPlacement";
 
@@ -465,13 +466,15 @@ function SwarmBudgetFields({ controller }: ControllerProps) {
             <input type="number" min="1" max={MAX_AGENT_SWARM_TOKEN_BUDGET} step="1000"
               value={controller.draft.agentSwarmTokenBudget}
               onChange={(event) => controller.draft.setAgentSwarmTokenBudget(event.target.value)}
-              placeholder="50000000" disabled={controller.isApplying} />
+              onBlur={() => controller.applySwarmBudget("tokenBudget", controller.draft.agentSwarmTokenBudget)}
+              placeholder={String(AGENT_SWARM_DEFAULT_TOKEN_BUDGET)} disabled={controller.isApplying} />
           </label>
           <label className="task-parameters-field">
             <span>Time budget (minutes)</span>
             <input type="number" min="1" max={MAX_AGENT_SWARM_TIME_BUDGET_MINUTES} step="1"
               value={controller.draft.agentSwarmTimeBudgetMinutes}
               onChange={(event) => controller.draft.setAgentSwarmTimeBudgetMinutes(event.target.value)}
+              onBlur={() => controller.applySwarmBudget("timeBudgetMinutes", controller.draft.agentSwarmTimeBudgetMinutes)}
               placeholder="No deadline" disabled={controller.isApplying} />
           </label>
           <p className="task-parameters-help">Swarm budgets limit weighted tokens and time. At least ten percent is held for recovery and final synthesis.</p>

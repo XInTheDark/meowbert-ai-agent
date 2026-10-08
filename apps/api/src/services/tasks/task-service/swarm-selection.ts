@@ -10,6 +10,7 @@ import {
 } from "@meowbert/shared";
 import { getVisiblePlatformAgentsForUser } from "../../platform/platform-agents.js";
 import { selectAgentSwarmNodeTypes } from "../agent-swarm-node-types.js";
+import { resolveAgentSwarmTaskSettings } from "../agent-swarm-task-settings.js";
 import { applyWorkflowTransitionInTx, assertTaskTypeTransitionIdleInTx } from "../task-workflow-transitions.js";
 
 interface SelectedSwarm {
@@ -74,6 +75,7 @@ export async function applySelectedSwarmInTx(
   }
 
   await assertTaskTypeTransitionIdleInTx(client, input.taskId);
+  const settings = resolveAgentSwarmTaskSettings(undefined, input.selectedSwarm.preset);
   await applyWorkflowTransitionInTx(client, {
     taskId: input.taskId,
     userId: input.userId,
@@ -81,9 +83,12 @@ export async function applySelectedSwarmInTx(
     workflow: {
       type: "agent_swarm",
       workerCount: Math.max(0, input.selectedSwarm.compiled.leaves.length - 1),
-      reviewRounds: input.selectedSwarm.preset.reviewRounds ?? 0,
-      leaderAgentId: input.selectedSwarm.preset.leaderAgentId ?? null,
-      modelAllocations: input.selectedSwarm.preset.modelAllocations ?? []
+      reviewRounds: settings.reviewRounds,
+      leaderAgentId: settings.leaderAgentId,
+      modelAllocations: settings.modelAllocations,
+      tokenBudget: settings.tokenBudget,
+      timeBudgetMinutes: settings.timeBudgetMinutes,
+      disableSpawningAndBudgets: settings.disableSpawningAndBudgets
     },
     compiledSwarm: input.selectedSwarm.compiled,
     promptOverride: input.prompt,

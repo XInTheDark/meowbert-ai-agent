@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { AGENT_SWARM_MAX_WORKERS } from "@meowbert/shared";
+import {
+  AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
+  AGENT_SWARM_MAX_TOKEN_BUDGET,
+  AGENT_SWARM_MAX_WORKERS
+} from "@meowbert/shared";
 import { listAdminProcesses } from "../services/admin/admin-processes.js";
 import {
   getAdminUsageStatistics,
@@ -28,7 +32,10 @@ const agentPresetSchema = z.object({
     agentId: z.string().min(1).max(240),
     workerCount: z.number().int().min(1).max(AGENT_SWARM_MAX_WORKERS)
   }).strict()).max(20).optional(),
-  reviewRounds: z.number().int().min(0).max(10).optional()
+  reviewRounds: z.number().int().min(0).max(10).optional(),
+  tokenBudget: z.number().int().positive().max(AGENT_SWARM_MAX_TOKEN_BUDGET).optional(),
+  timeBudgetMinutes: z.number().int().positive().max(AGENT_SWARM_MAX_TIME_BUDGET_MINUTES).optional(),
+  disableSpawningAndBudgets: z.boolean().optional()
 });
 
 const modelMetadataSchema = z.record(z.string(), z.record(z.string(), z.unknown()));

@@ -2,6 +2,8 @@ import { normalizeAgentPresetPayload } from "./responses-settings.js";
 import {
   clampAgentSwarmReviewRounds,
   limitAgentSwarmAgentAllocations,
+  normalizeAgentSwarmTimeBudgetMinutes,
+  normalizeAgentSwarmTokenBudget,
   normalizeAgentSwarmAgentAllocations,
   sumAgentSwarmAgentAllocations,
   type AgentSwarmAgentAllocation
@@ -28,6 +30,10 @@ export interface PlatformAgentPreset {
   leaderAgentId?: string;
   modelAllocations?: AgentSwarmAgentAllocation[];
   reviewRounds?: number;
+  // Agent Swarm task defaults. Keep these in step with the swarm task parameters (TaskWorkflowComposerConfig).
+  tokenBudget?: number;
+  timeBudgetMinutes?: number;
+  disableSpawningAndBudgets?: boolean;
 }
 
 const MAX_AGENT_PRESETS = 100;
@@ -113,7 +119,24 @@ function clonePreset(preset: PlatformAgentPreset): PlatformAgentPreset {
     ...(preset.mode ? { mode: preset.mode } : {}),
     ...(preset.leaderAgentId ? { leaderAgentId: preset.leaderAgentId } : {}),
     ...(preset.modelAllocations ? { modelAllocations: preset.modelAllocations.map((item) => ({ ...item })) } : {}),
-    ...(typeof preset.reviewRounds === "number" ? { reviewRounds: preset.reviewRounds } : {})
+    ...(typeof preset.reviewRounds === "number" ? { reviewRounds: preset.reviewRounds } : {}),
+    ...swarmBudgetFields(preset)
+  };
+}
+
+// Budgets are swarm task defaults; disabling spawning and budgets wins over any budget values.
+function swarmBudgetFields(raw: Record<string, unknown> | PlatformAgentPreset): Pick<
+  PlatformAgentPreset,
+  "tokenBudget" | "timeBudgetMinutes" | "disableSpawningAndBudgets"
+> {
+  if (raw.disableSpawningAndBudgets === true) {
+    return { disableSpawningAndBudgets: true };
+  }
+  const tokenBudget = normalizeAgentSwarmTokenBudget(raw.tokenBudget);
+  const timeBudgetMinutes = normalizeAgentSwarmTimeBudgetMinutes(raw.timeBudgetMinutes);
+  return {
+    ...(tokenBudget !== null ? { tokenBudget } : {}),
+    ...(timeBudgetMinutes !== null ? { timeBudgetMinutes } : {})
   };
 }
 
@@ -195,7 +218,8 @@ function normalizePreset(rawPreset: unknown): PlatformAgentPreset | null {
       mode,
       leaderAgentId,
       modelAllocations,
-      reviewRounds: clampAgentSwarmReviewRounds(rawPreset.reviewRounds)
+      reviewRounds: clampAgentSwarmReviewRounds(rawPreset.reviewRounds),
+      ...swarmBudgetFields(rawPreset)
     };
   }
 

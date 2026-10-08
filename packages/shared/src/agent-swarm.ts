@@ -2,12 +2,29 @@ export const AGENT_SWARM_MIN_WORKERS = 0;
 export const AGENT_SWARM_MAX_WORKERS = 16;
 export const AGENT_SWARM_DEFAULT_WORKERS = 3;
 export const AGENT_SWARM_MAX_REVIEW_ROUNDS = 10;
+export const AGENT_SWARM_MAX_TOKEN_BUDGET = 100_000_000;
+export const AGENT_SWARM_MAX_TIME_BUDGET_MINUTES = 10_080;
 
 export function clampAgentSwarmReviewRounds(value: unknown, fallback = 0): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
   return Math.min(AGENT_SWARM_MAX_REVIEW_ROUNDS, Math.max(0, Math.floor(value)));
+}
+
+function normalizePositiveBudget(value: unknown, max: number): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.min(max, Math.max(1, Math.floor(value)));
+}
+
+export function normalizeAgentSwarmTokenBudget(value: unknown): number | null {
+  return normalizePositiveBudget(value, AGENT_SWARM_MAX_TOKEN_BUDGET);
+}
+
+export function normalizeAgentSwarmTimeBudgetMinutes(value: unknown): number | null {
+  return normalizePositiveBudget(value, AGENT_SWARM_MAX_TIME_BUDGET_MINUTES);
 }
 
 export interface AgentSwarmAgentAllocation {

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Copy, Plus, Trash2, X } from "lucide-react";
+import { AGENT_SWARM_MAX_TIME_BUDGET_MINUTES, AGENT_SWARM_MAX_TOKEN_BUDGET } from "@meowbert/shared/agent-swarm";
+import { AGENT_SWARM_DEFAULT_TOKEN_BUDGET } from "@meowbert/shared/agent-swarm-quota";
 import { copyTextToClipboard } from "./adminSettingsDrafts";
 import {
   createSwarmDraft,
@@ -72,6 +74,33 @@ function SwarmSeatEditor(props: {
   );
 }
 
+function parseBudgetInput(value: string): number | null {
+  const parsed = Number(value);
+  return value.trim() && Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+}
+
+function SwarmBudgetEditor(props: { node: SwarmDraft; onChange: (update: (node: SwarmDraft) => SwarmDraft) => void }) {
+  const { node, onChange } = props;
+  return (
+    <>
+      <div className="swarm-generator-fields">
+        <label>Token budget<input type="number" min={1} max={AGENT_SWARM_MAX_TOKEN_BUDGET} step={1000}
+          placeholder={String(AGENT_SWARM_DEFAULT_TOKEN_BUDGET)} value={node.tokenBudget ?? ""}
+          disabled={node.disableSpawningAndBudgets}
+          onChange={(event) => onChange((entry) => ({ ...entry, tokenBudget: parseBudgetInput(event.target.value) }))} /></label>
+        <label>Time budget (minutes)<input type="number" min={1} max={AGENT_SWARM_MAX_TIME_BUDGET_MINUTES}
+          placeholder="No deadline" value={node.timeBudgetMinutes ?? ""} disabled={node.disableSpawningAndBudgets}
+          onChange={(event) => onChange((entry) => ({ ...entry, timeBudgetMinutes: parseBudgetInput(event.target.value) }))} /></label>
+      </div>
+      <label className="swarm-generator-spawnable">
+        <input type="checkbox" checked={node.disableSpawningAndBudgets}
+          onChange={(event) => onChange((entry) => ({ ...entry, disableSpawningAndBudgets: event.target.checked }))} />
+        Disable spawning and budgets
+      </label>
+    </>
+  );
+}
+
 function SwarmNodeEditor(props: SwarmNodeEditorProps) {
   const { node, onUpdate } = props;
   const hasNestedSwarm = node.leader?.kind === "swarm" || node.workers.some((seat) => seat.kind === "swarm");
@@ -99,6 +128,7 @@ function SwarmNodeEditor(props: SwarmNodeEditorProps) {
       <label className="swarm-generator-description">Description
         <input maxLength={240} value={node.description} onChange={(event) => change((entry) => ({ ...entry, description: event.target.value }))} />
       </label>
+      {props.depth === 0 ? <SwarmBudgetEditor node={node} onChange={change} /> : null}
       <label className="swarm-generator-spawnable">
         <input type="checkbox" checked={node.spawnableAsNode && !hasNestedSwarm} disabled={hasNestedSwarm}
           onChange={(event) => change((entry) => ({ ...entry, spawnableAsNode: event.target.checked }))} />

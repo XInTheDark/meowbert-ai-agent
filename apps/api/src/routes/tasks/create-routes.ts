@@ -5,14 +5,13 @@ import {
   resolvePlatformAgentPresetMode,
   resolveWorkspaceDefaultAgentId,
   sumAgentSwarmAgentAllocations,
-  AGENT_SWARM_DEFAULT_TOKEN_BUDGET,
   type CompiledAgentSwarm,
-  type AgentSwarmAgentAllocation,
-  type PlatformAgentPreset
+  type AgentSwarmAgentAllocation
 } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { createLongHorizonWorkflowTask, createAgentSwarmWorkflowTask } from "../../services/tasks/task-workflows.js";
 import { selectAgentSwarmNodeTypes } from "../../services/tasks/agent-swarm-node-types.js";
+import { resolveAgentSwarmTaskSettings, type AgentSwarmTaskSettings } from "../../services/tasks/agent-swarm-task-settings.js";
 import { ensureEnvironmentStorageRoot } from "../../services/environments/environment-storage.js";
 import { assertCanvasBelongsToProject, touchProjectCanvasTask } from "../../services/canvases/project-canvases.js";
 import { getPromptEntitlementStatus, recordPromptUsageIfRequired } from "../../services/billing/entitlements.js";
@@ -94,7 +93,7 @@ async function createRequestedTask(input: {
   selectedAgent: Awaited<ReturnType<typeof requireVisiblePlatformAgentSelectionForUser>>;
   agentSwarmAgentAllocations: AgentSwarmAgentAllocation[];
   compiledSwarm: CompiledAgentSwarm | null;
-  selectedSwarmPreset: PlatformAgentPreset | null;
+  swarmSettings: AgentSwarmTaskSettings | null;
   dynamicNodeTypes: Awaited<ReturnType<typeof getVisiblePlatformAgentsForUser>>["presets"];
 }): Promise<{ taskId: string; runId: string; userMessageId: string; reusedExisting: boolean }> {
   const baseInput = {
@@ -155,17 +154,14 @@ async function createRequestedTask(input: {
     workerCount: input.compiledSwarm
       ? Math.max(0, input.compiledSwarm.leaves.length - 1)
       : allocationWorkerCount > 0 ? allocationWorkerCount : input.body.workflow?.workerCount ?? 2,
-    reviewRounds: input.selectedSwarmPreset?.reviewRounds ?? input.body.workflow?.reviewRounds ?? rootNode?.reviewRounds ?? 0,
+    reviewRounds: input.swarmSettings?.reviewRounds ?? rootNode?.reviewRounds ?? 0,
     agentAllocations: input.agentSwarmAgentAllocations,
-    leaderAgentId: input.selectedSwarmPreset?.leaderAgentId ?? input.body.workflow?.leaderAgentId ?? null,
+    leaderAgentId: input.swarmSettings?.leaderAgentId ?? null,
     compiledSwarm: input.compiledSwarm ?? undefined,
-    ...(input.body.workflow?.disableSpawningAndBudgets === true
-      ? { tokenBudget: null, timeBudgetMinutes: null, dynamicNodeTypes: [] }
-      : {
-          tokenBudget: input.body.workflow?.tokenBudget ?? AGENT_SWARM_DEFAULT_TOKEN_BUDGET,
-          timeBudgetMinutes: input.body.workflow?.timeBudgetMinutes ?? null,
-          dynamicNodeTypes: input.dynamicNodeTypes
-        })
+    tokenBudget: input.swarmSettings?.tokenBudget ?? null,
+    timeBudgetMinutes: input.swarmSettings?.timeBudgetMinutes ?? null,
+    // Without budgets there is nothing to fund spawned nodes.
+    dynamicNodeTypes: input.swarmSettings?.disableSpawningAndBudgets ? [] : input.dynamicNodeTypes
   });
   return created;
 }
@@ -195,20 +191,22 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
   );
   const selectedSwarmPreset = (!body.workflow || body.workflow.type === "agent_swarm")
     && resolvePlatformAgentPresetMode(selectedPreset) === "agent_swarm" ? selectedPreset : null;
-  const requestedSwarm = body.workflow?.type === "agent_swarm" && !selectedSwarmPreset;
-  const agentSwarmAgentAllocations = selectedSwarmPreset?.modelAllocations
-    ?? (requestedSwarm
-      ? await requireVisiblePlatformAgentAllocationsForUser(request.user.id, body.workflow?.modelAllocations)
-      : []);
+  const swarmSettings = body.workflow?.type === "agent_swarm" || selectedSwarmPreset
+    ? resolveAgentSwarmTaskSettings(body.workflow, selectedSwarmPreset)
+    : null;
+  const agentSwarmAgentAllocations = !swarmSettings
+    ? []
+    : swarmSettings.usesRequestRoster
+      ? await requireVisiblePlatformAgentAllocationsForUser(request.user.id, swarmSettings.modelAllocations)
+      : swarmSettings.modelAllocations;
   let compiledSwarm: CompiledAgentSwarm | null = null;
-  if (requestedSwarm || selectedSwarmPreset) {
+  if (swarmSettings) {
     try {
       compiledSwarm = compilePlatformAgentSwarm({
         presets: visibleAgentContext.presets,
-        leaderAgentId: selectedSwarmPreset?.leaderAgentId
-          ?? body.workflow?.leaderAgentId ?? selectedAgent?.id ?? defaultAgentId ?? "",
+        leaderAgentId: swarmSettings.leaderAgentId ?? selectedAgent?.id ?? defaultAgentId ?? "",
         modelAllocations: agentSwarmAgentAllocations,
-        reviewRounds: selectedSwarmPreset?.reviewRounds ?? body.workflow?.reviewRounds ?? 0,
+        reviewRounds: swarmSettings.reviewRounds,
         title: selectedPreset?.name
       });
     } catch (error) {
@@ -250,7 +248,7 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
     selectedAgent,
     agentSwarmAgentAllocations,
     compiledSwarm,
-    selectedSwarmPreset,
+    swarmSettings,
     dynamicNodeTypes: selectAgentSwarmNodeTypes(visibleAgentContext.presets)
   });
 
