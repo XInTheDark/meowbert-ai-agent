@@ -304,7 +304,7 @@ export async function createModelResponse(input: CreateModelResponseInput): Prom
 }
 
 const MODEL_REQUEST_MAX_RETRIES = 5;
-const MODEL_REQUEST_BASE_DELAY_MS = 5000;
+const MODEL_REQUEST_BASE_DELAY_MS = 15_000;
 const MODEL_REQUEST_RECOVERY_ERROR_THRESHOLD = 3;
 const DEFAULT_MODEL_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 

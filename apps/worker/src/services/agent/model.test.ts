@@ -1122,7 +1122,7 @@ describe("createModelResponse", () => {
       }
     }));
 
-    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(15_000);
     await expect(responsePromise).resolves.toEqual({
       error: null,
       output: [],
@@ -1172,16 +1172,16 @@ describe("createModelResponse", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(onRetryMessage).toHaveBeenCalledWith(
-      "Model request failed (attempt 1/6): auth_unavailable: no auth available. Retrying in 5s..."
+      "Model request failed (attempt 1/6): auth_unavailable: no auth available. Retrying in 15s..."
     );
     expect(mockedEmitTaskEvent).toHaveBeenCalledWith("task-123", "error", {
-      message: "Model request failed (attempt 1/6): auth_unavailable: no auth available. Retrying in 5s...",
+      message: "Model request failed (attempt 1/6): auth_unavailable: no auth available. Retrying in 15s...",
       attempt: 1,
       maxAttempts: 6,
       retrying: true
     });
 
-    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(15_000);
 
     await expect(responsePromise).resolves.toEqual({
       error: null,
@@ -1229,7 +1229,7 @@ describe("createModelResponse", () => {
       onConsecutiveErrorRecovery
     });
 
-    await vi.advanceTimersByTimeAsync(15_000);
+    await vi.advanceTimersByTimeAsync(45_000);
 
     await expect(responsePromise).resolves.toEqual({
       error: null,
