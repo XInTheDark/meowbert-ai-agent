@@ -16,14 +16,8 @@ export function filterWorkspaces(workspaces: Workspace[], query: string): Worksp
   );
 }
 
+// Workspaces arrive most recently opened first; keep that order and pin the active one on top.
 export function sortWorkspaceOptions(workspaces: Workspace[], activeWorkspaceId: string): Workspace[] {
-  return [...workspaces].sort((left, right) => {
-    if (left.id === activeWorkspaceId) {
-      return -1;
-    }
-    if (right.id === activeWorkspaceId) {
-      return 1;
-    }
-    return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
-  });
+  const active = workspaces.filter((workspace) => workspace.id === activeWorkspaceId);
+  return [...active, ...workspaces.filter((workspace) => workspace.id !== activeWorkspaceId)];
 }

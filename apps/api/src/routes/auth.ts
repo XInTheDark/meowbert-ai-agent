@@ -744,7 +744,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
          FROM workspace_members wm
          JOIN workspaces w ON w.id = wm.workspace_id
         WHERE wm.user_id = $1
-        ORDER BY w.created_at ASC`,
+        ORDER BY wm.last_opened_at DESC NULLS LAST, w.created_at ASC`,
       [request.user.id]
     );
 

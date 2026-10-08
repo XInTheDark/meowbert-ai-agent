@@ -9,11 +9,11 @@ const workspaces: Workspace[] = [
 ];
 
 describe("workspace switcher search", () => {
-  it("pins the active workspace before alphabetical options", () => {
+  it("pins the active workspace and keeps the rest in recency order", () => {
     expect(sortWorkspaceOptions(workspaces, "ws_ops").map((workspace) => workspace.id)).toEqual([
       "ws_ops",
-      "ws_a",
-      "ws_b"
+      "ws_b",
+      "ws_a"
     ]);
   });
 

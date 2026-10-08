@@ -132,6 +132,10 @@ describe("registerWorkspaceCoreRoutes", () => {
         }]);
       }
 
+      if (sql.includes("UPDATE workspace_members") && sql.includes("last_opened_at")) {
+        return createQueryResult([]);
+      }
+
       if (sql.includes("FROM workspace_members wm") && sql.includes("JOIN workspaces w")) {
         return createQueryResult([{
           id: "11111111-1111-4111-8111-111111111111",
@@ -179,6 +183,10 @@ describe("registerWorkspaceCoreRoutes", () => {
     expect(mockedAssertWorkspaceMember).toHaveBeenCalledWith(
       "11111111-1111-4111-8111-111111111111",
       "326522d1-67cc-4475-92ce-a85b18556261"
+    );
+    expect(mockedQuery).toHaveBeenCalledWith(
+      expect.stringContaining("SET last_opened_at = now()"),
+      ["11111111-1111-4111-8111-111111111111", "326522d1-67cc-4475-92ce-a85b18556261"]
     );
     expect(response.json()).toMatchObject({
       user: {

@@ -327,6 +327,18 @@ async function ensureWorkspaceMemoryBootstrap(wsId: string): Promise<void> {
   await ensureWorkspaceMemoryFiles(workspaceRoot);
 }
 
+async function markWorkspaceOpened(wsId: string, userId: string): Promise<void> {
+  // Bootstrap reruns on every project switch, so skip the write when the timestamp is already fresh.
+  await query(
+    `UPDATE workspace_members
+        SET last_opened_at = now()
+      WHERE workspace_id = $1
+        AND user_id = $2
+        AND (last_opened_at IS NULL OR last_opened_at < now() - interval '1 minute')`,
+    [wsId, userId]
+  );
+}
+
 async function listWorkspacesForBootstrap(userId: string): Promise<Array<{ id: string; name: string; iconKey: string; role: string; memberCount: number }>> {
   const workspacesRes = await query<{ id: string; name: string; icon_key: string; role: string; member_count: number }>(
     `SELECT w.id,
@@ -337,7 +349,7 @@ async function listWorkspacesForBootstrap(userId: string): Promise<Array<{ id: s
        FROM workspace_members wm
        JOIN workspaces w ON w.id = wm.workspace_id
       WHERE wm.user_id = $1
-      ORDER BY w.created_at ASC`,
+      ORDER BY wm.last_opened_at DESC NULLS LAST, w.created_at ASC`,
     [userId]
   );
 
@@ -429,6 +441,7 @@ export async function registerWorkspaceCoreRoutes(fastify: FastifyInstance): Pro
     const queryInput = workspaceBootstrapQuerySchema.parse(request.query);
     await ensureUserHasWorkspace(request.user.id);
     await assertWorkspaceMember(params.wsId, request.user.id);
+    await markWorkspaceOpened(params.wsId, request.user.id);
 
     const [userRes, workspaces, projects, workspaceSettings] = await Promise.all([
       query<{
