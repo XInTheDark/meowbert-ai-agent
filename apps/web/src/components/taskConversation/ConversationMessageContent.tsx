@@ -10,10 +10,9 @@ import type { PluggableList } from "unified";
 import type { TaskAssistantMessageDisplayPreferences } from "../../lib/types";
 import { isTaskMessageExpanded, persistTaskMessageExpanded } from "../../task/taskMessageExpansionPreferences";
 import { buildConversationSelectionClipboardPayload } from "./conversationMessageClipboard";
-import { triggerAuthenticatedBrowserDownload } from "../../lib/authenticated-download";
 import { MarkdownCodeBlock } from "./MarkdownCodeBlock";
 import { MarkdownImage } from "./MarkdownImage";
-import { resolveMarkdownDownloadFilename, resolveRuntimeFileDownloadPath, resolveTrustedMarkdownDownloadUrl } from "./markdownDownload";
+import { MarkdownLink } from "./MarkdownLink";
 import { normalizeLatexDelimiters } from "./normalizeLatexDelimiters";
 import { stripCitationMarkers } from "./stripCitationMarkers";
 import { useExpandOnBottomOverscroll } from "./useExpandOnBottomOverscroll";
@@ -80,42 +79,7 @@ const MARKDOWN_COMPONENTS: Components = {
 
     return <code className={className} {...props}>{children}</code>;
   },
-  a({ href, children, node: _node, ...props }) {
-    const runtimeDownloadPath = resolveRuntimeFileDownloadPath(href);
-    const downloadUrl = resolveTrustedMarkdownDownloadUrl(runtimeDownloadPath ?? href);
-    const linkHref = runtimeDownloadPath && downloadUrl ? downloadUrl : href;
-
-    const handleClick = async (event: React.MouseEvent<HTMLAnchorElement>) => {
-      if (downloadUrl && href) {
-        event.preventDefault();
-        try {
-          const token = localStorage.getItem("meowbert_token");
-          const filename = resolveMarkdownDownloadFilename(linkHref ?? href, children);
-          await triggerAuthenticatedBrowserDownload({
-            url: downloadUrl,
-            token,
-            suggestedFilename: filename
-          });
-        } catch (err) {
-          console.error("Failed to download file from markdown link", err);
-        }
-      }
-    };
-
-    const isExternal = !downloadUrl && typeof linkHref === "string" && (linkHref.startsWith("http://") || linkHref.startsWith("https://")) && !linkHref.startsWith(window.location.origin);
-
-    return (
-      <a
-        href={linkHref}
-        onClick={downloadUrl ? handleClick : props.onClick}
-        target={isExternal ? "_blank" : props.target}
-        rel={isExternal ? "noopener noreferrer" : props.rel}
-        {...props}
-      >
-        {children}
-      </a>
-    );
-  }
+  a: MarkdownLink
 };
 
 function shouldCollapseLongMessage(content: string): boolean {

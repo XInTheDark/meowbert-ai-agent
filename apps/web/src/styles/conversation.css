@@ -3911,3 +3911,13 @@
   color: var(--text-muted);
   font-size: 0.72rem;
 }
+
+.markdown-link-downloading {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.markdown-link-spinner {
+  margin-left: 0.3em;
+  vertical-align: -0.15em;
+}
