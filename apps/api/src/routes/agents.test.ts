@@ -144,7 +144,7 @@ describe("agentRoutes", () => {
         leaderAgentId: "luna-xhigh",
         modelAllocations: [],
         reviewRounds: 0,
-        tokenBudget: 50_000_000,
+        tokenBudget: 10_000_000,
         timeBudgetMinutes: null,
         disableSpawningAndBudgets: false,
         members: [{ id: "luna-xhigh", name: "Luna", mode: "standard" }]

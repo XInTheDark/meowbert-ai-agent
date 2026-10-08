@@ -106,7 +106,7 @@ describe("applyWorkflowTransitionInTx", () => {
     const workflowInsert = query.mock.calls.find(([sql]) => sql.includes("INSERT INTO task_workflows"));
     expect(JSON.parse(workflowInsert?.[1][3])).toMatchObject({
       compiledSwarm,
-      tokenBudget: 50_000_000,
+      tokenBudget: 10_000_000,
       timeBudgetMinutes: null,
       dynamicNodeTypes: [expect.objectContaining({ id: "research-swarm", modelAllocations: [{ agentId: "luna", workerCount: 3 }] })]
     });

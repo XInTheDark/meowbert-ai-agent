@@ -64,11 +64,11 @@ describe("TaskParametersDropdown", () => {
       .find((element) => element.textContent?.includes("Agent Swarm"));
     await act(async () => click(swarmButton ?? null));
     const fields = Array.from(container.querySelectorAll(".task-parameters-field"));
-    expect(fields.find((field) => field.textContent?.includes("Token budget"))?.querySelector("input")?.value).toBe("50000000");
+    expect(fields.find((field) => field.textContent?.includes("Token budget"))?.querySelector("input")?.value).toBe("10000000");
     expect(fields.find((field) => field.textContent?.includes("Time budget"))?.querySelector("input")?.value).toBe("");
     await act(async () => click(container.querySelector(".task-parameters-actions .btn.primary")));
     expect(onWorkflowChange).toHaveBeenCalledWith(expect.objectContaining({
-      type: "agent_swarm", tokenBudget: 50_000_000, timeBudgetMinutes: null
+      type: "agent_swarm", tokenBudget: 10_000_000, timeBudgetMinutes: null
     }));
   });
 
