@@ -87,7 +87,10 @@ export function useWorkspaceLayoutController(
   const [isWorkspaceSettingsLoading, setIsWorkspaceSettingsLoading] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isEnvironmentsLoading, setIsEnvironmentsLoading] = useState(false);
-  const [hasLoadedEnvironments, setHasLoadedEnvironments] = useState(false);
+  // Which workspace the current project list belongs to. Right after a workspace switch the list is still the
+  // previous workspace's, so it must not be treated as loaded (or the active project looks missing).
+  const [environmentsWorkspaceId, setEnvironmentsWorkspaceId] = useState<string | null>(null);
+  const hasLoadedEnvironments = environmentsWorkspaceId === input.activeWorkspaceId;
   const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [navError, setNavError] = useState<string | null>(null);
 
@@ -110,7 +113,7 @@ export function useWorkspaceLayoutController(
   const refreshEnvironments = useCallback(async (): Promise<void> => {
     if (!input.activeWorkspaceId) {
       setEnvironments([]);
-      setHasLoadedEnvironments(false);
+      setEnvironmentsWorkspaceId(null);
       return;
     }
 
@@ -123,7 +126,7 @@ export function useWorkspaceLayoutController(
       api.primeGet?.(`/api/workspaces/${input.activeWorkspaceId}/projects`, { items: sorted });
     } finally {
       setIsEnvironmentsLoading(false);
-      setHasLoadedEnvironments(true);
+      setEnvironmentsWorkspaceId(input.activeWorkspaceId);
     }
   }, [api, input.activeWorkspaceId]);
 
@@ -191,7 +194,7 @@ export function useWorkspaceLayoutController(
         updated_at: createdAt
       })
     );
-    setHasLoadedEnvironments(true);
+    setEnvironmentsWorkspaceId(input.activeWorkspaceId);
     input.navigate(`/app/${input.activeWorkspaceId}/projects/${created.id}`);
     input.setFlash({ tone: "success", text: "Project created." });
     void refreshEnvironments().catch((error) => {
@@ -215,7 +218,7 @@ export function useWorkspaceLayoutController(
     setWorkspaces(payload.workspaces);
     setEnvironments(sortedProjects);
     setWorkspaceSettings(payload.workspaceSettings);
-    setHasLoadedEnvironments(true);
+    setEnvironmentsWorkspaceId(input.activeWorkspaceId);
     api.primeGet?.("/api/auth/me", {
       user: payload.user,
       workspaces: payload.workspaces
@@ -309,7 +312,7 @@ export function useWorkspaceLayoutController(
     }
 
     if (environments.length === 0) {
-      setHasLoadedEnvironments(false);
+      setEnvironmentsWorkspaceId(null);
     }
     void bootstrapWorkspace(input.activeEnvironmentId).catch((error) => {
       setNavError(error instanceof Error ? error.message : String(error));
