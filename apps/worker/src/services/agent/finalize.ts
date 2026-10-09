@@ -335,6 +335,11 @@ async function maybeFinalizeWorkflowRun(execution: AgentExecutionContext, input:
     return true;
   }
 
+  if (execution.state.workflowPauseRequest?.awaitUser) {
+    await completeRunWithTaskStatus(execution, "awaiting_input", true);
+    return true;
+  }
+
   if (execution.state.workflowPauseRequest) {
     await completeRunWithTaskStatus(execution, "queued");
     return true;

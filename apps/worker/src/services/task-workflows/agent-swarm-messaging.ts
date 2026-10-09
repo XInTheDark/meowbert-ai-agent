@@ -1,5 +1,4 @@
 import type { PoolClient } from "pg";
-import type { TaskExecutionJob } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { isTaskRunLatestAttempt } from "../agent-db/index.js";
 import { channelsForSwarmTarget, resolveSwarmChannelForAgent } from "./agent-swarm-channel-access.js";
@@ -13,7 +12,6 @@ import {
 import {
   asObject,
   SWARM_INBOX_CHAR_BUDGET,
-  SWARM_PASSIVE_REFRESH_INTERVAL_MS,
   SWARM_READ_CHANNEL_MESSAGE_LIMIT,
   coerceNullableString,
   estimateTextCost,
@@ -23,13 +21,7 @@ import {
   type WorkflowMessageRecord
 } from "./shared.js";
 import { cancelPendingWorkflowRuns } from "./agent-swarm-runs.js";
-import {
-  emitSwarmPausedAfterMessage,
-  maybeResumeSwarmWaitCycle,
-  maybeResumeStalledSwarm,
-  maybeWakePausedSwarmAgentsAfterMessage,
-  persistSwarmPause
-} from "./agent-swarm-mailbox.js";
+import { markSwarmAgentFinished, maybeWakePausedSwarmAgentsAfterMessage } from "./agent-swarm-mailbox.js";
 
 function groupSwarmUnreadMessages(rows: WorkflowMessageRecord[]): Map<string, WorkflowMessageRecord[]> {
   const grouped = new Map<string, WorkflowMessageRecord[]>();
@@ -265,34 +257,33 @@ async function persistLeaderKickoffMessageNo(
   );
 }
 
-export async function refreshSwarmInbox(
+async function refreshSwarmInbox(
   context: LoadedWorkflowRunContext,
-  mode: "passive" | "explicit",
   targetSwarm?: SwarmTarget
 ): Promise<SwarmInboxRefreshResult> {
-  const target = mode === "explicit" ? resolveSwarmTarget(context, targetSwarm) : null;
   const refresh = await buildSwarmInboxBundle(context, targetSwarm);
   await markSwarmInboxSeen(context, refresh);
-  context.runtime.lastPassiveRefreshAtMs = Date.now();
-  if (mode === "explicit") {
-    context.runtime.lastExplicitRefreshWorkflowMessageNo = refresh.latestWorkflowMessageNo;
-    context.runtime.pendingChannelMessageSendAfterRefresh = true;
-    context.runtime.pendingChannelMessageSwarmNodeId = target?.nodeId ?? null;
-  }
   return refresh;
 }
 
-export async function maybeRefreshSwarmInbox(context: LoadedWorkflowRunContext | null): Promise<SwarmInboxRefreshResult | null> {
+// Delivered between turns, so agents never need to poll for mail.
+export async function deliverSwarmInbox(context: LoadedWorkflowRunContext | null): Promise<SwarmInboxRefreshResult | null> {
   if (!context || context.workflowType !== "agent_swarm") {
     return null;
   }
+  return refreshSwarmInbox(context);
+}
 
-  const now = Date.now();
-  if (context.runtime.lastPassiveRefreshAtMs !== 0 && now - context.runtime.lastPassiveRefreshAtMs < SWARM_PASSIVE_REFRESH_INTERVAL_MS) {
-    return null;
-  }
-
-  return refreshSwarmInbox(context, "passive");
+// Mail that arrived during the current turn has not been seen yet. Hand it over instead of sending,
+// so the agent never posts over messages it has not read.
+async function assertNoUnreadSwarmMail(context: LoadedWorkflowRunContext, targetSwarm?: SwarmTarget): Promise<void> {
+  const refresh = await refreshSwarmInbox(context, targetSwarm);
+  if (!refresh.delivered) return;
+  throw new Error([
+    "New swarm messages arrived before this one was sent. Read them, then resend if your message still applies.",
+    "",
+    refresh.bundleText
+  ].join("\n"));
 }
 
 export async function listSwarmChannelsForAgent(context: LoadedWorkflowRunContext, targetSwarm?: SwarmTarget): Promise<SwarmChannelSummary[]> {
@@ -429,32 +420,13 @@ export async function sendSwarmChannelMessage(context: LoadedWorkflowRunContext,
   targetSwarm?: SwarmTarget;
   channelId: string;
   message: string;
-  pauseAfterSend: boolean;
-  waitingForTaskIds?: string[] | null;
-  triggerSource: TaskExecutionJob["triggerSource"];
-  selectionUserId: string | null;
-}): Promise<{ messageNo: number; createdAt: string; paused: boolean }> {
+}): Promise<{ messageNo: number; createdAt: string }> {
   if (context.workflowType !== "agent_swarm" || !context.currentAgent) {
     throw new Error("Channel messaging is only available for swarm agents.");
   }
 
-  const target = resolveSwarmTarget(context, input.targetSwarm);
-  if (!context.runtime.pendingChannelMessageSendAfterRefresh
-    || (context.runtime.pendingChannelMessageSwarmNodeId ?? null) !== target.nodeId) {
-    throw new Error("You must call refresh_inbox immediately before send_channel_message.");
-  }
-  context.runtime.pendingChannelMessageSendAfterRefresh = false;
-  context.runtime.pendingChannelMessageSwarmNodeId = null;
-  context.runtime.lastExplicitRefreshWorkflowMessageNo = 0;
   const resolvedChannel = await resolveSwarmChannelForAgent(context, input.channelId, input.targetSwarm);
-  if (
-    context.currentAgent.role === "leader"
-    && resolvedChannel.kind === "global"
-    && (context.swarm?.leaderGlobalMessageCount ?? 0) === 0
-    && input.pauseAfterSend
-  ) {
-    throw new Error("Send the first Global kickoff with pause_after_send: false, then use swarm_manage to start workers.");
-  }
+  await assertNoUnreadSwarmMail(context, input.targetSwarm);
 
   const inserted = await withTransaction(async (client) => {
     const workflowResult = await client.query<{ phase: string | null }>(
@@ -491,18 +463,6 @@ export async function sendSwarmChannelMessage(context: LoadedWorkflowRunContext,
       [context.currentAgent!.id, messageNo]
     );
     await persistLeaderKickoffMessageNo(client, context, resolvedChannel.id, messageNo);
-    if (input.pauseAfterSend) {
-      await persistSwarmPause(client, {
-        context,
-        sinceMessageNo: messageNo,
-        channelId: resolvedChannel.id,
-        triggerSource: input.triggerSource,
-        selectionUserId: input.selectionUserId,
-        status: "Paused after sending a swarm message.",
-        targetSwarm: input.targetSwarm,
-        waitingForTaskIds: input.waitingForTaskIds
-      });
-    }
     return messageResult.rows[0];
   });
 
@@ -516,23 +476,15 @@ export async function sendSwarmChannelMessage(context: LoadedWorkflowRunContext,
     updateInMemorySwarmStateAfterGlobalMessage(context, messageNo);
   }
   await maybeWakePausedSwarmAgentsAfterMessage(context, {
-    swarmNodeId: target.nodeId,
     channelId: resolvedChannel.id,
     channelMemberTaskIds: resolvedChannel.member_task_ids,
     senderTaskId: context.currentAgent.task_id,
-    messageNo,
-    senderCompletedWork: input.pauseAfterSend
+    messageNo
   });
-  if (input.pauseAfterSend) {
-    await maybeResumeSwarmWaitCycle(context);
-    await emitSwarmPausedAfterMessage(context);
-  }
-  await maybeResumeStalledSwarm(context);
 
   return {
     messageNo,
-    createdAt: inserted.created_at,
-    paused: input.pauseAfterSend
+    createdAt: inserted.created_at
   };
 }
 
@@ -626,15 +578,7 @@ export async function submitSwarmOutput(context: LoadedWorkflowRunContext, respo
     context.swarm.pendingNestedSwarmNodeIds = context.swarm.pendingNestedSwarmNodeIds
       .filter((nodeId) => nodeId !== target.nodeId);
   }
-  const targetChannel = context.swarm?.channels.find((channel) => channel.id === target.channelId) ?? null;
-  await maybeWakePausedSwarmAgentsAfterMessage(context, {
-    swarmNodeId: target.parentNodeId,
-    channelId: target.channelId,
-    channelMemberTaskIds: targetChannel?.member_task_ids ?? [],
-    senderTaskId: context.currentAgent.task_id,
-    messageNo: inserted.message_no,
-    senderCompletedWork: true
-  });
+  await markSwarmAgentFinished(context);
   return { messageNo: inserted.message_no };
 }
 

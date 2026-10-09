@@ -257,9 +257,6 @@ export async function buildSwarmContext(input: {
     missingWorkerGlobalReportTaskIds: workerReportState.missingWorkerGlobalReportTaskIds,
     missingWorkerGlobalReportLabels: workerReportState.missingWorkerGlobalReportLabels,
     workersStartedAt: coerceNullableString(input.stateJson.workersStartedAt) ?? null,
-    lastWaitCycleTaskIds: Array.isArray(input.stateJson.lastSwarmWaitCycleTaskIds)
-      ? input.stateJson.lastSwarmWaitCycleTaskIds.filter((id): id is string => typeof id === "string")
-      : [],
     completedReviewRounds: Array.isArray(input.stateJson.reviewRounds) ? input.stateJson.reviewRounds.length : 0,
     pendingNestedSwarmNodeIds,
     finalReview: readFinalReview(input.stateJson)

@@ -122,15 +122,9 @@ function buildToolUsageNotes(options: SystemPromptRuntimeOptions): string {
     );
   }
 
-  if (options.workflow?.allowSwarmTools) {
-    notes.push(
-      "- Call `refresh_inbox` only right before you expect to send a swarm message; passive inbox refresh already happens in the background, so do not poll it."
-    );
-  }
-
   if (options.allowSwarmPauseTool) {
     notes.push(
-      "- Usually send your swarm update with `pause_after_send: true`; use `swarm_pause` only when there is nothing useful to send."
+      "- New swarm mail arrives between turns on its own; never poll for it. When your work is done, post your update and call `swarm_pause`."
     );
   }
 
@@ -237,9 +231,8 @@ function buildCompletionSection(options: SystemPromptRuntimeOptions): string {
       "",
       "This run is part of an ongoing Agent Swarm loop.",
       "",
-      "- Do **not** stop implicitly. Keep working, or finish a useful message with `pause_after_send: true`.",
-      "- Use `swarm_pause` only when you have nothing useful to send.",
-      "- A relevant swarm message or completed report resumes the right agent automatically. Do not invent dependencies or poll for updates.",
+      "- Do **not** stop implicitly. Keep working, or post your update and call `swarm_pause`.",
+      "- A direct message, or the agents you wait for finishing, resumes you automatically. Do not poll for updates.",
       "- Pause status is operational context and is not added to the swarm conversation."
     ].join("\n");
   }
@@ -251,9 +244,8 @@ function buildCompletionSection(options: SystemPromptRuntimeOptions): string {
       "This run is part of an ongoing Agent Swarm loop.",
       "",
       "- When the swarm is genuinely ready to speak with one voice, call `final_response` exactly once.",
-      "- Otherwise keep working, or finish a useful swarm message with `pause_after_send: true`.",
-      "- Use `swarm_pause` only when there is nothing useful to send.",
-      "- Relevant swarm mail resumes the right agent automatically. Do not invent dependencies or poll for updates."
+      "- Otherwise keep working, or assign work with `assign_worker` and `wait: true`.",
+      "- The workers you wait for finishing resumes you automatically. Do not poll for updates."
     ].join("\n");
   }
 

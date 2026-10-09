@@ -6,7 +6,6 @@ import {
   CREATE_CHANNEL_TOOL_NAME,
   LIST_CHANNELS_TOOL_NAME,
   READ_CHANNEL_TOOL_NAME,
-  REFRESH_INBOX_TOOL_NAME,
   SEND_CHANNEL_MESSAGE_TOOL_NAME
 } from "../agent-tools/index.js";
 
@@ -124,7 +123,7 @@ describe("buildAgentTurnRequest", () => {
       .filter((tool) => tool.type === "function")
       .map((tool) => tool.name);
 
-    expect(toolNames).toContain(REFRESH_INBOX_TOOL_NAME);
+    expect(toolNames).not.toContain("refresh_inbox");
     expect(toolNames).toContain(LIST_CHANNELS_TOOL_NAME);
     expect(toolNames).toContain(READ_CHANNEL_TOOL_NAME);
     expect(toolNames).toContain(CREATE_CHANNEL_TOOL_NAME);

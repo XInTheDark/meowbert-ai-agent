@@ -62,12 +62,7 @@ function createContext(): LoadedWorkflowRunContext {
       last_inbox_refresh_message_no: 0,
       state_json: {}
     })),
-    planContent: null,
-    runtime: {
-      lastPassiveRefreshAtMs: 0,
-      lastExplicitRefreshWorkflowMessageNo: 0,
-      pendingChannelMessageSendAfterRefresh: false
-    }
+    planContent: null
   };
 }
 
@@ -194,21 +189,18 @@ describe("Agent Swarm worker management", () => {
 
   it("shows paused agents and outstanding dependencies across nested nodes", async () => {
     workflowState = {
-      lastSwarmWaitCycleTaskIds: ["leader-task", "worker-task-2", "leader-task"],
       pausedSwarmAgents: {
         "leader-task": {
           status: "Waiting for both reports",
-          waitingForTaskIds: [],
-          expectedReportTaskIds: ["worker-task-1", "worker-task-2"],
-          receivedReportTaskIds: ["worker-task-1"],
+          waitingForTaskIds: ["worker-task-1", "worker-task-2"],
+          finishedTaskIds: ["worker-task-1"],
           triggerSource: "web",
           mode: "agent_swarm_leader"
         },
         "worker-task-2": {
           status: "Waiting for leader decision",
-          waitingForTaskIds: ["leader-task"],
-          expectedReportTaskIds: [],
-          receivedReportTaskIds: [],
+          waitingForTaskIds: [],
+          finishedTaskIds: [],
           triggerSource: "web",
           mode: "agent_swarm_worker"
         }
@@ -220,9 +212,7 @@ describe("Agent Swarm worker management", () => {
 
     expect(result.agents).toEqual(expect.arrayContaining([
       expect.objectContaining({ taskId: "leader-task", paused: true, pauseReason: "Waiting for both reports", waitingForTaskIds: ["worker-task-2"] }),
-      expect.objectContaining({ taskId: "worker-task-2", paused: true, stopped: false, waitingForTaskIds: ["leader-task"] })
+      expect.objectContaining({ taskId: "worker-task-2", paused: true, stopped: false, waitingForTaskIds: [] })
     ]));
-    expect(result.waitCycleTaskIds).toEqual(["leader-task", "worker-task-2", "leader-task"]);
-    expect(result.lastDetectedWaitCycleTaskIds).toEqual(["leader-task", "worker-task-2", "leader-task"]);
   });
 });

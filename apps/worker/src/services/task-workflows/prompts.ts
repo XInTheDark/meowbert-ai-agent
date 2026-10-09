@@ -476,12 +476,6 @@ function buildSwarmLeaderPrompt(input: {
     finalReviewPrompt,
     "",
     "### Current swarm state",
-    context.swarm?.lastWaitCycleTaskIds?.length
-      ? `- A wait cycle was detected: ${context.swarm.lastWaitCycleTaskIds.map((taskId) => {
-        const agent = context.agents.find((candidate) => candidate.task_id === taskId);
-        return agent ? formatSwarmAgentLabel(agent.role, agent.slot_index, agent.title) : taskId;
-      }).join(" -> ")}. Call \`swarm_manage\` to inspect the current waits and resolve them.`
-      : null,
     !context.swarm?.workersStartedAt
       ? "- No workers have been started yet."
       : missingWorkerReports.length > 0

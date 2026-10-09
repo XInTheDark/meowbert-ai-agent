@@ -31,8 +31,7 @@ const context = {
     task_root_path: "/tmp/task", last_inbox_refresh_message_no: 0, state_json: {}
   },
   agents: [],
-  planContent: null,
-  runtime: { lastPassiveRefreshAtMs: 0, lastExplicitRefreshWorkflowMessageNo: 0, pendingChannelMessageSendAfterRefresh: false }
+  planContent: null
 } satisfies LoadedWorkflowRunContext;
 
 describe("Agent Swarm quota enforcement", () => {

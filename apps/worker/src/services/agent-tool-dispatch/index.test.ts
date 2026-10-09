@@ -253,12 +253,7 @@ function createLongHorizonClarifyContext(): NonNullable<ToolDispatchContext["wor
     environmentId: "env-1",
     currentAgent: null,
     agents: [],
-    planContent: null,
-    runtime: {
-      lastPassiveRefreshAtMs: 0,
-      lastExplicitRefreshWorkflowMessageNo: 0,
-      pendingChannelMessageSendAfterRefresh: false
-    }
+    planContent: null
   };
 }
 
@@ -323,11 +318,6 @@ function createSwarmLeaderContext(): NonNullable<ToolDispatchContext["workflowCo
       workersStartedAt: "2026-08-17T08:00:00.000Z",
       completedReviewRounds: 0,
       finalReview: null
-    },
-    runtime: {
-      lastPassiveRefreshAtMs: 0,
-      lastExplicitRefreshWorkflowMessageNo: 0,
-      pendingChannelMessageSendAfterRefresh: false
     }
   };
 }
@@ -2511,129 +2501,6 @@ describe("dispatchResponseOutput", () => {
     expect(parsed.mode).toBe("scheduled");
   });
 
-  it("invalidates swarm send permission when another tool runs after refresh_inbox", async () => {
-    const ctx = createBaseContext();
-    const state: ToolDispatchState = {
-      conversationItems: [],
-      runPersistedItems: [],
-      commandStep: 0
-    };
-
-    ctx.workflowContext = {
-      workflowTaskId: "workflow-1",
-      workflowType: "agent_swarm",
-      phase: "active",
-      config: {},
-      taskId: "leader-task",
-      taskDir: "/tmp/task",
-      workspaceId: "ws-1",
-      environmentId: "env-1",
-      currentAgent: {
-        id: "leader-agent",
-        role: "leader",
-        slot_index: 0,
-        task_id: "leader-task",
-        title: "Leader",
-        status: "running",
-        task_root_path: ".meowbert/task-runs/leader-task",
-        last_inbox_refresh_message_no: 0
-      },
-      agents: [],
-      planContent: null,
-      swarm: {
-        sharedDir: "/tmp/shared",
-        channels: [],
-        peerTaskDirs: [],
-        globalChannelId: "global-channel",
-        latestWorkflowMessageNo: 12,
-        leaderGlobalMessageCount: 0,
-        activeWorkerCount: 0,
-        workerGlobalReportTaskIds: [],
-        workerGlobalReportLabels: [],
-        missingWorkerGlobalReportTaskIds: [],
-        missingWorkerGlobalReportLabels: [],
-        workersStartedAt: null
-      },
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 0,
-        pendingChannelMessageSendAfterRefresh: false
-      }
-    } as NonNullable<ToolDispatchContext["workflowContext"]>;
-    ctx.workflowActions = {
-      refreshSwarmInbox: vi.fn(async () => {
-        if (!ctx.workflowContext) {
-          throw new Error("workflow context missing");
-        }
-
-        ctx.workflowContext.runtime.lastExplicitRefreshWorkflowMessageNo = 12;
-        ctx.workflowContext.runtime.pendingChannelMessageSendAfterRefresh = true;
-        return {
-          delivered: false,
-          latestWorkflowMessageNo: 12,
-          unreadMessageCount: 0,
-          bundleText: ""
-        };
-      }),
-      listSwarmChannels: vi.fn(async () => []),
-      sendSwarmChannelMessage: vi.fn(async () => {
-        if (!ctx.workflowContext?.runtime.pendingChannelMessageSendAfterRefresh) {
-          throw new Error("send blocked by tool order");
-        }
-
-        return {
-          messageNo: 13,
-          createdAt: "2026-03-18T00:00:13.000Z",
-          paused: false
-        };
-      })
-    };
-
-    const outputItems: ResponseOutputItem[] = [
-      {
-        id: "fc_refresh_inbox",
-        type: "function_call",
-        name: "refresh_inbox",
-        call_id: "call_refresh_inbox",
-        arguments: "{}",
-        status: "completed"
-      },
-      {
-        id: "fc_list_channels",
-        type: "function_call",
-        name: "list_channels",
-        call_id: "call_list_channels",
-        arguments: "{}",
-        status: "completed"
-      },
-      {
-        id: "fc_send_channel_message",
-        type: "function_call",
-        name: "send_channel_message",
-        call_id: "call_send_channel_message",
-        arguments: JSON.stringify({
-          channel_id: "global",
-          message: "Kickoff",
-          pause_after_send: false
-        }),
-        status: "completed"
-      }
-    ];
-
-    await dispatchResponseOutput(outputItems, ctx, state);
-
-    expect(ctx.workflowActions.refreshSwarmInbox).toHaveBeenCalledWith("explicit");
-    expect(ctx.workflowActions.listSwarmChannels).toHaveBeenCalledTimes(1);
-    expect(ctx.workflowActions.sendSwarmChannelMessage).toHaveBeenCalledTimes(1);
-    expect(ctx.workflowContext.runtime.pendingChannelMessageSendAfterRefresh).toBe(false);
-
-    const sendOutput = state.runPersistedItems.find(
-      (item) => item.type === "function_call_output" && item.call_id === "call_send_channel_message"
-    ) as { output: string } | undefined;
-    expect(sendOutput).toBeDefined();
-    expect(sendOutput?.output).toContain("send blocked by tool order");
-  });
-
   it("dispatches swarm_manage only through the swarm lifecycle action", async () => {
     const ctx = createBaseContext();
     const manageSwarmWorkers = vi.fn(async () => ({
@@ -2711,7 +2578,7 @@ describe("dispatchResponseOutput", () => {
     const ctx = createBaseContext();
     ctx.runMode = "agent_swarm_worker";
     ctx.workflowContext = createSwarmLeaderContext();
-    const pauseSwarmAgent = vi.fn(async () => {});
+    const pauseSwarmAgent = vi.fn(async () => ({ escalation: null }));
     ctx.workflowActions = { pauseSwarmAgent };
     const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
 
@@ -2720,7 +2587,7 @@ describe("dispatchResponseOutput", () => {
       type: "function_call",
       name: "swarm_pause",
       call_id: "call_swarm_pause",
-      arguments: JSON.stringify({ status: "Finished my current work.", waiting_for_task_ids: ["leader-1"] }),
+      arguments: JSON.stringify({ status: "Finished my current work.", wait_for_task_ids: ["leader-1"] }),
       status: "completed"
     }], ctx, state);
 
@@ -2728,16 +2595,30 @@ describe("dispatchResponseOutput", () => {
     expect(result.workflowPause).toEqual({ kind: "agent_swarm_paused", response: "Finished my current work." });
   });
 
-  it("pauses a swarm run with message text when send_channel_message has pause_after_send true", async () => {
+  it("hands a stalled swarm back to the user instead of re-queueing it", async () => {
     const ctx = createBaseContext();
     ctx.runMode = "agent_swarm_leader";
     ctx.workflowContext = createSwarmLeaderContext();
-    ctx.workflowContext.runtime.pendingChannelMessageSendAfterRefresh = true;
-    const sendSwarmChannelMessage = vi.fn(async () => ({
-      messageNo: 42,
-      createdAt: "2026-08-29T08:00:00.000Z",
-      paused: true
-    }));
+    ctx.workflowActions = { pauseSwarmAgent: vi.fn(async () => ({ escalation: "The swarm has stalled." })) };
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+
+    const result = await dispatchResponseOutput([{
+      id: "fc_swarm_pause_stalled",
+      type: "function_call",
+      name: "swarm_pause",
+      call_id: "call_swarm_pause_stalled",
+      arguments: JSON.stringify({ status: "Waiting.", wait_for_task_ids: null }),
+      status: "completed"
+    }], ctx, state);
+
+    expect(result.workflowPause).toEqual({ kind: "agent_swarm_paused", response: "The swarm has stalled.", awaitUser: true });
+  });
+
+  it("sends a swarm message without pausing the sender", async () => {
+    const ctx = createBaseContext();
+    ctx.runMode = "agent_swarm_leader";
+    ctx.workflowContext = createSwarmLeaderContext();
+    const sendSwarmChannelMessage = vi.fn(async () => ({ messageNo: 42, createdAt: "2026-08-29T08:00:00.000Z" }));
     ctx.workflowActions = { sendSwarmChannelMessage };
     const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
 
@@ -2746,25 +2627,35 @@ describe("dispatchResponseOutput", () => {
       type: "function_call",
       name: "send_channel_message",
       call_id: "call_send_channel_message",
-      arguments: JSON.stringify({
-        channel_id: "global",
-        message: "Candidate ready for review.",
-        pause_after_send: true,
-        waiting_for_task_ids: ["worker-1"]
-      }),
+      arguments: JSON.stringify({ channel_id: "global", message: "Candidate ready for review." }),
       status: "completed"
     }], ctx, state);
 
-    expect(sendSwarmChannelMessage).toHaveBeenCalledWith({
-      channelId: "global",
-      message: "Candidate ready for review.",
-      pauseAfterSend: true,
-      waitingForTaskIds: ["worker-1"]
-    });
-    expect(result.workflowPause).toEqual({
-      kind: "agent_swarm_paused",
-      response: "Candidate ready for review."
-    });
+    expect(sendSwarmChannelMessage).toHaveBeenCalledWith({ channelId: "global", message: "Candidate ready for review." });
+    expect(result.workflowPause).toBeNull();
+  });
+
+  it("pauses the leader after assigning workers with wait", async () => {
+    const ctx = createBaseContext();
+    ctx.runMode = "agent_swarm_leader";
+    ctx.workflowContext = createSwarmLeaderContext();
+    const assignSwarmWorkers = vi.fn(async () => ({
+      messageNo: 7, assigned: ["Worker 1"], started: ["Worker 1"], paused: true, escalation: null
+    }));
+    ctx.workflowActions = { assignSwarmWorkers };
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+
+    const result = await dispatchResponseOutput([{
+      id: "fc_assign_worker",
+      type: "function_call",
+      name: "assign_worker",
+      call_id: "call_assign_worker",
+      arguments: JSON.stringify({ workers: ["Worker 1"], message: "Check the arithmetic.", wait: true }),
+      status: "completed"
+    }], ctx, state);
+
+    expect(assignSwarmWorkers).toHaveBeenCalledWith({ workers: ["Worker 1"], message: "Check the arithmetic.", wait: true });
+    expect(result.workflowPause).toEqual({ kind: "agent_swarm_paused", response: "Waiting for Worker 1." });
   });
 
   it("throws TASK_CANCELLED before dispatching tool calls when interrupt is active", async () => {

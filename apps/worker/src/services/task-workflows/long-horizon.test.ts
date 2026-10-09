@@ -71,11 +71,6 @@ function buildContext(): LoadedWorkflowRunContext {
       enableClarifyPhase: true,
       enableReviewPhase: true,
       latestApprovalTally: null
-    },
-    runtime: {
-      lastPassiveRefreshAtMs: 0,
-      lastExplicitRefreshWorkflowMessageNo: 0,
-      pendingChannelMessageSendAfterRefresh: false
     }
   };
 }

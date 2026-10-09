@@ -15,6 +15,7 @@ import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExe
 import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
+import { withSwarmPause } from "./workflows.js";
 
 export async function handleScheduleTask(
   outputItem: ResponseFunctionToolCall,
@@ -165,13 +166,13 @@ export async function handleSwarmPauseTool(
     if (!ctx.workflowActions?.pauseSwarmAgent) {
       return await finishBuiltinToolFailure(ctx, execution, "swarm_pause is not available for this run.");
     }
-    await ctx.workflowActions.pauseSwarmAgent({
+    const { escalation } = await ctx.workflowActions.pauseSwarmAgent({
       ...(parsed.value.target_swarm ? { targetSwarm: parsed.value.target_swarm } : {}),
       status: parsed.value.status,
-      waitingForTaskIds: parsed.value.waiting_for_task_ids
+      waitingForTaskIds: parsed.value.wait_for_task_ids
     });
     const finished = await finishBuiltinToolSuccess(ctx, execution, { acknowledged: true, paused: true });
-    return { ...finished, workflowPause: { kind: "agent_swarm_paused", response: parsed.value.status } };
+    return withSwarmPause(finished, parsed.value.status, escalation);
   } catch (err) {
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);

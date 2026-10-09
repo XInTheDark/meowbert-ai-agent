@@ -5,9 +5,9 @@ export interface StoredSwarmPause {
   swarmNodeId: string | null;
   sinceMessageNo: number;
   status: string;
+  // Agents this one waits for; it resumes once every one of them has finished its current work.
   waitingForTaskIds: string[];
-  expectedReportTaskIds: string[];
-  receivedReportTaskIds: string[];
+  finishedTaskIds: string[];
   triggerSource: TaskExecutionJob["triggerSource"];
   selectionUserId: string | null;
   mode: "agent_swarm_leader" | "agent_swarm_worker";
@@ -35,8 +35,7 @@ export function parseSwarmPauses(state: Record<string, unknown>): StoredSwarmPau
       sinceMessageNo: clampNonNegativeInteger(pause.sinceMessageNo),
       status: coerceNullableString(pause.status) ?? "Paused.",
       waitingForTaskIds: stringList(pause.waitingForTaskIds),
-      expectedReportTaskIds: stringList(pause.expectedReportTaskIds),
-      receivedReportTaskIds: stringList(pause.receivedReportTaskIds),
+      finishedTaskIds: stringList(pause.finishedTaskIds),
       triggerSource: triggerSource as TaskExecutionJob["triggerSource"],
       selectionUserId: coerceNullableString(pause.selectionUserId),
       mode
@@ -46,42 +45,5 @@ export function parseSwarmPauses(state: Record<string, unknown>): StoredSwarmPau
 }
 
 export function outstandingSwarmDependencies(pause: StoredSwarmPause): string[] {
-  return Array.from(new Set([
-    ...pause.waitingForTaskIds,
-    ...pause.expectedReportTaskIds.filter((id) => !pause.receivedReportTaskIds.includes(id))
-  ]));
-}
-
-export function findSwarmWaitCycle(pauses: StoredSwarmPauseMap, preferredTaskId?: string): string[] | null {
-  const visited = new Set<string>();
-  const path: string[] = [];
-  const onPath = new Map<string, number>();
-
-  const visit = (taskId: string): string[] | null => {
-    const existingIndex = onPath.get(taskId);
-    if (existingIndex !== undefined) return [...path.slice(existingIndex), taskId];
-    if (visited.has(taskId)) return null;
-    visited.add(taskId);
-    onPath.set(taskId, path.length);
-    path.push(taskId);
-    for (const dependencyId of outstandingSwarmDependencies(pauses[taskId])) {
-      if (!pauses[dependencyId]) continue;
-      const cycle = visit(dependencyId);
-      if (cycle) return cycle;
-    }
-    path.pop();
-    onPath.delete(taskId);
-    return null;
-  };
-
-  const taskIds = Object.keys(pauses).sort();
-  if (preferredTaskId && pauses[preferredTaskId]) {
-    taskIds.splice(taskIds.indexOf(preferredTaskId), 1);
-    taskIds.unshift(preferredTaskId);
-  }
-  for (const taskId of taskIds) {
-    const cycle = visit(taskId);
-    if (cycle) return cycle;
-  }
-  return null;
+  return pause.waitingForTaskIds.filter((id) => !pause.finishedTaskIds.includes(id));
 }

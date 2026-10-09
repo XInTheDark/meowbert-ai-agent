@@ -118,10 +118,10 @@ vi.mock("../task-workflows/service.js", () => ({
   requiresSwarmFinalReview: vi.fn((context) =>
     context?.workflowType === "agent_swarm" && context.agents.some((agent: { role: string }) => agent.role === "worker")
   ),
-  maybeRefreshSwarmInbox: vi.fn(),
+  deliverSwarmInbox: vi.fn(),
   pauseSwarmAgent: vi.fn(),
   readSwarmChannel: vi.fn(),
-  refreshSwarmInbox: vi.fn(),
+  assignSwarmWorkers: vi.fn(),
   releaseSwarmInference: vi.fn(),
   reserveSwarmInference: vi.fn(),
   settleSwarmInference: vi.fn(),
@@ -364,8 +364,7 @@ describe("runAgentStepLoop", () => {
       environmentId: "environment-1",
       currentAgent: null,
       agents: [],
-      planContent: null,
-      runtime: { lastPassiveRefreshAtMs: 0, lastExplicitRefreshWorkflowMessageNo: 0, pendingChannelMessageSendAfterRefresh: false }
+      planContent: null
     };
     execution.workflow.allowSwarmTools = true;
     vi.mocked(reserveSwarmInference).mockResolvedValueOnce({
@@ -378,7 +377,7 @@ describe("runAgentStepLoop", () => {
     });
     vi.mocked(settleSwarmInference).mockResolvedValueOnce(false);
     vi.mocked(releaseSwarmInference).mockResolvedValue(undefined);
-    vi.mocked(pauseSwarmAgent).mockResolvedValue(undefined);
+    vi.mocked(pauseSwarmAgent).mockResolvedValue({ escalation: null });
     vi.mocked(wakeParentForSwarmQuota).mockResolvedValue(undefined);
     mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: [], output_text: "" } as never);
 
@@ -1155,7 +1154,7 @@ describe("runAgentStepLoop", () => {
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(2);
   });
 
-  it("lets the leader choose a direct action before and after kickoff", async () => {
+  it("lets the swarm leader choose its own next tool", async () => {
     mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
       output: [],
       output_text: "",
@@ -1221,11 +1220,6 @@ describe("runAgentStepLoop", () => {
         missingWorkerGlobalReportTaskIds: ["worker-1"],
         missingWorkerGlobalReportLabels: ["Worker 1"],
         workersStartedAt: null
-      },
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 0,
-        pendingChannelMessageSendAfterRefresh: false
       }
     };
     execution.workflow.allowSwarmTools = true;
@@ -1264,7 +1258,7 @@ describe("runAgentStepLoop", () => {
     );
   });
 
-  it("does not force a swarm message after an inbox refresh", async () => {
+  it("does not force a swarm message after the leader has read its inbox", async () => {
     mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
       output: [],
       output_text: "",
@@ -1320,11 +1314,6 @@ describe("runAgentStepLoop", () => {
         missingWorkerGlobalReportTaskIds: ["worker-1"],
         missingWorkerGlobalReportLabels: ["Worker 1"],
         workersStartedAt: null
-      },
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 29,
-        pendingChannelMessageSendAfterRefresh: true
       }
     };
     execution.workflow.allowSwarmTools = true;
@@ -1338,7 +1327,7 @@ describe("runAgentStepLoop", () => {
     );
   });
 
-  it("does not force a specific kickoff swarm tool for ordinary swarm steps", async () => {
+  it("does not force a specific swarm tool for ordinary swarm steps", async () => {
     mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
       output: [],
       output_text: "",
@@ -1394,11 +1383,6 @@ describe("runAgentStepLoop", () => {
         missingWorkerGlobalReportTaskIds: ["worker-1"],
         missingWorkerGlobalReportLabels: ["Worker 1"],
         workersStartedAt: "2026-03-18T00:00:10.000Z"
-      },
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 29,
-        pendingChannelMessageSendAfterRefresh: false
       }
     };
     execution.workflow.allowSwarmTools = true;
@@ -1462,12 +1446,7 @@ describe("runAgentStepLoop", () => {
       environmentId: "environment-1",
       currentAgent: null,
       agents: [],
-      planContent: null,
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 0,
-        pendingChannelMessageSendAfterRefresh: false
-      }
+      planContent: null
     };
     execution.workflow.allowWorkflowStartLongHorizon = true;
     execution.workflow.allowWorkflowRequestClarification = true;

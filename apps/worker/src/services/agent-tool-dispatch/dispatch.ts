@@ -14,6 +14,7 @@ import type { PlatformModelCompatibilityMode } from "@meowbert/shared";
 import { parseXmlToolCalls, stripXmlToolCalls } from "@meowbert/shared";
 import {
   APPLY_PATCH_TOOL_NAME,
+  ASSIGN_WORKER_TOOL_NAME,
   SWARM_BUDGET_STATUS_TOOL_NAME,
   SWARM_CANCEL_NODE_TOOL_NAME,
   SWARM_GRANT_BUDGET_TOOL_NAME,
@@ -42,7 +43,6 @@ import {
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   READ_CHANNEL_TOOL_NAME,
-  REFRESH_INBOX_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
   RUN_SHELL_TOOL_NAME,
   SHELL_SESSION_TOOL_NAME,
@@ -61,7 +61,7 @@ import {
   VIEW_TASK_HISTORY_TOOL_NAME,
   WAIT_TOOL_NAME
 } from "../agent-tools/index.js";
-import { isFunctionCallItem, parseToolArguments, toContinuityInputItem } from "../agent/utils.js";
+import { isFunctionCallItem, toContinuityInputItem } from "../agent/utils.js";
 import { hasApprovedSwarmFinalReview } from "../task-workflows/service.js";
 import {
   isApplyPatchCallItem,
@@ -104,6 +104,7 @@ import {
 } from "./handlers/scheduling.js";
 import { handleCreateSubtask, handleStartSubtask } from "./handlers/subtasks.js";
 import {
+  handleAssignWorker,
   handleCreateChannel,
   handleSwarmManage,
   handleSwarmBudgetStatus,
@@ -115,7 +116,6 @@ import {
   handleListChannels,
   handleReadChannel,
   handleRequestClarification,
-  handleRefreshInbox,
   handleSendChannelMessage,
   handleStartLongHorizonTask,
   handleSubmitResponse,
@@ -134,14 +134,6 @@ import { toolErrorResult, type ToolCallResult } from "./tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchResult, ToolDispatchState } from "./types.js";
 import { recordContextItems } from "../context-management-v2/index.js";
 import { trackRepeatedToolCall } from "./repeated-tool-calls.js";
-
-function invalidatePendingSwarmSendAfterRefresh(ctx: ToolDispatchContext): void {
-  if (ctx.workflowContext?.workflowType !== "agent_swarm") {
-    return;
-  }
-
-  ctx.workflowContext.runtime.pendingChannelMessageSendAfterRefresh = false;
-}
 
 function isCustomToolCallItem(outputItem: ResponseOutputItem): outputItem is ResponseCustomToolCall {
   return outputItem.type === "custom_tool_call"
@@ -255,6 +247,9 @@ async function dispatchFunctionToolCall(
     case SWARM_MANAGE_TOOL_NAME:
       return handleSwarmManage(outputItem, ctx, state);
 
+    case ASSIGN_WORKER_TOOL_NAME:
+      return handleAssignWorker(outputItem, ctx, state);
+
     case SWARM_BUDGET_STATUS_TOOL_NAME:
       return handleSwarmBudgetStatus(outputItem, ctx, state);
 
@@ -339,9 +334,6 @@ async function dispatchFunctionToolCall(
 
     case SUBMIT_REVIEW_TOOL_NAME:
       return handleSubmitReview(outputItem, ctx, state);
-
-    case REFRESH_INBOX_TOOL_NAME:
-      return handleRefreshInbox(outputItem, ctx, state);
 
     case LIST_CHANNELS_TOOL_NAME:
       return handleListChannels(outputItem, ctx, state);
@@ -523,13 +515,11 @@ export async function dispatchResponseOutput(
 
     if (outputItem.type === "web_search_call") {
       sawToolCall = true;
-      invalidatePendingSwarmSendAfterRefresh(ctx);
       continue;
     }
 
     if (isApplyPatchCallItem(outputItem)) {
       sawToolCall = true;
-      invalidatePendingSwarmSendAfterRefresh(ctx);
       let result: ApplyPatchResult;
       try {
         result = await handleApplyPatch(outputItem, ctx, state);
@@ -543,7 +533,6 @@ export async function dispatchResponseOutput(
     if (isApplyPatchCustomToolCallItem(outputItem)) {
       sawToolCall = true;
       sawFunctionToolCall = true;
-      invalidatePendingSwarmSendAfterRefresh(ctx);
       await ctx.assertNotCancelled();
 
       let output: string;
@@ -561,7 +550,6 @@ export async function dispatchResponseOutput(
     if (isCustomToolCallItem(outputItem)) {
       sawToolCall = true;
       sawFunctionToolCall = true;
-      invalidatePendingSwarmSendAfterRefresh(ctx);
       if (!hasCustomToolOutput(state, outputItem.call_id)) {
         await recordInContext(ctx, recordCustomToolCallOutput(state, outputItem.call_id, `Error: Unsupported custom tool: ${outputItem.name}`));
       }
@@ -574,42 +562,33 @@ export async function dispatchResponseOutput(
 
     sawToolCall = true;
     sawFunctionToolCall = true;
-    if (outputItem.name !== SEND_CHANNEL_MESSAGE_TOOL_NAME) {
-      invalidatePendingSwarmSendAfterRefresh(ctx);
-    }
     await ctx.assertNotCancelled();
 
+    let result: ToolCallResult;
     try {
-      let result: ToolCallResult;
-      try {
-        result = await dispatchFunctionToolCall(outputItem, ctx, state);
-      } catch (error) {
-        result = toolErrorResult(await reportUnhandledToolFailure(outputItem.name, outputItem.call_id, ctx, error));
-      }
-      await recordInContext(ctx, recordFunctionCallResult(state, outputItem.call_id, outputItem.name, result));
-      if (repeatedCallReminder) {
-        const reminder = { role: "developer" as const, content: repeatedCallReminder };
-        state.conversationItems.push(reminder);
-        state.runPersistedItems.push(reminder);
-        await recordInContext(ctx, [reminder]);
-      }
-      if (result.finalResponse) {
-        (state.finalResponseSegments ??= []).push(result.finalResponse);
-        finalResponse = result.finalResponse;
-      }
-      if (result.waitRequest) {
-        waitRequest = result.waitRequest;
-      }
-      if (result.stopRequest) {
-        stopRequest = result.stopRequest;
-      }
-      if (result.workflowPause) {
-        workflowPause = result.workflowPause;
-      }
-    } finally {
-      if (outputItem.name === SEND_CHANNEL_MESSAGE_TOOL_NAME) {
-        invalidatePendingSwarmSendAfterRefresh(ctx);
-      }
+      result = await dispatchFunctionToolCall(outputItem, ctx, state);
+    } catch (error) {
+      result = toolErrorResult(await reportUnhandledToolFailure(outputItem.name, outputItem.call_id, ctx, error));
+    }
+    await recordInContext(ctx, recordFunctionCallResult(state, outputItem.call_id, outputItem.name, result));
+    if (repeatedCallReminder) {
+      const reminder = { role: "developer" as const, content: repeatedCallReminder };
+      state.conversationItems.push(reminder);
+      state.runPersistedItems.push(reminder);
+      await recordInContext(ctx, [reminder]);
+    }
+    if (result.finalResponse) {
+      (state.finalResponseSegments ??= []).push(result.finalResponse);
+      finalResponse = result.finalResponse;
+    }
+    if (result.waitRequest) {
+      waitRequest = result.waitRequest;
+    }
+    if (result.stopRequest) {
+      stopRequest = result.stopRequest;
+    }
+    if (result.workflowPause) {
+      workflowPause = result.workflowPause;
     }
 
     await ctx.assertNotCancelled();

@@ -123,12 +123,7 @@ export async function loadWorkflowRunContext(input: {
     environmentId: task.environment_id,
     currentAgent,
     agents,
-    planContent: await loadPlanContent(workflowTaskId),
-    runtime: {
-      lastPassiveRefreshAtMs: 0,
-      lastExplicitRefreshWorkflowMessageNo: 0,
-      pendingChannelMessageSendAfterRefresh: false
-    }
+    planContent: await loadPlanContent(workflowTaskId)
   };
 
   if (workflow.workflow_type === "long_horizon") {

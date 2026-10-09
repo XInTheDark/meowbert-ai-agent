@@ -28,8 +28,7 @@ const context = {
     swarmChannelIds: { "node-0": "global-channel" }
   },
   taskId: "leader-task", taskDir: "/tmp/task", workspaceId: "workspace", environmentId: "project",
-  currentAgent: leader, agents: [leader], planContent: null,
-  runtime: { lastPassiveRefreshAtMs: 0, lastExplicitRefreshWorkflowMessageNo: 0, pendingChannelMessageSendAfterRefresh: false }
+  currentAgent: leader, agents: [leader], planContent: null
 } satisfies LoadedWorkflowRunContext;
 
 describe("Swarm child budget grants", () => {

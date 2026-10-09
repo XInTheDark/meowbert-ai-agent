@@ -149,11 +149,6 @@ describe("agent swarm workflow helpers", () => {
         workersStartedAt: "2026-08-24T00:00:00.000Z",
         completedReviewRounds: 0,
         finalReview: null
-      },
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 0,
-        pendingChannelMessageSendAfterRefresh: false
       }
     };
 
@@ -217,12 +212,7 @@ describe("agent swarm workflow helpers", () => {
       environmentId: "environment-1",
       currentAgent: null,
       agents: [],
-      planContent: null,
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 0,
-        pendingChannelMessageSendAfterRefresh: false
-      }
+      planContent: null
     }, {
       keepRunId: "run-current"
     });
@@ -255,12 +245,7 @@ describe("agent swarm workflow helpers", () => {
       environmentId: "environment-1",
       currentAgent: null,
       agents: [],
-      planContent: null,
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 0,
-        pendingChannelMessageSendAfterRefresh: false
-      }
+      planContent: null
     }, {
       currentRunId: "run-stale"
     });
@@ -336,39 +321,17 @@ describe("agent swarm workflow helpers", () => {
         missingWorkerGlobalReportTaskIds: ["worker-task-1"],
         missingWorkerGlobalReportLabels: ["Worker 1"],
         workersStartedAt: null
-      },
-      runtime: {
-        lastPassiveRefreshAtMs: 0,
-        lastExplicitRefreshWorkflowMessageNo: 29,
-        pendingChannelMessageSendAfterRefresh: true
       }
     } satisfies LoadedWorkflowRunContext;
 
-    await expect(sendSwarmChannelMessage(context, {
-      channelId: "Global",
-      message: "Kickoff",
-      pauseAfterSend: true,
-      triggerSource: "web",
-      selectionUserId: null
-    })).rejects.toThrow("pause_after_send: false");
-    expect(transactionClient.query).not.toHaveBeenCalledWith(
-      expect.stringContaining("INSERT INTO task_workflow_messages"),
-      expect.anything()
-    );
-    context.runtime.pendingChannelMessageSendAfterRefresh = true;
-
     const result = await sendSwarmChannelMessage(context, {
       channelId: "Global",
-      message: "Kickoff",
-      pauseAfterSend: false,
-      triggerSource: "web",
-      selectionUserId: null
+      message: "Kickoff"
     });
 
     expect(result).toEqual({
       messageNo: 31,
-      createdAt: "2026-03-18T00:00:31.000Z",
-      paused: false
+      createdAt: "2026-03-18T00:00:31.000Z"
     });
     expect(context.swarm?.leaderGlobalMessageCount).toBe(1);
     expect(context.swarm?.latestWorkflowMessageNo).toBe(31);

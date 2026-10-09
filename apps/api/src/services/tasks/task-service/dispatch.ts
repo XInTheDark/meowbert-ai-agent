@@ -25,6 +25,8 @@ async function reactivateAgentSwarmWorkflowCycleInTx(
   };
   delete nextState.lastSwarmWaitCycleSignature;
   delete nextState.lastSwarmWaitCycleTaskIds;
+  delete nextState.lastSwarmStallSignature;
+  delete nextState.swarmStall;
 
   await client.query(
     `UPDATE task_workflows

@@ -1,6 +1,7 @@
 export {
   manageSwarmWorkers
 } from "./agent-swarm-management.js";
+export { assignSwarmWorkers } from "./agent-swarm-assignments.js";
 export {
   canRecordSwarmFinalReview,
   canRecordSwarmReview,
@@ -19,9 +20,8 @@ export {
   listSwarmChannelsForAgent,
   loadSwarmChannelMessagesForApi,
   markWorkflowCompleted,
-  maybeRefreshSwarmInbox,
+  deliverSwarmInbox,
   readSwarmChannel,
-  refreshSwarmInbox,
   sendSwarmChannelMessage,
   submitSwarmOutput
 } from "./agent-swarm-messaging.js";

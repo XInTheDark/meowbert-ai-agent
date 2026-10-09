@@ -191,7 +191,6 @@ function markSpawnedLeaderStarted(
     ...state,
     startedSwarmWorkerTaskIds: Array.from(new Set([...startedIds, leaderTaskId]))
   };
-  delete nextState.lastSwarmStallSignature;
   return nextState;
 }
 

@@ -1,5 +1,6 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import {
+  ASSIGN_WORKER_TOOL_NAME,
   CREATE_CHANNEL_TOOL_NAME,
   SWARM_BUDGET_STATUS_TOOL_NAME,
   SWARM_CANCEL_NODE_TOOL_NAME,
@@ -11,12 +12,12 @@ import {
   LIST_CHANNELS_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   READ_CHANNEL_TOOL_NAME,
-  REFRESH_INBOX_TOOL_NAME,
   SEND_CHANNEL_MESSAGE_TOOL_NAME,
   START_LONG_HORIZON_TASK_TOOL_NAME,
   SUBMIT_SWARM_OUTPUT_TOOL_NAME,
   SUBMIT_RESPONSE_TOOL_NAME,
   SUBMIT_REVIEW_TOOL_NAME,
+  assignWorkerArgumentsSchema,
   createChannelArgumentsSchema,
   swarmBudgetStatusArgumentsSchema,
   swarmCancelNodeArgumentsSchema,
@@ -28,7 +29,6 @@ import {
   listChannelsArgumentsSchema,
   readChannelArgumentsSchema,
   requestClarificationArgumentsSchema,
-  refreshInboxArgumentsSchema,
   sendChannelMessageArgumentsSchema,
   startLongHorizonTaskArgumentsSchema,
   submitResponseArgumentsSchema,
@@ -182,41 +182,57 @@ export async function handleSubmitReview(
   }
 }
 
-export async function handleRefreshInbox(
+// A swarm pause ends the run; a stalled swarm hands the task back to the user instead.
+export function withSwarmPause(result: ToolCallResult, status: string, escalation: string | null): ToolCallResult {
+  return {
+    ...result,
+    workflowPause: escalation
+      ? { kind: "agent_swarm_paused", response: escalation, awaitUser: true }
+      : { kind: "agent_swarm_paused", response: status }
+  };
+}
+
+export async function handleAssignWorker(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
-  const parsed = parseToolArguments(REFRESH_INBOX_TOOL_NAME, outputItem.arguments, refreshInboxArgumentsSchema);
+  const parsed = parseToolArguments(ASSIGN_WORKER_TOOL_NAME, outputItem.arguments, assignWorkerArgumentsSchema);
   if (!parsed.ok) {
     return toolErrorResult(parsed.error);
   }
 
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
-    inputLabel: "Inbox",
-    inputText: "Refresh swarm inbox"
+    inputLabel: `Assign ${parsed.value.workers.join(", ")}`,
+    inputText: parsed.value.message
   });
 
-  if (!ctx.workflowActions?.refreshSwarmInbox) {
-    return finishBuiltinToolFailure(ctx, execution, "refresh_inbox is not available in this run.");
+  if (!ctx.workflowActions?.assignSwarmWorkers) {
+    return finishBuiltinToolFailure(ctx, execution, "assign_worker is only available to an Agent Swarm leader.");
   }
 
   try {
-    const result = parsed.value.target_swarm
-      ? await ctx.workflowActions.refreshSwarmInbox("explicit", parsed.value.target_swarm)
-      : await ctx.workflowActions.refreshSwarmInbox("explicit");
-    return await finishBuiltinToolSuccess(ctx, execution, {
-      ok: true,
-      delivered: result.delivered,
-      unread_message_count: result.unreadMessageCount,
-      latest_workflow_message_no: result.latestWorkflowMessageNo,
-      inbox_delta: result.bundleText
+    const result = await ctx.workflowActions.assignSwarmWorkers({
+      ...(parsed.value.target_swarm ? { targetSwarm: parsed.value.target_swarm } : {}),
+      workers: parsed.value.workers,
+      message: parsed.value.message,
+      wait: parsed.value.wait
     });
+    const finished = await finishBuiltinToolSuccess(ctx, execution, {
+      ok: true,
+      message_no: result.messageNo,
+      assigned: result.assigned,
+      started: result.started,
+      paused: result.paused
+    });
+    return result.paused
+      ? withSwarmPause(finished, `Waiting for ${result.assigned.join(", ")}.`, result.escalation)
+      : finished;
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);
-    return finishBuiltinToolFailure(ctx, execution, `Failed to refresh swarm inbox: ${message}`);
+    return finishBuiltinToolFailure(ctx, execution, `Failed to assign swarm workers: ${message}`);
   }
 }
 
@@ -260,7 +276,7 @@ export async function handleSwarmManage(
         stopped: worker.stopped,
         paused: worker.paused,
         pause_reason: worker.pauseReason,
-        waiting_for_task_ids: worker.waitingForTaskIds,
+        wait_for_task_ids: worker.waitingForTaskIds,
         waiting_for: worker.waitingForTaskIds.map((taskId) => result.agents.find((agent) => agent.taskId === taskId)?.label ?? taskId)
       })),
       agents: result.agents.map((agent) => ({
@@ -270,11 +286,9 @@ export async function handleSwarmManage(
         stopped: agent.stopped,
         paused: agent.paused,
         pause_reason: agent.pauseReason,
-        waiting_for_task_ids: agent.waitingForTaskIds,
+        wait_for_task_ids: agent.waitingForTaskIds,
         waiting_for: agent.waitingForTaskIds.map((taskId) => result.agents.find((peer) => peer.taskId === taskId)?.label ?? taskId)
-      })),
-      wait_cycle_task_ids: result.waitCycleTaskIds,
-      last_detected_wait_cycle_task_ids: result.lastDetectedWaitCycleTaskIds
+      }))
     });
   } catch (error) {
     rethrowIfTaskCancelled(error);
@@ -660,17 +674,13 @@ export async function handleSendChannelMessage(
     const result = await ctx.workflowActions.sendSwarmChannelMessage({
       ...(parsed.value.target_swarm ? { targetSwarm: parsed.value.target_swarm } : {}),
       channelId: parsed.value.channel_id,
-      message: parsed.value.message,
-      pauseAfterSend: parsed.value.pause_after_send,
-      waitingForTaskIds: parsed.value.waiting_for_task_ids
+      message: parsed.value.message
     });
-    const finished = await finishBuiltinToolSuccess(ctx, execution, {
+    return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       message_no: result.messageNo,
-      created_at: result.createdAt,
-      paused: result.paused
+      created_at: result.createdAt
     });
-    return result.paused ? { ...finished, workflowPause: { kind: "agent_swarm_paused", response: parsed.value.message } } : finished;
   } catch (error) {
     rethrowIfTaskCancelled(error);
     const message = error instanceof Error ? error.message : String(error);

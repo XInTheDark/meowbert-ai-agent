@@ -120,3 +120,30 @@ export function resolveSwarmTarget(
     isLeader: leaderTaskId === context.taskId
   };
 }
+
+// Workers in every node the given agent leads (any agent, not only the current one).
+export function resolveDirectWorkerTaskIds(context: LoadedWorkflowRunContext, leaderTaskId: string): string[] {
+  const leader = context.agents.find((agent) => agent.task_id === leaderTaskId);
+  if (!leader) return [];
+  const compiled = asObject(context.config.compiledSwarm);
+  const nodes = Array.isArray(compiled.nodes) ? compiled.nodes.map(asObject) : [];
+  const leafId = leader.state_json?.swarmLeafId;
+  if (nodes.length === 0) {
+    return leader.role === "leader"
+      ? context.agents.filter((agent) => agent.role === "worker").map((agent) => agent.task_id)
+      : [];
+  }
+  if (leader.role === "leader" && typeof leafId !== "string") {
+    return context.agents
+      .filter((agent) => agent.role === "worker" && agent.state_json?.swarmParentNodeId == null)
+      .map((agent) => agent.task_id);
+  }
+  const taskIdByLeafId = new Map(context.agents.flatMap((agent) => {
+    const id = agent.state_json?.swarmLeafId;
+    return typeof id === "string" ? [[id, agent.task_id] as const] : [];
+  }));
+  return nodes
+    .filter((node) => node.leaderLeafId === leafId && Array.isArray(node.workerLeafIds))
+    .flatMap((node) => (node.workerLeafIds as unknown[]).flatMap((id) => typeof id === "string" && taskIdByLeafId.has(id)
+      ? [taskIdByLeafId.get(id)!] : []));
+}

@@ -28,6 +28,8 @@ export interface WaitRequest extends FinalResponseRequest {
 export interface WorkflowPauseRequest {
   kind: "long_horizon_started" | "long_horizon_submitted" | "long_horizon_reviewed" | "long_horizon_clarification_requested" | "agent_swarm_paused";
   response?: string;
+  // A stalled swarm hands the task back to the user instead of re-queueing.
+  awaitUser?: boolean;
 }
 
 export interface AgentRunControlState {

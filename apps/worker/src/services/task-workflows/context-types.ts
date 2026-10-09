@@ -82,7 +82,6 @@ export interface LoadedWorkflowRunContext {
     missingWorkerGlobalReportTaskIds: string[];
     missingWorkerGlobalReportLabels: string[];
     workersStartedAt: string | null;
-    lastWaitCycleTaskIds?: string[];
     completedReviewRounds: number;
     pendingNestedSwarmNodeIds?: string[];
     finalReview: {
@@ -91,11 +90,5 @@ export interface LoadedWorkflowRunContext {
       approved: boolean;
       summary: string;
     } | null;
-  };
-  runtime: {
-    lastPassiveRefreshAtMs: number;
-    lastExplicitRefreshWorkflowMessageNo: number;
-    pendingChannelMessageSendAfterRefresh: boolean;
-    pendingChannelMessageSwarmNodeId?: string | null;
   };
 }

@@ -81,12 +81,6 @@ export interface ToolDispatchContext {
       majority: number;
       outcome: "pending" | "approved" | "changes_requested";
     }>;
-    refreshSwarmInbox?: (mode: "passive" | "explicit", targetSwarm?: SwarmTarget) => Promise<{
-      delivered: boolean;
-      latestWorkflowMessageNo: number;
-      unreadMessageCount: number;
-      bundleText: string;
-    }>;
     manageSwarmWorkers?: (input: {
       targetSwarm?: SwarmTarget;
       start: string[];
@@ -115,9 +109,13 @@ export interface ToolDispatchContext {
         pauseReason: string | null;
         waitingForTaskIds: string[];
       }>;
-      waitCycleTaskIds: string[];
-      lastDetectedWaitCycleTaskIds: string[];
     }>;
+    assignSwarmWorkers?: (input: {
+      targetSwarm?: SwarmTarget;
+      workers: string[];
+      message: string;
+      wait: boolean;
+    }) => Promise<{ messageNo: number; assigned: string[]; started: string[]; paused: boolean; escalation: string | null }>;
     getSwarmBudgetStatus?: (targetSwarm?: SwarmTarget) => Promise<SwarmBudgetStatus>;
     spawnSwarmNode?: (input: {
       targetSwarm?: SwarmTarget;
@@ -192,13 +190,12 @@ export interface ToolDispatchContext {
       title: string | null;
       memberTaskIds: string[];
     }>;
-    sendSwarmChannelMessage?: (input: { targetSwarm?: SwarmTarget; channelId: string; message: string; pauseAfterSend: boolean; waitingForTaskIds?: string[] | null }) => Promise<{
+    sendSwarmChannelMessage?: (input: { targetSwarm?: SwarmTarget; channelId: string; message: string }) => Promise<{
       messageNo: number;
       createdAt: string;
-      paused: boolean;
     }>;
     submitSwarmOutput?: (response: string, targetSwarm?: SwarmTarget) => Promise<{ messageNo: number }>;
-    pauseSwarmAgent?: (input: { targetSwarm?: SwarmTarget; status: string; waitingForTaskIds?: string[] | null }) => Promise<void>;
+    pauseSwarmAgent?: (input: { targetSwarm?: SwarmTarget; status: string; waitingForTaskIds?: string[] | null }) => Promise<{ escalation: string | null }>;
   };
 }
 
@@ -265,6 +262,7 @@ export interface ToolDispatchResult {
     | {
       kind: "long_horizon_started" | "long_horizon_submitted" | "long_horizon_reviewed" | "long_horizon_clarification_requested" | "agent_swarm_paused";
       response?: string;
+      awaitUser?: boolean;
     }
     | null;
 }

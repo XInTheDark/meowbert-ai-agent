@@ -41,11 +41,6 @@ function makeContext(overrides: Partial<LoadedWorkflowRunContext> = {}): LoadedW
       enableReviewPhase: true,
       latestApprovalTally: null
     },
-    runtime: {
-      lastPassiveRefreshAtMs: 0,
-      lastExplicitRefreshWorkflowMessageNo: 0,
-      pendingChannelMessageSendAfterRefresh: false
-    },
     ...overrides
   };
 }

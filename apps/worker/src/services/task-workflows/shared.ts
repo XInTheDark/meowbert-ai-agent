@@ -10,7 +10,6 @@ import type { LoadedWorkflowRunContext } from "./context-types.js";
 
 export const SWARM_INBOX_TOKEN_BUDGET = 32_000;
 export const SWARM_INBOX_CHAR_BUDGET = SWARM_INBOX_TOKEN_BUDGET * 4;
-export const SWARM_PASSIVE_REFRESH_INTERVAL_MS = 30_000;
 export const SWARM_LEADER_WAKE_DELAY_MS = 300_000;
 export const SWARM_READ_CHANNEL_MESSAGE_LIMIT = 200;
 

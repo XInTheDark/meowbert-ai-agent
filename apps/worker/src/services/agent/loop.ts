@@ -46,12 +46,12 @@ import {
   listSwarmChannelsForAgent,
   loadLongHorizonBudgetTelemetry,
   manageSwarmWorkers,
+  assignSwarmWorkers,
   recordSwarmFinalReview,
   recordSwarmReviewRound,
-  maybeRefreshSwarmInbox,
+  deliverSwarmInbox,
   pauseSwarmAgent,
   readSwarmChannel,
-  refreshSwarmInbox,
   sendSwarmChannelMessage,
   submitSwarmOutput,
   spawnSwarmNode,
@@ -192,12 +192,26 @@ async function maybeApplySubscriptionQuota(execution: AgentExecutionContext): Pr
   return true;
 }
 
+// Budget events pause the agent from the runtime rather than through a tool call.
+async function applyRuntimeSwarmPause(execution: AgentExecutionContext, status: string): Promise<void> {
+  const paused = await pauseSwarmAgent({
+    context: execution.workflow.workflowContext!,
+    triggerSource: execution.job.triggerSource,
+    selectionUserId: execution.job.selectionUserId ?? null,
+    status
+  }).catch(() => null);
+  execution.state.workflowPauseRequest = paused?.escalation
+    ? { kind: "agent_swarm_paused", awaitUser: true }
+    : { kind: "agent_swarm_paused" };
+  if (paused?.escalation) execution.state.workflowAssistantPauseResponse = paused.escalation;
+}
+
 async function maybeAppendSwarmPassiveInbox(execution: AgentExecutionContext): Promise<void> {
   if (execution.workflow.workflowContext?.workflowType !== "agent_swarm") {
     return;
   }
 
-  const passiveInbox = await maybeRefreshSwarmInbox(execution.workflow.workflowContext);
+  const passiveInbox = await deliverSwarmInbox(execution.workflow.workflowContext);
   if (passiveInbox?.delivered) {
     execution.state.dispatchState.conversationItems.push({
       role: "system",
@@ -216,11 +230,11 @@ function maybeAppendWindingDownNotice(execution: AgentExecutionContext, availabi
     content: execution.runControl.timedRunFinalizing
       ? buildTimedRunFinalizationMessage()
       : execution.workflow.workflowContext?.workflowType === "agent_swarm" && availability.allowFinalResponseTool && availability.allowSwarmPauseTool
-        ? `[System: You have ${availability.stepsRemaining} step(s) remaining. If the swarm is ready, call final_response now. Otherwise send your update with pause_after_send true, or call swarm_pause if there is nothing to send.]`
+        ? `[System: You have ${availability.stepsRemaining} step(s) remaining. If the swarm is ready, call final_response now. Otherwise post your update and call swarm_pause.]`
         : availability.allowFinalResponseTool
         ? `[System: You have ${availability.stepsRemaining} step(s) remaining. Call final_response now to deliver your answer.]`
         : availability.allowSwarmPauseTool
-          ? `[System: You have ${availability.stepsRemaining} step(s) remaining. Keep working, send your update with pause_after_send true, or call swarm_pause if there is nothing to send.]`
+          ? `[System: You have ${availability.stepsRemaining} step(s) remaining. Post your update, then call swarm_pause.]`
           : availability.allowWaitTool
             ? `[System: You have ${availability.stepsRemaining} step(s) remaining. Call wait now with {seconds, response, notify} to save your update and schedule the next cycle.]`
             : `[System: You have ${availability.stepsRemaining} step(s) remaining. Waiting is disabled for this task and final_response is not available yet. Keep working and use tools to make progress.]`
@@ -366,12 +380,18 @@ function buildWorkflowActions(execution: AgentExecutionContext): WorkflowActions
         triggerSource: execution.job.triggerSource
       })
       : undefined,
-    refreshSwarmInbox: execution.workflow.allowSwarmTools
-      ? async (mode: "passive" | "explicit", targetSwarm) => refreshSwarmInbox(execution.workflow.workflowContext!, mode, targetSwarm)
-      : undefined,
     manageSwarmWorkers: execution.workflow.allowSwarmTools
       && hasSwarmLeadership(execution.workflow.workflowContext)
       ? async (input) => manageSwarmWorkers({ context: execution.workflow.workflowContext!, ...input })
+      : undefined,
+    assignSwarmWorkers: execution.workflow.allowSwarmTools
+      && hasSwarmLeadership(execution.workflow.workflowContext)
+      ? async (input) => assignSwarmWorkers({
+        context: execution.workflow.workflowContext!,
+        ...input,
+        triggerSource: execution.job.triggerSource,
+        selectionUserId: execution.job.selectionUserId ?? null
+      })
       : undefined,
     getSwarmBudgetStatus: execution.workflow.allowSwarmTools
       ? async (targetSwarm) => getSwarmBudgetStatus(execution.workflow.workflowContext!, targetSwarm)
@@ -406,11 +426,7 @@ function buildWorkflowActions(execution: AgentExecutionContext): WorkflowActions
       ? async (input) => createSwarmChannelForAgent(execution.workflow.workflowContext!, input)
       : undefined,
     sendSwarmChannelMessage: execution.workflow.allowSwarmTools
-      ? async (input) => sendSwarmChannelMessage(execution.workflow.workflowContext!, {
-        ...input,
-        triggerSource: execution.job.triggerSource,
-        selectionUserId: execution.job.selectionUserId ?? null
-      })
+      ? async (input) => sendSwarmChannelMessage(execution.workflow.workflowContext!, input)
       : undefined,
     submitSwarmOutput: execution.workflow.allowSwarmTools
       && Array.isArray(execution.workflow.workflowContext.currentAgent?.state_json?.swarmLeaderNodeIds)
@@ -594,13 +610,7 @@ async function requestModelTurn(input: {
         selectionUserId: execution.job.selectionUserId ?? null,
         reason: error.message
       }).catch(() => undefined);
-      await pauseSwarmAgent({
-        context: execution.workflow.workflowContext,
-        triggerSource: execution.job.triggerSource,
-        selectionUserId: execution.job.selectionUserId ?? null,
-        status: error.message
-      }).catch(() => undefined);
-      execution.state.workflowPauseRequest = { kind: "agent_swarm_paused" };
+      await applyRuntimeSwarmPause(execution, error.message);
       throw error;
     }
   }
@@ -704,13 +714,7 @@ async function requestModelTurn(input: {
           selectionUserId: execution.job.selectionUserId ?? null,
           reason: "A response arrived after its deadline or after this node was cancelled. Its tool calls were discarded."
         }).catch(() => undefined);
-        await pauseSwarmAgent({
-          context: execution.workflow.workflowContext,
-          triggerSource: execution.job.triggerSource,
-          selectionUserId: execution.job.selectionUserId ?? null,
-          status: "Swarm response arrived after its deadline or after the node was cancelled."
-        }).catch(() => undefined);
-        execution.state.workflowPauseRequest = { kind: "agent_swarm_paused" };
+        await applyRuntimeSwarmPause(execution, "Swarm response arrived after its deadline or after the node was cancelled.");
         throw new Error("SWARM_RESPONSE_QUARANTINED");
       }
     }
@@ -898,7 +902,7 @@ function handlePlainTextWithoutToolCall(
         ? "[System: Workflow runs cannot finish via plain text. Call final_response explicitly.]"
         : execution.workflow.workflowContext?.workflowType === "agent_swarm"
           ? availability.allowSwarmPauseTool
-            ? "[System: Workflow runs cannot continue via plain text. Use swarm tools, send a message with pause_after_send true, or call swarm_pause when there is nothing to send.]"
+            ? "[System: Workflow runs cannot continue via plain text. Use the swarm tools; post your update and call swarm_pause when your work is done.]"
             : "[System: Workflow runs cannot continue via plain text. Use the swarm tools explicitly; pausing is disabled in this task.]"
           : "[System: Workflow runs cannot continue via plain text. Use the available workflow tool explicitly.]"
     });
@@ -919,7 +923,7 @@ function handlePlainTextWithoutToolCall(
       ? "[System: Plain-text completion is not allowed yet. Waiting is disabled for this task, so continue working and use tools instead of concluding.]"
       : execution.workflow.workflowContext?.workflowType === "agent_swarm"
         ? availability.allowSwarmPauseTool
-          ? "[System: Do not stop yet. Continue working, send a message with pause_after_send true, or call swarm_pause when there is nothing to send.]"
+          ? "[System: Do not stop yet. Continue working, or post your update and call swarm_pause when your work is done.]"
           : "[System: Do not stop yet. Continue working with the swarm tools; pausing is disabled in this task.]"
         : "[System: Do not stop yet. Either continue working with tools or call wait() explicitly when you want to pause.]"
   });
@@ -937,7 +941,7 @@ function handleNoToolCallFallback(execution: AgentExecutionContext, availability
   if (execution.workflow.workflowContext?.workflowType === "agent_swarm" && availability.allowSwarmPauseTool) {
     execution.state.dispatchState.conversationItems.push({
       role: "user",
-      content: "[System: You must explicitly choose the next step. Continue using tools, send a message with pause_after_send true, or call swarm_pause when there is nothing to send.]"
+      content: "[System: You must explicitly choose the next step. Continue using tools, or post your update and call swarm_pause when your work is done.]"
     });
     return "continue";
   }

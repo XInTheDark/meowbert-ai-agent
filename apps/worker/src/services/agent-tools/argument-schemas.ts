@@ -328,6 +328,13 @@ export const swarmManageArgumentsSchema = z.object({
   }
 });
 
+export const assignWorkerArgumentsSchema = z.object({
+  target_swarm: z.enum(["outer", "inner"]).nullable().optional(),
+  workers: z.array(z.string().min(1)).min(1).max(6),
+  message: z.string().min(1).max(20_000),
+  wait: z.boolean()
+}).strict();
+
 export const swarmBudgetStatusArgumentsSchema = z.object({
   target_swarm: z.enum(["outer", "inner"]).nullable().optional()
 }).strict();
@@ -385,7 +392,6 @@ export const submitReviewArgumentsSchema = z.object({
   approved: z.boolean()
 });
 
-export const refreshInboxArgumentsSchema = z.object({ target_swarm: z.enum(["outer", "inner"]).optional() });
 export const listChannelsArgumentsSchema = z.object({ target_swarm: z.enum(["outer", "inner"]).optional() });
 
 export const readChannelArgumentsSchema = z.object({
@@ -403,15 +409,13 @@ export const createChannelArgumentsSchema = z.object({
 export const sendChannelMessageArgumentsSchema = z.object({
   target_swarm: z.enum(["outer", "inner"]).optional(),
   channel_id: z.string().min(1),
-  message: z.string().min(1),
-  pause_after_send: z.boolean(),
-  waiting_for_task_ids: z.array(z.string().min(1)).max(32).nullable().optional()
+  message: z.string().min(1)
 });
 
 export const swarmPauseArgumentsSchema = z.object({
   target_swarm: z.enum(["outer", "inner"]).optional(),
   status: z.string().min(1).max(2_000),
-  waiting_for_task_ids: z.array(z.string().min(1)).max(32).nullable().optional()
+  wait_for_task_ids: z.array(z.string().min(1)).max(32).nullable().optional()
 });
 
 export const submitSwarmOutputArgumentsSchema = z.object({

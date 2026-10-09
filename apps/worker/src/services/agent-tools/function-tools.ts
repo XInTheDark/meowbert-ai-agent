@@ -7,6 +7,7 @@ import {
   APPLY_PATCH_TOOL_NAME,
   SWARM_PAUSE_TOOL_NAME,
   SWARM_MANAGE_TOOL_NAME,
+  ASSIGN_WORKER_TOOL_NAME,
   SWARM_BUDGET_STATUS_TOOL_NAME,
   SWARM_CANCEL_NODE_TOOL_NAME,
   SWARM_GRANT_BUDGET_TOOL_NAME,
@@ -44,7 +45,6 @@ import {
   REQUEST_CLARIFICATION_TOOL_NAME,
   READ_CHANNEL_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
-  REFRESH_INBOX_TOOL_NAME,
   RUN_SHELL_MAX_TIMEOUT_SECONDS,
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS,
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS,
@@ -190,7 +190,7 @@ export function buildSwarmPauseFunctionTool(): FunctionTool {
   return {
     type: "function",
     name: SWARM_PAUSE_TOOL_NAME,
-    description: "Pause this Agent Swarm agent until relevant swarm mail arrives. Name any agents whose work you are waiting for so the leader can see dependencies and the runtime can detect cycles.",
+    description: "End your turn and pause this Agent Swarm agent. With wait_for_task_ids, you resume once every named agent has finished its current work; they must be running. With null, a direct message or, for a leader, any of its workers finishing resumes you.",
     strict: true,
     parameters: {
       type: "object",
@@ -199,13 +199,13 @@ export function buildSwarmPauseFunctionTool(): FunctionTool {
           type: "string",
           description: "Short reason for pausing, shown in task events but not added to swarm conversation history."
         },
-        waiting_for_task_ids: {
+        wait_for_task_ids: {
           type: ["array", "null"],
           items: { type: "string" },
-          description: "Task IDs of swarm agents you are waiting for, or null for a general relevant-mail wait."
+          description: "Task IDs of running swarm agents to wait for, or null."
         }
       },
-      required: ["status", "waiting_for_task_ids"],
+      required: ["status", "wait_for_task_ids"],
       additionalProperties: false
     }
   };
@@ -270,6 +270,34 @@ export const CONTEXT_V2_FUNCTION_TOOLS: FunctionTool[] = [
     parameters: { type: "object", properties: { text: { type: "string" }, path: { type: "string" } }, required: ["text", "path"], additionalProperties: false }
   }))
 ];
+
+export const ASSIGN_WORKER_TOOL: FunctionTool = {
+  type: "function",
+  name: ASSIGN_WORKER_TOOL_NAME,
+  description:
+    "For Agent Swarm node leaders: post an assignment to your node's channel and start or resume the named workers so they act on it. Set wait to true to end your turn and resume once every named worker has finished.",
+  strict: true,
+  parameters: {
+    type: "object",
+    properties: {
+      workers: {
+        type: "array",
+        items: { type: "string" },
+        description: "Direct workers to assign, by task ID or label such as 'Worker 1'."
+      },
+      message: {
+        type: "string",
+        description: "The assignment: objective, ownership, and what to report back."
+      },
+      wait: {
+        type: "boolean",
+        description: "True to pause until every named worker has finished; false to keep working."
+      }
+    },
+    required: ["workers", "message", "wait"],
+    additionalProperties: false
+  }
+};
 
 export const SWARM_MANAGE_TOOL: FunctionTool = {
   type: "function",
@@ -437,6 +465,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   ...PROJECT_MASTER_FUNCTION_TOOLS,
   buildRunShellFunctionTool(),
   SHELL_SESSION_TOOL,
+  ASSIGN_WORKER_TOOL,
   SWARM_MANAGE_TOOL,
   SWARM_BUDGET_STATUS_TOOL,
   SWARM_SPAWN_NODE_TOOL,
@@ -1115,18 +1144,6 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   },
   {
     type: "function",
-    name: REFRESH_INBOX_TOOL_NAME,
-    description: "Refresh your Agent Swarm inbox using the same logic as the passive 30-second swarm sync.",
-    strict: true,
-    parameters: {
-      type: "object",
-      properties: {},
-      required: [],
-      additionalProperties: false
-    }
-  },
-  {
-    type: "function",
     name: LIST_CHANNELS_TOOL_NAME,
     description: "List swarm channels you belong to.",
     strict: true,
@@ -1184,7 +1201,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
     type: "function",
     name: SEND_CHANNEL_MESSAGE_TOOL_NAME,
     description:
-      "Send a message to a swarm channel. Your inbox must be freshly refreshed first, otherwise this tool will fail.",
+      "Send a message to a swarm channel. If new messages arrived during your turn, they are returned instead and nothing is sent.",
     strict: true,
     parameters: {
       type: "object",
@@ -1196,18 +1213,9 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
         message: {
           type: "string",
           description: "Markdown message body."
-        },
-        pause_after_send: {
-          type: "boolean",
-          description: "Set true when this message finishes your current work. The runtime will pause you and resume you when relevant swarm mail arrives."
-        },
-        waiting_for_task_ids: {
-          type: ["array", "null"],
-          items: { type: "string" },
-          description: "When pausing, task IDs of swarm agents whose work you need before continuing; otherwise null."
         }
       },
-      required: ["channel_id", "message", "pause_after_send", "waiting_for_task_ids"],
+      required: ["channel_id", "message"],
       additionalProperties: false
     }
   },

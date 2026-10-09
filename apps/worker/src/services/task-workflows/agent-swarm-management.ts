@@ -5,10 +5,16 @@ import { taskQueue } from "../../lib/queue.js";
 import type { LoadedWorkflowRunContext } from "./context.js";
 import { resolveManagedSwarmNode } from "./swarm-management-scope.js";
 import { resolveSwarmTarget, type SwarmTarget } from "./swarm-target.js";
-import { findSwarmWaitCycle, outstandingSwarmDependencies, parseSwarmPauses, type StoredSwarmPauseMap } from "./agent-swarm-dependencies.js";
+import { outstandingSwarmDependencies, parseSwarmPauses, type StoredSwarmPauseMap } from "./agent-swarm-dependencies.js";
 import { removeSwarmPauses } from "./agent-swarm-mailbox.js";
 import { grantSwarmWorkerLeaseInTx, prepareSwarmWorkerLeaseInTx } from "./agent-swarm-worker-lease.js";
-import { asObject, enqueueWorkflowTaskRun, formatSwarmAgentLabel, getSwarmToolOptionsOverride } from "./shared.js";
+import {
+  asObject,
+  enqueueWorkflowTaskRun,
+  formatSwarmAgentLabel,
+  getSwarmToolOptionsOverride,
+  type WorkflowAgentRole
+} from "./shared.js";
 
 const REMOVABLE_PENDING_JOB_STATES = new Set(["waiting", "delayed", "paused", "prioritized", "waiting-children"]);
 
@@ -33,11 +39,18 @@ interface SwarmAgentRow {
   workflow_state_json: Record<string, unknown> | null;
 }
 
-function agentLabel(agent: Pick<SwarmAgentRow, "role" | "slot_index" | "title">): string {
+interface LabeledSwarmAgent {
+  task_id: string;
+  role: WorkflowAgentRole;
+  slot_index: number;
+  title: string | null;
+}
+
+function agentLabel(agent: Omit<LabeledSwarmAgent, "task_id">): string {
   return formatSwarmAgentLabel(agent.role, agent.slot_index, agent.title);
 }
 
-function resolveWorkerIds(workers: SwarmAgentRow[], identifiers: string[]): string[] {
+export function resolveWorkerIds(workers: LabeledSwarmAgent[], identifiers: string[]): string[] {
   const known = new Map<string, string>();
   for (const worker of workers) {
     known.set(worker.task_id.toLowerCase(), worker.task_id);
@@ -146,8 +159,6 @@ export async function manageSwarmWorkers(input: {
   granted: Array<{ label: string; tokens: number }>;
   workers: SwarmWorker[];
   agents: SwarmWorker[];
-  waitCycleTaskIds: string[];
-  lastDetectedWaitCycleTaskIds: string[];
 }> {
   const { context } = input;
   const target = resolveSwarmTarget(context, input.targetSwarm);
@@ -168,11 +179,7 @@ export async function manageSwarmWorkers(input: {
     const pauses = parseSwarmPauses(state);
     return {
       workers: agents.filter((agent) => managedNode.workerTaskIds.includes(agent.task_id)).map((agent) => toAgent(agent, pauses)),
-      agents: agents.map((agent) => toAgent(agent, pauses)),
-      waitCycleTaskIds: findSwarmWaitCycle(pauses) ?? [],
-      lastDetectedWaitCycleTaskIds: Array.isArray(state.lastSwarmWaitCycleTaskIds)
-        ? state.lastSwarmWaitCycleTaskIds.filter((id): id is string => typeof id === "string")
-        : []
+      agents: agents.map((agent) => toAgent(agent, pauses))
     };
   };
   if (input.viewOnly) return { started: [], stopped: [], granted: [], ...snapshot(allAgents) };
@@ -218,9 +225,6 @@ export async function manageSwarmWorkers(input: {
         const completedSwarmNodeIds = asObject(state.completedSwarmNodeIds);
         if (completedSwarmNodeIds[target.nodeId]) {
           delete completedSwarmNodeIds[target.nodeId];
-          delete state.lastSwarmStallSignature;
-          delete state.lastSwarmWaitCycleSignature;
-          delete state.lastSwarmWaitCycleTaskIds;
           await client.query(
             `UPDATE task_workflows SET state_json = $2::jsonb, updated_at = now() WHERE task_id = $1`,
             [context.workflowTaskId, JSON.stringify({ ...state, completedSwarmNodeIds })]

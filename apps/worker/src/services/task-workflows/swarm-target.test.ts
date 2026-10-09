@@ -46,11 +46,7 @@ function createContext(taskId = "inner-leader"): LoadedWorkflowRunContext {
       swarmChannelIds: { "outer-node": "outer-channel", "inner-node": "inner-channel" }
     },
     taskId, taskDir: `/tasks/${taskId}`, workspaceId: "workspace", environmentId: "environment",
-    currentAgent: agents.find((agent) => agent.task_id === taskId)!, agents, planContent: null,
-    runtime: {
-      lastPassiveRefreshAtMs: 0, lastExplicitRefreshWorkflowMessageNo: 0,
-      pendingChannelMessageSendAfterRefresh: false
-    }
+    currentAgent: agents.find((agent) => agent.task_id === taskId)!, agents, planContent: null
   };
 }
 
@@ -142,16 +138,6 @@ describe("swarm target", () => {
       expect.stringContaining("UPDATE task_workflows"),
       ["root-leader", expect.stringContaining('"reviewRoundsByNode":{"inner-node":')]
     );
-  });
-
-  it("rejects a send after refreshing the other swarm", async () => {
-    const context = createContext();
-    context.runtime.pendingChannelMessageSendAfterRefresh = true;
-    context.runtime.pendingChannelMessageSwarmNodeId = "inner-node";
-    await expect(sendSwarmChannelMessage(context, {
-      targetSwarm: "outer", channelId: "outer-channel", message: "Update",
-      pauseAfterSend: false, triggerSource: "web", selectionUserId: null
-    })).rejects.toThrow("refresh_inbox immediately before send_channel_message");
   });
 
   it("accepts inner swarm output only from its leader with the inner target", async () => {

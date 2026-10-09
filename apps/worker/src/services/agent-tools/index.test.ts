@@ -25,7 +25,7 @@ import {
   NOTES_READ_FILE_TOOL_NAME,
   NOTES_WRITE_FILE_TOOL_NAME,
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
-  REFRESH_INBOX_TOOL_NAME,
+  ASSIGN_WORKER_TOOL_NAME,
   RESPONSE_FUNCTION_TOOLS,
   RUN_SHELL_TOOL_NAME,
   SCHEDULE_TASK_TOOL_NAME,
@@ -156,7 +156,7 @@ describe("buildResponseTools", () => {
     const ordinary = buildResponseTools(options, [], availability);
     for (const tool of targeted) {
       if (tool.type !== "function" || ![
-        SWARM_MANAGE_TOOL_NAME, SWARM_PAUSE_TOOL_NAME, REFRESH_INBOX_TOOL_NAME,
+        SWARM_MANAGE_TOOL_NAME, SWARM_PAUSE_TOOL_NAME, ASSIGN_WORKER_TOOL_NAME,
         LIST_CHANNELS_TOOL_NAME, CREATE_CHANNEL_TOOL_NAME, SWARM_RECORD_REVIEW_TOOL_NAME,
         SWARM_RECORD_FINAL_REVIEW_TOOL_NAME, "read_channel", "send_channel_message",
         "submit_swarm_output"
@@ -770,14 +770,15 @@ describe("buildResponseTools", () => {
     expect(disabled.some((tool) => tool.type === "function" && tool.name === START_LONG_HORIZON_TASK_TOOL_NAME)).toBe(false);
     expect(disabled.some((tool) => tool.type === "function" && tool.name === SUBMIT_RESPONSE_TOOL_NAME)).toBe(false);
     expect(disabled.some((tool) => tool.type === "function" && tool.name === SUBMIT_REVIEW_TOOL_NAME)).toBe(false);
-    expect(disabled.some((tool) => tool.type === "function" && tool.name === REFRESH_INBOX_TOOL_NAME)).toBe(false);
+    expect(disabled.some((tool) => tool.type === "function" && tool.name === ASSIGN_WORKER_TOOL_NAME)).toBe(false);
     expect(disabled.some((tool) => tool.type === "function" && tool.name === LIST_CHANNELS_TOOL_NAME)).toBe(false);
     expect(disabled.some((tool) => tool.type === "function" && tool.name === CREATE_CHANNEL_TOOL_NAME)).toBe(false);
 
     expect(enabled.some((tool) => tool.type === "function" && tool.name === START_LONG_HORIZON_TASK_TOOL_NAME)).toBe(true);
     expect(enabled.some((tool) => tool.type === "function" && tool.name === SUBMIT_RESPONSE_TOOL_NAME)).toBe(true);
     expect(enabled.some((tool) => tool.type === "function" && tool.name === SUBMIT_REVIEW_TOOL_NAME)).toBe(true);
-    expect(enabled.some((tool) => tool.type === "function" && tool.name === REFRESH_INBOX_TOOL_NAME)).toBe(true);
+    expect(enabled.some((tool) => tool.type === "function" && tool.name === ASSIGN_WORKER_TOOL_NAME)).toBe(true);
+    expect(enabled.some((tool) => tool.type === "function" && tool.name === "refresh_inbox")).toBe(false);
     expect(enabled.some((tool) => tool.type === "function" && tool.name === LIST_CHANNELS_TOOL_NAME)).toBe(true);
     expect(enabled.some((tool) => tool.type === "function" && tool.name === CREATE_CHANNEL_TOOL_NAME)).toBe(true);
     expect(disabled.some((tool) => tool.type === "function" && tool.name === SWARM_MANAGE_TOOL_NAME)).toBe(false);
@@ -846,7 +847,7 @@ describe("buildResponseTools", () => {
     }
 
     expect(swarmPauseTool.parameters).toEqual(expect.objectContaining({
-      required: ["status", "waiting_for_task_ids"]
+      required: ["status", "wait_for_task_ids"]
     }));
     expect(isRecord(swarmPauseTool.parameters.properties)).toBe(true);
     expect(swarmPauseTool.parameters.properties).not.toHaveProperty("dependencies");
