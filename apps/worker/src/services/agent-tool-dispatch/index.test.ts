@@ -1973,35 +1973,7 @@ describe("dispatchResponseOutput", () => {
     });
   });
 
-  it("asks a swarm leader without final peer review to retry final_response with force", async () => {
-    const ctx = createBaseContext();
-    ctx.runMode = "agent_swarm_leader";
-    ctx.workflowContext = createSwarmLeaderContext();
-    const state: ToolDispatchState = {
-      conversationItems: [],
-      runPersistedItems: [],
-      commandStep: 0
-    };
-
-    const result = await dispatchResponseOutput([
-      {
-        id: "fc_swarm_final",
-        type: "function_call",
-        name: "final_response",
-        call_id: "call_swarm_final",
-        arguments: JSON.stringify({ response: "Swarm conclusion.", notify: true, partial: false }),
-        status: "completed"
-      }
-    ], ctx, state);
-
-    expect(result.finalResponse).toBeNull();
-    const output = state.runPersistedItems.find(
-      (item) => item.type === "function_call_output" && item.call_id === "call_swarm_final"
-    ) as { output: string } | undefined;
-    expect(output?.output).toContain("force: true");
-  });
-
-  it("accepts a forced final_response from a swarm leader without final peer review", async () => {
+  it("blocks a swarm leader's final_response until the final review is recorded, even with force", async () => {
     const ctx = createBaseContext();
     ctx.runMode = "agent_swarm_leader";
     ctx.workflowContext = createSwarmLeaderContext();
@@ -2018,10 +1990,15 @@ describe("dispatchResponseOutput", () => {
       }
     ], ctx, state);
 
-    expect(result.finalResponse).toEqual({ response: "Swarm conclusion.", notify: true, partial: false });
+    expect(result.finalResponse).toBeNull();
+    const output = state.runPersistedItems.find(
+      (item) => item.type === "function_call_output" && item.call_id === "call_swarm_forced_final"
+    ) as { output: string } | undefined;
+    expect(output?.output).toContain("final swarm review is missing");
+    expect(output?.output).not.toContain("force");
   });
 
-  it("rejects final_response from a swarm worker even when forced", async () => {
+  it("rejects final_response from a swarm worker", async () => {
     const ctx = createBaseContext();
     ctx.runMode = "agent_swarm_worker";
     ctx.workflowContext = createSwarmLeaderContext();

@@ -139,6 +139,18 @@ export async function recordSwarmFinalReview(input: {
       [input.context.workflowTaskId]
     );
     const state = result.rows[0]?.state_json ?? {};
+    const cycleStartMessageNo = typeof state.cycleStartMessageNo === "number" ? state.cycleStartMessageNo : 0;
+    const reviewerMessages = await client.query(
+      `SELECT 1
+         FROM task_workflow_messages m
+         JOIN task_workflow_agents a ON a.id = m.sender_workflow_agent_id
+        WHERE m.workflow_task_id = $1 AND a.task_id = $2 AND m.message_no > $3
+        LIMIT 1`,
+      [input.context.workflowTaskId, reviewer.task_id, cycleStartMessageNo]
+    );
+    if ((reviewerMessages.rowCount ?? 0) === 0) {
+      throw new Error(`${reviewerLabel} has not posted a review in the swarm. Send it the complete proposed response and wait for its reply.`);
+    }
     const nextFinalReview = {
       reviewerTaskId: reviewer.task_id,
       reviewerLabel,

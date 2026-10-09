@@ -504,7 +504,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: FINAL_RESPONSE_TOOL_NAME,
-    description: "Send your response directly to the user and finish the task. The text you provide will be shown to the user exactly as written — speak in your own voice. For an Agent Swarm with a missing final peer review, use force: true when the user explicitly requested direct action without swarm coordination, or to retry after a missing-review error.",
+    description: "Send your response directly to the user and finish the task. The text you provide will be shown to the user exactly as written — speak in your own voice.",
     strict: true,
     parameters: {
       type: "object",
@@ -520,13 +520,9 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
         partial: {
           type: ["boolean", "null"],
           description: "Set true to send this text as an inline segment before another final_response or inline artifact; set false/null only for the last segment that finishes the task."
-        },
-        force: {
-          type: ["boolean", "null"],
-          description: "For Agent Swarm only: set true to deliver without a recorded final peer review when the user explicitly requested direct action without swarm coordination, or after a missing-review error."
         }
       },
-      required: ["response", "notify", "partial", "force"],
+      required: ["response", "notify", "partial"],
       additionalProperties: false
     }
   },

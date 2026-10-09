@@ -630,17 +630,18 @@ describe("buildResponseTools", () => {
     }));
   });
 
-  it("defines final_response with strict partial and force parameters", () => {
+  it("defines final_response with a strict partial parameter and no review bypass", () => {
     const finalResponseTool = RESPONSE_FUNCTION_TOOLS.find((tool) => tool.name === FINAL_RESPONSE_TOOL_NAME);
+    const parameters = finalResponseTool?.parameters as { properties: Record<string, unknown>; required: string[] };
 
-    expect(finalResponseTool?.parameters).toEqual(expect.objectContaining({
+    expect(parameters).toEqual(expect.objectContaining({
       properties: expect.objectContaining({
-        partial: expect.objectContaining({ type: ["boolean", "null"] }),
-        force: expect.objectContaining({ type: ["boolean", "null"] })
+        partial: expect.objectContaining({ type: ["boolean", "null"] })
       }),
-      required: expect.arrayContaining(["response", "notify", "partial", "force"]),
+      required: ["response", "notify", "partial"],
       additionalProperties: false
     }));
+    expect(parameters.properties.force).toBeUndefined();
   });
 
   it("includes the local desktop shell tool when computer use is enabled", () => {

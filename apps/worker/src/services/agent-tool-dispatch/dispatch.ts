@@ -30,7 +30,6 @@ import {
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   ENABLE_SKILL_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
-  finalResponseArgumentsSchema,
   MARK_ARTIFACT_TOOL_NAME,
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
   INIT_SANDBOX_TOOL_NAME,
@@ -144,11 +143,6 @@ function invalidatePendingSwarmSendAfterRefresh(ctx: ToolDispatchContext): void 
   ctx.workflowContext.runtime.pendingChannelMessageSendAfterRefresh = false;
 }
 
-function isForcedFinalResponse(outputItem: ResponseFunctionToolCall): boolean {
-  const parsed = parseToolArguments(FINAL_RESPONSE_TOOL_NAME, outputItem.arguments, finalResponseArgumentsSchema);
-  return parsed.ok && parsed.value.force === true;
-}
-
 function isCustomToolCallItem(outputItem: ResponseOutputItem): outputItem is ResponseCustomToolCall {
   return outputItem.type === "custom_tool_call"
     && typeof outputItem.call_id === "string"
@@ -213,9 +207,8 @@ async function dispatchFunctionToolCall(
         ctx.workflowContext?.workflowType === "agent_swarm"
         && ctx.runMode === "agent_swarm_leader"
         && (ctx.workflowContext.swarm?.pendingNestedSwarmNodeIds?.length ?? 0) > 0
-        && !isForcedFinalResponse(outputItem)
       ) {
-        return toolErrorResult(`Started nested swarms have not published their output: ${ctx.workflowContext.swarm!.pendingNestedSwarmNodeIds!.join(", ")}.`);
+        return toolErrorResult(`Started nested swarms have not published their output: ${ctx.workflowContext.swarm!.pendingNestedSwarmNodeIds!.join(", ")}. Wait for their output, or cancel them with swarm_cancel_node.`);
       }
       if (
         ctx.workflowContext?.workflowType === "long_horizon"
@@ -229,9 +222,8 @@ async function dispatchFunctionToolCall(
       if (
         ctx.workflowContext?.workflowType === "agent_swarm"
         && (ctx.runMode !== "agent_swarm_leader" || !hasApprovedSwarmFinalReview(ctx.workflowContext))
-        && !isForcedFinalResponse(outputItem)
       ) {
-        return toolErrorResult("The final swarm review is missing. Record it first, or call final_response again with force: true to deliver now.");
+        return toolErrorResult("The final swarm review is missing. Send the complete proposed response to a worker for review, then record it with swarm_record_final_review.");
       }
       return handleFinalResponse(outputItem, state);
 

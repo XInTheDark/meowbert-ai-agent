@@ -156,8 +156,7 @@ export const finalResponseArgumentsSchema = z.object({
   outline_review: z.enum(["updated", "unchanged", "not_applicable"]).nullable().optional(),
   response: z.string().min(1),
   notify: z.boolean().nullable().optional(),
-  partial: z.boolean().nullable().optional(),
-  force: z.boolean().nullable().optional()
+  partial: z.boolean().nullable().optional()
 });
 
 export const markArtifactArgumentsSchema = z.object({

@@ -77,7 +77,7 @@ describe("agent swarm workflow helpers", () => {
     mockedGetSwarmToolOptionsOverride.mockReturnValue(undefined);
   });
 
-  it("requires the Quality Control worker for a swarm's final review", async () => {
+  it("requires a final review from a Quality Control worker that actually posted", async () => {
     const context: LoadedWorkflowRunContext = {
       workflowTaskId: "workflow-1",
       workflowType: "agent_swarm",
@@ -164,13 +164,27 @@ describe("agent swarm workflow helpers", () => {
       summary: "Ready."
     })).rejects.toThrow("Quality Control worker");
 
-    transactionClient.query.mockResolvedValueOnce({ rows: [{ state_json: {} }], rowCount: 1 } as never);
+    transactionClient.query
+      .mockResolvedValueOnce({ rows: [{ state_json: { cycleStartMessageNo: 4 } }], rowCount: 1 } as never)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 } as never);
+    await expect(recordSwarmFinalReview({
+      context,
+      reviewer: "Worker 1",
+      approved: true,
+      summary: "Ready."
+    })).rejects.toThrow("has not posted a review");
+    expect(context.swarm?.finalReview).toBeNull();
+
+    transactionClient.query
+      .mockResolvedValueOnce({ rows: [{ state_json: { cycleStartMessageNo: 4 } }], rowCount: 1 } as never)
+      .mockResolvedValueOnce({ rows: [{}], rowCount: 1 } as never);
     await expect(recordSwarmFinalReview({
       context,
       reviewer: "Worker 1",
       approved: true,
       summary: "Ready."
     })).resolves.toEqual({ reviewerLabel: "Worker 1", approved: true });
+    expect(transactionClient.query.mock.calls[1]?.[1]).toEqual(["workflow-1", "quality-task", 4]);
     expect(context.swarm?.finalReview?.approved).toBe(true);
   });
 
