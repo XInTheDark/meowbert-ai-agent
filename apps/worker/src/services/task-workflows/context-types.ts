@@ -31,6 +31,10 @@ export interface WorkflowPromptContext {
   roleSummary: string;
   section: string;
   embeddedPersonalityIds?: string[];
+  // A role guide sent as its own instruction after the system prompt; stable across runs.
+  guide?: string;
+  // State that changes between runs, added to the conversation at the start of the run.
+  liveState?: string;
 }
 
 export interface LoadedWorkflowRunContext {

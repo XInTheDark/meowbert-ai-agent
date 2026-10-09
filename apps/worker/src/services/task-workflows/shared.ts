@@ -93,12 +93,6 @@ export function isSwarmTaskActiveStatus(status: string): boolean {
   return status === "queued" || status === "starting" || status === "running" || status === "awaiting_input";
 }
 
-export function shouldRequireSwarmLeaderKickoff(context: LoadedWorkflowRunContext): boolean {
-  return context.workflowType === "agent_swarm"
-    && context.currentAgent?.role === "leader"
-    && (context.swarm?.leaderGlobalMessageCount ?? 0) === 0;
-}
-
 export function resolveAgentSwarmReviewRounds(context: LoadedWorkflowRunContext | null): number {
   return context?.workflowType === "agent_swarm"
     ? clampAgentSwarmReviewRounds(context.config.reviewRounds)

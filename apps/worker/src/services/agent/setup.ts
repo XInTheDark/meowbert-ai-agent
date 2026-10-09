@@ -499,6 +499,10 @@ export async function initializeAgentExecution(
   const promptEnvelope = createPromptEnvelope(systemPrompt);
   if (organization) appendPromptEnvelopeDelta(promptEnvelope, { reason: "conversation-organization", content: conversationOrganizationPrompt(organization) });
   if (prepared.isProjectMaster) appendPromptEnvelopeDelta(promptEnvelope, { reason: "project-master", content: buildProjectMasterPrompt() });
+  const workflowPrompt = workflow.workflowPromptContext;
+  if (workflowPrompt?.guide) {
+    appendPromptEnvelopeDelta(promptEnvelope, { reason: "workflow-guide", role: "developer", content: workflowPrompt.guide });
+  }
   if (resolvedContextManagement.state.version === "v2") {
     conversationItems.unshift(
       ...(await buildV2WindowDeveloperItems({
@@ -507,6 +511,9 @@ export async function initializeAgentExecution(
       })),
       { role: "developer", content: CONTEXT_WINDOW_GUIDANCE }
     );
+  }
+  if (workflowPrompt?.liveState) {
+    conversationItems.push({ role: "developer", content: workflowPrompt.liveState });
   }
   if (!prepared.quickMode) {
     await debugLogger.stage({
