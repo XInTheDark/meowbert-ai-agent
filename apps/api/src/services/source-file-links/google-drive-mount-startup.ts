@@ -44,7 +44,7 @@ function startupError(stderr: string, mountPoint: string): SourceFileLinkProvide
     );
   }
   return new SourceFileLinkProviderError(
-    "Google Drive could not mount the live folder. The server log has the rclone error.",
+    "Google Drive could not mount the live folder. The rclone error is in the API service log (search for \"rclone mount failed\").",
     { statusCode: 503, retryable: true }
   );
 }

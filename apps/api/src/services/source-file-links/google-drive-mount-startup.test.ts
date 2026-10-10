@@ -95,7 +95,7 @@ describe("Google Drive mount startup", () => {
   it("logs the rclone error with credentials redacted", async () => {
     const child = createChild();
     const ready = waitForGoogleDriveMount(child, "/mount");
-    const assertion = expect(ready).rejects.toThrow("server log");
+    const assertion = expect(ready).rejects.toThrow("API service log");
     child.stderr!.emit("data", Buffer.from('Fatal error: drive failed {"access_token":"ya29.a0Secret","refresh_token":"1//0gRefreshSecretValue123456"} GOCSPX-clientSecret'));
     child.exitCode = 1;
     child.emit("close", 1, null);
