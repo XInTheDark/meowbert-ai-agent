@@ -1,9 +1,11 @@
 import {
+  calculateAgentSwarmLeaderAllowance,
   calculateAgentSwarmMinimumGrant,
   AGENT_SWARM_MINIMUM_CHILD_NODE_TOKENS,
   AGENT_SWARM_MINIMUM_INFERENCE_TOKENS
 } from "@meowbert/shared";
 import type { TaskExecutionJob } from "@meowbert/shared";
+import type { PoolClient } from "pg";
 import { query, withTransaction } from "../../lib/db.js";
 import { wakePausedSwarmAgent } from "./agent-swarm-mailbox.js";
 import type { LoadedWorkflowRunContext } from "./context-types.js";
@@ -41,6 +43,8 @@ export interface SwarmInferenceReservation {
   nodeId: string;
   workflowAgentId: string;
   recovery: boolean;
+  // The leader had budget left in the pool but had already spent its own share on its own work.
+  overLeaderAllowance: boolean;
   runId: string | null;
 }
 
@@ -199,6 +203,39 @@ async function markWorkerPaused(nodeId: string, workflowAgentId: string): Promis
   );
 }
 
+// Where a leader's next step comes from when its own lease is short. Within its allowance it draws
+// from the unassigned pool as usual. Beyond it, the step comes from the protected recovery reserve,
+// whose notice tells the leader to delegate or wrap up. The allowance alone never pauses a leader:
+// when the reserve cannot cover the step, the unassigned pool still does.
+async function chooseLeaderFunding(client: PoolClient, input: {
+  nodeId: string;
+  allocatedTokens: number;
+  leaderDrawnTokens: number;
+  shortfall: number;
+  minimumStepTokens: number;
+  unassignedTokens: number;
+  systemReserveTokens: number;
+}): Promise<"unassigned" | "over_allowance" | "recovery" | "none"> {
+  const unassignedCovers = input.unassignedTokens >= input.shortfall;
+  const reserveCovers = input.systemReserveTokens >= input.minimumStepTokens;
+  if (unassignedCovers && reserveCovers) {
+    const delegated = await client.query<{ delegated_tokens: string | number }>(
+      `SELECT (SELECT COALESCE(SUM(lease_tokens), 0) FROM task_workflow_swarm_node_members
+                WHERE node_id = $1 AND role = 'worker')
+            + (SELECT COALESCE(SUM(allocated_tokens), 0) FROM task_workflow_swarm_nodes
+                WHERE parent_node_id = $1) AS delegated_tokens`,
+      [input.nodeId]
+    );
+    const allowance = calculateAgentSwarmLeaderAllowance({
+      allocatedTokens: input.allocatedTokens,
+      delegatedTokens: numberValue(delegated.rows[0]?.delegated_tokens)
+    });
+    return input.leaderDrawnTokens + input.shortfall <= allowance ? "unassigned" : "over_allowance";
+  }
+  if (unassignedCovers) return "unassigned";
+  return reserveCovers ? "recovery" : "none";
+}
+
 export async function reserveSwarmInference(
   context: LoadedWorkflowRunContext,
   recovery = false,
@@ -265,10 +302,11 @@ export async function reserveSwarmInference(
       const locked = await client.query<{
         status: string;
         deadline_at: string | null;
+        allocated_tokens: string | number;
         system_reserve_tokens: string | number;
         unassigned_tokens: string | number;
       }>(
-        `SELECT status, deadline_at, system_reserve_tokens, unassigned_tokens
+        `SELECT status, deadline_at, allocated_tokens, system_reserve_tokens, unassigned_tokens
            FROM task_workflow_swarm_nodes
           WHERE id = $1
           FOR UPDATE`,
@@ -307,10 +345,19 @@ export async function reserveSwarmInference(
       const lockedOperatingAvailable = numberValue(member.lease_tokens)
         - numberValue(member.spent_tokens)
         - numberValue(member.reserved_tokens);
-      let useRecovery = recovery;
       const shortfall = Math.max(0, minimumStepTokens - lockedOperatingAvailable);
-      if (!useRecovery && current.role === "leader" && shortfall > 0
-        && numberValue(lockedNode.unassigned_tokens) >= shortfall) {
+      const funding = !recovery && current.role === "leader" && shortfall > 0
+        ? await chooseLeaderFunding(client, {
+          nodeId: current.nodeId,
+          allocatedTokens: numberValue(lockedNode.allocated_tokens),
+          leaderDrawnTokens: numberValue(member.lease_tokens),
+          shortfall,
+          minimumStepTokens,
+          unassignedTokens: numberValue(lockedNode.unassigned_tokens),
+          systemReserveTokens: numberValue(lockedNode.system_reserve_tokens)
+        })
+        : "none";
+      if (funding === "unassigned") {
         await client.query(
           `UPDATE task_workflow_swarm_node_members
               SET lease_tokens = lease_tokens + $2, updated_at = now()
@@ -323,13 +370,11 @@ export async function reserveSwarmInference(
             WHERE id = $1`,
           [current.nodeId, shortfall]
         );
-      } else if (!useRecovery && current.role === "leader" && shortfall > 0
-        && numberValue(lockedNode.system_reserve_tokens) >= minimumStepTokens) {
-        useRecovery = true;
       }
+      const useRecovery = recovery || funding === "recovery" || funding === "over_allowance";
       const lockedAvailable = useRecovery
         ? numberValue(lockedNode.system_reserve_tokens)
-        : lockedOperatingAvailable + (current.role === "leader" && numberValue(lockedNode.unassigned_tokens) >= shortfall ? shortfall : 0);
+        : lockedOperatingAvailable + (funding === "unassigned" ? shortfall : 0);
       if (recovery && current.role !== "leader") {
         throw new SwarmQuotaError("worker_budget_exhausted", minimumStepTokens, "Only a node leader can use the protected recovery reserve.");
       }
@@ -390,6 +435,7 @@ export async function reserveSwarmInference(
         nodeId: current.nodeId,
         workflowAgentId: current.workflowAgentId,
         recovery: useRecovery,
+        overLeaderAllowance: funding === "over_allowance",
         runId: runId ?? null
       };
     });

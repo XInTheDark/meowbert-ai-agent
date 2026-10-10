@@ -4,6 +4,9 @@ export const AGENT_SWARM_MAX_ACTIVE_AGENTS = 256;
 export const AGENT_SWARM_DEFAULT_TOKEN_BUDGET = 10_000_000;
 export const AGENT_SWARM_SYSTEM_RESERVE_PERCENT = 0.1;
 export const AGENT_SWARM_INITIAL_WORKER_LEASE_PERCENT = 0.1;
+// Share of a node's operating budget its leader may spend on its own work before it has handed out
+// at least as much to its workers and child nodes.
+export const AGENT_SWARM_LEADER_SHARE_PERCENT = 0.2;
 export const AGENT_SWARM_RECOVERY_STEPS = 2;
 export const AGENT_SWARM_MIN_OUTPUT_RESERVATION = 512;
 export const AGENT_SWARM_MINIMUM_INFERENCE_TOKENS = 8_192;
@@ -117,4 +120,14 @@ export function calculateAgentSwarmInitialLeases(input: {
     workerLeaseTokens,
     unassignedTokens: operatingTokens - workerLeaseTokens * workerCount
   };
+}
+
+// How much a node's leader may draw from the unassigned pool for itself: a fixed share of the
+// operating budget, or as much as it has handed to its workers and child nodes, whichever is larger.
+export function calculateAgentSwarmLeaderAllowance(input: {
+  allocatedTokens: number;
+  delegatedTokens: number;
+}): number {
+  const operatingTokens = Math.floor(finiteInteger(input.allocatedTokens) * (1 - AGENT_SWARM_SYSTEM_RESERVE_PERCENT));
+  return Math.max(Math.floor(operatingTokens * AGENT_SWARM_LEADER_SHARE_PERCENT), finiteInteger(input.delegatedTokens));
 }

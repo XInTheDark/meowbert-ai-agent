@@ -70,6 +70,71 @@ describe("Agent Swarm quota enforcement", () => {
     );
   });
 
+  describe("leader allowance", () => {
+    // 1M allocated: 900k operating, so the fixed leader share is 180k.
+    const reserveForLeader = async (input: {
+      leaderDrawn: number;
+      delegated: number;
+      unassigned?: number;
+      systemReserve?: number;
+    }) => {
+      const unassigned = input.unassigned ?? 500_000;
+      const systemReserve = input.systemReserve ?? 100_000;
+      mockedQuery
+        .mockResolvedValueOnce({ rows: [{
+          node_id: "node-1", workflow_agent_id: "agent-1", role: "leader", lease_tokens: input.leaderDrawn,
+          member_spent_tokens: input.leaderDrawn, member_reserved_tokens: 0, member_status: "active",
+          allocated_tokens: 1_000_000, spent_tokens: input.leaderDrawn, reserved_tokens: 0,
+          system_reserve_tokens: systemReserve, unassigned_tokens: unassigned, debt_tokens: 0,
+          status: "active", deadline_at: null, node_leader_task_id: "leader-task", parent_leader_task_id: null
+        }], rowCount: 1 } as never)
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as never);
+      client.query.mockImplementation(async (sql: string) => {
+        if (sql.includes("SELECT status, deadline_at, allocated_tokens")) {
+          return { rows: [{ status: "active", deadline_at: null, allocated_tokens: 1_000_000,
+            system_reserve_tokens: systemReserve, unassigned_tokens: unassigned }] };
+        }
+        if (sql.includes("SELECT status, lease_tokens")) {
+          return { rows: [{ status: "active", lease_tokens: input.leaderDrawn, spent_tokens: input.leaderDrawn, reserved_tokens: 0 }] };
+        }
+        if (sql.includes("delegated_tokens")) return { rows: [{ delegated_tokens: input.delegated }] };
+        if (sql.includes("INSERT INTO task_workflow_swarm_quota_reservations")) return { rows: [{ id: "reservation-1" }] };
+        return { rows: [], rowCount: 0 };
+      });
+      return reserveSwarmInference(context, false, "run-1");
+    };
+    const toppedUpFromPool = () => client.query.mock.calls.some(([sql]) => String(sql).includes("lease_tokens = lease_tokens + $2"));
+
+    it("lets a leader within its share draw from the unassigned pool", async () => {
+      const reservation = await reserveForLeader({ leaderDrawn: 100_000, delegated: 90_000 });
+
+      expect(reservation).toMatchObject({ recovery: false, overLeaderAllowance: false });
+      expect(toppedUpFromPool()).toBe(true);
+    });
+
+    it("moves a leader past its share onto the protected reserve without pausing it", async () => {
+      const reservation = await reserveForLeader({ leaderDrawn: 180_000, delegated: 90_000 });
+
+      expect(reservation).toMatchObject({ recovery: true, overLeaderAllowance: true });
+      expect(toppedUpFromPool()).toBe(false);
+      expect(mockedQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'paused'"))).toBe(false);
+    });
+
+    it("raises the share as the leader funds its workers and child nodes", async () => {
+      const reservation = await reserveForLeader({ leaderDrawn: 300_000, delegated: 400_000 });
+
+      expect(reservation).toMatchObject({ recovery: false, overLeaderAllowance: false });
+      expect(toppedUpFromPool()).toBe(true);
+    });
+
+    it("never pauses a leader for its share when the reserve cannot cover the step", async () => {
+      const reservation = await reserveForLeader({ leaderDrawn: 300_000, delegated: 90_000, systemReserve: 1_000 });
+
+      expect(reservation).toMatchObject({ recovery: false, overLeaderAllowance: false });
+      expect(toppedUpFromPool()).toBe(true);
+    });
+  });
+
   it("quarantines a response received after the deadline before tool dispatch", async () => {
     client.query.mockResolvedValueOnce({ rows: [{
       requested_tokens: 8_192, recovery: false, status: "active", quota_generation: 0,
@@ -78,7 +143,7 @@ describe("Agent Swarm quota enforcement", () => {
 
     const accepted = await settleSwarmInference(context, {
       reservationId: "reservation-1", requestedTokens: 8_192, nodeId: "node-1",
-      workflowAgentId: "agent-1", recovery: false, runId: "run-1"
+      workflowAgentId: "agent-1", recovery: false, overLeaderAllowance: false, runId: "run-1"
     }, 7_000);
 
     expect(accepted).toBe(false);
@@ -110,7 +175,7 @@ describe("Agent Swarm quota enforcement", () => {
 
     const accepted = await settleSwarmInference(context, {
       reservationId: "reservation-1", requestedTokens: 8_192, nodeId: "node-1",
-      workflowAgentId: "agent-1", recovery: true, runId: "run-1"
+      workflowAgentId: "agent-1", recovery: true, overLeaderAllowance: false, runId: "run-1"
     }, 5_000);
 
     expect(accepted).toBe(true);

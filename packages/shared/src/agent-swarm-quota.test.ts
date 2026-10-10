@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateAgentSwarmBudgetEstimate,
   calculateAgentSwarmInitialLeases,
+  calculateAgentSwarmLeaderAllowance,
   calculateAgentSwarmMinimumGrant,
   calculateAgentSwarmSystemReserve,
   AGENT_SWARM_MAX_ACTIVE_NODES,
@@ -9,6 +10,11 @@ import {
 } from "./agent-swarm-quota.js";
 
 describe("agent swarm quota contracts", () => {
+  it("lets a leader spend a fifth of the operating budget, or as much as it has delegated", () => {
+    expect(calculateAgentSwarmLeaderAllowance({ allocatedTokens: 10_000_000, delegatedTokens: 1_000_000 })).toBe(1_800_000);
+    expect(calculateAgentSwarmLeaderAllowance({ allocatedTokens: 10_000_000, delegatedTokens: 4_000_000 })).toBe(4_000_000);
+  });
+
   it("keeps two recovery steps or ten percent, whichever is larger", () => {
     expect(calculateAgentSwarmSystemReserve(10_000, 512)).toBe(1_024);
     expect(calculateAgentSwarmSystemReserve(1_000, 512)).toBe(1_024);

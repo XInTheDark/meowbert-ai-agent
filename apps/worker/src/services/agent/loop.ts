@@ -615,7 +615,12 @@ async function requestModelTurn(input: {
     }
   }
 
-  if (swarmReservation?.recovery) {
+  if (swarmReservation?.overLeaderAllowance) {
+    execution.state.dispatchState.conversationItems.push({
+      role: "system",
+      content: "[System: You have spent your leader share of this swarm's budget on your own work, so this step comes from the protected reserve kept for final synthesis. Hand the remaining work to your workers: assign it with assign_worker and fund them with swarm_manage grant_budget. Funding workers raises your share again.]"
+    });
+  } else if (swarmReservation?.recovery) {
     execution.state.dispatchState.conversationItems.push({
       role: "system",
       content: "[System: The swarm operating budget is exhausted. This inference uses the protected leader recovery reserve. Use it only to cancel or reset unproductive child work, send the necessary parent handoff, or deliver a concise degraded synthesis with final_response.]"
