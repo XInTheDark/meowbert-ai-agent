@@ -19,8 +19,18 @@ function redactRcloneOutput(output: string): string {
     .replace(/GOCSPX-[\w-]+/g, "[redacted]");
 }
 
+// rclone's last error line, redacted, with log timestamps and the server mount path removed.
+function summarizeRcloneError(stderr: string, mountPoint: string): string | null {
+  const lines = redactRcloneOutput(stderr).split("\n").map((line) => line.trim()).filter(Boolean);
+  const errorLine = [...lines].reverse().find((line) => /fatal error|critical|error/i.test(line)) ?? lines.at(-1);
+  if (!errorLine) return null;
+  const summary = errorLine
+    .replace(/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}\s*/, "")
+    .split(mountPoint).join("the live folder");
+  return summary.length > 300 ? `${summary.slice(0, 300)}…` : summary;
+}
+
 function startupError(stderr: string, mountPoint: string): SourceFileLinkProviderError {
-  // The real cause only goes to the server log: rclone output can contain credentials and paths.
   console.error(`[google-drive] rclone mount failed for ${mountPoint}:\n${redactRcloneOutput(stderr).trim() || "(no output)"}`);
   if (/fusermount|libfuse|\/dev\/fuse|fuse:|mount.*permission denied|mount.*operation not permitted/i.test(stderr)) {
     return new SourceFileLinkProviderError(
@@ -43,8 +53,11 @@ function startupError(stderr: string, mountPoint: string): SourceFileLinkProvide
       { statusCode: 503, retryable: true }
     );
   }
+  const detail = summarizeRcloneError(stderr, mountPoint);
   return new SourceFileLinkProviderError(
-    "Google Drive could not mount the live folder. The rclone error is in the API service log (search for \"rclone mount failed\").",
+    detail
+      ? `Google Drive could not mount the live folder. rclone said: ${detail}`
+      : "Google Drive could not mount the live folder, and rclone exited without an error message.",
     { statusCode: 503, retryable: true }
   );
 }
