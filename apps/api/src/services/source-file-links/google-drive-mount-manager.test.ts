@@ -29,6 +29,7 @@ vi.mock("node:fs/promises", () => ({
     mkdir: vi.fn(),
     mkdtemp: vi.fn(async (prefix: string) => `${prefix}test`),
     readdir: vi.fn(async () => []),
+    readFile: vi.fn(async () => ""),
     rm: vi.fn(async () => undefined),
     writeFile: vi.fn()
   }
@@ -124,6 +125,19 @@ describe("Google Drive mount manager", () => {
     await unlinkGoogleDriveFolderMount(activeLink.id);
   });
 
+  it("detaches every stacked dead mount before remounting", async () => {
+    const mountPoint = "/env/context/stacked drive";
+    const mountLine = "100 50 0:60 / /env/context/stacked\\040drive rw - fuse.rclone google-drive: rw";
+    vi.mocked(fs.readFile).mockResolvedValueOnce(`1 0 8:1 / / rw - ext4 /dev/sda1 rw\n${mountLine}\n${mountLine}\n`);
+
+    await acquireGoogleDriveFolderMount({ link: { ...link, id: "stacked" }, consumerId: "attachment:user", mountPoint });
+
+    const unmounts = vi.mocked(execFile).mock.calls.filter(([file]) => file === "fusermount3");
+    expect(unmounts).toHaveLength(2);
+    expect(unmounts.every(([, args]) => (args as string[]).includes(mountPoint))).toBe(true);
+    await unlinkGoogleDriveFolderMount("stacked", "attachment:user");
+  });
+
   it("reports a missing FUSE helper promptly without exposing rclone output", async () => {
     const mountPoint = "/env/context/missing-fuse";
     const execImplementation = vi.mocked(execFile).getMockImplementation()!;
@@ -134,6 +148,7 @@ describe("Google Drive mount manager", () => {
         child.stderr.emit("data", Buffer.from('mount failed: fusermount3: executable file not found; access-token client-secret'));
         child.exitCode = 1;
         child.emit("exit", 1, null);
+        child.emit("close", 1, null);
         return;
       }
       return execImplementation(file, args, options, callback);

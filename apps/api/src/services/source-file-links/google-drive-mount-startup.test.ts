@@ -18,7 +18,10 @@ function createChild(): ChildProcess {
 }
 
 describe("Google Drive mount startup", () => {
-  beforeEach(() => { vi.useFakeTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
   it("handles a failed spawn without an unhandled error or readiness timeout", async () => {
@@ -37,10 +40,12 @@ describe("Google Drive mount startup", () => {
   it("stops waiting when the process is killed by a signal", async () => {
     const child = createChild();
     child.signalCode = "SIGKILL";
-    await expect(waitForGoogleDriveMount(child, "/mount")).rejects.toMatchObject({
+    const assertion = expect(waitForGoogleDriveMount(child, "/mount")).rejects.toMatchObject({
       statusCode: 503,
       message: expect.stringContaining("could not mount")
     });
+    await vi.advanceTimersByTimeAsync(600);
+    await assertion;
   });
 
   it("times out with a retryable error and bounds individual mount probes", async () => {
@@ -67,8 +72,37 @@ describe("Google Drive mount startup", () => {
     );
     child.stderr!.emit("data", Buffer.from("invalid_grant secret-access-token"));
     child.exitCode = 1;
-    child.emit("exit", 1, null);
+    child.emit("close", 1, null);
     await vi.advanceTimersByTimeAsync(100);
     await assertion;
+  });
+
+  it("fails without retrying when the Drive folder is gone", async () => {
+    const child = createChild();
+    const ready = waitForGoogleDriveMount(child, "/mount");
+    const assertion = expect(ready).rejects.toMatchObject({
+      statusCode: 409,
+      retryable: false,
+      message: expect.stringContaining("no longer exists")
+    });
+    child.stderr!.emit("data", Buffer.from("Fatal error: couldn't find root directory ID: googleapi: Error 404: File not found: folder-1., notFound"));
+    child.exitCode = 1;
+    child.emit("close", 1, null);
+    await vi.advanceTimersByTimeAsync(100);
+    await assertion;
+  });
+
+  it("logs the rclone error with credentials redacted", async () => {
+    const child = createChild();
+    const ready = waitForGoogleDriveMount(child, "/mount");
+    const assertion = expect(ready).rejects.toThrow("server log");
+    child.stderr!.emit("data", Buffer.from('Fatal error: drive failed {"access_token":"ya29.a0Secret","refresh_token":"1//0gRefreshSecretValue123456"} GOCSPX-clientSecret'));
+    child.exitCode = 1;
+    child.emit("close", 1, null);
+    await vi.advanceTimersByTimeAsync(100);
+    await assertion;
+    const logged = vi.mocked(console.error).mock.calls.flat().join(" ");
+    expect(logged).toContain("Fatal error: drive failed");
+    expect(logged).not.toMatch(/a0Secret|RefreshSecret|clientSecret/);
   });
 });

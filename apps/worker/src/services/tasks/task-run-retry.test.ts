@@ -280,6 +280,24 @@ describe("scheduleTaskRunRetry", () => {
     expect(mockedQueueAdd).not.toHaveBeenCalled();
   });
 
+  it("does not retry a run whose attached Google Drive folder is gone", async () => {
+    const errorMessage = "The attached Google Drive folder no longer exists or is not shared with the connected account. Remove it from the project and attach it again.";
+    const result = await scheduleTaskRunRetry({
+      job: {
+        taskId: "task-1",
+        runId: "run-1",
+        workspaceId: "workspace-1",
+        environmentId: "environment-1",
+        triggerSource: "web",
+        mode: "default"
+      },
+      error: new Error(errorMessage)
+    });
+
+    expect(result).toEqual({ status: "non_retryable", errorMessage });
+    expect(mockedQueueAdd).not.toHaveBeenCalled();
+  });
+
   it("does not retry a timed run after its run time limit", async () => {
     const result = await scheduleTaskRunRetry({
       job: {

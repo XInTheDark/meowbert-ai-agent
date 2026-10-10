@@ -11,6 +11,7 @@ import { SourceFileLinkActionError } from "./provider-errors.js";
 
 const execFile = promisify(execFileCallback);
 const STOP_TIMEOUT_MS = 15_000;
+const MAX_STACKED_MOUNTS = 16;
 const mounts = new Map<string, GoogleDriveMountHandle>();
 const accessLocks = new Map<string, Promise<unknown>>();
 const mountLocks = new Map<string, Promise<unknown>>();
@@ -61,6 +62,27 @@ async function lazyUnmount(mountPoint: string): Promise<void> {
   try { await execFile("fusermount3", ["-u", "-z", mountPoint], { timeout: 2_000, killSignal: "SIGKILL" }); } catch { /* already gone */ }
 }
 
+// mountinfo escapes spaces and other special characters as octal (\040).
+function decodeMountInfoPath(value: string): string {
+  return value.replace(/\\([0-7]{3})/g, (_match, octal: string) => String.fromCharCode(parseInt(octal, 8)));
+}
+
+async function countMountsAt(mountPoint: string): Promise<number | null> {
+  try {
+    const mountInfo = await fs.readFile("/proc/self/mountinfo", "utf8");
+    return mountInfo.split("\n").filter((line) => decodeMountInfoPath(line.split(" ")[4] ?? "") === mountPoint).length;
+  } catch {
+    return null;
+  }
+}
+
+// Dead mounts can stack at one path across API restarts, and rclone refuses a path that is still
+// listed as mounted. Detach every layer, reading procfs rather than touching the mount itself.
+async function detachMountStack(mountPoint: string): Promise<void> {
+  const layers = Math.min((await countMountsAt(mountPoint)) ?? 1, MAX_STACKED_MOUNTS);
+  for (let layer = 0; layer < layers; layer += 1) await lazyUnmount(mountPoint);
+}
+
 function stopMount(handle: GoogleDriveMountHandle): Promise<void> {
   handle.stopPromise ??= Promise.resolve().then(() => finishStoppingMount(handle));
   return handle.stopPromise;
@@ -106,7 +128,7 @@ export async function acquireGoogleDriveFolderMount(input: {
     const mountPoint = path.resolve(input.mountPoint);
     // A mount left behind by a previous API process (e.g. after a restart) is dead and makes any
     // stat of the path fail with ENOTCONN, so detach it before touching the directory.
-    await lazyUnmount(mountPoint);
+    await detachMountStack(mountPoint);
     await fs.mkdir(mountPoint, { recursive: true });
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), "meowbert-google-drive-"));
     const configPath = path.join(configDir, "rclone.conf");
@@ -136,7 +158,7 @@ export async function detachStaleGoogleDriveMounts(mountPoints: string[]): Promi
   await Promise.all(mountPoints
     .map((mountPoint) => path.resolve(mountPoint))
     .filter((mountPoint) => !owned.has(mountPoint))
-    .map((mountPoint) => lazyUnmount(mountPoint)));
+    .map((mountPoint) => detachMountStack(mountPoint)));
 }
 
 export async function releaseGoogleDriveFolderMount(linkId: string, consumerId: string): Promise<void> {
