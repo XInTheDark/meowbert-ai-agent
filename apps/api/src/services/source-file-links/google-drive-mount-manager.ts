@@ -83,6 +83,30 @@ async function detachMountStack(mountPoint: string): Promise<void> {
   for (let layer = 0; layer < layers; layer += 1) await lazyUnmount(mountPoint);
 }
 
+function unsyncedCopyPath(mountPoint: string): string {
+  const stamp = new Date().toISOString().slice(0, 19).replace("T", " ").replace(/:/g, "-");
+  return `${mountPoint} (unsynced ${stamp})`;
+}
+
+// rclone refuses a non-empty mount point. Files land there when something wrote to the folder while
+// it was unmounted (e.g. a running task across an API restart), so move them aside where the user can
+// see them instead of hiding them under the mount.
+async function prepareEmptyMountPoint(mountPoint: string): Promise<void> {
+  try {
+    await fs.rmdir(mountPoint);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOTEMPTY" || code === "EEXIST") {
+      const copyPath = unsyncedCopyPath(mountPoint);
+      await fs.rename(mountPoint, copyPath);
+      console.warn(`[google-drive] moved local files out of the live folder mount point to ${copyPath}`);
+    } else if (code !== "ENOENT") {
+      throw error;
+    }
+  }
+  await fs.mkdir(mountPoint, { recursive: true });
+}
+
 function stopMount(handle: GoogleDriveMountHandle): Promise<void> {
   handle.stopPromise ??= Promise.resolve().then(() => finishStoppingMount(handle));
   return handle.stopPromise;
@@ -129,7 +153,7 @@ export async function acquireGoogleDriveFolderMount(input: {
     // A mount left behind by a previous API process (e.g. after a restart) is dead and makes any
     // stat of the path fail with ENOTCONN, so detach it before touching the directory.
     await detachMountStack(mountPoint);
-    await fs.mkdir(mountPoint, { recursive: true });
+    await prepareEmptyMountPoint(mountPoint);
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), "meowbert-google-drive-"));
     const configPath = path.join(configDir, "rclone.conf");
     let child: ChildProcess;

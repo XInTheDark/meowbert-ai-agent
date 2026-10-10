@@ -30,6 +30,8 @@ vi.mock("node:fs/promises", () => ({
     mkdtemp: vi.fn(async (prefix: string) => `${prefix}test`),
     readdir: vi.fn(async () => []),
     readFile: vi.fn(async () => ""),
+    rename: vi.fn(async () => undefined),
+    rmdir: vi.fn(async () => undefined),
     rm: vi.fn(async () => undefined),
     writeFile: vi.fn()
   }
@@ -136,6 +138,19 @@ describe("Google Drive mount manager", () => {
     expect(unmounts).toHaveLength(2);
     expect(unmounts.every(([, args]) => (args as string[]).includes(mountPoint))).toBe(true);
     await unlinkGoogleDriveFolderMount("stacked", "attachment:user");
+  });
+
+  it("moves local files out of the way before mounting over them", async () => {
+    vi.setSystemTime(new Date("2026-10-10T10:20:01.000Z"));
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.mocked(fs.rmdir).mockRejectedValueOnce(Object.assign(new Error("not empty"), { code: "ENOTEMPTY" }));
+
+    await acquireGoogleDriveFolderMount({ link: { ...link, id: "leftovers" }, consumerId: "attachment:user", mountPoint: "/env/papers" });
+
+    expect(fs.rename).toHaveBeenCalledWith("/env/papers", "/env/papers (unsynced 2026-10-10 10-20-01)");
+    expect(vi.mocked(fs.mkdir).mock.invocationCallOrder[0]).toBeGreaterThan(vi.mocked(fs.rename).mock.invocationCallOrder[0]);
+    expect(vi.mocked(spawn).mock.calls.at(-1)![1]).toContain("/env/papers");
+    await unlinkGoogleDriveFolderMount("leftovers", "attachment:user");
   });
 
   it("reports a missing FUSE helper promptly without exposing rclone output", async () => {
