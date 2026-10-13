@@ -24,7 +24,9 @@ const NON_RETRYABLE_ERROR_PATTERNS: readonly RegExp[] = [
   /^Subtask not found:/,
   /^Skill not found:/,
   /^Skills are not configured\b/,
-  /^BYO provider is enabled but configuration is incomplete\.$/
+  /^BYO provider is enabled but configuration is incomplete\.$/,
+  /^Google Drive could not authorize the live folder\./,
+  /^The attached Google Drive folder no longer exists\b/
 ];
 
 export interface TaskRunRetryPolicy {
@@ -163,11 +165,12 @@ export function buildTaskRunRetryNotice(input: {
   errorMessage: string;
   delayMs: number;
 }): string {
+  const errorMessage = input.errorMessage.replace(/\.+$/, "");
   if (input.delayMs <= 0) {
-    return `Task run failed (attempt ${input.attemptNo}): ${input.errorMessage}. Retrying now.`;
+    return `Task run failed (attempt ${input.attemptNo}): ${errorMessage}. Retrying now.`;
   }
 
-  return `Task run failed (attempt ${input.attemptNo}): ${input.errorMessage}. Retrying in ${formatRetryDelay(input.delayMs)}.`;
+  return `Task run failed (attempt ${input.attemptNo}): ${errorMessage}. Retrying in ${formatRetryDelay(input.delayMs)}.`;
 }
 
 export async function scheduleTaskRunRetry(input: {
