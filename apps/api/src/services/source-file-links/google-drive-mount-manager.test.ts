@@ -124,6 +124,37 @@ describe("Google Drive mount manager", () => {
     await unlinkGoogleDriveFolderMount(activeLink.id);
   });
 
+  it("remounts a reused mount that vanished while rclone kept running", async () => {
+    const vanishedLink = { ...link, id: "link-vanished" } as SourceFileLink;
+    const mountPoint = "/env/context/vanished";
+    await acquireGoogleDriveFolderMount({ link: vanishedLink, consumerId: "task-1:user-1", mountPoint });
+    const firstChild = vi.mocked(spawn).mock.results.at(-1)!.value;
+
+    const execImplementation = vi.mocked(execFile).getMockImplementation()!;
+    let reportedUnmounted = false;
+    vi.mocked(execFile).mockImplementation(((file: string, args: string[], options: unknown, callback?: (error: Error | null) => void) => {
+      if (file === "mountpoint" && !reportedUnmounted) {
+        reportedUnmounted = true;
+        (callback ?? options as (error: Error | null) => void)(new Error("not a mountpoint"));
+        return;
+      }
+      return execImplementation(file, args, options, callback);
+    }) as typeof execFile);
+    try {
+      await expect(acquireGoogleDriveFolderMount({ link: vanishedLink, consumerId: "task-2:user-1", mountPoint }))
+        .resolves.toBe(mountPoint);
+    } finally {
+      vi.mocked(execFile).mockImplementation(execImplementation);
+    }
+
+    expect(firstChild.kill).toHaveBeenCalled();
+    expect(spawn).toHaveBeenCalledTimes(2);
+    await releaseGoogleDriveFolderMount(vanishedLink.id, "task-2:user-1");
+    await expect(unlinkGoogleDriveFolderMount(vanishedLink.id)).rejects.toMatchObject({ statusCode: 409 });
+    await releaseGoogleDriveFolderMount(vanishedLink.id, "task-1:user-1");
+    await unlinkGoogleDriveFolderMount(vanishedLink.id);
+  });
+
   it("reports a missing FUSE helper promptly without exposing rclone output", async () => {
     const mountPoint = "/env/context/missing-fuse";
     const execImplementation = vi.mocked(execFile).getMockImplementation()!;

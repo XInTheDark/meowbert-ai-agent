@@ -57,6 +57,15 @@ async function withMountLock<T>(linkId: string, run: () => Promise<T>): Promise<
   }
 }
 
+async function isMounted(mountPoint: string): Promise<boolean> {
+  try {
+    await execFile("mountpoint", ["-q", "--", mountPoint], { timeout: 2_000, killSignal: "SIGKILL" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function lazyUnmount(mountPoint: string): Promise<void> {
   try { await execFile("fusermount3", ["-u", "-z", mountPoint], { timeout: 2_000, killSignal: "SIGKILL" }); } catch { /* already gone */ }
 }
@@ -93,9 +102,15 @@ export async function acquireGoogleDriveFolderMount(input: {
 }): Promise<string> {
   return withMountLock(input.link.id, async () => {
     const existing = mounts.get(input.link.id);
+    const references = new Set([input.consumerId]);
     if (existing && !existing.stopPromise) {
-      existing.references.add(input.consumerId);
-      return existing.mountPoint;
+      if (await isMounted(existing.mountPoint)) {
+        existing.references.add(input.consumerId);
+        return existing.mountPoint;
+      }
+      // The mount can vanish while rclone keeps running (another API process detached it, or the
+      // storage mount beneath it was remounted). Remount, keeping the consumers that still hold it.
+      for (const consumerId of existing.references) references.add(consumerId);
     }
     if (existing) await stopMount(existing);
 
@@ -122,7 +137,7 @@ export async function acquireGoogleDriveFolderMount(input: {
       await fs.rm(configDir, { recursive: true, force: true }).catch(() => undefined);
       throw error;
     }
-    const handle: GoogleDriveMountHandle = { linkId: input.link.id, mountPoint, process: child, configDir, references: new Set([input.consumerId]), stopPromise: null, unlinkRequested: false };
+    const handle: GoogleDriveMountHandle = { linkId: input.link.id, mountPoint, process: child, configDir, references, stopPromise: null, unlinkRequested: false };
     mounts.set(input.link.id, handle);
     child.once("exit", () => { if (mounts.get(input.link.id) === handle) void stopMount(handle); });
     try { await waitForGoogleDriveMount(child, mountPoint); return mountPoint; } catch (error) { await stopMount(handle); throw error; }
