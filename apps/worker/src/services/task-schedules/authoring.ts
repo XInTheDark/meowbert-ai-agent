@@ -133,6 +133,12 @@ export async function createRecurringTaskFromTool(input: CreateRecurringTaskInpu
     if (messageToolsPayload) {
       messagePayload.tools = messageToolsPayload;
     }
+    if (input.agent) {
+      messagePayload.agent = input.agent;
+    }
+    if (input.modelRoute) {
+      messagePayload.modelRoute = input.modelRoute;
+    }
     const createdAt = new Date().toISOString();
 
     await client.query(

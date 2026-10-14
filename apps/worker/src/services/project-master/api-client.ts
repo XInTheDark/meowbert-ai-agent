@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { resolveInternalApiBaseUrl, signInternalScopedAccessTicket } from "../agent/internal-api-proxy.js";
+import type { ChosenModelRoute } from "@meowbert/shared";
 import type { TaskMessageToolOptions } from "../agent/types.js";
 
 export interface ProjectMasterCaller {
@@ -45,6 +46,8 @@ export function createManagedTask(caller: ProjectMasterCaller, input: {
   title: string | null;
   message: string;
   tools: TaskMessageToolOptions;
+  agent: { id: string } | null;
+  modelRoute: ChosenModelRoute | null;
 }): Promise<{ taskId: string; reusedExisting: boolean }> {
   // Canvas mode belongs to the Master's own conversation, not to the tasks it starts.
   const { interactiveCanvas: _interactiveCanvas, ...tools } = input.tools;

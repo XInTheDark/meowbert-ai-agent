@@ -21,7 +21,13 @@ const createBody = z.object({
   taskId: z.string().uuid(),
   title: z.string().max(240).nullable(),
   message: z.string().min(1),
-  tools: taskToolOptionsSchema
+  tools: taskToolOptionsSchema,
+  agent: z.object({ id: z.string().min(1).max(240) }).nullable(),
+  modelRoute: z.object({
+    routerId: z.string().min(1).max(240),
+    modelId: z.string().min(1).max(240),
+    reasoningScore: z.number().min(0).max(100)
+  }).nullable()
 });
 const messageBody = z.object({ message: z.string().min(1) });
 
@@ -50,7 +56,15 @@ export const projectMasterInternalRoutes: FastifyPluginAsync = async (fastify) =
     const params = masterParams.parse(request.params);
     const body = createBody.parse(request.body);
     const access = await requireMasterAccess(fastify, request, params.masterTaskId);
-    return createManagedTask({ ...access, taskId: body.taskId, title: body.title, message: body.message, tools: body.tools });
+    return createManagedTask({
+      ...access,
+      taskId: body.taskId,
+      title: body.title,
+      message: body.message,
+      tools: body.tools,
+      agent: body.agent,
+      modelRoute: body.modelRoute
+    });
   });
 
   fastify.post("/api/internal/project-master/:masterTaskId/tasks/:taskId/messages", async (request) => {

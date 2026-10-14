@@ -1,3 +1,4 @@
+import type { ChosenModelRoute } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import type { ToolDispatchContext } from "../agent-tool-dispatch/types.js";
 import { createRecurringTaskFromTool } from "../task-schedules/service.js";
@@ -22,7 +23,16 @@ async function loadExistingSchedule(taskId: string): Promise<ScheduledManagedTas
 // Master after every run so the Master can pass the result on.
 export async function createScheduledManagedTask(
   ctx: ToolDispatchContext,
-  input: { taskId: string; title: string | null; message: string; repeat: string; timezone: string | null; listen: boolean }
+  input: {
+    taskId: string;
+    title: string | null;
+    message: string;
+    repeat: string;
+    timezone: string | null;
+    listen: boolean;
+    agent: { id: string } | null;
+    modelRoute: ChosenModelRoute | null;
+  }
 ): Promise<ScheduledManagedTask & { reusedExisting: boolean }> {
   const existing = await loadExistingSchedule(input.taskId);
   if (existing) {
@@ -42,6 +52,8 @@ export async function createScheduledManagedTask(
     defaultTimezone: ctx.defaultTimezone,
     currentToolOptions: ctx.runToolOptions,
     message: input.message,
+    agent: input.agent,
+    modelRoute: input.modelRoute,
     mode: "scheduled",
     repeat: input.repeat,
     timezone: input.timezone,

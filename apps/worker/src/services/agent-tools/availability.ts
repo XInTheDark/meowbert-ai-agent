@@ -1,5 +1,5 @@
 import { ORGANIZATION_TOOLS, ORGANIZATION_TOOL_NAMES, withOrganizationFinalResponse, withOrganizationHistory } from "./conversation-organization.js";
-import { PROJECT_MASTER_TOOL_NAMES } from "./project-master.js";
+import { buildCreateTaskFunctionTool, PROJECT_MASTER_TOOL_NAMES } from "./project-master.js";
 import { SUBAGENT_TOOL_NAMES } from "./subagents.js";
 import type { FunctionTool, Tool } from "openai/resources/responses/responses";
 import type { TaskMessageToolOptions } from "../agent/types.js";
@@ -335,7 +335,11 @@ export function buildResponseTools(
     ...skillTools
   ];
 
-  if (availability.allowProjectMasterTools === true) return tools.filter(isProjectMasterTool);
+  if (availability.allowProjectMasterTools === true) {
+    return tools.filter(isProjectMasterTool).map((tool) => tool.type === "function" && tool.name === "create_task"
+      ? buildCreateTaskFunctionTool(availability.projectMasterTaskRouter ?? null)
+      : tool);
+  }
 
   if (options.webSearch) {
     tools.push(availability.useClaudeWebSearch === true ? SEARCH_WEB_TOOL : WEB_SEARCH_TOOL);

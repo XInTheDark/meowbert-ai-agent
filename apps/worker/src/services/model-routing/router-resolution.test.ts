@@ -55,6 +55,7 @@ describe("resolveModelRouterSelection", () => {
       routingModel: "gpt-router",
       defaultTargetModel: "fast",
       allowQuickMode: false,
+      allowReasoningEffort: true,
       models: [
         {
           id: "deep",
@@ -144,6 +145,52 @@ describe("resolveModelRouterSelection", () => {
     });
     expect(mockedGetOpenAiClient).not.toHaveBeenCalled();
     expect(mockedEmitTaskEvent).not.toHaveBeenCalled();
+  });
+
+  it("uses the Project Master's pick instead of asking the router", async () => {
+    mockedQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 } as never);
+    mockedQuery.mockResolvedValueOnce({ rows: [{}], rowCount: 1 } as never);
+
+    const resolution = await resolveModelRouterSelection({
+      taskId: "task-1",
+      requestedModel: "router-v1",
+      environmentPayload: {},
+      platformModelRouters: routers,
+      provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
+      branchMessageId: "msg-1",
+      messages: [],
+      requestTimeoutMs: 30_000,
+      chosenRoute: { routerId: "router-v1", modelId: "deep", reasoningScore: 87 }
+    });
+
+    expect(resolution).toEqual(expect.objectContaining({
+      resolvedModel: "gpt-5.4",
+      reasoningEffort: "xhigh",
+      routingModel: "project-master",
+      usedFallback: false
+    }));
+    expect(mockedGetOpenAiClient).not.toHaveBeenCalled();
+    expect(mockedEmitTaskEvent).toHaveBeenCalledWith("task-1", "model_routed", expect.objectContaining({ resolvedModel: "gpt-5.4" }));
+  });
+
+  it("leaves each target's own reasoning effort alone when the router may not pick it", async () => {
+    mockedQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 } as never);
+    mockedQuery.mockResolvedValueOnce({ rows: [{}], rowCount: 1 } as never);
+
+    const resolution = await resolveModelRouterSelection({
+      taskId: "task-1",
+      requestedModel: "router-v1",
+      environmentPayload: { responses: { reasoning: { effort: "medium" } } },
+      platformModelRouters: routers.map((router) => ({ ...router, allowReasoningEffort: false })),
+      provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
+      branchMessageId: "msg-1",
+      messages: [],
+      requestTimeoutMs: 30_000,
+      chosenRoute: { routerId: "router-v1", modelId: "deep", reasoningScore: 87 }
+    });
+
+    expect(resolution?.reasoningEffort).toBeNull();
+    expect(resolution?.resolvedEnvironmentPayload).toEqual({ responses: { reasoning: { effort: "medium" }, text: { verbosity: "high" } } });
   });
 
   it("routes, persists, and emits a model_routed event for a fresh decision", async () => {

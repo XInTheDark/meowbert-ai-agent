@@ -1,4 +1,4 @@
-import { isSkillEnabledByConfig } from "@meowbert/shared";
+import { isSkillEnabledByConfig, type ChosenModelRoute } from "@meowbert/shared";
 import { config } from "../../../lib/config.js";
 
 export interface TaskMessageToolOptions {
@@ -150,11 +150,18 @@ export function normalizeTaskMessageAttachments(
 // Messages written by a Project Master on the user's behalf carry this sender.
 export type TaskMessageSender = "project_master";
 
+// The agent a Project Master's tasks run on, picked in its composer. A null id means the workspace default.
+export interface TaskMessageTaskAgentSelection {
+  id: string | null;
+}
+
 export function buildUserMessageContent(input: {
   message: string;
   sender?: TaskMessageSender;
   tools?: TaskMessageToolOptions | null;
   agent?: TaskMessageAgentSelection | null;
+  modelRoute?: ChosenModelRoute | null;
+  taskAgent?: TaskMessageTaskAgentSelection | null;
   attachments?: TaskMessageAttachment[] | null;
 }): Record<string, unknown> {
   const payload: Record<string, unknown> = {
@@ -173,6 +180,14 @@ export function buildUserMessageContent(input: {
   const normalizedAgent = normalizeTaskMessageAgentSelection(input.agent);
   if (normalizedAgent) {
     payload.agent = normalizedAgent;
+  }
+
+  if (input.modelRoute) {
+    payload.modelRoute = input.modelRoute;
+  }
+
+  if (input.taskAgent) {
+    payload.taskAgent = { id: normalizeTaskMessageAgentSelection({ id: input.taskAgent.id ?? "" })?.id ?? null };
   }
 
   const normalizedAttachments = normalizeTaskMessageAttachments(input.attachments);

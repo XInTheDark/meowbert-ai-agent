@@ -6,7 +6,7 @@ import {
 import type { TaskMessageRow } from "./types.js";
 import { pickRunAgentSelection } from "./utils.js";
 
-function resolveAgentPresetByIdOrDefault(
+export function resolveAgentPresetByIdOrDefault(
   agentId: string | null | undefined,
   visibleAgentPresets: PlatformAgentPreset[],
   workspaceDefaultAgentId: string | null = null

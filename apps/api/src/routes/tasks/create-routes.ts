@@ -4,12 +4,12 @@ import {
   findPlatformAgentPresetById,
   resolvePlatformAgentPresetMode,
   resolveWorkspaceDefaultAgentId,
-  sumAgentSwarmAgentAllocations,
   type CompiledAgentSwarm,
   type AgentSwarmAgentAllocation
 } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
-import { createLongHorizonWorkflowTask, createAgentSwarmWorkflowTask } from "../../services/tasks/task-workflows.js";
+import { createLongHorizonWorkflowTask } from "../../services/tasks/task-workflows.js";
+import { createAgentSwarmTaskFromSettings } from "../../services/tasks/agent-swarm-task-creation.js";
 import { selectAgentSwarmNodeTypes } from "../../services/tasks/agent-swarm-node-types.js";
 import { resolveAgentSwarmTaskSettings, type AgentSwarmTaskSettings } from "../../services/tasks/agent-swarm-task-settings.js";
 import { ensureEnvironmentStorageRoot } from "../../services/environments/environment-storage.js";
@@ -147,23 +147,13 @@ async function createRequestedTask(input: {
     return created;
   }
 
-  const allocationWorkerCount = sumAgentSwarmAgentAllocations(input.agentSwarmAgentAllocations);
-  const rootNode = input.compiledSwarm?.nodes.find((node) => node.id === input.compiledSwarm?.rootNodeId) ?? null;
-  const created = await createAgentSwarmWorkflowTask({
-    ...baseInput,
-    workerCount: input.compiledSwarm
-      ? Math.max(0, input.compiledSwarm.leaves.length - 1)
-      : allocationWorkerCount > 0 ? allocationWorkerCount : input.body.workflow?.workerCount ?? 2,
-    reviewRounds: input.swarmSettings?.reviewRounds ?? rootNode?.reviewRounds ?? 0,
+  return createAgentSwarmTaskFromSettings(baseInput, {
+    compiledSwarm: input.compiledSwarm,
+    swarmSettings: input.swarmSettings,
     agentAllocations: input.agentSwarmAgentAllocations,
-    leaderAgentId: input.swarmSettings?.leaderAgentId ?? null,
-    compiledSwarm: input.compiledSwarm ?? undefined,
-    tokenBudget: input.swarmSettings?.tokenBudget ?? null,
-    timeBudgetMinutes: input.swarmSettings?.timeBudgetMinutes ?? null,
-    // Without budgets there is nothing to fund spawned nodes.
-    dynamicNodeTypes: input.swarmSettings?.disableSpawningAndBudgets ? [] : input.dynamicNodeTypes
+    dynamicNodeTypes: input.dynamicNodeTypes,
+    requestedWorkerCount: input.body.workflow?.workerCount ?? undefined
   });
-  return created;
 }
 
 async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {

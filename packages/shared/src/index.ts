@@ -27,6 +27,7 @@ export * from "./project-context.js";
 export * from "./model-metadata.js";
 export * from "./xml-tool-call-parser.js";
 export * from "./model-routers.js";
+export * from "./chosen-model-route.js";
 export * from "./specialized-models.js";
 export * from "./agent-swarm.js";
 export * from "./agent-swarm-quota.js";

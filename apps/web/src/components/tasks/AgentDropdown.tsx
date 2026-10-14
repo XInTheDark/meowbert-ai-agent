@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { Bot, Check, ChevronDown } from "lucide-react";
+import { Bot, Check, ChevronDown, type LucideIcon } from "lucide-react";
 import type { AgentSwarmAgentAllocation } from "@meowbert/shared/agent-swarm";
 import {
   useChatToolsDropdownPlacement,
@@ -43,6 +43,9 @@ interface AgentDropdownProps {
   noSelectionLabel?: string;
   multiSelect?: boolean;
   popoverPlacement?: ChatToolsPopoverPlacement;
+  // Tells a second picker apart from the main one.
+  triggerTitle?: string;
+  triggerIcon?: LucideIcon;
 }
 
 function buildAgentDropdownLabel(input: {
@@ -84,20 +87,24 @@ function AgentDropdownTrigger(props: {
   disabled: boolean;
   isOpen: boolean;
   label: string;
+  title: string;
+  icon: LucideIcon;
   onToggle: () => void;
 }) {
+  const Icon = props.icon;
   if (props.variant === "icon") {
     return (
       <button
         type="button"
         className={`icon-btn-subtle ${props.active ? "active" : ""}`}
         onClick={props.onToggle}
-        title="Agent"
+        title={`${props.title}: ${props.label}`}
+        aria-label={props.title}
         disabled={props.disabled}
         aria-haspopup="menu"
         aria-expanded={props.isOpen}
       >
-        <Bot size={18} />
+        <Icon size={18} />
       </button>
     );
   }
@@ -119,7 +126,7 @@ function AgentDropdownTrigger(props: {
       }}
     >
       <span style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem", minWidth: 0 }}>
-        <Bot size={16} />
+        <Icon size={16} />
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{props.label}</span>
       </span>
       <ChevronDown size={16} />
@@ -384,6 +391,8 @@ export function AgentDropdown(props: AgentDropdownProps) {
         disabled={disabled}
         isOpen={isOpen}
         label={buttonLabel}
+        title={props.triggerTitle ?? "Agent"}
+        icon={props.triggerIcon ?? Bot}
         onToggle={() => {
           setShowFullList(false);
           setIsOpen((current) => !current);

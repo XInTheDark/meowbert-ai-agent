@@ -77,6 +77,10 @@ async function handlePostTaskMessage(request: FastifyRequest, reply: FastifyRepl
   }
 
   const selectedAgent = await requireVisiblePlatformAgentSelectionForUser(request.user.id, body.agent);
+  const isMaster = await isProjectMasterTask(params.taskId);
+  const taskAgent = isMaster && body.taskAgent
+    ? { id: (await requireVisiblePlatformAgentSelectionForUser(request.user.id, body.taskAgent.id ? { id: body.taskAgent.id } : null))?.id ?? null }
+    : undefined;
   if (body.interactiveCanvasId) {
     await assertCanvasBelongsToProject({
       canvasId: body.interactiveCanvasId,
@@ -93,12 +97,13 @@ async function handlePostTaskMessage(request: FastifyRequest, reply: FastifyRepl
     attachments: body.attachments,
     tools: body.tools,
     agent: selectedAgent,
+    taskAgent,
     userId: request.user.id,
     interactiveCanvasId: body.interactiveCanvasId ?? undefined,
     interactiveCanvasIntent: body.interactiveCanvasIntent ?? (body.interactiveCanvasId ? "update" : undefined),
     interruptQueued: true,
     // Talking to the Master on the web moves its replies (and proactive updates) back to the web.
-    connectorContextId: (await isProjectMasterTask(params.taskId)) ? null : undefined
+    connectorContextId: isMaster ? null : undefined
   });
   if (body.interactiveCanvasId) {
     await touchProjectCanvasTask({

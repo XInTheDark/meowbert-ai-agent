@@ -853,6 +853,7 @@ export interface AdminSettings {
     routingModel: string;
     defaultTargetModel: string;
     allowQuickMode?: boolean;
+    allowReasoningEffort?: boolean;
     models: Array<{
       id: string;
       description: string;

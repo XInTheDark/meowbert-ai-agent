@@ -11,6 +11,8 @@ export interface PlatformModelRouter {
   routingModel: string;
   defaultTargetModel: string;
   allowQuickMode?: boolean;
+  // Lets the router (or a Project Master picking for it) set reasoning effort. Off, each target's own setting applies.
+  allowReasoningEffort?: boolean;
   models: PlatformModelRouterTarget[];
 }
 
@@ -31,6 +33,7 @@ export const DEFAULT_PLATFORM_MODEL_ROUTERS: PlatformModelRouter[] = [
     routingModel: "gpt-5.4-mini",
     defaultTargetModel: "gpt-5.4-mini",
     allowQuickMode: false,
+    allowReasoningEffort: false,
     models: [
       {
         id: "gpt-5.4",
@@ -146,6 +149,7 @@ function normalizeRouter(rawRouter: unknown): PlatformModelRouter | null {
     routingModel?: unknown;
     defaultTargetModel?: unknown;
     allowQuickMode?: unknown;
+    allowReasoningEffort?: unknown;
     models?: unknown;
   };
   const id = normalizeRouterId(record.id);
@@ -180,6 +184,7 @@ function normalizeRouter(rawRouter: unknown): PlatformModelRouter | null {
     routingModel,
     defaultTargetModel,
     allowQuickMode: record.allowQuickMode === true,
+    allowReasoningEffort: record.allowReasoningEffort === true,
     models
   };
 }

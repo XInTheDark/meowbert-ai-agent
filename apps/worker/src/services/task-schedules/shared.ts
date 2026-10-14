@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { CronExpressionParser } from "cron-parser";
 import {
   buildTaskRunQueueJobId,
+  type ChosenModelRoute,
   type TaskExecutionJob,
   type TaskRunDispatchCategory,
   type TaskRunToolOptions,
@@ -82,6 +83,9 @@ export interface CreateRecurringTaskInput {
     enabledSources: string[];
   };
   message: string;
+  // The agent the task runs on, and a router pick made for it ahead of time.
+  agent?: { id: string } | null;
+  modelRoute?: ChosenModelRoute | null;
   mode: "scheduled" | "infinite";
   repeat: string | null;
   timezone: string | null;

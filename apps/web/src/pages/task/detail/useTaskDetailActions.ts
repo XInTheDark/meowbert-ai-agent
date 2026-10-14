@@ -67,6 +67,7 @@ interface UseTaskDetailActionsInput {
   taskParameters: TaskParameters;
   workspaceMemoryEnabled: boolean;
   selectedAgentId: string | null;
+  selectedMasterTaskAgentId: string | null;
   cancelPendingConversationDraftPersist: () => void;
   clearCurrentConversationDraft: () => void;
   persistedMessageDisplayPreferences: TaskAssistantMessageDisplayPreferences;
@@ -188,6 +189,7 @@ function useTaskFollowUpAction(
         workspaceMemoryEnabled: input.workspaceMemoryEnabled,
         allowComputerUse: input.capabilities.isDesktop,
         selectedAgentId: input.selectedAgentId,
+        masterTaskAgent: input.taskDetail.task.is_project_master ? { id: input.selectedMasterTaskAgentId } : null,
         interactiveCanvasId: input.taskDetail.task.interactive_canvas_id ?? input.selectedFollowUpCanvas?.id ?? null,
         interactiveCanvasIntent: input.taskDetail.task.interactive_canvas_id || input.selectedFollowUpCanvas ? "update" : null
       });

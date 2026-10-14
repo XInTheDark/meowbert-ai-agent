@@ -54,6 +54,7 @@ function useLoadedTaskActions(
     taskParameters: composer.taskParameters,
     workspaceMemoryEnabled: context.workspaceMemoryEnabled,
     selectedAgentId: composer.selectedAgentId,
+    selectedMasterTaskAgentId: composer.selectedMasterTaskAgentId,
     cancelPendingConversationDraftPersist: composer.cancelPendingConversationDraftPersist,
     clearCurrentConversationDraft: composer.clearCurrentConversationDraft,
     persistedMessageDisplayPreferences: context.messageDisplayPreferences

@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from "react";
 import { ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import type { AgentSummary } from "../../../components/tasks/AgentDropdown";
+import type { MasterTaskAgentPicker } from "../../../components/taskConversation/masterTaskAgentPicker";
 import { ChatInput } from "../../../components/taskConversation/ChatInput";
 import { InlineProgressBar } from "../../../components/InlineProgressBar";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
@@ -100,6 +101,7 @@ interface TaskDetailConversationPaneProps {
   defaultAgentId: string | null;
   modelSliderAgentIds?: string[];
   onAgentChange: (agentId: string | null) => void;
+  masterTaskAgentPicker?: MasterTaskAgentPicker;
   onSourceSetupRequested?: (source: WorkspaceSourceSummary) => void;
   onOpenSourceFiles?: (source: WorkspaceSourceSummary) => void;
   showAgentSwitcher: boolean;
@@ -330,6 +332,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
                 defaultAgentId={props.defaultAgentId}
                 modelSliderAgentIds={props.modelSliderAgentIds}
                 onAgentChange={props.onAgentChange}
+                masterTaskAgentPicker={props.masterTaskAgentPicker}
                 onSourceSetupRequested={props.onSourceSetupRequested}
                 onOpenSourceFiles={props.onOpenSourceFiles}
                 showAgentSwitcher={props.showAgentSwitcher}

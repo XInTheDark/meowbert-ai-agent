@@ -1,4 +1,4 @@
-import type { TaskSource } from "@meowbert/shared";
+import type { ChosenModelRoute, TaskSource } from "@meowbert/shared";
 import { createTaskMessageMetadata } from "@meowbert/shared";
 import { touchTaskHistoryActivity } from "@meowbert/shared";
 import { withTransaction } from "../../../lib/db.js";
@@ -16,6 +16,7 @@ import {
   type TaskMessageAttachment,
   type TaskMessageAgentSelection,
   type TaskMessageSender,
+  type TaskMessageTaskAgentSelection,
   type TaskMessageToolOptions
 } from "./shared.js";
 
@@ -29,6 +30,8 @@ export async function appendTaskUserMessageAndEnqueue(input: {
   attachments?: TaskMessageAttachment[];
   tools?: TaskMessageToolOptions;
   agent?: TaskMessageAgentSelection;
+  modelRoute?: ChosenModelRoute | null;
+  taskAgent?: TaskMessageTaskAgentSelection | null;
   userId?: string;
   parentMessageId?: string | null;
   editedFromMessageId?: string | null;
@@ -74,7 +77,9 @@ export async function appendTaskUserMessageAndEnqueue(input: {
             sender: input.sender,
             attachments: input.attachments,
             tools: input.tools,
-            agent: input.agent
+            agent: input.agent,
+            modelRoute: input.modelRoute,
+            taskAgent: input.taskAgent
           })
         ),
         JSON.stringify(createTaskMessageMetadata(createdAt)),

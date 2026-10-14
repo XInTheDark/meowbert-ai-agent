@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { createTaskMessageMetadata } from "@meowbert/shared";
-import type { TaskWorkflowType, TaskExecutionJob, TaskSource } from "@meowbert/shared";
+import type { ChosenModelRoute, TaskWorkflowType, TaskExecutionJob, TaskSource } from "@meowbert/shared";
 import { query, withTransaction } from "../../../lib/db.js";
 import { setTaskBranchSelection } from "./branching.js";
 import { ensureDispatchedRun, enqueueRun } from "./runs.js";
@@ -32,6 +32,7 @@ interface CreateTaskInput {
   attachments?: TaskMessageAttachment[];
   tools?: TaskMessageToolOptions;
   agent?: TaskMessageAgentSelection;
+  modelRoute?: ChosenModelRoute | null;
   defaultTimezone?: string;
   maxStepsOverride?: number | null;
   allowWaiting?: boolean | null;
@@ -175,7 +176,8 @@ async function insertUserMessage(
           sender: input.sender,
           attachments: input.attachments,
           tools: input.tools,
-          agent: input.agent
+          agent: input.agent,
+          modelRoute: input.modelRoute
         })
       ),
       JSON.stringify(createTaskMessageMetadata(createdAtIso)),

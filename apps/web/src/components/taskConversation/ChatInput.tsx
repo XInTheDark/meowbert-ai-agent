@@ -10,6 +10,7 @@ import { CreateTextFileModal } from "../files/CreateTextFileModal";
 import type { SubscriptionUsageWarning } from "../../subscription/usageLimits";
 import { ChatInputAttachmentRow } from "./ChatInputAttachmentRow";
 import { ChatInputControls } from "./ChatInputControls";
+import type { MasterTaskAgentPicker } from "./masterTaskAgentPicker";
 import type { ChatToolsPopoverPlacement } from "../tasks/useChatToolsDropdownPlacement";
 
 export { filterToolsMenuSkills, matchesToolsMenuQuery } from "../tasks/ToolOptionsDropdown";
@@ -47,6 +48,7 @@ interface ChatInputProps {
   defaultAgentId?: string | null;
   modelSliderAgentIds?: string[];
   onAgentChange?: (agentId: string) => void;
+  masterTaskAgentPicker?: MasterTaskAgentPicker;
   onSourceSetupRequested?: (source: WorkspaceSourceSummary) => void;
   onOpenSourceFiles?: (source: WorkspaceSourceSummary) => void;
   showAgentSwitcher?: boolean;
@@ -178,6 +180,7 @@ export function ChatInput({
   defaultAgentId,
   modelSliderAgentIds,
   onAgentChange,
+  masterTaskAgentPicker,
   onSourceSetupRequested,
   onOpenSourceFiles,
   showAgentSwitcher = true,
@@ -406,6 +409,7 @@ export function ChatInput({
         defaultAgentId={defaultAgentId}
         modelSliderAgentIds={modelSliderAgentIds}
         onAgentChange={onAgentChange}
+        masterTaskAgentPicker={masterTaskAgentPicker}
         shouldShowAgentSwitcher={shouldShowAgentSwitcher}
         isTaskRunning={isTaskRunning}
         onStop={onStop}

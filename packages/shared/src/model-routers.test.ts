@@ -64,6 +64,7 @@ describe("normalizePlatformModelRouters", () => {
         routingModel: "gpt-5.4-mini",
         defaultTargetModel: "gpt-5.4",
         allowQuickMode: false,
+        allowReasoningEffort: false,
         models: [
           {
             id: "gpt-5.4",
@@ -168,6 +169,7 @@ describe("findPlatformModelRouterById", () => {
       routingModel: "gpt-5.4-mini",
       defaultTargetModel: "gpt-5.4-mini",
       allowQuickMode: false,
+      allowReasoningEffort: false,
       models: [
         {
           id: "gpt-5.4",

@@ -59,6 +59,7 @@ const modelRouterSchema = z.object({
   routingModel: z.string().min(1).max(240),
   defaultTargetModel: z.string().min(1).max(240),
   allowQuickMode: z.boolean().default(false),
+  allowReasoningEffort: z.boolean().default(false),
   models: z.array(modelRouterTargetSchema).min(1).max(50)
 });
 

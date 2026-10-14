@@ -13,6 +13,7 @@ import {
 } from "../../project-master/api-client.js";
 import { listenToNewTask, setTaskListening } from "../../project-master/listeners.js";
 import { createScheduledManagedTask } from "../../project-master/scheduled-tasks.js";
+import { buildChosenModelRoute } from "../../project-master/task-agent.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
 import type { ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
@@ -26,6 +27,9 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
       const input = createTaskSchema.parse(args);
       const taskId = deriveManagedTaskId(`${ctx.runId}:${call.call_id}`);
       const listening = input.listen !== false;
+      const taskAgent = ctx.projectMasterTaskAgent ?? null;
+      const agent = taskAgent?.agentId ? { id: taskAgent.agentId } : null;
+      const modelRoute = buildChosenModelRoute(taskAgent?.router ?? null, input.model, input.reasoning_effort);
       if (input.repeat) {
         const scheduled = await createScheduledManagedTask(ctx, {
           taskId,
@@ -33,7 +37,10 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
           message: input.message,
           repeat: input.repeat,
           timezone: input.timezone ?? null,
-          listen: listening
+          listen: listening,
+          // Recurring tasks cannot run as an Agent Swarm, so they keep the workspace default.
+          agent: taskAgent?.isSwarm ? null : agent,
+          modelRoute
         });
         // The first run starts at creation; next_scheduled_run_at is the run after it.
         return {
@@ -49,7 +56,9 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
         taskId,
         title: input.title ?? null,
         message: input.message,
-        tools: ctx.runToolOptions
+        tools: ctx.runToolOptions,
+        agent,
+        modelRoute
       });
       if (listening) await listenToNewTask(listenerTarget, created.taskId);
       return { task_id: created.taskId, listening };

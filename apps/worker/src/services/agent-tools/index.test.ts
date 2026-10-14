@@ -447,6 +447,30 @@ describe("buildResponseTools", () => {
     expect(quickMaster).toEqual(expect.arrayContaining([...masterToolNames, QUERY_TASKS_TOOL_NAME, VIEW_TASK_HISTORY_TOOL_NAME]));
   });
 
+  it("lets the Project Master pick the model only when its tasks run on a router", () => {
+    const options = { webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false, computerUse: false, enabledSkills: [], enabledSources: [] };
+    const router = {
+      id: "router-v1",
+      routingModel: "gpt-router",
+      defaultTargetModel: "fast",
+      models: [
+        { id: "deep", description: "Hard work.", payload: { model: "gpt-5.4" } },
+        { id: "fast", description: "Quick work.", payload: { model: "gpt-5.4-mini" } }
+      ]
+    };
+    const createTask = (projectMasterTaskRouter: (typeof router & { allowReasoningEffort?: boolean }) | null) => buildResponseTools(options, [], {
+      allowProjectMasterTools: true,
+      projectMasterTaskRouter
+    }).find((tool) => tool.type === "function" && tool.name === "create_task");
+    const properties = (tool: ReturnType<typeof createTask>) =>
+      (tool?.type === "function" ? tool.parameters?.properties : undefined) as Record<string, { enum?: unknown[] }> | undefined;
+
+    expect(properties(createTask(null))).not.toHaveProperty("model");
+    expect(properties(createTask(router))?.model?.enum).toEqual(["deep", "fast"]);
+    expect(properties(createTask(router))).not.toHaveProperty("reasoning_effort");
+    expect(properties(createTask({ ...router, allowReasoningEffort: true } as typeof router))).toHaveProperty("reasoning_effort");
+  });
+
   it("keeps the Project Master from doing work itself", () => {
     const options = {
       webSearch: true,

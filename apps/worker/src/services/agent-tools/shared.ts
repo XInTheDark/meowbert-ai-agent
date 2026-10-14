@@ -1,4 +1,4 @@
-import { createDefaultEnvironmentJsonPayload } from "@meowbert/shared";
+import { createDefaultEnvironmentJsonPayload, type PlatformModelRouter } from "@meowbert/shared";
 
 export const RUN_SHELL_TOOL_NAME = "run_shell";
 export const SHELL_SESSION_TOOL_NAME = "shell_session";
@@ -97,6 +97,8 @@ export interface ResponseToolAvailability {
   allowPdfFileTool?: boolean;
   allowTaskHistoryTools?: boolean;
   allowProjectMasterTools?: boolean;
+  // When the Master's tasks run on a model router, create_task lets the Master pick its target.
+  projectMasterTaskRouter?: PlatformModelRouter | null;
   allowLiveSyncTools?: boolean;
   allowInteractiveCanvasTools?: boolean;
   allowStopTask?: boolean;

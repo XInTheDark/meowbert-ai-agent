@@ -20,6 +20,7 @@ import {
   setTaskBranchSelection,
   type TaskMessageAttachment,
   type TaskMessageAgentSelection,
+  type TaskMessageSender,
   type TaskMessageToolOptions
 } from "./task-service/index.js";
 import { ensureDispatchedRun } from "./task-service/runs.js";
@@ -45,6 +46,7 @@ interface BaseCreateWorkflowInput {
   defaultTimezone: string;
   tools?: TaskMessageToolOptions;
   agent?: TaskMessageAgentSelection;
+  sender?: TaskMessageSender;
   maxStepsOverride?: number | null;
   allowWaiting?: boolean | null;
   timeLimitSeconds?: number | null;
@@ -194,6 +196,7 @@ async function insertTaskWithInitialUserMessage(
     defaultTimezone: string;
     tools?: TaskMessageToolOptions;
     agent?: TaskMessageAgentSelection;
+    sender?: TaskMessageSender;
     maxStepsOverride?: number | null;
     allowWaiting?: boolean | null;
     timeLimitSeconds?: number | null;
@@ -260,6 +263,7 @@ async function insertTaskWithInitialUserMessage(
       JSON.stringify(
         buildUserMessageContent({
           message: input.message,
+          sender: input.sender,
           attachments: input.attachments,
           tools: input.tools,
           agent: input.agent
@@ -667,6 +671,7 @@ async function insertAgentSwarmWorkflowRecords(
     defaultTimezone: input.defaultTimezone,
     tools: input.tools,
     agent: input.agent,
+    sender: input.sender,
     maxStepsOverride: input.maxStepsOverride,
     allowWaiting: input.allowWaiting,
     timeLimitSeconds: input.timeLimitSeconds,

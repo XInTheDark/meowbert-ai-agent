@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { FunctionTool } from "openai/resources/responses/responses";
+import { CHOSEN_MODEL_ROUTE_EFFORTS, type PlatformModelRouter } from "@meowbert/shared";
 
 export const PROJECT_MASTER_TOOL_NAMES = ["create_task", "message_task", "cancel_task", "listen_to_tasks"] as const;
 
@@ -8,7 +9,9 @@ export const createTaskSchema = z.object({
   title: z.string().trim().min(1).max(240).nullable().optional(),
   repeat: z.string().trim().min(1).nullable().optional(),
   timezone: z.string().trim().min(1).nullable().optional(),
-  listen: z.boolean().nullable().optional()
+  listen: z.boolean().nullable().optional(),
+  model: z.string().trim().min(1).nullable().optional(),
+  reasoning_effort: z.enum(CHOSEN_MODEL_ROUTE_EFFORTS).nullable().optional()
 });
 export const messageTaskSchema = z.object({
   task_id: z.string().uuid(),
@@ -32,14 +35,45 @@ function tool(name: string, description: string, properties: Record<string, unkn
     parameters: { type: "object", properties, required: Object.keys(properties), additionalProperties: false } };
 }
 
+const CREATE_TASK_DESCRIPTION = "Start a new task in this project. It runs on its own, just like a task the user started, and the user can open it from the task list. With repeat set it is a recurring task: it runs once right away, then again on the schedule.";
+
+const CREATE_TASK_PROPERTIES: Record<string, unknown> = {
+  message: { type: "string", description: "Self-contained brief. The task does not see your conversation." },
+  title: { type: ["string", "null"], description: "Short task title, or null to generate one." },
+  repeat: { type: ["string", "null"], description: "5-field cron expression (minute hour day month weekday) for a recurring task, or null for a one-off task." },
+  timezone: { type: ["string", "null"], description: "IANA timezone the cron is read in, or null for this project's default. Only used with repeat." },
+  listen
+};
+
+// The user chose a model router for the Master's tasks, so the Master picks the target model itself,
+// and its reasoning effort when the router allows that.
+function routerChoiceProperties(router: PlatformModelRouter): Record<string, unknown> {
+  const options = router.models.map((target) => `- ${target.id}: ${target.description}`).join("\n");
+  return {
+    model: {
+      type: "string",
+      enum: router.models.map((target) => target.id),
+      description: `Model the task runs on. Pick the one that best fits the work:\n${options}`
+    },
+    ...(router.allowReasoningEffort ? {
+      reasoning_effort: {
+        type: ["string", "null"],
+        enum: [...CHOSEN_MODEL_ROUTE_EFFORTS, null],
+        description: "How much reasoning the model should use. Higher for complex, ambiguous, or correctness-sensitive work. Null for a balanced default."
+      }
+    } : {})
+  };
+}
+
+export function buildCreateTaskFunctionTool(router: PlatformModelRouter | null): FunctionTool {
+  return tool("create_task", CREATE_TASK_DESCRIPTION, {
+    ...CREATE_TASK_PROPERTIES,
+    ...(router ? routerChoiceProperties(router) : {})
+  });
+}
+
 export const PROJECT_MASTER_FUNCTION_TOOLS: FunctionTool[] = [
-  tool("create_task", "Start a new task in this project. It runs on its own, just like a task the user started, and the user can open it from the task list. With repeat set it is a recurring task: it runs once right away, then again on the schedule.", {
-    message: { type: "string", description: "Self-contained brief. The task does not see your conversation." },
-    title: { type: ["string", "null"], description: "Short task title, or null to generate one." },
-    repeat: { type: ["string", "null"], description: "5-field cron expression (minute hour day month weekday) for a recurring task, or null for a one-off task." },
-    timezone: { type: ["string", "null"], description: "IANA timezone the cron is read in, or null for this project's default. Only used with repeat." },
-    listen
-  }),
+  buildCreateTaskFunctionTool(null),
   tool("message_task", "Send a follow-up message to an existing task in this project. An idle task starts a new run; a running task picks it up at its next step.", {
     task_id: taskId,
     message: { type: "string" },

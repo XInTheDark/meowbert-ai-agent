@@ -55,6 +55,7 @@ import {
   mergeTaskToolOptions,
   normalizeEnvironmentJsonPayload,
   extractModelRequestPayload,
+  pickRunChosenModelRoute,
   pickRunToolOptions
 } from "./utils.js";
 import {
@@ -76,6 +77,7 @@ import { isSkillEnabledByConfig } from "@meowbert/shared";
 import { startTaskCancellationMonitor, type TaskCancellationMonitor } from "./cancellation.js";
 import { ensureTaskWorkspace } from "../runtime/shell.js";
 import { resolveModelRouterSelection } from "../model-routing/router-resolution.js";
+import { resolveProjectMasterTaskAgent, type ProjectMasterTaskAgent } from "../project-master/task-agent.js";
 import {
   resolveEffectiveRunAgentPreset,
   resolveMemorySynthesisAgentPreset,
@@ -167,6 +169,8 @@ export interface PreparedAgentRunContext {
   runShellMaxTimeoutSeconds: number;
   isSubtask: boolean;
   isProjectMaster?: boolean;
+  // Set only for Master runs: the agent its tasks run on.
+  projectMasterTaskAgent?: ProjectMasterTaskAgent | null;
   skillsRootDir: string | null;
   activeMcpConnections: Map<string, McpConnection>;
   activeSkillTools: FunctionTool[];
@@ -388,7 +392,8 @@ async function resolveRoutedRuntime(input: {
         projectMemoryMainFile: input.memoryFiles.projectMemoryMainFile,
         imageDetail: input.snapshot.image_detail ?? "high",
         requestTimeoutMs: input.snapshot.model_request_timeout_ms,
-        abortSignal: input.abortSignal
+        abortSignal: input.abortSignal,
+        chosenRoute: pickRunChosenModelRoute(input.snapshot.messages)
       }),
       startPayload: {
         requestedModel: input.requestedRuntimeModel
@@ -1437,6 +1442,9 @@ export async function prepareAgentRunContext(
       isSubtask: resources.isSubtask,
       isProjectMaster: base.snapshot.task.is_project_master === true
         && getProjectMasterEnabled(base.snapshot.workspace_model_defaults),
+      projectMasterTaskAgent: base.snapshot.task.is_project_master === true
+        ? resolveProjectMasterTaskAgent(base.snapshot, base.resolvedRunActorIsSuperAdmin)
+        : null,
       skillsRootDir: resources.skillsRootDir,
       activeMcpConnections: resources.activeMcpConnections,
       activeSkillTools: resources.activeSkillTools,

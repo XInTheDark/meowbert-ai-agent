@@ -13,6 +13,7 @@ import type { LoadedWorkflowRunContext } from "../task-workflows/service.js";
 import type { SwarmTarget } from "../task-workflows/swarm-target.js";
 import type { SwarmBudgetStatus } from "../task-workflows/agent-swarm-budget.js";
 import type { ContextManagementV2State } from "../context-management-v2/index.js";
+import type { ProjectMasterTaskAgent } from "../project-master/task-agent.js";
 
 export interface ToolDispatchContext {
   subagentRuntime?: SubagentRuntime;
@@ -20,6 +21,7 @@ export interface ToolDispatchContext {
   subagentPresets?: PlatformAgentPreset[];
   allowTaskHistoryTools?: boolean;
   isProjectMaster?: boolean;
+  projectMasterTaskAgent?: ProjectMasterTaskAgent | null;
   runId: string;
   taskId: string;
   workspaceId: string;

@@ -196,6 +196,19 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
     selectedThreadAgentId
   ]);
 
+  const selectedMasterTaskAgentId = useMemo(() => {
+    if (input.taskDetail?.task.is_project_master !== true || !canSelectTaskModel(input.user)) return null;
+    const draftId = getTaskInputDraftForProject(draftsByProject, input.taskProjectId).masterTaskAgentId;
+    return draftId && input.availableAgents.some((agent) => agent.id === draftId) ? draftId : null;
+  }, [draftsByProject, input.availableAgents, input.taskDetail?.task.is_project_master, input.taskProjectId, input.user]);
+
+  const handleMasterTaskAgentChange = useCallback((agentId: string | null) => {
+    setDraftsByProject((current) => updateTaskInputDraftForProject(current, input.taskProjectId, (draft) => ({
+      ...draft,
+      masterTaskAgentId: agentId
+    }), draftDefaults));
+  }, [draftDefaults, input.taskProjectId]);
+
   const handleToolOptionsChange = useCallback((next: TaskToolOptions) => {
     setDraftsByProject((current) => updateTaskInputDraftForProject(current, input.taskProjectId, (draft) => ({
       ...draft,
@@ -240,8 +253,10 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
     taskParameters,
     workflowConfig,
     selectedAgentId,
+    selectedMasterTaskAgentId,
     handleToolOptionsChange,
-    handleAgentChange
+    handleAgentChange,
+    handleMasterTaskAgentChange
   };
 }
 

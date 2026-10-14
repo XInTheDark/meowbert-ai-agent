@@ -1,4 +1,4 @@
-import type { PlatformModelRouter, PlatformModelRouterTarget, PlatformUsageBilling } from "@meowbert/shared";
+import type { ChosenModelRoute, PlatformModelRouter, PlatformModelRouterTarget, PlatformUsageBilling } from "@meowbert/shared";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { findPlatformModelRouterById } from "@meowbert/shared";
 import type { TaskMessageRow } from "../agent/types.js";
@@ -28,7 +28,7 @@ interface RouterDecisionRow {
 
 interface RouterToolResult {
   modelId: string;
-  reasoningScore: number;
+  reasoningScore?: number;
   reason: string;
   quickMode: boolean;
 }
@@ -39,7 +39,8 @@ export interface ModelRouterResolution {
   resolvedEnvironmentPayload: Record<string, unknown>;
   routingModel: string;
   reasoningScore: number;
-  reasoningEffort: RoutedReasoningEffort;
+  // Null when the router does not pick reasoning effort; the target's own setting then applies.
+  reasoningEffort: RoutedReasoningEffort | null;
   reason: string;
   usedFallback: boolean;
   cached: boolean;
@@ -47,25 +48,18 @@ export interface ModelRouterResolution {
 }
 
 const ROUTER_TOOL_NAME = "select_runtime_model";
-const ROUTER_TOOL_SCHEMA: Record<string, unknown> = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    modelId: {
-      type: "string"
-    },
-    reasoningScore: {
-      type: "number"
-    },
-    reason: {
-      type: "string"
-    },
-    quickMode: {
-      type: "boolean"
-    }
-  },
-  required: ["modelId", "reasoningScore", "reason", "quickMode"]
-};
+// Recorded as the routing model when the Project Master picked the target itself.
+const PROJECT_MASTER_ROUTING_MODEL = "project-master";
+// The reasoning score is only asked for when the router may pick reasoning effort.
+function buildRouterToolSchema(router: PlatformModelRouter): Record<string, unknown> {
+  const properties: Record<string, unknown> = {
+    modelId: { type: "string" },
+    ...(router.allowReasoningEffort ? { reasoningScore: { type: "number" } } : {}),
+    reason: { type: "string" },
+    quickMode: { type: "boolean" }
+  };
+  return { type: "object", additionalProperties: false, properties, required: Object.keys(properties) };
+}
 const ROUTER_REQUEST_MAX_ATTEMPTS = 2;
 const ROUTER_REQUEST_BASE_DELAY_MS = 3_000;
 const DEFAULT_ROUTER_REASONING_SCORE = 50;
@@ -92,10 +86,17 @@ export function mapReasoningScoreToEffort(score: number): RoutedReasoningEffort 
   return "low";
 }
 
+function resolveRoutedEffort(router: PlatformModelRouter, reasoningScore: number): RoutedReasoningEffort | null {
+  return router.allowReasoningEffort === true ? mapReasoningScoreToEffort(reasoningScore) : null;
+}
+
 function applyReasoningEffort(
   environmentPayload: Record<string, unknown>,
-  reasoningEffort: RoutedReasoningEffort
+  reasoningEffort: RoutedReasoningEffort | null
 ): Record<string, unknown> {
+  if (!reasoningEffort) {
+    return environmentPayload;
+  }
   return deepMergeJsonObjects(environmentPayload, {
     responses: {
       reasoning: {
@@ -159,7 +160,7 @@ function applyTargetPayload(
 function applyTargetPayloadAndReasoning(input: {
   environmentPayload: Record<string, unknown>;
   target: PlatformModelRouterTarget;
-  reasoningEffort: RoutedReasoningEffort;
+  reasoningEffort: RoutedReasoningEffort | null;
 }): Record<string, unknown> {
   return applyReasoningEffort(
     applyTargetPayload(input.environmentPayload, input.target),
@@ -174,7 +175,7 @@ function buildFallbackResolution(input: {
   reason: string;
 }): ModelRouterResolution {
   const reasoningScore = DEFAULT_ROUTER_REASONING_SCORE;
-  const reasoningEffort = mapReasoningScoreToEffort(reasoningScore);
+  const reasoningEffort = resolveRoutedEffort(input.router, reasoningScore);
   const target = getDefaultRouterTarget(input.router);
 
   return {
@@ -222,7 +223,7 @@ async function loadCachedResolution(
   }
 
   const reasoningScore = clampReasoningScore(row.reasoning_score);
-  const reasoningEffort = mapReasoningScoreToEffort(reasoningScore);
+  const reasoningEffort = resolveRoutedEffort(router, reasoningScore);
   const target = findRouterTargetByStoredRuntimeModel(router, row.resolved_model);
   return {
     requestedModel: row.requested_model,
@@ -346,10 +347,14 @@ async function buildRoutingInput(input: {
       content: [
         "Choose the best runtime model for the next assistant turn.",
         "Return only a modelId from the provided targetModels.",
-        "Return reasoningScore as a number from 0 to 100.",
-        "Higher reasoningScore means the runtime should use more reasoning effort.",
-        "Use lower scores for simple, quick, or low-risk requests.",
-        "Use higher scores for complex, ambiguous, multi-step, or correctness-sensitive requests.",
+        ...(input.router.allowReasoningEffort
+          ? [
+            "Return reasoningScore as a number from 0 to 100.",
+            "Higher reasoningScore means the runtime should use more reasoning effort.",
+            "Use lower scores for simple, quick, or low-risk requests.",
+            "Use higher scores for complex, ambiguous, multi-step, or correctness-sensitive requests."
+          ]
+          : []),
         input.router.allowQuickMode
           ? "You may set quickMode true for simple chat, explanation, drafting, or direct-answer requests that do not need tools, file access, shell commands, project context, or sandbox setup. Use quickMode false when the assistant may need to inspect files, run commands, use tools, or modify anything."
           : "Set quickMode false."
@@ -400,8 +405,8 @@ function normalizeRoutingDecision(
   }
 
   const { target, usedFallback } = getDecisionRouterTarget(router, decision.modelId);
-  const reasoningScore = clampReasoningScore(decision.reasoningScore);
-  const reasoningEffort = mapReasoningScoreToEffort(reasoningScore);
+  const reasoningScore = clampReasoningScore(decision.reasoningScore ?? DEFAULT_ROUTER_REASONING_SCORE);
+  const reasoningEffort = resolveRoutedEffort(router, reasoningScore);
   const reason = typeof decision.reason === "string" && decision.reason.trim().length > 0
     ? decision.reason.trim()
     : "Router returned no reason.";
@@ -424,7 +429,7 @@ function normalizeRoutingDecision(
   };
 }
 
-export async function resolveModelRouterSelection(input: {
+interface ModelRouterSelectionInput {
   taskId: string;
   billing: PlatformUsageBilling | null;
   requestedModel: string;
@@ -439,7 +444,11 @@ export async function resolveModelRouterSelection(input: {
   imageDetail?: WorkspaceImageDetail;
   requestTimeoutMs: number;
   abortSignal?: AbortSignal;
-}): Promise<ModelRouterResolution | null> {
+  // A pick made before the run; used only when it names this router.
+  chosenRoute?: ChosenModelRoute | null;
+}
+
+export async function resolveModelRouterSelection(input: ModelRouterSelectionInput): Promise<ModelRouterResolution | null> {
   const router = findPlatformModelRouterById(input.platformModelRouters, input.requestedModel);
   if (!router) {
     return null;
@@ -453,6 +462,50 @@ export async function resolveModelRouterSelection(input: {
     return cached;
   }
 
+  const resolution = input.chosenRoute?.routerId === router.id
+    ? resolveChosenRoute(input.chosenRoute, router, requestedModel, input.environmentPayload)
+    : await requestRouterDecision(input, router, requestedModel);
+
+  if (input.branchMessageId) {
+    const persisted = await persistResolution({
+      branchMessageId: input.branchMessageId,
+      resolution,
+      routerId: router.id,
+      router,
+      environmentPayload: input.environmentPayload
+    });
+    const nextResolution = persisted.resolution;
+    if (persisted.inserted) {
+      await emitModelRoutedEvent(input.taskId, nextResolution);
+    }
+    return nextResolution;
+  }
+
+  await emitModelRoutedEvent(input.taskId, resolution);
+  return resolution;
+}
+
+// The Project Master already picked from the router's targets, so no routing request is made.
+function resolveChosenRoute(
+  chosenRoute: ChosenModelRoute,
+  router: PlatformModelRouter,
+  requestedModel: string,
+  environmentPayload: Record<string, unknown>
+): ModelRouterResolution {
+  const resolution = normalizeRoutingDecision(
+    { modelId: chosenRoute.modelId, reasoningScore: chosenRoute.reasoningScore, reason: "Chosen by the Project Master.", quickMode: false },
+    router,
+    requestedModel,
+    environmentPayload
+  );
+  return { ...resolution, routingModel: PROJECT_MASTER_ROUTING_MODEL };
+}
+
+async function requestRouterDecision(
+  input: ModelRouterSelectionInput,
+  router: PlatformModelRouter,
+  requestedModel: string
+): Promise<ModelRouterResolution> {
   const client = getOpenAiClient(input.provider);
   let resolution: ModelRouterResolution;
   try {
@@ -460,8 +513,8 @@ export async function resolveModelRouterSelection(input: {
       client,
       model: router.routingModel,
       toolName: ROUTER_TOOL_NAME,
-      toolDescription: "Select the best runtime model and reasoning score for the next assistant run.",
-      schema: ROUTER_TOOL_SCHEMA,
+      toolDescription: "Select the best runtime model for the next assistant run.",
+      schema: buildRouterToolSchema(router),
       input: await buildRoutingInput({
         messages: input.messages,
         router,
@@ -498,22 +551,5 @@ export async function resolveModelRouterSelection(input: {
       reason: `Router failed: ${message}`
     });
   }
-
-  if (input.branchMessageId) {
-    const persisted = await persistResolution({
-      branchMessageId: input.branchMessageId,
-      resolution,
-      routerId: router.id,
-      router,
-      environmentPayload: input.environmentPayload
-    });
-    const nextResolution = persisted.resolution;
-    if (persisted.inserted) {
-      await emitModelRoutedEvent(input.taskId, nextResolution);
-    }
-    return nextResolution;
-  }
-
-  await emitModelRoutedEvent(input.taskId, resolution);
   return resolution;
 }

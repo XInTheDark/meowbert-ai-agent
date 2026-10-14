@@ -258,6 +258,10 @@ function TaskConversationMain({ model }: ModelProps) {
         defaultAgentId={model.context.catalog.defaultAgentId}
         modelSliderAgentIds={model.context.catalog.modelSliderAgentIds}
         onAgentChange={model.composer.handleAgentChange}
+        masterTaskAgentPicker={task.is_project_master ? {
+          selectedAgentId: model.composer.selectedMasterTaskAgentId,
+          onChange: model.composer.handleMasterTaskAgentChange
+        } : undefined}
         onSourceSetupRequested={() => {
           if (model.context.taskWorkspaceId) {
             model.context.navigate(`/app/${model.context.taskWorkspaceId}/connectors?tab=sources`);

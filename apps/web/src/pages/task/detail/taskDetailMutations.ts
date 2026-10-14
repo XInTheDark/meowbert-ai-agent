@@ -95,6 +95,8 @@ export async function sendTaskFollowUp(args: {
   workspaceMemoryEnabled: boolean;
   allowComputerUse: boolean;
   selectedAgentId: string | null;
+  // Set for a Project Master: the agent its tasks run on, where null means the workspace default.
+  masterTaskAgent?: { id: string | null } | null;
   allowScheduleTask?: boolean;
   allowSubtasks?: boolean;
   interactiveCanvasId?: string | null;
@@ -124,7 +126,8 @@ export async function sendTaskFollowUp(args: {
         }
       : {}),
     ...(hasTools ? { tools: toolsPayload } : {}),
-    ...(args.selectedAgentId ? { agent: { id: args.selectedAgentId } } : {})
+    ...(args.selectedAgentId ? { agent: { id: args.selectedAgentId } } : {}),
+    ...(args.masterTaskAgent && !args.editingMessageId ? { taskAgent: args.masterTaskAgent } : {})
   });
 }
 

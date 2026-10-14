@@ -269,7 +269,9 @@ export const postTaskMessageBody = z.object({
   interactiveCanvasIntent: z.enum(["create", "update", "view"]).optional(),
   attachments: taskAttachmentsSchema,
   tools: taskToolOptionsSchema,
-  agent: taskAgentSelectionSchema
+  agent: taskAgentSelectionSchema,
+  // Only for a Project Master: the agent its tasks run on. A null id means the workspace default.
+  taskAgent: z.object({ id: z.string().min(1).max(240).nullable() }).optional()
 });
 
 export const patchTaskBody = z.object({

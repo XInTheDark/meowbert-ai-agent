@@ -9,9 +9,10 @@ import type {
   ResponseInputItem,
   ResponseOutputItem
 } from "openai/resources/responses/responses";
-import type { PlatformModelCompatibilityMode, TaskRunToolOptions, TaskSource } from "@meowbert/shared";
+import type { ChosenModelRoute, PlatformModelCompatibilityMode, TaskRunToolOptions, TaskSource } from "@meowbert/shared";
 import {
   buildTaskMessageMetadataLine,
+  parseChosenModelRoute,
   createTaskMessageMetadata,
   createDefaultEnvironmentJsonPayload,
   extractResponsesApiPayload,
@@ -188,6 +189,14 @@ export function pickRunAgentSelection(messages: TaskMessageRow[]): { id: string 
     return parseTaskMessageAgentSelection(message.content_json);
   }
 
+  return null;
+}
+
+// The router pick stored on the message that started this run, if the Project Master made one.
+export function pickRunChosenModelRoute(messages: TaskMessageRow[]): ChosenModelRoute | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "user") return parseChosenModelRoute(messages[index].content_json.modelRoute);
+  }
   return null;
 }
 

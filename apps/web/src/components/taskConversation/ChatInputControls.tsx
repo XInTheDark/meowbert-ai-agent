@@ -1,10 +1,11 @@
 import type { RefObject } from "react";
-import { Square } from "lucide-react";
+import { ListChecks, Square } from "lucide-react";
 import { AttachFilesMenu } from "../files/AttachFilesMenu";
 import { ToolOptionsDropdown, type SkillSummary } from "../tasks/ToolOptionsDropdown";
 import { SourceOptionsDropdown } from "../tasks/SourceOptionsDropdown";
 import { TaskParametersDropdown } from "../tasks/TaskParametersDropdown";
 import { AgentDropdown, type AgentSummary } from "../tasks/AgentDropdown";
+import type { MasterTaskAgentPicker } from "./masterTaskAgentPicker";
 import { SubscriptionUsageWarningLink, type SubscriptionUsageWarning } from "../../subscription/usageLimits";
 import type { TaskParameters, TaskToolOptions, TaskType, TaskWorkflowComposerConfig } from "../../lib/types";
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
@@ -42,6 +43,7 @@ interface ChatInputControlsProps {
   defaultAgentId?: string | null;
   modelSliderAgentIds?: string[];
   onAgentChange?: (agentId: string) => void;
+  masterTaskAgentPicker?: MasterTaskAgentPicker;
   shouldShowAgentSwitcher: boolean;
   isTaskRunning?: boolean;
   onStop?: () => void;
@@ -144,6 +146,20 @@ export function ChatInputControls(props: ChatInputControlsProps) {
             }}
             disabled={props.isSubmitting}
             popoverPlacement={props.popoverPlacement}
+          />
+        ) : null}
+        {props.shouldShowAgentSwitcher && props.masterTaskAgentPicker ? (
+          <AgentDropdown
+            availableAgents={props.availableAgents}
+            selectedAgentId={props.masterTaskAgentPicker.selectedAgentId}
+            defaultAgentId={props.defaultAgentId}
+            allowNoSelection
+            noSelectionLabel="Default"
+            onChange={props.masterTaskAgentPicker.onChange}
+            disabled={props.isSubmitting}
+            popoverPlacement={props.popoverPlacement}
+            triggerTitle="Task model"
+            triggerIcon={ListChecks}
           />
         ) : null}
       </div>

@@ -21,6 +21,8 @@ export interface TaskInputDraft {
   attachments: TaskAttachment[];
   toolOptions: TaskToolOptions;
   agentId: string | null;
+  // The agent the Project Master's tasks run on, kept apart from the Master's own agent. Null means the workspace default.
+  masterTaskAgentId: string | null;
   composerTaskId: string | null;
   quickMode: boolean;
   taskParameters: TaskParameters;
@@ -61,6 +63,7 @@ export function buildEmptyTaskInputDraft(defaults?: TaskInputDraftDefaults): Tas
     attachments: [],
     toolOptions: buildDefaultTaskToolOptions(defaults),
     agentId: null,
+    masterTaskAgentId: null,
     composerTaskId: null,
     quickMode: false,
     taskParameters: buildDefaultTaskParameters(),
@@ -217,6 +220,7 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
     attachments?: unknown;
     toolOptions?: unknown;
     agentId?: unknown;
+    masterTaskAgentId?: unknown;
     composerTaskId?: unknown;
     quickMode?: unknown;
     taskParameters?: unknown;
@@ -229,6 +233,9 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
     agentId: typeof candidate.agentId === "string" && candidate.agentId.trim().length > 0
       ? candidate.agentId.trim().toLowerCase()
       : fallback.agentId,
+    masterTaskAgentId: typeof candidate.masterTaskAgentId === "string" && candidate.masterTaskAgentId.trim().length > 0
+      ? candidate.masterTaskAgentId.trim().toLowerCase()
+      : fallback.masterTaskAgentId,
     composerTaskId: typeof candidate.composerTaskId === "string" && candidate.composerTaskId.trim().length > 0
       ? candidate.composerTaskId.trim()
       : fallback.composerTaskId,

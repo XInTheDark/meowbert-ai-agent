@@ -30,6 +30,8 @@ interface ModelRouterDraft {
   id: string;
   routingModel: string;
   defaultTargetModel: string;
+  allowQuickMode: boolean;
+  allowReasoningEffort: boolean;
   models: ModelRouterTargetDraft[];
 }
 
@@ -347,6 +349,13 @@ export function parseModelRoutersDraft(raw: string): ModelRouterDraft[] {
       return { id: targetId, description, payload };
     });
 
-    return { id, routingModel, defaultTargetModel, models };
+    return {
+      id,
+      routingModel,
+      defaultTargetModel,
+      allowQuickMode: record.allowQuickMode === true,
+      allowReasoningEffort: record.allowReasoningEffort === true,
+      models
+    };
   });
 }
