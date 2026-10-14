@@ -54,6 +54,34 @@ function isFinalResponseItem(value: unknown): boolean {
   return isRecord(value) && value.type === "function_call" && value.name === "final_response";
 }
 
+// A final_response the worker rejected (for example, a swarm leader delivering before its final review)
+// never reached the user, so its text must not render as the answer.
+function collectRejectedCallIds(items: unknown[]): Set<string> {
+  const rejected = new Set<string>();
+  for (const item of items) {
+    if (!isRecord(item) || item.type !== "function_call_output" || typeof item.call_id !== "string") {
+      continue;
+    }
+    const output = typeof item.output === "string" ? parseMaybeJson(item.output) : null;
+    if (isRecord(output) && typeof output.error === "string") {
+      rejected.add(item.call_id);
+    }
+  }
+  return rejected;
+}
+
+function withoutRejectedFinalResponses(items: unknown[]): unknown[] {
+  const rejected = collectRejectedCallIds(items);
+  if (rejected.size === 0) {
+    return items;
+  }
+  return items.filter((item) => !(
+    isFinalResponseItem(item)
+    && typeof (item as { call_id?: unknown }).call_id === "string"
+    && rejected.has((item as { call_id: string }).call_id)
+  ));
+}
+
 function findLargestTextOverlap(left: string, right: string): number {
   const maxOverlap = Math.min(left.length, right.length);
   for (let overlap = maxOverlap; overlap >= MIN_FINAL_RESPONSE_OVERLAP_CHARS; overlap -= 1) {
@@ -227,7 +255,7 @@ export function getInlineResponseSegments(message: TaskMessage): InlineResponseS
   }
 
   const segments: InlineResponseSegment[] = [];
-  getInlineResponseWindowItems(message.content_json.response_items).forEach((item, index) => {
+  getInlineResponseWindowItems(withoutRejectedFinalResponses(message.content_json.response_items)).forEach((item, index) => {
     if (!isInlineResponseToolCallItem(item)) {
       return;
     }

@@ -2,7 +2,13 @@ import { NEURAL_ENVIRONMENT_PERSONALITY_ID, loadNeuralPersonalityPrompt } from "
 import type { LoadedWorkflowRunContext, WorkflowPromptContext } from "./context.js";
 import { asObject, formatSwarmAgentLabel, resolveAgentSwarmReviewRounds } from "./shared.js";
 import { hasApprovedSwarmFinalReview, requiresSwarmFinalReview } from "./agent-swarm-reviews.js";
-import { hasAgentSwarmBudget, hasDualSwarmRole, hasSwarmLeadership, resolveSwarmTarget } from "./swarm-target.js";
+import {
+  hasAgentSwarmBudget,
+  hasDualSwarmRole,
+  hasSwarmLeadership,
+  resolveDirectWorkerTaskIds,
+  resolveSwarmTarget
+} from "./swarm-target.js";
 import { loadSwarmGuideDoc } from "./swarm-guide-docs.js";
 import {
   SWARM_BUDGET_PROMPT,
@@ -121,6 +127,16 @@ function buildWorkerGuide(context: LoadedWorkflowRunContext, qualityReviewOverla
   ].filter(Boolean).join("\n\n");
 }
 
+// Naming the actual workers keeps a small leader from anchoring on a single assignment.
+function buildUnassignedWorkersLine(context: LoadedWorkflowRunContext): string {
+  const labels = resolveDirectWorkerTaskIds(context, context.taskId).map((taskId) => {
+    const agent = context.agents.find((entry) => entry.task_id === taskId);
+    return formatSwarmAgentLabel("worker", agent?.slot_index ?? null, taskId);
+  });
+  if (labels.length === 0) return "- No workers have been assigned yet.";
+  return `- None of your ${labels.length} workers (${labels.join(", ")}) has been assigned yet. Plan how to use all of them before you work out any answer yourself.`;
+}
+
 function buildLeaderLiveState(context: LoadedWorkflowRunContext): string {
   const swarm = context.swarm;
   const missing = swarm?.missingWorkerGlobalReportLabels ?? [];
@@ -128,7 +144,7 @@ function buildLeaderLiveState(context: LoadedWorkflowRunContext): string {
   return [
     "## Agent Swarm state at the start of this run",
     !swarm?.workersStartedAt
-      ? "- No workers have been assigned yet. Assign at least one before you deliver."
+      ? buildUnassignedWorkersLine(context)
       : missing.length > 0
         ? `- Still waiting on reports from: ${missing.join(", ")}.`
         : "- Every assigned worker has reported at least once.",
