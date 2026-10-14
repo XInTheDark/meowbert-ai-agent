@@ -2595,6 +2595,28 @@ describe("dispatchResponseOutput", () => {
     expect(result.workflowPause).toEqual({ kind: "agent_swarm_paused", response: "Finished my current work." });
   });
 
+  it("refuses to pause a top leader that has not assigned any worker", async () => {
+    const ctx = createBaseContext();
+    ctx.runMode = "agent_swarm_leader";
+    ctx.workflowContext = createSwarmLeaderContext();
+    ctx.workflowContext.swarm!.workersStartedAt = null;
+    const pauseSwarmAgent = vi.fn(async () => ({ escalation: null }));
+    ctx.workflowActions = { pauseSwarmAgent };
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+
+    const result = await dispatchResponseOutput([{
+      id: "fc_swarm_pause_unstarted",
+      type: "function_call",
+      name: "swarm_pause",
+      call_id: "call_swarm_pause_unstarted",
+      arguments: JSON.stringify({ status: "Answered.", wait_for_task_ids: null }),
+      status: "completed"
+    }], ctx, state);
+
+    expect(pauseSwarmAgent).not.toHaveBeenCalled();
+    expect(result.workflowPause).toBeNull();
+  });
+
   it("hands a stalled swarm back to the user instead of re-queueing it", async () => {
     const ctx = createBaseContext();
     ctx.runMode = "agent_swarm_leader";

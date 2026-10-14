@@ -135,6 +135,17 @@ export async function handleEditCurrentTaskSchedule(
   }
 }
 
+// A top leader that pauses before starting any worker or child node stalls the swarm, usually
+// because it answered in plain text and thinks it is done.
+function isUnstartedTopLeader(ctx: ToolDispatchContext): boolean {
+  const context = ctx.workflowContext;
+  return ctx.runMode === "agent_swarm_leader"
+    && context?.workflowType === "agent_swarm"
+    && context.taskId === context.workflowTaskId
+    && !context.swarm?.workersStartedAt
+    && (context.swarm?.pendingNestedSwarmNodeIds?.length ?? 0) === 0;
+}
+
 export async function handleSwarmPauseTool(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
@@ -159,6 +170,14 @@ export async function handleSwarmPauseTool(
       ctx,
       execution,
       "swarm_pause can only be used during Agent Swarm runs."
+    );
+  }
+
+  if (isUnstartedTopLeader(ctx)) {
+    return finishBuiltinToolFailure(
+      ctx,
+      execution,
+      "Nothing would wake you: no worker has been assigned yet, and the user has not received an answer. Your plain text is not delivered. Assign your workers with assign_worker."
     );
   }
 

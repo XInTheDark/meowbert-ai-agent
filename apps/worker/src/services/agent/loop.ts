@@ -36,7 +36,6 @@ import {
   canRecordSwarmFinalReview,
   canRecordSwarmReview,
   cancelSwarmNode,
-  hasApprovedSwarmFinalReview,
   createSwarmChannelForAgent,
   getSwarmBudgetStatus,
   grantSwarmNodeBudget,
@@ -118,13 +117,7 @@ function shouldRequireWorkflowToolAction(execution: AgentExecutionContext): bool
 function resolveStepAvailability(execution: AgentExecutionContext, step: number): AgentStepAvailability {
   return {
     allowFinalResponseTool: execution.workflow.workflowContext
-      ? (
-        execution.workflow.allowWorkflowFinalResponse
-        && !execution.runControl.timedRunFinalizing
-        // A swarm leader only sees final_response once its final review is recorded, so it can't deliver early.
-        && (execution.workflow.workflowContext.workflowType !== "agent_swarm"
-          || hasApprovedSwarmFinalReview(execution.workflow.workflowContext))
-      )
+      ? (execution.workflow.allowWorkflowFinalResponse && !execution.runControl.timedRunFinalizing)
       : (execution.job.mode !== "infinite_auto" || execution.runControl.timedRunFinalizing),
     allowWaitTool: execution.prepared.snapshot.task.allow_waiting !== false
       && !execution.runControl.timedRunFinalizing
