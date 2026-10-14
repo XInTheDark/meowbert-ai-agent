@@ -1,9 +1,8 @@
 import { CompletedActivityDisclosure } from "./CompletedActivityDisclosure";
-import type { ThoughtSummaryContentProps } from "./ThoughtSummaryBubble";
 import { ToolActivitySummaryCard } from "./ToolActivitySummaryCard";
 import type { TaskMessage } from "../../lib/types";
 import { getToolGroupStepSummaries } from "../../task/activityStepSummaries";
-import { getToolGroupSummary } from "./shared";
+import { getToolGroupSummary, type ActivityThoughtSummary } from "./shared";
 
 export function ToolGroupBubble(props: {
   toolGroup: TaskMessage[];
@@ -15,9 +14,9 @@ export function ToolGroupBubble(props: {
   onInspectRequested?: (selection: {
     groupKey: string;
     toolGroup: TaskMessage[];
-    thoughtSummary?: ThoughtSummaryContentProps;
+    thoughtSummary?: ActivityThoughtSummary;
   }) => void;
-  thoughtSummary?: ThoughtSummaryContentProps;
+  thoughtSummary?: ActivityThoughtSummary;
   collapsed?: boolean;
   expansionKey?: string;
 }): JSX.Element {

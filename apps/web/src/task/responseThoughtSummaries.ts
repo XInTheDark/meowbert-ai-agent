@@ -3,7 +3,11 @@ import type { TaskMessage } from "../lib/types";
 export interface ResponseThoughtSummary {
   id: string;
   text: string;
+  // Call ids of the tool calls that follow this thought in the same response, in order.
+  nextCallIds: string[];
 }
+
+const TOOL_CALL_ITEM_TYPES = new Set(["function_call", "custom_tool_call", "apply_patch_call", "web_search_call"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -15,6 +19,13 @@ function asString(value: unknown): string | null {
 
 function isReasoningResponseItem(value: unknown): value is Record<string, unknown> & { type: "reasoning" } {
   return isRecord(value) && value.type === "reasoning";
+}
+
+function getToolCallItemId(item: unknown): string | null {
+  if (!isRecord(item) || typeof item.type !== "string" || !TOOL_CALL_ITEM_TYPES.has(item.type)) {
+    return null;
+  }
+  return item.type === "web_search_call" ? asString(item.id) : asString(item.call_id) ?? asString(item.id);
 }
 
 function extractReasoningSummaryText(item: Record<string, unknown>): string | null {
@@ -67,7 +78,10 @@ export function getResponseThoughtSummaries(message: TaskMessage): ResponseThoug
 
     summaries.push({
       id: `${message.id}:response-thought:${asString(item.id) ?? index}`,
-      text
+      text,
+      nextCallIds: rawItems.slice(index + 1)
+        .map(getToolCallItemId)
+        .filter((callId): callId is string => callId !== null)
     });
   });
 

@@ -8,8 +8,10 @@ import { getInlineResponseArtifactIdentities, getInlineResponseSegments, getTask
 import { collectHistoricalToolCallIds, getThoughtSummaryLabel, getToolMessageCallId, isResponseToolRepresentedInHistory } from "./shared";
 
 export interface ActivityThought {
+  id: string;
   label: string;
   content: string;
+  nextCallIds: string[];
 }
 
 export interface ConversationActivityGroup {
@@ -155,9 +157,12 @@ export function buildConversationDisplayEntries(messages: TaskMessage[]): Conver
     const managedTaskEntries = getManagedTaskEntries(responseTools);
     const tools = responseTools.filter((tool) => !getTaskInlineArtifact(tool) && !getManagedTaskCard(tool));
     if (tools.length > 0) activity(message, index).toolGroup.push(...tools);
-    const thoughts = getResponseThoughtSummaries(message).map((summary) => summary.text).join("\n\n");
-    if (thoughts.trim()) {
-      activity(message, index).thoughts.push({ label: getThoughtSummaryLabel(message, messages[index - 1]), content: thoughts });
+    const thoughts = getResponseThoughtSummaries(message);
+    if (thoughts.length > 0) {
+      const label = getThoughtSummaryLabel(message, messages[index - 1]);
+      activity(message, index).thoughts.push(...thoughts.map((thought) => ({
+        id: thought.id, label, content: thought.text, nextCallIds: thought.nextCallIds
+      })));
     }
     const visibleEntries = getMessageDisplayEntries(message);
     const hasInlineArtifacts = visibleEntries.some((entry) => entry.kind === "artifact");

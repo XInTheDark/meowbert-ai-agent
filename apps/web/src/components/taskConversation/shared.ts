@@ -1,13 +1,16 @@
 import type { LiveToolCall, TaskMessage } from "../../lib/types";
-import { getConversationActivityGroups } from "./conversationActivityEntries";
+import { getConversationActivityGroups, type ActivityThought } from "./conversationActivityEntries";
 import type { ThoughtSummaryContentProps } from "./ThoughtSummaryBubble";
+
+// The merged summary drives the activity card label; the individual thoughts feed the inspector timeline.
+export type ActivityThoughtSummary = ThoughtSummaryContentProps & { thoughts: ActivityThought[] };
 
 export type ToolInspectorSelection =
   | {
       kind: "historical";
       groupKey: string;
       toolGroup: TaskMessage[];
-      thoughtSummary?: ThoughtSummaryContentProps;
+      thoughtSummary?: ActivityThoughtSummary;
       notices?: TaskMessage[];
       view?: "notices";
     }
@@ -37,7 +40,7 @@ export function formatTokenCount(value: number): string {
   return `${value}`;
 }
 
-function formatElapsedDuration(durationMs: number): string {
+export function formatElapsedDuration(durationMs: number): string {
   if (durationMs < 1000) {
     return `${Math.max(1, Math.round(durationMs / 100)) / 10}s`;
   }
@@ -47,6 +50,19 @@ function formatElapsedDuration(durationMs: number): string {
   }
 
   return `${Math.round(durationMs / 1000)}s`;
+}
+
+export function buildActivityThoughtSummary(
+  thoughts: ActivityThought[],
+  displayPreferences: ThoughtSummaryContentProps["displayPreferences"]
+): ActivityThoughtSummary {
+  const labels = new Set(thoughts.map((thought) => thought.label));
+  return {
+    label: labels.size === 1 ? thoughts[0].label : "Thought",
+    content: thoughts.map((thought) => thought.content).join("\n\n"),
+    displayPreferences,
+    thoughts
+  };
 }
 
 export function getThoughtSummaryLabel(message: TaskMessage, previousMessage?: TaskMessage | null): string {
@@ -336,11 +352,9 @@ export function resolveToolInspectorSelection(
     ...selection,
     toolGroup: group?.toolGroup ?? resolveHistoricalToolGroupMessages(messages, selection.groupKey, selection.toolGroup),
     notices: group?.notices ?? selection.notices,
-    thoughtSummary: selection.thoughtSummary && group?.thoughts.length ? {
-      ...selection.thoughtSummary,
-      label: group.thoughts.length === 1 ? group.thoughts[0].label : "Thought",
-      content: group.thoughts.map((thought) => thought.content).join("\n\n")
-    } : selection.thoughtSummary
+    thoughtSummary: selection.thoughtSummary && group?.thoughts.length
+      ? buildActivityThoughtSummary(group.thoughts, selection.thoughtSummary.displayPreferences)
+      : selection.thoughtSummary
   };
 }
 

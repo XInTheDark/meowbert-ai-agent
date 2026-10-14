@@ -13,18 +13,20 @@ import { ContextCheckpointDialog } from "./ContextCheckpointDialog";
 import { SelectedTextQuoteCard } from "./SelectedTextQuoteCard";
 import type { MessageSelectedTextQuote } from "./selectedTextQuoteUtils";
 import { splitSelectedTextMessage } from "./selectedTextQuoteUtils";
-import type { ThoughtSummaryContentProps } from "./ThoughtSummaryBubble";
 import { InlineArtifactBubble } from "./InlineArtifactBubble";
 import { ManagedTaskCard } from "./ManagedTaskCard";
 import {
   formatTokenCount,
   isCompactionMessage,
   isContextCheckpointMessage,
+  type ActivityThoughtSummary,
   type StableToolGroupDescriptor
 } from "./shared";
 
 import { buildConversationDisplayEntries, type ConversationDisplayEntry } from "./conversationActivityEntries";
 import { HistoricalActivityGroup } from "./HistoricalActivityGroup";
+import { buildConversationRenderItems, type ConversationEntryItem } from "./conversationTurnFolds";
+import { TurnWorkFoldBubble } from "./TurnWorkFoldBubble";
 
 export interface HistoricalConversationItemsProps {
   messages: TaskMessage[];
@@ -49,7 +51,7 @@ export interface HistoricalConversationItemsProps {
   onToolGroupInspectorRequested: (selection: {
     groupKey: string;
     toolGroup: TaskMessage[];
-    thoughtSummary?: ThoughtSummaryContentProps;
+    thoughtSummary?: ActivityThoughtSummary;
     notices?: TaskMessage[];
     view?: "notices";
   }) => void;
@@ -63,6 +65,8 @@ export interface HistoricalConversationItemsProps {
   searchForceExpandedMessageIds?: Set<string>;
   stagedAnnotationCount?: number;
   isTaskRunning?: boolean;
+  // Agent Swarm turns tuck the work before their final answer into one row.
+  foldFinishedTurns?: boolean;
 }
 
 function CompactionMessageBubble(props: {
@@ -416,22 +420,36 @@ function HistoricalMessageItem(props: HistoricalConversationItemsProps & {
   );
 }
 
+function renderEntryItem(props: HistoricalConversationItemsProps, item: ConversationEntryItem, entryCount: number): JSX.Element {
+  const { entry, index } = item;
+  if (entry.kind === "activity") {
+    const key = props.historicalToolGroupDescriptorsByStartIndex.get(entry.startIndex)?.key ?? entry.key;
+    // Only the trailing group of a running task is still in progress.
+    const isComplete = !props.isTaskRunning || index < entryCount - 1;
+    return <HistoricalActivityGroup key={item.activityPart ? `${key}:${item.activityPart}` : key} {...props}
+      group={entry} groupKey={key} isComplete={isComplete} part={item.activityPart} />;
+  }
+  if (entry.kind === "artifact") {
+    return <InlineArtifactBubble key={entry.key} messageId={entry.key} artifact={entry.artifact}
+      src={props.buildInlineArtifactUrl?.(entry.artifact.relativePath) ?? null} />;
+  }
+  if (entry.kind === "managed-task") {
+    return <ManagedTaskCard key={entry.key} messageId={entry.key} card={entry.card} />;
+  }
+  return <HistoricalMessageItem key={entry.key} {...props} entry={entry} />;
+}
+
 export function HistoricalConversationItems(props: HistoricalConversationItemsProps): JSX.Element[] {
   const entries = buildConversationDisplayEntries(props.messages);
-  return entries.map((entry, index) => {
-    if (entry.kind === "activity") {
-      const key = props.historicalToolGroupDescriptorsByStartIndex.get(entry.startIndex)?.key ?? entry.key;
-      // Only the trailing group of a running task is still in progress.
-      const isComplete = !props.isTaskRunning || index < entries.length - 1;
-      return <HistoricalActivityGroup key={key} {...props} group={entry} groupKey={key} isComplete={isComplete} />;
-    }
-    if (entry.kind === "artifact") {
-      return <InlineArtifactBubble key={entry.key} messageId={entry.key} artifact={entry.artifact}
-        src={props.buildInlineArtifactUrl?.(entry.artifact.relativePath) ?? null} />;
-    }
-    if (entry.kind === "managed-task") {
-      return <ManagedTaskCard key={entry.key} messageId={entry.key} card={entry.card} />;
-    }
-    return <HistoricalMessageItem key={entry.key} {...props} entry={entry} />;
+  const items = buildConversationRenderItems(entries, {
+    foldFinishedTurns: props.foldFinishedTurns ?? false,
+    isTaskRunning: props.isTaskRunning ?? false
   });
+  const searchMessageIds = new Set([...(props.searchForceExpandedMessageIds ?? []),
+    ...(props.searchSelectedMessageId ? [props.searchSelectedMessageId] : [])]);
+  return items.map((item) => item.kind === "fold" ? (
+    <TurnWorkFoldBubble key={item.fold.key} fold={item.fold} searchMessageIds={searchMessageIds}
+      expansionKey={props.taskId ? buildTaskMessageExpansionKey(props.taskId, item.fold.key) : undefined}
+      renderItem={(foldedItem) => renderEntryItem(props, foldedItem, entries.length)} />
+  ) : renderEntryItem(props, item, entries.length));
 }

@@ -20,7 +20,7 @@ The events stream (the main area of Task Detail) shows everything that happened 
 - **Context compaction events** — when the conversation was summarized to save context space (see [Context Compaction](/core-workflows/context-compaction)).
 - **Errors and cancellations** — if something went wrong, the details appear here.
 
-Consecutive tool calls share one **Activity** card. Open it to inspect each call and its output. Retry and recovery notices appear in a separate compact box; open it to see the full list, including errors from earlier retries. Messages and inline files stay in the conversation.
+Consecutive tool calls share one **Activity** card. Open it to inspect each call and its output. The agent's reasoning appears as short lines between the calls it led to; click one to read it in full. Retry and recovery notices appear in a separate compact box; open it to see the full list, including errors from earlier retries. Messages and inline files stay in the conversation.
 
 ## Organizing a long conversation
 

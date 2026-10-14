@@ -1,5 +1,12 @@
 # Changelog
 
+## Oct 14, 2026
+
+### AI and agents
+
+- **Reasoning in step order** — In the Activity panel, the agent's reasoning now appears as short lines between the tool calls it led to, instead of one block at the top. Click a line to read it in full.
+- **Tidier Agent Swarm answers** — Once a swarm delivers its final answer, the work leading up to it folds into one **Worked for…** row. Files and error notices stay visible, and you can open the row to see everything.
+
 ## Oct 4, 2026
 
 ### AI and agents

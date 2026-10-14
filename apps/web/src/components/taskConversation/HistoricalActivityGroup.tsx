@@ -6,18 +6,20 @@ import { getModelRetryMessageDetails } from "../../task/taskConversationDisplay"
 import { buildTaskMessageExpansionKey } from "../../task/taskMessageExpansionPreferences";
 import { ThoughtSummaryBubble } from "./ThoughtSummaryBubble";
 import { ToolGroupBubble } from "./ToolGroupBubble";
+import { buildActivityThoughtSummary } from "./shared";
 
 export function HistoricalActivityGroup(props: HistoricalConversationItemsProps & {
   group: ConversationActivityGroup;
   groupKey: string;
   isComplete: boolean;
+  part?: "tools" | "notices";
 }): JSX.Element {
   const { group, groupKey } = props;
-  const thoughtSummary = props.resolvedAssistantMessageDisplayPreferences.showThoughts && group.thoughts.length > 0 ? {
-    label: group.thoughts.length === 1 ? group.thoughts[0].label : "Thought",
-    content: group.thoughts.map((thought) => thought.content).join("\n\n"),
-    displayPreferences: props.resolvedAssistantMessageDisplayPreferences
-  } : undefined;
+  const showTools = props.part !== "notices";
+  const showNotices = props.part !== "tools";
+  const thoughtSummary = props.resolvedAssistantMessageDisplayPreferences.showThoughts && group.thoughts.length > 0
+    ? buildActivityThoughtSummary(group.thoughts, props.resolvedAssistantMessageDisplayPreferences)
+    : undefined;
   const latestNotice = group.notices[group.notices.length - 1];
   const activeRetry = latestNotice?.id === props.messages[props.messages.length - 1]?.id
     ? getModelRetryMessageDetails(latestNotice) : null;
@@ -30,14 +32,14 @@ export function HistoricalActivityGroup(props: HistoricalConversationItemsProps 
 
   return (
     <>
-      {group.toolGroup.length > 0 ? (
+      {!showTools ? null : group.toolGroup.length > 0 ? (
         <ToolGroupBubble toolGroup={group.toolGroup} groupKey={groupKey} messageIds={sourceMessageIds}
           hydratedMessageIds={hydratedIds} onExpandRequested={props.onToolGroupExpandRequested}
           isSelected={props.selectedToolGroupKey === groupKey} thoughtSummary={thoughtSummary}
           onInspectRequested={props.onToolGroupInspectorRequested} collapsed={props.isComplete}
           expansionKey={props.taskId ? buildTaskMessageExpansionKey(props.taskId, groupKey) : undefined} />
       ) : thoughtSummary ? <ThoughtSummaryBubble {...thoughtSummary} /> : null}
-      {group.notices.length > 0 ? (
+      {showNotices && group.notices.length > 0 ? (
         <div className="chat-bubble activity-notices" data-message-id={noticeIds[0]}
           data-last-message-id={noticeIds[noticeIds.length - 1]} data-message-ids={noticeIds.join(" ")}>
           <button type="button" className={`activity-notices-button${props.selectedNoticeGroupKey === groupKey ? " active" : ""}`}

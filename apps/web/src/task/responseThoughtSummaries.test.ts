@@ -29,7 +29,8 @@ describe("getResponseThoughtSummaries", () => {
     expect(getResponseThoughtSummaries(message)).toEqual([
       {
         id: "msg_assistant_1:response-thought:rs_1",
-        text: "Checked the task requirements.\n\nPlanned the next coding step."
+        text: "Checked the task requirements.\n\nPlanned the next coding step.",
+        nextCallIds: []
       }
     ]);
   });

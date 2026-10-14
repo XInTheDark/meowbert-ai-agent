@@ -152,6 +152,8 @@ The workflow panel shows:
 
 This makes it much easier to inspect who said what and what each worker is currently doing.
 
+In the conversation, once the leader delivers its final answer, the work leading up to it folds into one **Worked for…** row above the answer. Open it to see the activity and the leader's interim messages. Files the swarm produced and any error notices stay visible.
+
 ## Choosing the right mode
 
 Use **Standard task** when:

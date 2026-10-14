@@ -1,6 +1,7 @@
 import { useEffect, type CSSProperties } from "react";
 import { Activity, Clock3, X } from "lucide-react";
-import { ThoughtSummaryContent } from "./ThoughtSummaryBubble";
+import { ActivityThoughtRow } from "./ActivityThoughtRow";
+import { buildActivityTimeline } from "./activityTimeline";
 import { ToolOutput } from "./ToolOutput";
 import type { LiveToolCall } from "../../lib/types";
 import {
@@ -148,41 +149,38 @@ function ToolInspectorHistoricalBody(props: ToolInspectorHistoricalBodyProps): J
   const showLoading = messageIds.length > 0 && !hasAnyHydrated;
 
   return (
-    <>
-      {selection.thoughtSummary ? (
-        <section className="tool-inspector-summary-card">
-          <div className="tool-inspector-section-heading">Reasoning summary</div>
-          <ThoughtSummaryContent key={selection.groupKey} {...selection.thoughtSummary} defaultOpen />
-        </section>
-      ) : null}
-      <div className="tool-inspector-section">
-        <div className="tool-inspector-section-heading">Tool calls</div>
-        {showLoading ? (
-          <div className="tool-inspector-loading">
-            <div className="tool-inspector-loading-dot" aria-hidden="true" />
-            <span>Loading tool calls…</span>
-          </div>
-        ) : (
-          <div className="tool-inspector-call-list">
-            {selection.toolGroup.map((toolMessage, index) => (
+    <div className="tool-inspector-section">
+      <div className="tool-inspector-section-heading">Tool calls</div>
+      {showLoading ? (
+        <div className="tool-inspector-loading">
+          <div className="tool-inspector-loading-dot" aria-hidden="true" />
+          <span>Loading tool calls…</span>
+        </div>
+      ) : (
+        <div className="tool-inspector-call-list tool-inspector-timeline">
+          {buildActivityTimeline(selection.toolGroup, selection.thoughtSummary?.thoughts ?? []).map((entry) => (
+            entry.kind === "thought" && selection.thoughtSummary ? (
+              <ActivityThoughtRow key={entry.key} thoughts={entry.thoughts}
+                displayPreferences={selection.thoughtSummary.displayPreferences} />
+            ) : entry.kind === "tool" ? (
               <div
-                key={toolMessage.id}
+                key={entry.key}
                 className="tool-inspector-call-item"
-                style={{ "--tool-call-index": `${index}` } as CSSProperties}
+                style={{ "--tool-call-index": `${entry.index}` } as CSSProperties}
               >
                 <ToolOutput
-                  message={toolMessage}
-                  open={props.toolDisclosureState[getToolMessageDisclosureKey(toolMessage)] ?? false}
+                  message={entry.tool}
+                  open={props.toolDisclosureState[getToolMessageDisclosureKey(entry.tool)] ?? false}
                   onOpenChange={(open) => {
-                    props.onToolDisclosureChange(getToolMessageDisclosureKey(toolMessage), open);
+                    props.onToolDisclosureChange(getToolMessageDisclosureKey(entry.tool), open);
                   }}
                 />
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </>
+            ) : null
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -22,6 +22,7 @@ export interface TaskConversationMessagesProps {
   showMessageAuthors?: boolean;
   showThinking?: boolean;
   isTaskRunning?: boolean;
+  foldFinishedTurns?: boolean;
   onConversationChanged?: () => void;
   onEditRequested?: (message: TaskMessage) => void;
   renderBranchSwitcher?: (message: TaskMessage) => ReactNode;

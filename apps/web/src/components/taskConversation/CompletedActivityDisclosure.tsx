@@ -9,6 +9,7 @@ export function CompletedActivityDisclosure(props: {
   secondaryLabel?: string | null;
   expansionKey?: string;
   active?: boolean;
+  forceExpanded?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const [isExpanded, setIsExpanded] = useState(() => isTaskMessageExpanded(props.expansionKey));
@@ -24,21 +25,22 @@ export function CompletedActivityDisclosure(props: {
     });
   }, [props.expansionKey]);
 
+  const showBody = isExpanded || props.forceExpanded === true;
   const meta = [`${props.count} call${props.count === 1 ? "" : "s"}`, props.secondaryLabel].filter(Boolean).join(" · ");
 
   return (
-    <div className={`activity-disclosure${isExpanded ? " expanded" : ""}`}>
+    <div className={`activity-disclosure${showBody ? " expanded" : ""}`}>
       <button
         type="button"
-        className={`activity-disclosure-toggle${props.active && !isExpanded ? " active" : ""}`}
-        aria-expanded={isExpanded}
+        className={`activity-disclosure-toggle${props.active && !showBody ? " active" : ""}`}
+        aria-expanded={showBody}
         onClick={toggleExpanded}
       >
         <span className="activity-disclosure-title">{props.title}</span>
         <span className="activity-disclosure-meta">{meta}</span>
         <ChevronRight size={14} className="activity-disclosure-chevron" aria-hidden="true" />
       </button>
-      {isExpanded ? <div className="activity-disclosure-body">{props.children}</div> : null}
+      {showBody ? <div className="activity-disclosure-body">{props.children}</div> : null}
     </div>
   );
 }

@@ -171,6 +171,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
               showMessageAuthors={props.showMessageAuthors ?? false}
               showThinking={props.isThinking && props.isTaskRunning}
               isTaskRunning={props.isTaskRunning}
+              foldFinishedTurns={props.taskType === "agent_swarm"}
               onConversationChanged={props.onConversationChanged}
               onEditRequested={props.onEditRequested}
               renderBranchSwitcher={props.renderBranchSwitcher}
