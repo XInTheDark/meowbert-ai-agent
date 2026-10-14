@@ -454,8 +454,8 @@ describe("buildResponseTools", () => {
       routingModel: "gpt-router",
       defaultTargetModel: "fast",
       models: [
-        { id: "deep", description: "Hard work.", payload: { model: "gpt-5.4" } },
-        { id: "fast", description: "Quick work.", payload: { model: "gpt-5.4-mini" } }
+        { id: "deep", description: "Hard work.", model: "gpt-5.4", payload: {} },
+        { id: "fast", description: "Quick work.", model: "gpt-5.4-mini", payload: {} }
       ]
     };
     const createTask = (projectMasterTaskRouter: (typeof router & { allowReasoningEffort?: boolean }) | null) => buildResponseTools(options, [], {

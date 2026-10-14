@@ -107,10 +107,7 @@ function applyReasoningEffort(
 }
 
 function getTargetRuntimeModel(target: PlatformModelRouterTarget): string {
-  const model = target.payload.model;
-  return typeof model === "string" && model.trim().length > 0
-    ? model.trim()
-    : target.id;
+  return target.model;
 }
 
 function getDefaultRouterTarget(router: PlatformModelRouter): PlatformModelRouterTarget {
@@ -151,10 +148,7 @@ function applyTargetPayload(
   environmentPayload: Record<string, unknown>,
   target: PlatformModelRouterTarget
 ): Record<string, unknown> {
-  const targetPayload = { ...target.payload };
-  delete targetPayload.model;
-
-  return deepMergeJsonObjects(environmentPayload, targetPayload);
+  return deepMergeJsonObjects(environmentPayload, target.payload);
 }
 
 function applyTargetPayloadAndReasoning(input: {

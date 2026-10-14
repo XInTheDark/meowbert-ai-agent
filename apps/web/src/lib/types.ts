@@ -857,6 +857,7 @@ export interface AdminSettings {
     models: Array<{
       id: string;
       description: string;
+      model: string;
       payload: Record<string, unknown>;
     }>;
   }>;

@@ -60,8 +60,8 @@ describe("resolveModelRouterSelection", () => {
         {
           id: "deep",
           description: "Use for complex requests.",
+          model: "gpt-5.4",
           payload: {
-            model: "gpt-5.4",
             responses: {
               text: {
                 verbosity: "high"
@@ -72,9 +72,8 @@ describe("resolveModelRouterSelection", () => {
         {
           id: "fast",
           description: "Use for quick requests.",
-          payload: {
-            model: "gpt-5.4-mini"
-          }
+          model: "gpt-5.4-mini",
+          payload: {}
         }
       ]
     }

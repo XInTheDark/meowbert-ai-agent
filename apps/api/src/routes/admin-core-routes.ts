@@ -50,9 +50,8 @@ const modelSliderAgentIdsSchema = z.array(z.string().trim().min(1).max(240)).max
 const modelRouterTargetSchema = z.object({
   id: z.string().min(1).max(240),
   description: z.string().min(1).max(4_000),
-  payload: z.object({
-    model: z.string().min(1).max(240)
-  }).catchall(z.unknown())
+  model: z.string().min(1).max(240),
+  payload: z.record(z.unknown()).default({})
 });
 const modelRouterSchema = z.object({
   id: z.string().min(1).max(240),

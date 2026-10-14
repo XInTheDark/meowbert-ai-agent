@@ -23,6 +23,7 @@ interface AgentPresetDraft {
 interface ModelRouterTargetDraft {
   id: string;
   description: string;
+  model: string;
   payload: Record<string, unknown>;
 }
 
@@ -338,15 +339,19 @@ export function parseModelRoutersDraft(raw: string): ModelRouterDraft[] {
       if (!targetId || !description) {
         throw new Error(`Each model router target in ${id} requires id and description.`);
       }
-      if (!target.payload || typeof target.payload !== "object" || Array.isArray(target.payload)) {
-        throw new Error(`Model router target ${targetId} in ${id} requires an object payload.`);
+      const model = typeof target.model === "string" ? target.model.trim() : "";
+      if (!model) {
+        throw new Error(`Model router target ${targetId} in ${id} requires model.`);
       }
-      const payload = target.payload as Record<string, unknown>;
-      if (typeof payload.model !== "string" || payload.model.trim().length === 0) {
-        throw new Error(`Model router target ${targetId} in ${id} requires payload.model.`);
+      if (target.payload !== undefined && (!target.payload || typeof target.payload !== "object" || Array.isArray(target.payload))) {
+        throw new Error(`Model router target ${targetId} in ${id} has a payload that is not an object.`);
+      }
+      const payload = (target.payload ?? {}) as Record<string, unknown>;
+      if ("model" in payload) {
+        throw new Error(`Model router target ${targetId} in ${id} sets model inside payload. Move it to the target's model field.`);
       }
 
-      return { id: targetId, description, payload };
+      return { id: targetId, description, model, payload };
     });
 
     return {

@@ -1,8 +1,11 @@
 import { normalizeAgentPresetPayload } from "./responses-settings.js";
 
+// One option a router can pick. `id` names the option inside this router, `model` is the provider
+// model it runs, and `payload` holds any other request settings for it (empty by default).
 export interface PlatformModelRouterTarget {
   id: string;
   description: string;
+  model: string;
   payload: Record<string, unknown>;
 }
 
@@ -38,16 +41,14 @@ export const DEFAULT_PLATFORM_MODEL_ROUTERS: PlatformModelRouter[] = [
       {
         id: "gpt-5.4",
         description: DEFAULT_GPT_5_4_DESCRIPTION,
-        payload: {
-          model: "gpt-5.4"
-        }
+        model: "gpt-5.4",
+        payload: {}
       },
       {
         id: "gpt-5.4-mini",
         description: DEFAULT_GPT_5_4_MINI_DESCRIPTION,
-        payload: {
-          model: "gpt-5.4-mini"
-        }
+        model: "gpt-5.4-mini",
+        payload: {}
       }
     ]
   }
@@ -108,6 +109,7 @@ function normalizeTarget(rawTarget: unknown): PlatformModelRouterTarget | null {
   const record = rawTarget as {
     id?: unknown;
     description?: unknown;
+    model?: unknown;
     payload?: unknown;
   };
   const id = normalizeModelId(record.id);
@@ -116,18 +118,13 @@ function normalizeTarget(rawTarget: unknown): PlatformModelRouterTarget | null {
     return null;
   }
 
-  const rawPayload = isPlainObject(record.payload) ? record.payload : { model: id };
-  const payload = normalizeAgentPresetPayload(deepCloneJsonValue(rawPayload));
-  const payloadModel = normalizeModelId(payload.model);
-  if (!payloadModel) {
-    return null;
-  }
-  payload.model = payloadModel;
-
+  // The model is its own field; a model key inside the payload is not a second way to set it.
+  const { model: _ignoredPayloadModel, ...rawPayload } = isPlainObject(record.payload) ? record.payload : {};
   return {
     id,
     description,
-    payload
+    model: normalizeModelId(record.model) ?? id,
+    payload: normalizeAgentPresetPayload(deepCloneJsonValue(rawPayload))
   };
 }
 
@@ -236,8 +233,7 @@ export function resolvePlatformModelRouterTargetRuntimeModel(
   }
 
   const target = router.models.find((model) => model.id === normalizedTargetId);
-  const runtimeModel = normalizeModelId(target?.payload.model);
-  return runtimeModel;
+  return target?.model ?? null;
 }
 
 export function resolvePlatformModelRouterDefaultRuntimeModel(router: PlatformModelRouter): string {

@@ -29,8 +29,8 @@ describe("normalizePlatformModelRouters", () => {
             {
               id: "gpt-5.4",
               description: "Use for hard tasks.",
+              model: "gpt-5.4",
               payload: {
-                model: "gpt-5.4",
                 reasoning: {
                   effort: "xhigh"
                 }
@@ -69,8 +69,8 @@ describe("normalizePlatformModelRouters", () => {
           {
             id: "gpt-5.4",
             description: "Use for hard tasks.",
+            model: "gpt-5.4",
             payload: {
-              model: "gpt-5.4",
               responses: {
                 reasoning: {
                   effort: "xhigh"
@@ -81,16 +81,15 @@ describe("normalizePlatformModelRouters", () => {
           {
             id: "gpt-5.4-mini",
             description: "Use for quick tasks.",
-            payload: {
-              model: "gpt-5.4-mini"
-            }
+            model: "gpt-5.4-mini",
+            payload: {}
           }
         ]
       }
     ]);
   });
 
-  it("resolves runtime models from target payloads instead of target ids", () => {
+  it("resolves runtime models from the target model field instead of target ids", () => {
     const [router] = normalizePlatformModelRouters([
       {
         id: "router-v1",
@@ -100,9 +99,8 @@ describe("normalizePlatformModelRouters", () => {
           {
             id: "hard",
             description: "Use for hard tasks.",
-            payload: {
-              model: "gpt-5.5"
-            }
+            model: "gpt-5.5",
+            payload: {}
           }
         ]
       }
@@ -124,9 +122,8 @@ describe("normalizePlatformModelRouters", () => {
           {
             id: "fast",
             description: "Use for quick tasks.",
-            payload: {
-              model: "gpt-5.4-mini"
-            }
+            model: "gpt-5.4-mini",
+            payload: {}
           }
         ]
       }
@@ -147,16 +144,14 @@ describe("findPlatformModelRouterById", () => {
         {
           id: "gpt-5.4",
           description: "Use for hard tasks.",
-          payload: {
-            model: "gpt-5.4"
-          }
+          model: "gpt-5.4",
+          payload: {}
         },
         {
           id: "gpt-5.4-mini",
           description: "Use for quick tasks.",
-          payload: {
-            model: "gpt-5.4-mini"
-          }
+          model: "gpt-5.4-mini",
+          payload: {}
         }
       ]
     }
@@ -174,16 +169,14 @@ describe("findPlatformModelRouterById", () => {
         {
           id: "gpt-5.4",
           description: "Use for hard tasks.",
-          payload: {
-            model: "gpt-5.4"
-          }
+          model: "gpt-5.4",
+          payload: {}
         },
         {
           id: "gpt-5.4-mini",
           description: "Use for quick tasks.",
-          payload: {
-            model: "gpt-5.4-mini"
-          }
+          model: "gpt-5.4-mini",
+          payload: {}
         }
       ]
     });
