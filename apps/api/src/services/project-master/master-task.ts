@@ -57,8 +57,16 @@ export async function ensureProjectMasterTask(input: {
   userId: string;
   timezone: string;
 }): Promise<string> {
-  if (!(await isProjectMasterEnabledForWorkspace(input.workspaceId))) {
+  const [enabled, existingTaskId] = await Promise.all([
+    isProjectMasterEnabledForWorkspace(input.workspaceId),
+    getProjectMasterTaskId(input.environmentId)
+  ]);
+  if (!enabled) {
     throw new ProjectMasterError("Project Master is not enabled for this workspace.", 409);
+  }
+  // Every project visit lands here, so an existing Master skips the locking transaction.
+  if (existingTaskId) {
+    return existingTaskId;
   }
 
   return withTransaction(async (client) => {

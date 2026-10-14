@@ -6,6 +6,7 @@ import type {
   TaskMessageContentBatchResponse
 } from "../../../lib/types";
 import { collectConversationHydrationIds } from "../../../task/taskDetailWindowing";
+import { takePrefetchedTaskConversation } from "../../../task/taskConversationPrefetch";
 import {
   MESSAGE_MAX_WINDOW_ITEMS,
   MESSAGE_CACHE_MAX_ITEMS,
@@ -230,6 +231,17 @@ function buildConversationSearchParams(input?: {
   return searchParams;
 }
 
+// A prefetched first page counts only when it landed on the branch this load asks for.
+async function takeMatchingPrefetch(
+  taskId: string,
+  activeLeafMessageId: string | null
+): Promise<TaskConversationPageResponse | null> {
+  const prefetched = takePrefetchedTaskConversation(taskId);
+  const response = prefetched ? await prefetched.catch(() => null) : null;
+  if (!response) return null;
+  return !activeLeafMessageId || response.active_leaf_message_id === activeLeafMessageId ? response : null;
+}
+
 export function useTaskDetailConversation(
   options: UseTaskDetailConversationOptions
 ): UseTaskDetailConversationResult {
@@ -437,9 +449,11 @@ export function useTaskDetailConversation(
       : null;
 
     try {
-      const response = cachedPage ?? await options.api.get<TaskConversationPageResponse>(
-        `/api/tasks/${options.taskId}/conversation?${searchParams.toString()}`
-      );
+      const response = cachedPage
+        ?? (showBootstrap ? await takeMatchingPrefetch(options.taskId, input?.activeLeafMessageId ?? null) : null)
+        ?? await options.api.get<TaskConversationPageResponse>(
+          `/api/tasks/${options.taskId}/conversation?${searchParams.toString()}`
+        );
       if (!cachedPage && requestKeyRef.current !== requestKey) {
         return;
       }
