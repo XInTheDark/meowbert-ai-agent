@@ -471,6 +471,11 @@ export function buildSystemPrompt(
     "",
     "A file the user mentions that isn't in the working directory is likely in the environment or workspace root.",
     "Don't run `find` or similar recursive searches over large directories such as the project or workspace: storage is mounted, so walking many files is slow.",
+    ...(options.taskFilesystemReadOnly
+      ? writableSharedPaths.length > 0
+        ? ["There is no special scratchpad directory here. For scratch files, make a folder under a writable shared path listed above."]
+        : []
+      : ["There is no special scratchpad directory here. For scratch files, make a folder such as `$TASK_DIR/tmp` and remove it when you no longer need it. Avoid `/tmp`: it is not kept if the sandbox restarts."]),
     options.taskFilesystemReadOnly
       ? `- **Shared project dependencies**: \`${sharedDependenciesDir}\` can be reused, but this run must not install or modify libraries there. Use only the writable workflow paths listed above when they apply.`
       : `- **Shared project dependencies**: create and reuse \`${sharedDependenciesDir}\` for libraries and tools needed across this project's tasks. Check what is installed first, and don't replace or upgrade a shared version unless the task requires it. Keep an application's own dependencies in its package manifest and lockfile.`,

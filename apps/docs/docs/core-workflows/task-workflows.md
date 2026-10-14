@@ -117,6 +117,25 @@ Before delivery, one worker gives the proposed answer a final read. If the swarm
 
 This is intentionally different from subtasks. Subtasks are independent. An Agent Swarm is a shared discussion.
 
+### How the leader works
+
+The leader coordinates; the workers do the work. It doesn't write the answer itself and then ask the workers to check it. Instead it:
+
+1. **Brainstorms** when there is more than one good approach, asking every worker for a short, independent proposal and then posting the chosen plan.
+2. **Splits the work** so each worker owns a clear piece, or has several workers answer independently when the result is a judgment call that can't be checked by running something.
+3. **Cross-checks**, having workers test or review each other's parts and following up on disagreements.
+4. **Delivers** once a worker has given the final draft a last review.
+
+Some examples with three workers:
+
+| Request | How the swarm splits it |
+| --- | --- |
+| "Build a 3D character controller in one HTML file" | Each worker proposes an approach; the leader picks one. One worker owns the page, scene, and camera, another writes movement and collision, and the third tests the page and reports bugs to the owners. |
+| "Should we move our API from REST to GraphQL?" | Each worker researches and recommends independently. The leader compares the answers, sends disagreements back for another look, and writes one answer with the trade-offs. |
+| "Fix the failing tests in this repo" | Failing tests are split by area so nobody edits the same files. One worker reruns the whole suite at the end. |
+
+Small models make weaker leaders. If the leader keeps doing the work alone, use a swarm whose leader runs on a stronger model, and keep the smaller models as workers.
+
 ### Why use it
 
 Agent Swarm is useful when:
