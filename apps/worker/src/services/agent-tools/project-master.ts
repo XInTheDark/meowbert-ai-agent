@@ -46,7 +46,7 @@ export const PROJECT_MASTER_FUNCTION_TOOLS: FunctionTool[] = [
     listen
   }),
   tool("cancel_task", "Stop a task in this project that is queued or running.", { task_id: taskId }),
-  tool("listen_to_tasks", "Turn result reports on or off for existing tasks in this project.", {
+  tool("listen_to_tasks", "Turn result reports on or off for existing tasks in this project. While on, you also hear about runs the user starts on them directly.", {
     task_ids: { type: "array", items: { type: "string" }, description: "Task IDs to update." },
     listen: { type: "boolean" }
   })

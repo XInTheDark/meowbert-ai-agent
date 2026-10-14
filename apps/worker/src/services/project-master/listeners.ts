@@ -3,6 +3,8 @@ import { query, withTransaction } from "../../lib/db.js";
 export interface ListenerTarget {
   masterTaskId: string;
   environmentId: string;
+  // The member the Master is acting for. Reports on this task are routed back to them.
+  requestedByUserId: string | null;
 }
 
 // Only top-level, visible tasks in the Master's own project can be listened to.
@@ -22,7 +24,14 @@ async function filterListenableTaskIds(target: ListenerTarget, taskIds: string[]
   return result.rows.map((row) => row.id);
 }
 
-export async function setTaskListening(target: ListenerTarget, taskIds: string[], listen: boolean): Promise<string[]> {
+// includeUserRuns also reports runs a member starts on the task themselves. It is set when the
+// Master explicitly listens to a task, and kept once set.
+export async function setTaskListening(
+  target: ListenerTarget,
+  taskIds: string[],
+  listen: boolean,
+  includeUserRuns = false
+): Promise<string[]> {
   const listenableIds = await filterListenableTaskIds(target, [...new Set(taskIds)]);
   const missingIds = taskIds.filter((taskId) => !listenableIds.includes(taskId));
   if (missingIds.length > 0) {
@@ -31,10 +40,13 @@ export async function setTaskListening(target: ListenerTarget, taskIds: string[]
 
   if (listen) {
     await query(
-      `INSERT INTO project_master_listeners (task_id, master_task_id)
-       SELECT unnest($1::uuid[]), $2
-       ON CONFLICT (task_id) DO UPDATE SET master_task_id = EXCLUDED.master_task_id`,
-      [listenableIds, target.masterTaskId]
+      `INSERT INTO project_master_listeners (task_id, master_task_id, requested_by_user_id, include_user_runs)
+       SELECT unnest($1::uuid[]), $2, $3, $4
+       ON CONFLICT (task_id) DO UPDATE
+         SET master_task_id = EXCLUDED.master_task_id,
+             requested_by_user_id = EXCLUDED.requested_by_user_id,
+             include_user_runs = project_master_listeners.include_user_runs OR EXCLUDED.include_user_runs`,
+      [listenableIds, target.masterTaskId, target.requestedByUserId, includeUserRuns]
     );
   } else {
     await query(
@@ -57,17 +69,21 @@ export async function listenToNewTask(target: ListenerTarget, taskId: string): P
       [taskId]
     );
     await client.query(
-      `INSERT INTO project_master_listeners (task_id, master_task_id) VALUES ($1, $2)
-       ON CONFLICT (task_id) DO UPDATE SET master_task_id = EXCLUDED.master_task_id`,
-      [taskId, target.masterTaskId]
+      `INSERT INTO project_master_listeners (task_id, master_task_id, requested_by_user_id) VALUES ($1, $2, $3)
+       ON CONFLICT (task_id) DO UPDATE
+         SET master_task_id = EXCLUDED.master_task_id, requested_by_user_id = EXCLUDED.requested_by_user_id`,
+      [taskId, target.masterTaskId, target.requestedByUserId]
     );
     const row = task.rows[0];
     if (row && ["succeeded", "failed", "cancelled", "awaiting_input"].includes(row.status) && row.latest_run_id) {
       await client.query(
-        `INSERT INTO project_master_reports (master_task_id, task_id, run_id, status, delivery_key)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO project_master_reports (master_task_id, task_id, run_id, status, requested_by_user_id, delivery_key)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (delivery_key) DO NOTHING`,
-        [target.masterTaskId, taskId, row.latest_run_id, row.status, `report:${taskId}:${row.latest_run_id}:${row.status}`]
+        [
+          target.masterTaskId, taskId, row.latest_run_id, row.status, target.requestedByUserId,
+          `report:${taskId}:${row.latest_run_id}:${row.status}`
+        ]
       );
     }
   });

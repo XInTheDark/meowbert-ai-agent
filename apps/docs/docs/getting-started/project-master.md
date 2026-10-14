@@ -29,4 +29,4 @@ The Master is a helper, not a gatekeeper. You can always:
 
 ## Turning it off
 
-Workspace owners can turn the Master off under **Workspace settings → Experiments → Project Master**. With it off, opening a project shows the Project Overview instead, and connector messages can't start tasks.
+Workspace owners can turn the Master off under **Workspace settings → Agent → Project Master**. With it off, opening a project shows the Project Overview instead, and connector messages can't start tasks.

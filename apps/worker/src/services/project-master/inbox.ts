@@ -6,7 +6,7 @@ import { claimPendingMasterReports, formatMasterReport } from "./reports.js";
 export async function appendProjectMasterInbox(execution: AgentExecutionContext): Promise<void> {
   if (!execution.prepared.isProjectMaster) return;
   await appendRunInboxItems(execution, async (client) => {
-    const reports = await claimPendingMasterReports(client, execution.job.taskId);
+    const reports = await claimPendingMasterReports(client, execution.job.taskId, execution.prepared.runActorUserId);
     return reports.map((report): ResponseInputItem => ({ role: "user", content: formatMasterReport(report) }));
   });
 }

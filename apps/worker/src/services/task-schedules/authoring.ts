@@ -24,25 +24,29 @@ import {
   validateIanaTimezone
 } from "./shared.js";
 
-// Runs of a recurring task keep reporting to the Master that was following the task it came from.
+// Runs of a recurring task keep reporting to the Master that was following the task it came from,
+// on behalf of the same member.
 async function registerMasterListenerInTx(
   client: PoolClient,
-  input: { taskId: string; parentTaskId: string; reportToMasterTaskId?: string | null }
+  input: { taskId: string; parentTaskId: string; reportToMasterTaskId?: string | null; requestedByUserId: string | null }
 ): Promise<void> {
-  const masterTaskId = input.reportToMasterTaskId
-    ?? (await client.query<{ master_task_id: string }>(
-      "SELECT master_task_id FROM project_master_listeners WHERE task_id = $1",
-      [input.parentTaskId]
-    )).rows[0]?.master_task_id;
+  const parentListener = (await client.query<{ master_task_id: string; requested_by_user_id: string | null }>(
+    "SELECT master_task_id, requested_by_user_id FROM project_master_listeners WHERE task_id = $1",
+    [input.parentTaskId]
+  )).rows[0];
+  const masterTaskId = input.reportToMasterTaskId ?? parentListener?.master_task_id;
   if (!masterTaskId) {
     return;
   }
+  const requestedByUserId = input.reportToMasterTaskId
+    ? input.requestedByUserId
+    : parentListener?.requested_by_user_id ?? input.requestedByUserId;
 
   await client.query(
-    `INSERT INTO project_master_listeners (task_id, master_task_id)
-     VALUES ($1, $2)
+    `INSERT INTO project_master_listeners (task_id, master_task_id, requested_by_user_id)
+     VALUES ($1, $2, $3)
      ON CONFLICT (task_id) DO NOTHING`,
-    [input.taskId, masterTaskId]
+    [input.taskId, masterTaskId, requestedByUserId]
   );
 }
 
@@ -119,7 +123,8 @@ export async function createRecurringTaskFromTool(input: CreateRecurringTaskInpu
     await registerMasterListenerInTx(client, {
       taskId,
       parentTaskId: input.parentTaskId,
-      reportToMasterTaskId: input.reportToMasterTaskId
+      reportToMasterTaskId: input.reportToMasterTaskId,
+      requestedByUserId: initiatorUserId
     });
 
     const messagePayload: Record<string, unknown> = {

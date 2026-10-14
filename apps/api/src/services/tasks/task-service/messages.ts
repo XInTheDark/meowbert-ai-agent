@@ -10,6 +10,7 @@ import { activateTaskTimeLimitInTx } from "./time-limit.js";
 import { publishMemorySynthesisEvent } from "../../workspaces/memory-synthesis-events.js";
 import { applySelectedSwarmInTx, resolveSelectedSwarm } from "./swarm-selection.js";
 import type { ProjectCanvasIntent } from "../../canvases/project-canvases.js";
+import { recordProjectMasterReplyContextInTx } from "../../project-master/reply-contexts.js";
 import {
   buildUserMessageContent,
   type TaskMessageAttachment,
@@ -105,6 +106,13 @@ export async function appendTaskUserMessageAndEnqueue(input: {
           WHERE id = $1`,
         [input.taskId, input.connectorContextId]
       );
+      if (input.userId) {
+        await recordProjectMasterReplyContextInTx(client, {
+          taskId: input.taskId,
+          userId: input.userId,
+          connectorContextId: input.connectorContextId
+        });
+      }
     }
 
     if (input.interactiveCanvasId !== undefined || input.interactiveCanvasIntent !== undefined) {

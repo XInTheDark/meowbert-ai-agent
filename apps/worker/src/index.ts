@@ -1,5 +1,5 @@
 import { startSubagentWakeLoop } from "./services/subagents/wait.js";
-import { startProjectMasterWakeLoop } from "./services/project-master/wake.js";
+import { startProjectMasterWakeLoop } from "./services/project-master/wake-loop.js";
 import { Worker } from "bullmq";
 import type { EmailDeliveryJob, TaskExecutionJob } from "@meowbert/shared";
 import { EMAIL_DELIVERY_QUEUE_NAME, TASK_QUEUE_NAME, warmStorageBackendsOnStartup } from "@meowbert/shared";

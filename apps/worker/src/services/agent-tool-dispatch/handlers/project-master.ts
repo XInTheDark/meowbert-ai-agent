@@ -20,7 +20,7 @@ import { rethrowIfTaskCancelled } from "../utils.js";
 
 async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDispatchContext) {
   const args: unknown = JSON.parse(call.arguments);
-  const listenerTarget = { masterTaskId: ctx.taskId, environmentId: ctx.environmentId };
+  const listenerTarget = { masterTaskId: ctx.taskId, environmentId: ctx.environmentId, requestedByUserId: ctx.actorUserId ?? null };
   switch (call.name) {
     case "create_task": {
       const input = createTaskSchema.parse(args);
@@ -69,7 +69,7 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
     }
     case "listen_to_tasks": {
       const input = listenToTasksSchema.parse(args);
-      const taskIds = await setTaskListening(listenerTarget, input.task_ids, input.listen);
+      const taskIds = await setTaskListening(listenerTarget, input.task_ids, input.listen, true);
       return { task_ids: taskIds, listening: input.listen };
     }
     default: throw new Error("Unknown Master tool.");

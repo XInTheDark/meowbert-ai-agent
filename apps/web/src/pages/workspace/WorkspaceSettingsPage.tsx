@@ -331,6 +331,13 @@ function AgentSettingsSection(props: {
         availableSkills={props.availableSkills}
         onChange={(nextToolset) => props.drafts.setDefaultToolset(normalizeToolOptions(nextToolset, { memorySearch: false }))}
       />
+      <CheckboxSetting
+        checked={props.drafts.projectMasterEnabled}
+        disabled={props.disabled}
+        onChange={props.drafts.setProjectMasterEnabled}
+        title="Project Master"
+        description="On by default. Opening a project takes you to its Master, who coordinates tasks for you and reports back. You can still manage tasks yourself."
+      />
     </div>
   );
 }
@@ -461,8 +468,6 @@ function RequestSettingsSection(props: {
 function ExperimentSettingsSection(props: {
   newMessageOrganizationEnabled: boolean;
   onNewMessageOrganizationEnabledChange: (value: boolean) => void;
-  projectMasterEnabled: boolean;
-  onProjectMasterEnabledChange: (value: boolean) => void;
   nativeCompactionEnabled: boolean;
   sendMetadataToModel: boolean;
   claudeCacheKeepalive: boolean;
@@ -481,13 +486,6 @@ function ExperimentSettingsSection(props: {
         onChange={props.onNewMessageOrganizationEnabledChange}
         title="New message organization"
         description="Let the assistant organize conversations with an outline, turn summaries, and a map."
-      />
-      <CheckboxSetting
-        checked={props.projectMasterEnabled}
-        disabled={props.disabled}
-        onChange={props.onProjectMasterEnabledChange}
-        title="Project Master"
-        description="On by default. Opening a project takes you to its Master, who coordinates tasks for you and reports back. You can still manage tasks yourself."
       />
       <CheckboxSetting
         checked={props.nativeCompactionEnabled}
@@ -606,7 +604,7 @@ function WorkspaceSettingsEditor(props: {
         />
       ) : null}
       {props.activeTab === "requests" ? <RequestSettingsSection requestTimeoutMinutesDraft={props.drafts.requestTimeoutMinutesDraft} shellToolMaxTimeoutMinutesDraft={props.drafts.shellToolMaxTimeoutMinutesDraft} mcpTimeoutMinutesDraft={props.drafts.mcpTimeoutMinutesDraft} disabled={disabled} onRequestTimeoutMinutesChange={props.drafts.setRequestTimeoutMinutesDraft} onShellToolMaxTimeoutMinutesChange={props.drafts.setShellToolMaxTimeoutMinutesDraft} onMcpTimeoutMinutesChange={props.drafts.setMcpTimeoutMinutesDraft} /> : null}
-      {props.activeTab === "experiments" ? <ExperimentSettingsSection newMessageOrganizationEnabled={props.drafts.newMessageOrganizationEnabled} onNewMessageOrganizationEnabledChange={props.drafts.setNewMessageOrganizationEnabled} projectMasterEnabled={props.drafts.projectMasterEnabled} onProjectMasterEnabledChange={props.drafts.setProjectMasterEnabled} nativeCompactionEnabled={props.drafts.nativeCompactionEnabled} sendMetadataToModel={props.drafts.sendMetadataToModel} claudeCacheKeepalive={props.drafts.claudeCacheKeepalive} codeModeEnabled={props.drafts.codeModeEnabled} disabled={disabled} onNativeCompactionEnabledChange={props.drafts.setNativeCompactionEnabled} onSendMetadataToModelChange={props.drafts.setSendMetadataToModel} onClaudeCacheKeepaliveChange={props.drafts.setClaudeCacheKeepalive} onCodeModeEnabledChange={props.drafts.setCodeModeEnabled} /> : null}
+      {props.activeTab === "experiments" ? <ExperimentSettingsSection newMessageOrganizationEnabled={props.drafts.newMessageOrganizationEnabled} onNewMessageOrganizationEnabledChange={props.drafts.setNewMessageOrganizationEnabled} nativeCompactionEnabled={props.drafts.nativeCompactionEnabled} sendMetadataToModel={props.drafts.sendMetadataToModel} claudeCacheKeepalive={props.drafts.claudeCacheKeepalive} codeModeEnabled={props.drafts.codeModeEnabled} disabled={disabled} onNativeCompactionEnabledChange={props.drafts.setNativeCompactionEnabled} onSendMetadataToModelChange={props.drafts.setSendMetadataToModel} onClaudeCacheKeepaliveChange={props.drafts.setClaudeCacheKeepalive} onCodeModeEnabledChange={props.drafts.setCodeModeEnabled} /> : null}
       {props.activeTab === "sandbox" ? <SandboxSettingsSection runAsRootEnabled={props.drafts.runAsRootEnabled} disabled={disabled} onRunAsRootChange={props.drafts.setRunAsRootEnabled} /> : null}
       {props.error ? <p className="error-text">{props.error}</p> : null}
       <div className="row-actions" style={{ justifyContent: "flex-end" }}>

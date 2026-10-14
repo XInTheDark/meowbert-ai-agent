@@ -30,7 +30,13 @@ export function formatMasterReport(report: PendingMasterReport): string {
 }
 
 // The caller holds the Master's task row lock so concurrent deliveries cannot duplicate reports.
-export async function claimPendingMasterReports(client: PoolClient, masterTaskId: string): Promise<PendingMasterReport[]> {
+// A run only takes reports on work its own member asked for, so each update reaches the right person.
+// The excerpt comes from the reported run, never from an earlier one.
+export async function claimPendingMasterReports(
+  client: PoolClient,
+  masterTaskId: string,
+  actorUserId: string | null
+): Promise<PendingMasterReport[]> {
   const result = await client.query<Omit<PendingMasterReport, "output_files">>(
     `SELECT r.id,
             r.task_id,
@@ -47,14 +53,16 @@ export async function claimPendingMasterReports(client: PoolClient, masterTaskId
           WHERE tm.task_id = r.task_id
             AND tm.role = 'assistant'
             AND COALESCE(tm.content_json->>'text', '') <> ''
+            AND (tr.started_at IS NULL OR tm.created_at >= tr.started_at)
           ORDER BY tm.created_at DESC, tm.id DESC
           LIMIT 1
        ) latest_message ON true
       WHERE r.master_task_id = $1
         AND r.delivered_at IS NULL
+        AND (r.requested_by_user_id IS NULL OR r.requested_by_user_id = $3::uuid)
       ORDER BY r.created_at, r.id
       LIMIT $2`,
-    [masterTaskId, MAX_REPORTS_PER_DELIVERY]
+    [masterTaskId, MAX_REPORTS_PER_DELIVERY, actorUserId]
   );
   if (result.rows.length > 0) {
     await client.query(
