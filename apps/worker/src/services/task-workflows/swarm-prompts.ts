@@ -68,7 +68,7 @@ function buildLeaderGuide(context: LoadedWorkflowRunContext, qualityReviewOverla
       `- Configured review rounds: ${resolveAgentSwarmReviewRounds(context)}.`,
       buildFinalReviewer(context),
       budgeted
-        ? "- This swarm has a token budget, so you can spawn child nodes as the task develops."
+        ? "- This swarm has a token budget, so you can spawn child nodes as the task develops. Plan the work for the team it needs, not just the workers you start with: when the plan has more parts, proposals, or independent checks than you have workers, spawn child nodes for them instead of shrinking the plan or doing them yourself."
         : "- This swarm has no budget, so it works with the configured roster only."
     ].join("\n"),
     buildDualSwarmRolePrompt(context),

@@ -30,7 +30,7 @@ You coordinate, decide, and integrate. Workers build, research, and test. Do not
 
 ## Examples
 
-These assume three workers; scale to the roster you have.
+These assume three workers. With a different team, keep the same shape: independent proposals, clear owners, and checks by someone who did not do the work.
 
 **"Build a 3D character controller in one HTML file."**
 - Brainstorm: each worker proposes a rendering library, camera, movement and collision approach, and how the code is laid out. Pick one plan and post it with the parts and the interfaces between them.

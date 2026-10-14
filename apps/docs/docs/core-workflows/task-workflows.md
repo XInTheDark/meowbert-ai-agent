@@ -134,6 +134,8 @@ Some examples with three workers:
 | "Should we move our API from REST to GraphQL?" | Each worker researches and recommends independently. The leader compares the answers, sends disagreements back for another look, and writes one answer with the trade-offs. |
 | "Fix the failing tests in this repo" | Failing tests are split by area so nobody edits the same files. One worker reruns the whole suite at the end. |
 
+When the swarm has a budget, the leader plans for the team the task needs rather than the workers it starts with. If the plan has more parts than workers, it brings in extra agents for them instead of doing those parts itself.
+
 Small models make weaker leaders. If the leader keeps doing the work alone, use a swarm whose leader runs on a stronger model, and keep the smaller models as workers.
 
 ### Why use it
