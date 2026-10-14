@@ -89,14 +89,6 @@ interface TaskDetailRow {
   schedule_run_deadline_at: string | null;
 }
 
-interface TaskRunRow {
-  id: string;
-  attempt_no: number;
-  started_at: string;
-  ended_at: string | null;
-  exit_reason: string | null;
-}
-
 interface TaskConversationLineageRow {
   id: string;
   role: string;
@@ -108,7 +100,6 @@ interface TaskConversationLineageRow {
   parent_message_id: string | null;
   edited_from_message_id: string | null;
   created_at: string;
-  branch_index: number | string;
 }
 
 interface TaskConversationSiblingRow {
@@ -308,53 +299,54 @@ async function resolveConversationLeafMessageId(input: {
   return resolveActiveLeafMessageId({ taskId: input.taskId, userId: input.userId });
 }
 
-async function loadConversationLineage(
-  taskId: string,
-  activeLeafMessageId: string
-): Promise<TaskConversationLineageRow[]> {
-  const lineageRes = await query<TaskConversationLineageRow>(
+// Walks the branch by id only, so a long conversation costs one light row per message.
+async function loadConversationLineageIds(taskId: string, activeLeafMessageId: string): Promise<string[]> {
+  const lineageRes = await query<{ id: string }>(
     `WITH RECURSIVE lineage AS (
-        SELECT
-          tm.id, tm.role, tm.content_json, tm.message_metadata_json,
-          tm.author_user_id, tm.parent_message_id, tm.edited_from_message_id,
-          tm.created_at, 0 AS depth
-        FROM task_messages tm
-        WHERE tm.task_id = $1 AND tm.id = $2
+        SELECT tm.id, tm.parent_message_id, 0 AS depth
+          FROM task_messages tm
+         WHERE tm.task_id = $1 AND tm.id = $2
         UNION ALL
-        SELECT
-          parent.id, parent.role, parent.content_json, parent.message_metadata_json,
-          parent.author_user_id, parent.parent_message_id, parent.edited_from_message_id,
-          parent.created_at, lineage.depth + 1 AS depth
-        FROM task_messages parent
-        JOIN lineage ON lineage.parent_message_id = parent.id
-        WHERE parent.task_id = $1
-      ),
-      ordered AS (
-        SELECT
-          id, role, content_json, message_metadata_json, author_user_id,
-          parent_message_id, edited_from_message_id, created_at,
-          ROW_NUMBER() OVER (ORDER BY depth DESC) - 1 AS branch_index
-        FROM lineage
+        SELECT parent.id, parent.parent_message_id, lineage.depth + 1
+          FROM task_messages parent
+          JOIN lineage ON lineage.parent_message_id = parent.id
+         WHERE parent.task_id = $1
       )
-      SELECT
-        ordered.id, ordered.role, ordered.content_json, ordered.message_metadata_json,
-        ordered.author_user_id, author.email AS author_email,
-        author.display_name AS author_display_name,
-        ordered.parent_message_id, ordered.edited_from_message_id,
-        ordered.created_at, ordered.branch_index
-      FROM ordered
-      LEFT JOIN users author ON author.id = ordered.author_user_id
-      ORDER BY ordered.branch_index ASC`,
+      SELECT id FROM lineage ORDER BY depth DESC`,
     [taskId, activeLeafMessageId]
   );
-  return lineageRes.rows;
+  return lineageRes.rows.map((row) => row.id);
+}
+
+// Full content only for the messages asked for, in the order given.
+async function loadConversationPageRows(
+  taskId: string,
+  pageMessageIds: string[],
+  options: { skipToolMessages?: boolean } = {}
+): Promise<TaskConversationLineageRow[]> {
+  if (pageMessageIds.length === 0) {
+    return [];
+  }
+  const pageRes = await query<TaskConversationLineageRow>(
+    `SELECT tm.id, tm.role, tm.content_json, tm.message_metadata_json,
+            tm.author_user_id, author.email AS author_email,
+            author.display_name AS author_display_name,
+            tm.parent_message_id, tm.edited_from_message_id, tm.created_at
+       FROM unnest($2::uuid[]) WITH ORDINALITY AS page(id, ord)
+       JOIN task_messages tm ON tm.task_id = $1 AND tm.id = page.id
+       LEFT JOIN users author ON author.id = tm.author_user_id
+      WHERE NOT ($3::boolean AND tm.role = 'tool')
+      ORDER BY page.ord`,
+    [taskId, pageMessageIds, options.skipToolMessages === true]
+  );
+  return pageRes.rows;
 }
 
 function resolveConversationPageBounds(
-  lineageRows: TaskConversationLineageRow[],
+  lineageIds: string[],
   input: { limit: number; beforeIndex?: number; afterIndex?: number; targetMessageId?: string }
 ): { startIndex: number; endIndexExclusive: number } {
-  const totalItems = lineageRows.length;
+  const totalItems = lineageIds.length;
   if (typeof input.beforeIndex === "number") {
     const endIndexExclusive = Math.max(0, Math.min(totalItems, input.beforeIndex));
     return { startIndex: Math.max(0, endIndexExclusive - input.limit), endIndexExclusive };
@@ -364,7 +356,7 @@ function resolveConversationPageBounds(
     return { startIndex, endIndexExclusive: Math.min(totalItems, startIndex + input.limit) };
   }
   if (input.targetMessageId) {
-    const targetIndex = lineageRows.findIndex((row) => row.id === input.targetMessageId);
+    const targetIndex = lineageIds.indexOf(input.targetMessageId);
     if (targetIndex >= 0) {
       const startIndex = Math.min(targetIndex, Math.max(0, totalItems - input.limit));
       return { startIndex, endIndexExclusive: Math.min(totalItems, startIndex + input.limit) };
@@ -376,9 +368,12 @@ function resolveConversationPageBounds(
   };
 }
 
+// Only messages with alternative branches get options; the client shows no switcher otherwise.
+// The branch being viewed already knows its leaf, so only the other siblings walk their subtree.
 async function loadConversationBranchOptions(
   taskId: string,
-  pageMessageIds: string[]
+  pageMessageIds: string[],
+  activeLeafMessageId: string
 ): Promise<Record<string, TaskConversationBranchOption>> {
   if (pageMessageIds.length === 0) {
     return {};
@@ -402,20 +397,23 @@ async function loadConversationBranchOptions(
         JOIN task_messages sibling
           ON sibling.task_id = current_message.task_id
          AND sibling.parent_message_id IS NOT DISTINCT FROM current_message.parent_message_id
+      ),
+      branched AS (
+        SELECT * FROM sibling_groups WHERE sibling_count > 1
       )
       SELECT
-        sibling_groups.message_id,
-        sibling_groups.sibling_id,
-        sibling_groups.sibling_created_at,
-        sibling_groups.sibling_order,
-        sibling_groups.sibling_count,
-        leaf.id AS sibling_leaf_message_id
-      FROM sibling_groups
+        branched.message_id,
+        branched.sibling_id,
+        branched.sibling_created_at,
+        branched.sibling_order,
+        branched.sibling_count,
+        CASE WHEN branched.sibling_id = branched.message_id THEN $3::uuid ELSE leaf.id END AS sibling_leaf_message_id
+      FROM branched
       LEFT JOIN LATERAL (
         WITH RECURSIVE descendants AS (
           SELECT tm.id, tm.created_at
             FROM task_messages tm
-           WHERE tm.task_id = $1 AND tm.id = sibling_groups.sibling_id
+           WHERE tm.task_id = $1 AND tm.id = branched.sibling_id AND branched.sibling_id <> branched.message_id
           UNION ALL
           SELECT child.id, child.created_at
             FROM task_messages child
@@ -431,8 +429,8 @@ async function loadConversationBranchOptions(
          ORDER BY descendants.created_at DESC, descendants.id DESC
          LIMIT 1
       ) AS leaf ON TRUE
-      ORDER BY sibling_groups.message_id ASC, sibling_groups.sibling_order ASC`,
-    [taskId, pageMessageIds]
+      ORDER BY branched.message_id ASC, branched.sibling_order ASC`,
+    [taskId, pageMessageIds, activeLeafMessageId]
   );
   const branchOptions: Record<string, TaskConversationBranchOption> = {};
   for (const row of siblingRes.rows) {
@@ -489,10 +487,14 @@ async function loadTaskConversationPage(input: {
       branch_options: {}
     };
   }
-  const lineageRows = await loadConversationLineage(input.taskId, activeLeafMessageId);
-  const totalItems = lineageRows.length;
-  const { startIndex, endIndexExclusive } = resolveConversationPageBounds(lineageRows, input);
-  const pageRows = lineageRows.slice(startIndex, endIndexExclusive);
+  const lineageIds = await loadConversationLineageIds(input.taskId, activeLeafMessageId);
+  const totalItems = lineageIds.length;
+  const { startIndex, endIndexExclusive } = resolveConversationPageBounds(lineageIds, input);
+  const pageIds = lineageIds.slice(startIndex, endIndexExclusive);
+  const [pageRows, branchOptions] = await Promise.all([
+    loadConversationPageRows(input.taskId, pageIds),
+    loadConversationBranchOptions(input.taskId, pageIds, activeLeafMessageId)
+  ]);
   return {
     active_leaf_message_id: activeLeafMessageId,
     messages: pageRows.map(serializeConversationLineageRow),
@@ -503,7 +505,7 @@ async function loadTaskConversationPage(input: {
       has_older: startIndex > 0,
       has_newer: endIndexExclusive < totalItems
     },
-    branch_options: await loadConversationBranchOptions(input.taskId, pageRows.map((row) => row.id))
+    branch_options: branchOptions
   };
 }
 
@@ -570,16 +572,9 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
     await ensureTaskHistoryWarm(params.taskId);
   }
 
-  const [taskRes, messages, runsRes, contextUsageRes, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow] = await Promise.all([
+  const [taskRes, messages, contextUsageRes, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow] = await Promise.all([
     loadTaskDetailRecord(params.taskId),
     loadTaskMessages(params.taskId, queryInput.messageDetail),
-    query<TaskRunRow>(
-      `SELECT id, attempt_no, started_at, ended_at, exit_reason
-         FROM task_runs
-        WHERE task_id = $1
-        ORDER BY attempt_no DESC`,
-      [params.taskId]
-    ),
     query<ContextUsageRow>(
       `SELECT payload_json, created_at
          FROM task_events
@@ -631,7 +626,6 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
     messages: messages.map((message) => sanitizeTaskMessageForDebugMode(message, debugMode)),
     debug_mode: debugMode,
     thread_counts: threadCounts,
-    runs: runsRes.rows,
     active_leaf_message_id: activeLeafMessageId,
     subtasks: subtasksRes.rows,
     latest_context_usage: contextUsageRes.rows[0]
@@ -763,13 +757,8 @@ async function handleGetPublicTask(request: FastifyRequest, reply: FastifyReply)
         ORDER BY tm.created_at ASC, tm.id ASC`,
       [task.id]
     ),
-    query<TaskRunRow>(
-      `SELECT id, attempt_no, started_at, ended_at, exit_reason
-         FROM task_runs
-        WHERE task_id = $1
-        ORDER BY attempt_no DESC`,
-      [task.id]
-    ),
+    // Only the count is shown; a long-lived task can have thousands of runs.
+    query<{ run_count: number }>("SELECT COUNT(*)::int AS run_count FROM task_runs WHERE task_id = $1", [task.id]),
     query<SubtaskRow>(
       `SELECT id, title, status, created_at, updated_at, completed_at
          FROM tasks
@@ -805,7 +794,7 @@ async function handleGetPublicTask(request: FastifyRequest, reply: FastifyReply)
     messages: messagesRes.rows
       .map(serializeTaskMessageRow)
       .map((message) => sanitizeTaskMessageForDebugMode(message, debugMode)),
-    runs: runsRes.rows,
+    run_count: runsRes.rows[0]?.run_count ?? 0,
     subtasks: subtasksRes.rows,
     workflow
   };
@@ -865,7 +854,7 @@ interface ConversationSearchMatch {
 }
 
 function findConversationSearchMatches(
-  lineageRows: TaskConversationLineageRow[],
+  lineageRows: Array<TaskConversationLineageRow & { branch_index: number }>,
   searchText: string
 ): ConversationSearchMatch[] {
   const searchLower = searchText.toLowerCase();
@@ -888,7 +877,7 @@ function findConversationSearchMatches(
       }
       matches.push({
         messageId: row.id,
-        messageIndex: normalizeQueryInteger(row.branch_index),
+        messageIndex: row.branch_index,
         matchIndex,
         role: row.role,
         createdAt: row.created_at,
@@ -922,8 +911,11 @@ async function handleSearchTaskConversation(request: FastifyRequest) {
       hasPreviousPage: false
     };
   }
-  const lineageRows = await loadConversationLineage(params.taskId, activeLeafMessageId);
-  const allMatches = findConversationSearchMatches(lineageRows, queryInput.q);
+  const lineageIds = await loadConversationLineageIds(params.taskId, activeLeafMessageId);
+  const branchIndexById = new Map(lineageIds.map((id, index) => [id, index]));
+  const searchableRows = (await loadConversationPageRows(params.taskId, lineageIds, { skipToolMessages: true }))
+    .map((row) => ({ ...row, branch_index: branchIndexById.get(row.id) ?? 0 }));
+  const allMatches = findConversationSearchMatches(searchableRows, queryInput.q);
   const totalItems = allMatches.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / queryInput.pageSize));
   const page = Math.min(queryInput.page, totalPages);

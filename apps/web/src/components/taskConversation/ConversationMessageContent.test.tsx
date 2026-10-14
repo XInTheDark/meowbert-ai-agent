@@ -2,9 +2,11 @@
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultTaskAssistantMessageDisplayPreferences } from "../../task/taskPagePreferences";
 import { ConversationMessageContent } from "./ConversationMessageContent";
+import { preloadCodeHighlighter } from "./useHighlightedCode";
+import { preloadMarkdownRehypePlugins } from "./useMarkdownRehypePlugins";
 
 function createLocalStorageMock() {
   const values = new Map<string, string>();
@@ -19,6 +21,11 @@ function createLocalStorageMock() {
 describe("ConversationMessageContent", () => {
   let container: HTMLDivElement;
   let root: Root;
+
+  // Math, raw HTML and code highlighting load on demand; load them up front so renders are complete.
+  beforeAll(async () => {
+    await Promise.all([preloadMarkdownRehypePlugins(), preloadCodeHighlighter()]);
+  });
 
   beforeEach(() => {
     Object.defineProperty(window, "localStorage", {

@@ -80,6 +80,26 @@ describe("registerTaskDetailRoutes", () => {
       rows
     };
   }
+  // The conversation is read as an id walk of the branch, then full rows for the ids asked for.
+  function respondToLineageQuery(
+    rows: Array<{ id: string; role: string; branch_index: number | string } & Record<string, unknown>>,
+    sql: string,
+    params?: unknown[]
+  ): QueryResult<Record<string, unknown>> | null {
+    if (sql.includes("WITH RECURSIVE lineage AS")) {
+      return createQueryResult(rows.map((row) => ({ id: row.id })));
+    }
+    if (sql.includes("WITH ORDINALITY AS page")) {
+      const ids = params?.[1] as string[];
+      const skipToolMessages = params?.[2] === true;
+      return createQueryResult(ids
+        .map((id) => rows.find((row) => row.id === id))
+        .filter((row): row is (typeof rows)[number] => Boolean(row) && !(skipToolMessages && row?.role === "tool"))
+        .map(({ branch_index: _branchIndex, ...row }) => row));
+    }
+    return null;
+  }
+
 
   beforeEach(() => {
     mockedQuery.mockReset();
@@ -310,8 +330,7 @@ describe("registerTaskDetailRoutes", () => {
     });
 
     mockedQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
-      if (sql.includes("WITH RECURSIVE lineage AS") && sql.includes("ROW_NUMBER() OVER")) {
-        return createQueryResult([
+      const lineageResult = respondToLineageQuery([
           {
             id: "msg-user",
             role: "user",
@@ -356,7 +375,9 @@ describe("registerTaskDetailRoutes", () => {
             created_at: "2026-04-21T00:00:02.000Z",
             branch_index: 2
           }
-        ], 3);
+        ], sql, params);
+      if (lineageResult) {
+        return lineageResult;
       }
 
       if (sql.includes("WITH selected_messages AS")) {
@@ -482,8 +503,7 @@ describe("registerTaskDetailRoutes", () => {
     });
 
     mockedQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
-      if (sql.includes("WITH RECURSIVE lineage AS") && sql.includes("ROW_NUMBER() OVER")) {
-        return createQueryResult([
+      const lineageResult = respondToLineageQuery([
           {
             id: "msg-user",
             role: "user",
@@ -502,7 +522,9 @@ describe("registerTaskDetailRoutes", () => {
             created_at: "2026-04-21T00:00:01.000Z",
             branch_index: "1"
           }
-        ], 2);
+        ], sql, params);
+      if (lineageResult) {
+        return lineageResult;
       }
 
       if (sql.includes("WITH selected_messages AS")) {
@@ -569,9 +591,8 @@ describe("registerTaskDetailRoutes", () => {
       request.user = { id: "user-1", email: "user@example.com" };
     });
 
-    mockedQuery.mockImplementation(async (sql: string) => {
-      if (sql.includes("WITH RECURSIVE lineage AS") && sql.includes("ROW_NUMBER() OVER")) {
-        return createQueryResult([
+    mockedQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const lineageResult = respondToLineageQuery([
           {
             id: "msg-user",
             role: "user",
@@ -615,7 +636,9 @@ describe("registerTaskDetailRoutes", () => {
             created_at: "2026-04-21T00:00:01.000Z",
             branch_index: 1
           }
-        ], 2);
+        ], sql, params);
+      if (lineageResult) {
+        return lineageResult;
       }
 
       throw new Error(`Unexpected query: ${sql}`);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { createApiClient } from "./lib/api";
 import { readBrowserNotificationSettings } from "./lib/notificationSettings";
@@ -16,35 +16,38 @@ import { ThemeMode, FlashMessage } from "./lib/types";
 import { AuthPage } from "./pages/auth/AuthPage";
 import { AuthedHomeRedirect } from "./pages/home/AuthedHomeRedirect";
 import { WorkspaceLayout } from "./pages/workspace/WorkspaceLayout";
-import { EnvironmentIndexPage } from "./pages/environment/EnvironmentIndexPage";
 import { EnvironmentOverviewPage } from "./pages/environment/EnvironmentOverviewPage";
 import { ProjectEntryPage } from "./pages/environment/ProjectEntryPage";
-import { EnvironmentSettingsPage } from "./pages/environment/EnvironmentSettingsPage";
-import { EnvironmentFilesPage } from "./pages/environment/EnvironmentFilesPage";
-import { ProjectContextPage } from "./pages/environment/ProjectContextPage";
-import { ProjectCanvasPage } from "./pages/environment/ProjectCanvasPage";
-import { ProjectCanvasesPage } from "./pages/environment/ProjectCanvasesPage";
-import { ProjectPersistentShellsPage } from "./pages/environment/ProjectPersistentShellsPage";
-import { WorkspaceFilesPage } from "./pages/workspace/WorkspaceFilesPage";
-import { WorkspaceMemoryPage } from "./pages/workspace/WorkspaceMemoryPage";
-import { WorkspaceGlobalSearchPage } from "./pages/workspace/WorkspaceGlobalSearchPage";
-import { WorkspaceSettingsPage } from "./pages/workspace/WorkspaceSettingsPage";
 import { TaskComposerPage } from "./pages/task/TaskComposerPage";
 import { TaskDetailPage } from "./pages/task/TaskDetailPage";
-import { WorkspaceConnectorsPage } from "./pages/workspace/WorkspaceConnectorsPage";
-import { AdminSettingsPage } from "./pages/admin/AdminSettingsPage";
-import { WorkspaceManagePage } from "./pages/workspace/WorkspaceManagePage";
-import { ChangelogPage } from "./pages/public/ChangelogPage";
-import { AnnouncementsPage } from "./pages/public/AnnouncementsPage";
-import { WorkspaceNotificationsPage } from "./pages/workspace/WorkspaceNotificationsPage";
-import { SubscriptionPage } from "./pages/user/SubscriptionPage";
-import { UserPreferencesPage } from "./pages/user/UserPreferencesPage";
-import { PublicTaskPage } from "./pages/task/PublicTaskPage";
-import { ServerProfilesPage } from "./pages/desktop/ServerProfilesPage";
-import { DesktopPreferencesPage } from "./pages/desktop/DesktopPreferencesPage";
-import { QuickAgentPage } from "./pages/desktop/QuickAgentPage";
 import { DesktopComputerExecutorBridge } from "./components/desktop/DesktopComputerExecutorBridge";
 import { LoadingScreen } from "./components/LoadingScreen";
+import {
+  EnvironmentIndexPage,
+  EnvironmentSettingsPage,
+  EnvironmentFilesPage,
+  ProjectContextPage,
+  ProjectCanvasPage,
+  ProjectCanvasesPage,
+  ProjectPersistentShellsPage,
+  WorkspaceFilesPage,
+  WorkspaceMemoryPage,
+  WorkspaceGlobalSearchPage,
+  WorkspaceSettingsPage,
+  WorkspaceConnectorsPage,
+  AdminSettingsPage,
+  WorkspaceManagePage,
+  ChangelogPage,
+  AnnouncementsPage,
+  WorkspaceNotificationsPage,
+  SubscriptionPage,
+  UserPreferencesPage,
+  PublicTaskPage,
+  ServerProfilesPage,
+  DesktopPreferencesPage,
+  QuickAgentPage,
+  preloadDeferredModules
+} from "./lazyPages";
 import {
   platform,
   fetchPublicServerConfig,
@@ -138,6 +141,10 @@ export function App() {
       invalidateApiCache();
     }
     setToken(nextToken);
+  }, [token]);
+
+  useEffect(() => {
+    if (token) preloadDeferredModules();
   }, [token]);
 
   useEffect(() => {
@@ -336,6 +343,7 @@ export function App() {
           </div>
         ) : null}
 
+        <Suspense fallback={<LoadingScreen label="Loading..." />}>
         <Routes>
           <Route path="/servers" element={<ServerProfilesPage />} />
           <Route path="/desktop/preferences" element={<DesktopPreferencesPage />} />
@@ -415,6 +423,7 @@ export function App() {
           </Route>
           <Route path="*" element={<Navigate to={requiresServerSelection ? "/servers" : token ? "/app" : "/"} replace />} />
         </Routes>
+        </Suspense>
       </div>
     </AppRuntimeContext.Provider>
   );

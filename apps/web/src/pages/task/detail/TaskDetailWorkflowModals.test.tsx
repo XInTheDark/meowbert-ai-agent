@@ -32,7 +32,6 @@ function createWorkerTaskDetail(): TaskDetail {
       edited_from_message_id: null,
       created_at: "2026-08-28T00:00:30.000Z"
     }],
-    runs: []
   };
 }
 

@@ -441,9 +441,10 @@ export async function registerWorkspaceCoreRoutes(fastify: FastifyInstance): Pro
     const queryInput = workspaceBootstrapQuerySchema.parse(request.query);
     await ensureUserHasWorkspace(request.user.id);
     await assertWorkspaceMember(params.wsId, request.user.id);
-    await markWorkspaceOpened(params.wsId, request.user.id);
 
-    const [userRes, workspaces, projects, workspaceSettings] = await Promise.all([
+    // Recording the visit runs alongside the reads; it does not change what they return.
+    const [, userRes, workspaces, projects, workspaceSettings] = await Promise.all([
+      markWorkspaceOpened(params.wsId, request.user.id),
       query<{
         id: string;
         email: string;

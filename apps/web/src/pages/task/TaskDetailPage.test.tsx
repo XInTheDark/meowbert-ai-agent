@@ -187,7 +187,6 @@ function createTaskDetail(input?: {
     messages: [],
     thread_counts: [],
     active_leaf_message_id: null,
-    runs: [],
     subtasks: [],
     latest_context_usage: null,
     workflow: null

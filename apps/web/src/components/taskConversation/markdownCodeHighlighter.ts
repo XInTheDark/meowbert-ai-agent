@@ -17,28 +17,9 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
+import { normalizeCodeLanguage } from "./markdownCodeLanguages";
 
-const LANGUAGE_ALIASES: Record<string, string> = {
-  bash: "bash",
-  cc: "cpp",
-  "c++": "cpp",
-  h: "cpp",
-  hpp: "cpp",
-  html: "xml",
-  js: "javascript",
-  jsx: "javascript",
-  md: "markdown",
-  plain: "text",
-  plaintext: "text",
-  py: "python",
-  sh: "shell",
-  text: "text",
-  ts: "typescript",
-  tsx: "typescript",
-  txt: "text",
-  yml: "yaml",
-  zsh: "shell"
-};
+// Loaded on demand by code blocks; highlight.js and its grammars are large.
 
 hljs.registerLanguage("bash", bash);
 hljs.registerLanguage("c", c);
@@ -58,24 +39,6 @@ hljs.registerLanguage("sql", sql);
 hljs.registerLanguage("typescript", typescript);
 hljs.registerLanguage("xml", xml);
 hljs.registerLanguage("yaml", yaml);
-
-export function normalizeCodeLanguage(language: string | null | undefined): string | null {
-  const normalized = language?.trim().toLowerCase().replace(/^language-/, "");
-  if (!normalized) {
-    return null;
-  }
-
-  return LANGUAGE_ALIASES[normalized] ?? normalized;
-}
-
-export function getCodeLanguageLabel(language: string | null | undefined): string | null {
-  const normalizedLabel = language?.trim().toLowerCase().replace(/^language-/, "");
-  if (!normalizedLabel || ["plain", "plaintext", "text", "txt"].includes(normalizedLabel)) {
-    return null;
-  }
-
-  return normalizedLabel;
-}
 
 export function highlightCodeToHtml(source: string, language: string | null | undefined): string | null {
   const normalizedLanguage = normalizeCodeLanguage(language);

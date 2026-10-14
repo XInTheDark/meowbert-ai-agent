@@ -1,5 +1,6 @@
 import { ProjectNavigation } from "../../components/navigation/ProjectNavigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { LoadingIndicator } from "../../components/LoadingIndicator";
 import { useVisualViewportMetrics } from "../../hooks/useVisualViewportMetrics";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Sidebar } from "../../components/navigation/Sidebar";
@@ -320,7 +321,10 @@ export function WorkspaceLayout(props: {
             </div>
             {controller.navError && <div className="error-banner">{controller.navError}</div>}
             <ProjectNavigation />
-            <Outlet />
+            {/* Pages load on demand; keep the shell while one arrives. */}
+            <Suspense fallback={<LoadingIndicator center size={28} label="Loading…" />}>
+              <Outlet />
+            </Suspense>
             <MobileBottomNavigation
               pathname={location.pathname}
               workspaceId={activeWorkspaceId}

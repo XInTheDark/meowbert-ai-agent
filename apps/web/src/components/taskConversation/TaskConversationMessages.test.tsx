@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { preloadCodeHighlighter } from "./useHighlightedCode";
+import { preloadMarkdownRehypePlugins } from "./useMarkdownRehypePlugins";
 import {
   buildStableHistoricalToolGroupDescriptors,
   getHistoricalToolGroupKey,
@@ -81,6 +83,11 @@ function createMessage(input: {
 }
 
 describe("TaskConversationMessages", () => {
+  // Math, raw HTML and code highlighting load on demand; load them up front so renders are complete.
+  beforeAll(async () => {
+    await Promise.all([preloadMarkdownRehypePlugins(), preloadCodeHighlighter()]);
+  });
+
   it("hides citation markers only in assistant messages", () => {
     const marker = "citeturn2view3";
     const html = renderToStaticMarkup(

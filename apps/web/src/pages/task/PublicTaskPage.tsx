@@ -168,7 +168,7 @@ export function PublicTaskPage(props: { token: string | null }) {
               </div>
               <div>
                 <span className="stat-label">Runs</span>
-                <strong>{taskDetail.runs.length}</strong>
+                <strong>{taskDetail.run_count ?? 0}</strong>
               </div>
               <div>
                 <span className="stat-label">Messages</span>

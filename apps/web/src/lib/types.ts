@@ -203,14 +203,6 @@ export interface TaskMessage {
   created_at: string;
 }
 
-export interface TaskRun {
-  id: string;
-  attempt_no: number;
-  started_at: string;
-  ended_at: string | null;
-  exit_reason: string | null;
-}
-
 export interface TaskDetail {
   task: {
     id: string;
@@ -260,7 +252,8 @@ export interface TaskDetail {
   debug_mode?: boolean;
   thread_counts?: TaskMessageThreadCount[];
   active_leaf_message_id?: string | null;
-  runs: TaskRun[];
+  // Only on a publicly shared task.
+  run_count?: number;
   subtasks?: Array<{
     id: string;
     title: string | null;

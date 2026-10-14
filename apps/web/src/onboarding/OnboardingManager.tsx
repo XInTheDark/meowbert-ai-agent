@@ -1,6 +1,8 @@
 import {
   ReactNode,
+  Suspense,
   createContext,
+  lazy,
   useCallback,
   useContext,
   useEffect,
@@ -8,7 +10,14 @@ import {
   useRef,
   useState
 } from "react";
-import Joyride, { ACTIONS, EVENTS, STATUS, CallBackProps, Step } from "react-joyride";
+import type { CallBackProps, Step } from "react-joyride";
+
+// The tour library loads only while a tour is running. Its callback values are plain strings,
+// mirrored here so they need no import from it.
+const LazyJoyride = lazy(() => import("react-joyride"));
+const STATUS = { FINISHED: "finished", SKIPPED: "skipped" } as const;
+const EVENTS = { TARGET_NOT_FOUND: "error:target_not_found", STEP_AFTER: "step:after" } as const;
+const ACTIONS = { PREV: "prev" } as const;
 import { useLocation, useNavigate } from "react-router-dom";
 import { ApiClient } from "../lib/api";
 import { Environment, FlashMessage, UserProfile } from "../lib/types";
@@ -434,40 +443,44 @@ export function OnboardingManager(props: OnboardingManagerProps) {
         </aside>
       ) : null}
 
-      <Joyride
-        key={joyrideKey}
-        run={run && isActiveStepRouteReady}
-        stepIndex={stepIndex}
-        continuous
-        showSkipButton
-        showProgress
-        disableScrolling={false}
-        scrollToFirstStep
-        steps={joyrideSteps}
-        callback={handleJoyrideCallback}
-        locale={{
-          back: "Back",
-          close: "Close",
-          last: "Finish",
-          next: "Next",
-          skip: "Pause"
-        }}
-        styles={{
-          options: {
-            zIndex: 5000,
-            arrowColor: "var(--surface)",
-            backgroundColor: "var(--surface)",
-            primaryColor: "var(--brand-strong)",
-            textColor: "var(--text)"
-          },
-          buttonNext: {
-            borderRadius: 6
-          },
-          buttonBack: {
-            color: "var(--text-muted)"
-          }
-        }}
-      />
+      {run ? (
+        <Suspense fallback={null}>
+          <LazyJoyride
+            key={joyrideKey}
+            run={run && isActiveStepRouteReady}
+            stepIndex={stepIndex}
+            continuous
+            showSkipButton
+            showProgress
+            disableScrolling={false}
+            scrollToFirstStep
+            steps={joyrideSteps}
+            callback={handleJoyrideCallback}
+            locale={{
+              back: "Back",
+              close: "Close",
+              last: "Finish",
+              next: "Next",
+              skip: "Pause"
+            }}
+            styles={{
+              options: {
+                zIndex: 5000,
+                arrowColor: "var(--surface)",
+                backgroundColor: "var(--surface)",
+                primaryColor: "var(--brand-strong)",
+                textColor: "var(--text)"
+              },
+              buttonNext: {
+                borderRadius: 6
+              },
+              buttonBack: {
+                color: "var(--text-muted)"
+              }
+            }}
+          />
+        </Suspense>
+      ) : null}
     </OnboardingContext.Provider>
   );
 }

@@ -146,7 +146,6 @@ function createThreadTaskDetail(status = "running", threadAgentId: string | null
     ],
     thread_counts: [],
     active_leaf_message_id: "assistant-1",
-    runs: [],
     subtasks: [],
     latest_context_usage: null,
     workflow: null

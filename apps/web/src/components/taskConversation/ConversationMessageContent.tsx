@@ -1,9 +1,5 @@
 import { Children, lazy, Suspense, useCallback, useEffect, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import type { PluggableList } from "unified";
@@ -16,6 +12,7 @@ import { MarkdownLink } from "./MarkdownLink";
 import { normalizeLatexDelimiters } from "./normalizeLatexDelimiters";
 import { stripCitationMarkers } from "./stripCitationMarkers";
 import { useExpandOnBottomOverscroll } from "./useExpandOnBottomOverscroll";
+import { markdownNeedsHtml, useMarkdownRehypePlugins } from "./useMarkdownRehypePlugins";
 
 const LazyMermaidDiagram = lazy(() => import("./MermaidDiagram").then((mod) => ({ default: mod.MermaidDiagram })));
 
@@ -29,24 +26,6 @@ const DOUBLE_DOLLAR_LATEX_MARKDOWN_PLUGINS: PluggableList = [
 const SINGLE_DOLLAR_LATEX_MARKDOWN_PLUGINS: PluggableList = [
   remarkGfm,
   [remarkMath, { singleDollarTextMath: true }]
-];
-const LATEX_REHYPE_PLUGINS: PluggableList = [rehypeKatex];
-const COMMON_HTML_SCHEMA = {
-  ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "details", "summary"],
-  attributes: {
-    ...defaultSchema.attributes,
-    details: [...(defaultSchema.attributes?.details ?? []), "open"]
-  }
-};
-const COMMON_HTML_REHYPE_PLUGINS: PluggableList = [
-  rehypeRaw,
-  [rehypeSanitize, COMMON_HTML_SCHEMA]
-];
-const COMMON_HTML_LATEX_REHYPE_PLUGINS: PluggableList = [
-  rehypeRaw,
-  [rehypeSanitize, COMMON_HTML_SCHEMA],
-  rehypeKatex
 ];
 const LANGUAGE_CLASS_PATTERN = /(?:^|\s)language-([^\s]+)/;
 
@@ -96,35 +75,27 @@ function RenderedConversationMessageContent(props: {
   content: string;
   displayPreferences: TaskAssistantMessageDisplayPreferences;
 }): JSX.Element {
-  if (!props.displayPreferences.renderMarkdown) {
+  const preferences = props.displayPreferences;
+  const content = preferences.renderMarkdown && preferences.renderLatex
+    ? normalizeLatexDelimiters(props.content)
+    : props.content;
+  const rehypePlugins = useMarkdownRehypePlugins({
+    math: preferences.renderMarkdown && preferences.renderLatex && content.includes("$"),
+    html: preferences.renderMarkdown && preferences.renderCommonHtml && markdownNeedsHtml(content)
+  });
+
+  if (!preferences.renderMarkdown) {
     return <div className="bubble-plain-text">{props.content}</div>;
   }
 
-  if (props.displayPreferences.renderLatex) {
-    const remarkPlugins = props.displayPreferences.allowSingleDollarLatex
+  const remarkPlugins = !preferences.renderLatex
+    ? MARKDOWN_PLUGINS
+    : preferences.allowSingleDollarLatex
       ? SINGLE_DOLLAR_LATEX_MARKDOWN_PLUGINS
       : DOUBLE_DOLLAR_LATEX_MARKDOWN_PLUGINS;
-
-    return (
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={props.displayPreferences.renderCommonHtml
-          ? COMMON_HTML_LATEX_REHYPE_PLUGINS
-          : LATEX_REHYPE_PLUGINS}
-        components={MARKDOWN_COMPONENTS}
-      >
-        {normalizeLatexDelimiters(props.content)}
-      </ReactMarkdown>
-    );
-  }
-
   return (
-    <ReactMarkdown
-      remarkPlugins={MARKDOWN_PLUGINS}
-      rehypePlugins={props.displayPreferences.renderCommonHtml ? COMMON_HTML_REHYPE_PLUGINS : undefined}
-      components={MARKDOWN_COMPONENTS}
-    >
-      {props.content}
+    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={MARKDOWN_COMPONENTS}>
+      {content}
     </ReactMarkdown>
   );
 }

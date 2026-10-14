@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, WrapText } from "lucide-react";
-import { getCodeLanguageLabel, highlightCodeToHtml, normalizeCodeLanguage } from "./markdownCodeHighlighter";
+import { getCodeLanguageLabel, normalizeCodeLanguage } from "./markdownCodeLanguages";
+import { useHighlightedCode } from "./useHighlightedCode";
 
 function writeWithFallbackClipboard(text: string): boolean {
   if (typeof document === "undefined") {
@@ -43,10 +44,7 @@ export function MarkdownCodeBlock(props: {
   const [isWrapped, setIsWrapped] = useState(false);
   const language = normalizeCodeLanguage(props.language);
   const languageLabel = getCodeLanguageLabel(props.language);
-  const highlightedHtml = useMemo(
-    () => highlightCodeToHtml(props.source, language),
-    [language, props.source]
-  );
+  const highlightedHtml = useHighlightedCode(props.source, language);
 
   const handleCopy = useCallback(async (): Promise<void> => {
     const copied = await copyCodeToClipboard(props.source);
