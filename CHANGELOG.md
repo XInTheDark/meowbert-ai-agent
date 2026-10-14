@@ -6,6 +6,21 @@
 
 - **Reasoning in step order** — In the Activity panel, the agent's reasoning now appears as short lines between the tool calls it led to, instead of one block at the top. Click a line to read it in full.
 - **Tidier Agent Swarm answers** — Once a swarm delivers its final answer, the work leading up to it folds into one **Worked for…** row. Files and error notices stay visible, and you can open the row to see everything.
+- **Choose the model for the Master's tasks** — The Project Master chat has a second **Task model** picker for the tasks the Master starts. Pick a model, an Agent Swarm, or a router. With a router, the Master picks one of the router's models for each task itself. Tasks the Master follows up on keep the model they started with.
+- **Master updates reach the right person** — When several people share a project, each task report goes back to whoever asked the Master for that work, in the chat they last wrote from.
+- **Your own follow-ups stay yours** — If you message a task the Master started, that run is no longer reported back to the Master unless it's been asked to follow the task.
+- **Accurate task reports** — A report now only quotes the run it's about, so a run that ended without a reply no longer repeats an earlier answer.
+- **Project Master setting moved** — Turn the Master on or off under **Workspace Settings → Agent**.
+
+### Speed
+
+- **Faster app loading** — The app downloads about half as much up front. Other pages, math rendering, and code highlighting load in the background or when first needed.
+- **Faster conversations** — Opening the Project Master starts loading its messages straight away, and long conversations open and page much faster.
+
+### Self-hosting
+
+- **Router targets name their model directly** — Each router option now sets its model in a top-level `"model"` field, and `"payload"` is optional. Saved routers are converted when you run `npm run migrate`.
+- **Router reasoning effort is opt-in** — Routers no longer set reasoning effort unless `"allowReasoningEffort": true` is set on the router, so each option's own setting applies by default.
 
 ## Oct 4, 2026
 
