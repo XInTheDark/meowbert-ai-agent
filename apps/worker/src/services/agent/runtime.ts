@@ -1010,35 +1010,30 @@ async function resolvePreparedRunBase(job: TaskExecutionJob, debugLogger: TaskDe
       shellEnvOverrides,
       cancellationMonitor.signal
     );
-    let githubTokenRefreshResult: GitHubTokenRefreshResult | null = null;
-    if (refreshGitHubToken) {
-      githubTokenRefreshResult = await debugLogger.stage({
-        stage: "startup.github_token",
-        startMessage: "Refreshing GitHub token for startup.",
-        successMessage: (result) => result.ok
-          ? "Refreshed GitHub token for startup."
-          : "GitHub token refresh failed during startup.",
-        run: refreshGitHubToken,
-        successPayload: (result) => ({
-          ok: result.ok,
-          login: result.login ?? null,
-          expiresAt: result.expiresAt ?? null,
-          contentsPermission: result.contentsPermission ?? null,
-          repositorySelection: result.repositorySelection ?? null,
-          canReadContents: result.canReadContents ?? null,
-          canWriteContents: result.canWriteContents ?? null,
-          error: result.error ?? null
+    // Minting a GitHub App token is a network call; it only adds GitHub variables to the shell
+    // environment, so it runs alongside memory and runtime config instead of before them.
+    const githubTokenRefreshPromise: Promise<GitHubTokenRefreshResult | null> = refreshGitHubToken
+      ? debugLogger.stage({
+          stage: "startup.github_token",
+          startMessage: "Refreshing GitHub token for startup.",
+          successMessage: (result) => result.ok
+            ? "Refreshed GitHub token for startup."
+            : "GitHub token refresh failed during startup.",
+          run: refreshGitHubToken,
+          successPayload: (result) => ({
+            ok: result.ok,
+            login: result.login ?? null,
+            expiresAt: result.expiresAt ?? null,
+            contentsPermission: result.contentsPermission ?? null,
+            repositorySelection: result.repositorySelection ?? null,
+            canReadContents: result.canReadContents ?? null,
+            canWriteContents: result.canWriteContents ?? null,
+            error: result.error ?? null
+          })
         })
-      });
-    }
-    const githubInstallationAccess = githubTokenRefreshResult?.ok
-      ? {
-          contentsPermission: githubTokenRefreshResult.contentsPermission ?? null,
-          repositorySelection: githubTokenRefreshResult.repositorySelection ?? null,
-          canReadContents: githubTokenRefreshResult.canReadContents === true,
-          canWriteContents: githubTokenRefreshResult.canWriteContents === true
-        }
-      : null;
+      : Promise.resolve(null);
+    // Keep a failure here from surfacing as unhandled while the other startup steps run.
+    githubTokenRefreshPromise.catch(() => undefined);
 
     const memoryEnabled = snapshot.environment.workspace_memory_enabled === true;
     const memoryFiles = await debugLogger.stage({
@@ -1083,6 +1078,15 @@ async function resolvePreparedRunBase(job: TaskExecutionJob, debugLogger: TaskDe
         quickMode: resolvedConfig.quickMode
       })
     });
+    const githubTokenRefreshResult = await githubTokenRefreshPromise;
+    const githubInstallationAccess = githubTokenRefreshResult?.ok
+      ? {
+          contentsPermission: githubTokenRefreshResult.contentsPermission ?? null,
+          repositorySelection: githubTokenRefreshResult.repositorySelection ?? null,
+          canReadContents: githubTokenRefreshResult.canReadContents === true,
+          canWriteContents: githubTokenRefreshResult.canWriteContents === true
+        }
+      : null;
 
     return {
       snapshot,
