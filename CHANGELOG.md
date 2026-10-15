@@ -1,5 +1,18 @@
 # Changelog
 
+## Oct 15, 2026
+
+### Speed
+
+- **Snappier on slow connections** — Most requests now take one round trip instead of two, and the app's code stays cached between visits, so pages open noticeably faster when the server is far away.
+- **Messages appear as you send them** — Your message shows in the conversation and the input clears the moment you press send. If sending fails, your text comes back.
+- **Faster task opening** — Opening a running task no longer waits on a second request to show its latest tool calls, and the app goes straight to your last workspace.
+- **Faster run start** — Tasks in projects connected to GitHub start sooner.
+
+### Self-hosting
+
+- **The web app serves the API** — The web container now runs Caddy and passes `/api` through to the API, so the web address is all browsers need. `VITE_API_URL` is now optional: remove it and rebuild the web image to get the faster setup, or keep it to call a separate API address. `VITE_ALLOWED_HOSTS` is no longer used by the web container. See **Configuration** in the docs.
+
 ## Oct 14, 2026
 
 ### AI and agents
