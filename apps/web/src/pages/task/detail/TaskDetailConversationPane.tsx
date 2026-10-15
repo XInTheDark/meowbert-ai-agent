@@ -11,6 +11,7 @@ import type { SkillSummary } from "../../../components/tasks/ToolOptionsDropdown
 import type { WorkspaceSourceSummary } from "../../../sources/sourceTypes";
 import { TaskConversationMessages } from "../../../components/taskConversation/TaskConversationMessages";
 import type { ToolInspectorSelection } from "../../../components/taskConversation/ToolActivityInspectorPanel";
+import { PendingFollowUpBubble } from "../../../components/taskConversation/PendingFollowUpBubble";
 import type {
   LiveToolCall,
   TaskAssistantMessageDisplayPreferences,
@@ -29,6 +30,7 @@ interface TaskDetailConversationPaneProps {
   taskId: string;
   messages: TaskMessage[];
   assistantMessageDisplayPreferences: TaskAssistantMessageDisplayPreferences;
+  pendingFollowUpText?: string | null;
   isConversationBootstrapping: boolean;
   isConversationPageLoading: boolean;
   conversationPageLoadDirection: "older" | "newer" | null;
@@ -204,6 +206,12 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
               conversationContainerRef={props.chatFeedRef}
               stagedAnnotationCount={props.quotedFollowUpSelections?.length ?? 0}
             />
+            {props.pendingFollowUpText ? (
+              <PendingFollowUpBubble
+                text={props.pendingFollowUpText}
+                displayPreferences={props.assistantMessageDisplayPreferences}
+              />
+            ) : null}
           </>
         )}
         {props.isConversationPageLoading && props.conversationPageLoadDirection !== "older" ? (

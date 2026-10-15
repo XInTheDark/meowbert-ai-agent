@@ -28,6 +28,7 @@ import {
   updateTaskParameters,
   type TaskScheduleAction
 } from "./taskDetailMutations";
+import type { PendingFollowUpControls } from "./usePendingFollowUp";
 import { buildDefaultTaskParameters, taskScheduleMatches } from "../../../task/taskParameters";
 
 interface UseTaskDetailActionsInput {
@@ -71,6 +72,7 @@ interface UseTaskDetailActionsInput {
   cancelPendingConversationDraftPersist: () => void;
   clearCurrentConversationDraft: () => void;
   persistedMessageDisplayPreferences: TaskAssistantMessageDisplayPreferences;
+  pendingFollowUp: PendingFollowUpControls;
 }
 
 function useTaskInterruptActions(input: UseTaskDetailActionsInput) {
@@ -175,6 +177,15 @@ function useTaskFollowUpAction(
 
     setIsBusy(true);
     input.setError(null);
+    // New messages show in the conversation and leave the composer at once; edits wait for the server.
+    const sendsOptimistically = !input.editingMessageId && message.trim().length > 0;
+    const sentDraft = { followUp: input.followUp, quotes: input.quotedFollowUpSelections };
+    if (sendsOptimistically) {
+      input.pendingFollowUp.begin(message);
+      input.cancelPendingConversationDraftPersist();
+      input.setFollowUp("");
+      input.setQuotedFollowUpSelections([]);
+    }
     try {
       if (["running", "starting", "queued"].includes(input.taskDetail.task.status)) {
         await requestInterruptAndMarkTask();
@@ -194,10 +205,14 @@ function useTaskFollowUpAction(
         interactiveCanvasIntent: input.taskDetail.task.interactive_canvas_id || input.selectedFollowUpCanvas ? "update" : null
       });
       input.invalidateCurrentTaskCache();
-      input.cancelPendingConversationDraftPersist();
-      input.setFollowUp("");
+      if (sendsOptimistically) {
+        input.pendingFollowUp.confirm(response.messageId ?? null);
+      } else {
+        input.cancelPendingConversationDraftPersist();
+        input.setFollowUp("");
+        input.setQuotedFollowUpSelections([]);
+      }
       input.setSelectedTextDraft(null);
-      input.setQuotedFollowUpSelections([]);
       input.clearAttachments();
       input.setSelectedFollowUpCanvas(null);
       input.clearCurrentConversationDraft();
@@ -211,6 +226,11 @@ function useTaskFollowUpAction(
       }
       await input.loadTask();
     } catch (error) {
+      if (sendsOptimistically) {
+        input.pendingFollowUp.clear();
+        input.setFollowUp((current) => (current.trim().length > 0 ? current : sentDraft.followUp));
+        input.setQuotedFollowUpSelections((current) => (current.length > 0 ? current : sentDraft.quotes));
+      }
       input.setError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsBusy(false);

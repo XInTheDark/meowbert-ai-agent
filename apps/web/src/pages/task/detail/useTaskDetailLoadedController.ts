@@ -9,13 +9,15 @@ import { useTaskDetailComposer } from "./useTaskDetailComposer";
 import { useTaskDetailConversationControllers } from "./useTaskDetailConversationControllers";
 import type { TaskDetailPageContext } from "./useTaskDetailPageContext";
 import { useTaskDetailViewState } from "./useTaskDetailViewState";
+import { usePendingFollowUp, type PendingFollowUpControls } from "./usePendingFollowUp";
 import { useProjectPersistentShellSessions } from "../../environment/overview/useProjectPersistentShellSessions";
 
 function useLoadedTaskActions(
   context: TaskDetailPageContext,
   view: ReturnType<typeof useTaskDetailViewState>,
   composer: ReturnType<typeof useTaskDetailComposer>,
-  controllers: ReturnType<typeof useTaskDetailConversationControllers>
+  controllers: ReturnType<typeof useTaskDetailConversationControllers>,
+  pendingFollowUp: PendingFollowUpControls
 ) {
   return useTaskDetailActions({
     api: context.workspace.api,
@@ -57,7 +59,8 @@ function useLoadedTaskActions(
     selectedMasterTaskAgentId: composer.selectedMasterTaskAgentId,
     cancelPendingConversationDraftPersist: composer.cancelPendingConversationDraftPersist,
     clearCurrentConversationDraft: composer.clearCurrentConversationDraft,
-    persistedMessageDisplayPreferences: context.messageDisplayPreferences
+    persistedMessageDisplayPreferences: context.messageDisplayPreferences,
+    pendingFollowUp
   });
 }
 
@@ -108,7 +111,8 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
     defaultAgentId: context.catalog.defaultAgentId
   });
   const controllers = useTaskDetailConversationControllers(context, view, composer);
-  const actions = useLoadedTaskActions(context, view, composer, controllers);
+  const pendingFollowUp = usePendingFollowUp(context.taskId, controllers.conversation.messages);
+  const actions = useLoadedTaskActions(context, view, composer, controllers, pendingFollowUp);
   const organization = useConversationNavigation({
     api: context.workspace.api, taskId: context.taskId,
     enabled: Boolean(context.workspace.workspaceSettings) && getNewMessageOrganizationEnabled(context.workspace.workspaceSettings?.modelDefaults),
@@ -154,6 +158,7 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
     composer,
     controllers,
     actions,
+    pendingFollowUp,
     persistentShells,
     organization,
     debugModeEnabled,

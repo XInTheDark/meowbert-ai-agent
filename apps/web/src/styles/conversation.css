@@ -1450,6 +1450,10 @@
   align-items: flex-end;
 }
 
+.chat-bubble.user.pending {
+  opacity: 0.72;
+}
+
 .message-author-label {
   max-width: 100%;
   padding: 0 0.35rem;

@@ -187,6 +187,7 @@ function TaskConversationMain({ model }: ModelProps) {
       <TaskDetailConversationPane
         taskId={model.context.taskId}
         messages={conversation.messages}
+        pendingFollowUpText={conversation.messagePage.has_newer ? null : model.pendingFollowUp.text}
         assistantMessageDisplayPreferences={model.actions.messageDisplayPreferences}
         showMessageAuthors={model.showMessageAuthors}
         isConversationBootstrapping={conversation.isConversationBootstrapping}
