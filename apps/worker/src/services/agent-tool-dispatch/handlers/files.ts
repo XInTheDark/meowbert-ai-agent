@@ -77,25 +77,19 @@ export async function handleViewImage(
       const dataUrl = `data:${mimeType};base64,${fileBuffer.toString("base64")}`;
 
       const output = { ok: true, file_path: opened.realPath };
-      const fileName = path.basename(opened.realPath);
 
       const isModelOpenAi = (ctx.modelType ?? "openai") === "openai";
       const detail = isModelOpenAi && parsed.value.detail === "full" ? "original" : "high";
 
-      const imageContent = {
-        type: "input_image",
-        detail,
-        image_url: dataUrl
-      } as ResponseInputContent;
+      // No text label: each content block counts toward the provider's cache lookback, and the
+      // file path is already in the call's output (or exec's shown_files) right before the image.
       const imageItem: ResponseInputItem = {
         role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Image file: ${fileName}`
-          } as ResponseInputContent,
-          imageContent
-        ]
+        content: [{
+          type: "input_image",
+          detail,
+          image_url: dataUrl
+        } as ResponseInputContent]
       };
       const finished = await finishBuiltinToolSuccess(ctx, execution, output, {
         eventPayload: { file_path: opened.realPath },

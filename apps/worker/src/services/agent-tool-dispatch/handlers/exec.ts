@@ -34,6 +34,13 @@ function limitResult(result: unknown): unknown {
     : result;
 }
 
+// Names the files behind shown images and PDFs, in the order they follow exec's output.
+function readShownFilePath(result: ToolCallResult): string | null {
+  if (!result.shownItems?.length || !result.output || typeof result.output !== "object") return null;
+  const filePath = (result.output as { file_path?: unknown }).file_path;
+  return typeof filePath === "string" ? filePath : null;
+}
+
 function resolveTimeoutMs(timeoutSeconds: number | null, ctx: ToolDispatchContext): number {
   const requestedMs = timeoutSeconds === null ? config.runtime.commandTimeoutMs : timeoutSeconds * 1000;
   return Math.max(1_000, Math.min(requestedMs, ctx.shellToolMaxTimeoutMs));
@@ -62,6 +69,7 @@ export async function handleExec(
   let cancelledByTask = false;
   // Images and PDFs the script loads are shown to the model after exec's own output.
   const shownItems: ResponseInputItem[] = [];
+  const shownFiles: string[] = [];
   const script = await runCodeModeScript({
     code: parsed.value.code,
     toolNames: [...tools.keys()],
@@ -74,6 +82,8 @@ export async function handleExec(
       try {
         const result = await dispatchNestedToolCall({ execCall: outputItem, index: toolCallCount, tool, args, ctx, state, dispatch });
         shownItems.push(...(result.shownItems ?? []));
+        const shownFile = readShownFilePath(result);
+        if (shownFile) shownFiles.push(shownFile);
         return result.output;
       } catch (error) {
         if (getErrorMessage(error) === "TASK_CANCELLED") cancelledByTask = true;
@@ -90,7 +100,8 @@ export async function handleExec(
   const output = {
     ...(script.logs ? { logs: limitText(script.logs) } : {}),
     ...(script.result !== undefined ? { result: limitResult(script.result) } : {}),
-    tool_calls: toolCallCount
+    tool_calls: toolCallCount,
+    ...(shownFiles.length > 0 ? { shown_files: shownFiles } : {})
   };
   const finished = script.error
     ? await finishBuiltinToolFailure(ctx, execution, script.error, { output, messagePayload: summaryPayload })

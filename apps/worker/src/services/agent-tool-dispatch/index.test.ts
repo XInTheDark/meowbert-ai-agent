@@ -1103,12 +1103,9 @@ describe("dispatchResponseOutput", () => {
       }) as { content?: Array<{ type?: string; text?: string; image_url?: string }> } | undefined;
 
       expect(imageItem).toBeDefined();
-      expect(imageItem?.content?.[0]).toEqual({
-        type: "input_text",
-        text: "Image file: actually-jpeg.jpg"
-      });
-      expect(imageItem?.content?.[1]?.image_url).toContain("data:image/png;base64,");
-      expect((imageItem?.content?.[1] as { detail?: string } | undefined)?.detail).toBe("high");
+      expect(imageItem?.content).toHaveLength(1);
+      expect(imageItem?.content?.[0]?.image_url).toContain("data:image/png;base64,");
+      expect((imageItem?.content?.[0] as { detail?: string } | undefined)?.detail).toBe("high");
       // The image follows the call's output, so the call and its output stay adjacent.
       expect(state.conversationItems.indexOf(imageItem as ResponseInputItem)).toBe(state.conversationItems.indexOf(outputItem!) + 1);
       expect(state.runPersistedItems).toEqual(state.conversationItems);
@@ -1158,7 +1155,7 @@ describe("dispatchResponseOutput", () => {
       }) as { content?: Array<{ type?: string; text?: string; image_url?: string; detail?: string }> } | undefined;
 
       expect(imageItem).toBeDefined();
-      expect(imageItem?.content?.[1]?.detail).toBe("original");
+      expect(imageItem?.content?.[0]?.detail).toBe("original");
     } finally {
       fs.rmSync(taskDir, { recursive: true, force: true });
     }
@@ -1205,7 +1202,7 @@ describe("dispatchResponseOutput", () => {
       }) as { content?: Array<{ type?: string; text?: string; image_url?: string; detail?: string }> } | undefined;
 
       expect(imageItem).toBeDefined();
-      expect(imageItem?.content?.[1]?.detail).toBe("high");
+      expect(imageItem?.content?.[0]?.detail).toBe("high");
     } finally {
       fs.rmSync(taskDir, { recursive: true, force: true });
     }
@@ -1252,7 +1249,7 @@ describe("dispatchResponseOutput", () => {
       }) as { content?: Array<{ type?: string; text?: string; image_url?: string; detail?: string }> } | undefined;
 
       expect(imageItem).toBeDefined();
-      expect(imageItem?.content?.[1]?.detail).toBe("high");
+      expect(imageItem?.content?.[0]?.detail).toBe("high");
     } finally {
       fs.rmSync(taskDir, { recursive: true, force: true });
     }
