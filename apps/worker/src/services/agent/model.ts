@@ -16,6 +16,11 @@ import { emitNetworkRequestEvent, type NetworkRequestLogEvent, type NetworkReque
 import { withOpenAiRequestDebugLogging } from "./openai-sdk-logger.js";
 import { extractNetworkRequestErrorResponse } from "./model-error-response-log.js";
 import {
+  isRetryableCutOffResponse,
+  MODEL_RESPONSE_CUT_OFF_RETRIES,
+  ModelResponseCutOffError
+} from "./model-response-cut-off.js";
+import {
   TASK_TITLE_FUNCTION_TOOL,
   TASK_TITLE_SYSTEM_PROMPT,
   TASK_TITLE_TOOL_NAME,
@@ -120,6 +125,7 @@ type CreateModelResponseInput = {
   requestEndpoint?: string;
   requestAttempt?: number;
   requestSessionId?: string;
+  acceptCutOffResponse?: boolean;
 };
 
 function trimTrailingSlashes(value: string): string {
@@ -299,6 +305,9 @@ export async function createModelResponse(input: CreateModelResponseInput): Prom
       throw new Error("Model response contained a function call without a call_id.");
     }
   }
+  if (!input.acceptCutOffResponse && isRetryableCutOffResponse(response)) {
+    throw new ModelResponseCutOffError();
+  }
 
   return response;
 }
@@ -360,6 +369,29 @@ async function sleepWithOptionalAbort(ms: number, signal: AbortSignal | undefine
   });
 }
 
+async function emitModelRequestErrorEvent(
+  input: CreateModelResponseInput,
+  attemptNo: number,
+  requestStartedAt: number,
+  err: unknown
+): Promise<void> {
+  const errorResponse = extractNetworkRequestErrorResponse(err);
+  await emitNetworkRequestEvent(input.onNetworkRequest, {
+    phase: "error",
+    service: "openai_responses",
+    endpoint: "responses.create",
+    model: input.model,
+    baseUrl: input.provider.baseUrl,
+    attempt: attemptNo,
+    durationMs: Date.now() - requestStartedAt,
+    error: err instanceof Error ? err.message : String(err),
+    ...(errorResponse ? { errorResponse } : {}),
+    responseStream: {
+      events: readResponseStreamEvents(err)
+    }
+  });
+}
+
 export async function createModelResponseWithRetry(
   taskId: string,
   input: CreateModelResponseInput & {
@@ -369,6 +401,7 @@ export async function createModelResponseWithRetry(
 ): Promise<Response> {
   let lastError: Error | null = null;
   let consecutiveErrorCount = 0;
+  let cutOffCount = 0;
   let attempt = 0;
   const requestSessionId = input.requestSessionId ?? taskId;
   const requestInput = { ...input, requestSessionId };
@@ -395,7 +428,8 @@ export async function createModelResponseWithRetry(
       const response = await createModelResponse({
         ...requestInput,
         requestEndpoint: "responses.create",
-        requestAttempt: attemptNo
+        requestAttempt: attemptNo,
+        acceptCutOffResponse: cutOffCount >= MODEL_RESPONSE_CUT_OFF_RETRIES
       });
       await emitNetworkRequestEvent(input.onNetworkRequest, {
         phase: "success",
@@ -411,22 +445,7 @@ export async function createModelResponseWithRetry(
       });
       return response;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const errorResponse = extractNetworkRequestErrorResponse(err);
-      await emitNetworkRequestEvent(input.onNetworkRequest, {
-        phase: "error",
-        service: "openai_responses",
-        endpoint: "responses.create",
-        model: input.model,
-        baseUrl: input.provider.baseUrl,
-        attempt: attemptNo,
-        durationMs: Date.now() - requestStartedAt,
-        error: message,
-        ...(errorResponse ? { errorResponse } : {}),
-        responseStream: {
-          events: readResponseStreamEvents(err)
-        }
-      });
+      await emitModelRequestErrorEvent(input, attemptNo, requestStartedAt, err);
       if (
         err instanceof Error
         && (err.message === "TASK_CANCELLED" || err.message === "RUN_TIME_LIMIT_REACHED")
@@ -441,6 +460,9 @@ export async function createModelResponseWithRetry(
 
       lastError = err instanceof Error ? err : new Error(String(err));
       consecutiveErrorCount += 1;
+      if (err instanceof ModelResponseCutOffError) {
+        cutOffCount += 1;
+      }
 
       if (resolveModelErrorAction(lastError) !== null) {
         throw lastError;

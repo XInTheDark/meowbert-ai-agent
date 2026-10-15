@@ -429,6 +429,32 @@ function normalizeCompatibleSnapshot<TResponse extends StreamFinalResponseLike>(
   return normalized as unknown as TResponse;
 }
 
+function recordFinishedOutputIndex<TResponse>(
+  finishedOutputIndexes: Set<number>,
+  event: ResponseStreamEventLike<TResponse>
+): void {
+  if (
+    (event.type === "response.output_item.done" || event.type === "response.function_call_arguments.done")
+    && isNonNegativeInteger(event.output_index)
+  ) {
+    finishedOutputIndexes.add(event.output_index);
+  }
+}
+
+// A stream that drops before a function call's done event leaves its arguments partial.
+// Mark the call incomplete so callers can retry instead of running a broken call.
+function markUnfinishedFunctionCalls(
+  snapshot: MutableResponseSnapshot,
+  finishedOutputIndexes: Set<number>
+): MutableResponseSnapshot {
+  snapshot.output.forEach((item, index) => {
+    if (isRecord(item) && item.type === "function_call" && !finishedOutputIndexes.has(index)) {
+      item.status = "incomplete";
+    }
+  });
+  return snapshot;
+}
+
 function hasCompatibleSnapshotContent(snapshot: MutableResponseSnapshot | null): boolean {
   if (!snapshot) {
     return false;
@@ -531,11 +557,13 @@ export async function streamResponseToFinal<
   let compatibleSnapshot: MutableResponseSnapshot | null = null;
   let sawCompatibleCompletion = false;
   let eventCount = 0;
+  const finishedOutputIndexes = new Set<number>();
 
   try {
     for await (const event of stream) {
       eventCount += 1;
       hooks?.onEvent?.(cloneJsonLike(event));
+      recordFinishedOutputIndex(finishedOutputIndexes, event);
       if (isTerminalResponseEvent(event)) {
         terminalResponse = event.response;
       }
@@ -563,7 +591,7 @@ export async function streamResponseToFinal<
     }
 
     if (compatibleSnapshot && hasCompatibleSnapshotContent(compatibleSnapshot)) {
-      return normalizeCompatibleSnapshot<TResponse>(compatibleSnapshot);
+      return normalizeCompatibleSnapshot<TResponse>(markUnfinishedFunctionCalls(compatibleSnapshot, finishedOutputIndexes));
     }
 
     throw error;
@@ -577,7 +605,7 @@ export async function streamResponseToFinal<
   }
 
   if (compatibleSnapshot && hasCompatibleSnapshotContent(compatibleSnapshot)) {
-    return normalizeCompatibleSnapshot<TResponse>(compatibleSnapshot);
+    return normalizeCompatibleSnapshot<TResponse>(markUnfinishedFunctionCalls(compatibleSnapshot, finishedOutputIndexes));
   }
 
   if (eventCount === 0) {

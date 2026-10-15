@@ -649,6 +649,30 @@ describe("streamResponseToFinal", () => {
     expect(response.output_text).toBe("Hello world");
   });
 
+  it("marks a function call incomplete when the stream ends before it finishes", async () => {
+    const createMock = vi.fn().mockResolvedValue(createEventStream([
+      {
+        type: "response.output_item.done",
+        output_index: 0,
+        item: { type: "reasoning", summary: [{ type: "summary_text", text: "Writing the file" }] }
+      },
+      {
+        type: "response.output_item.added",
+        output_index: 1,
+        item: { type: "function_call", call_id: "call_cut", name: "exec", arguments: "", status: "in_progress" }
+      },
+      {
+        type: "response.function_call_arguments.delta",
+        output_index: 1,
+        delta: "{\"code\": \"const part"
+      }
+    ], new Error("terminated")));
+
+    const response = await streamResponseToFinal({ responses: { create: createMock } }, { model: "gpt-test", input: "hi" });
+
+    expect(response.output[1]).toMatchObject({ type: "function_call", call_id: "call_cut", status: "incomplete" });
+  });
+
   it("uses accumulated argument snapshots from compatible function-call delta streams", async () => {
     const createMock = vi.fn().mockResolvedValue(createEventStream([
       {

@@ -131,6 +131,7 @@ import {
   recordFunctionCallResult
 } from "./state.js";
 import { toolErrorResult, type ToolCallResult } from "./tool-call-result.js";
+import { CUT_OFF_TOOL_CALL_ERROR, isCutOffFunctionCall } from "../agent/model-response-cut-off.js";
 import type { ToolDispatchContext, ToolDispatchResult, ToolDispatchState } from "./types.js";
 import { recordContextItems } from "../context-management-v2/index.js";
 import { trackRepeatedToolCall } from "./repeated-tool-calls.js";
@@ -501,7 +502,9 @@ export async function dispatchResponseOutput(
       sawFunctionToolCall = true;
       let result: ToolCallResult;
       try {
-        result = await handleContextManagementV2Tool(outputItem, ctx, state);
+        result = isCutOffFunctionCall(outputItem)
+          ? toolErrorResult(CUT_OFF_TOOL_CALL_ERROR)
+          : await handleContextManagementV2Tool(outputItem, ctx, state);
       } catch (error) {
         result = toolErrorResult(error instanceof Error ? error.message : String(error));
         console.info("[context-management-v2]", JSON.stringify({
@@ -566,7 +569,9 @@ export async function dispatchResponseOutput(
 
     let result: ToolCallResult;
     try {
-      result = await dispatchFunctionToolCall(outputItem, ctx, state);
+      result = isCutOffFunctionCall(outputItem)
+        ? toolErrorResult(CUT_OFF_TOOL_CALL_ERROR)
+        : await dispatchFunctionToolCall(outputItem, ctx, state);
     } catch (error) {
       result = toolErrorResult(await reportUnhandledToolFailure(outputItem.name, outputItem.call_id, ctx, error));
     }

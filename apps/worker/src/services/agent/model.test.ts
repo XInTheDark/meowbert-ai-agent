@@ -1191,6 +1191,39 @@ describe("createModelResponse", () => {
     expect(createMock).toHaveBeenCalledTimes(2);
   });
 
+  it("retries a response cut off mid tool call once, then hands the cut-off call back", async () => {
+    vi.useFakeTimers();
+
+    // The stream drops while the call's arguments are still streaming, as a proxy timeout does.
+    const createMock = vi.fn().mockImplementation(async () => ({
+      async *[Symbol.asyncIterator]() {
+        yield {
+          type: "response.output_item.added",
+          output_index: 0,
+          item: { type: "function_call", call_id: "call_cut", name: "exec", arguments: "", status: "in_progress" }
+        };
+        yield { type: "response.function_call_arguments.delta", output_index: 0, delta: "{\"code\": \"const part" };
+      }
+    }));
+    mockedGetOpenAiClient.mockReturnValue({ responses: { create: createMock } } as never);
+
+    const responsePromise = createModelResponseWithRetry("task-123", {
+      provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
+      model: "gpt-test",
+      prefixItems: [],
+      conversationItems: [],
+      modelPayload: {},
+      tools: [],
+      toolChoice: "auto"
+    });
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    const response = await responsePromise;
+
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(response.output[0]).toMatchObject({ type: "function_call", call_id: "call_cut", status: "incomplete" });
+  });
+
   it("repairs request input after three consecutive errors before retrying", async () => {
     vi.useFakeTimers();
 
