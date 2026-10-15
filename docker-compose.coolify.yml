@@ -204,13 +204,10 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
-        SERVICE_URL_API: ${SERVICE_URL_API:-}
         VITE_DOCS_URL: ${VITE_DOCS_URL:-}
         SERVICE_URL_DOCS: ${SERVICE_URL_DOCS:-}
     restart: unless-stopped
     environment:
-      VITE_API_URL: http://localhost:4000
-      VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-}
       SERVICE_FQDN_WEB: ${SERVICE_FQDN_WEB:-}
       SERVICE_URL_WEB: ${SERVICE_URL_WEB:-}
       COOLIFY_FQDN: ${COOLIFY_FQDN:-}

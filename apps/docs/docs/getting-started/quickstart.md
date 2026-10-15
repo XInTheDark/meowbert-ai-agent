@@ -61,5 +61,5 @@ Watch the agent work in the task view, then ask a follow-up in the same conversa
 - [Workspace Navigation](/getting-started/workspace-navigation): find your way around
 
 ::: tip Reaching Meowbert from other machines
-Out of the box the web app talks to the API at `http://localhost:4000`. To use Meowbert from another device, put it behind a reverse proxy with HTTPS and set `VITE_API_URL` (web) and `server.publicUrl` (config) to the public addresses. See [Configuration](/self-hosting/configuration#reaching-meowbert-from-other-machines).
+The web app reaches the API through its own `/api` path, so it works from any device that can open port 5173. To use Meowbert from another device, put it behind a reverse proxy with HTTPS and set `web.appUrl` and `server.publicUrl` (config) to the public addresses. See [Configuration](/self-hosting/configuration#reaching-meowbert-from-other-machines).
 :::

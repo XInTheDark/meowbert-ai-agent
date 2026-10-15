@@ -1,4 +1,15 @@
-const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+// The web image builds with an empty VITE_API_URL and proxies /api, so the API shares the page origin.
+function resolveDefaultApiBaseUrl(): string {
+  const configured = import.meta.env.VITE_API_URL;
+  if (configured === undefined) {
+    return "http://localhost:4000";
+  }
+
+  const trimmed = configured.trim().replace(/\/+$/, "");
+  return trimmed.length > 0 ? trimmed : window.location.origin;
+}
+
+const DEFAULT_API_BASE_URL = resolveDefaultApiBaseUrl();
 
 interface RuntimeState {
   apiBaseUrl: string;

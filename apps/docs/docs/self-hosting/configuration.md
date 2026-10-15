@@ -57,16 +57,12 @@ MEOWBERT_MEILISEARCH_MASTER_KEY=…
 
 ## Reaching Meowbert from other machines
 
-By default the web app (port 5173) calls the API at `http://localhost:4000`, which only works on the server itself. To use Meowbert from other devices:
+The web app (port 5173) serves the API under its own `/api` path, so browsers only need to reach the web address. To use Meowbert from other devices:
 
 1. Put the web app and the API behind a reverse proxy with HTTPS, for example `https://meowbert.example.com` and `https://api.meowbert.example.com`.
-2. In `.env`, set:
-   ```bash
-   VITE_API_URL=https://api.meowbert.example.com
-   VITE_ALLOWED_HOSTS=meowbert.example.com
-   ```
-3. In the config file, set `server.publicUrl` to the API address and `web.appUrl` to the web address.
-4. Rebuild the web app, since the API address is built into it: `docker compose build web && docker compose up -d`.
+2. In the config file, set `server.publicUrl` to the API address and `web.appUrl` to the web address.
+
+Keeping the API on the web address is faster, since browsers skip a CORS check on every request. To make the web app call a separate API address instead, set `VITE_API_URL` in `.env` and rebuild it with `docker compose build web && docker compose up -d`.
 
 Connectors that receive webhooks (Telegram, Discord, GitHub, and inbound email) also need the API to be reachable from the internet.
 

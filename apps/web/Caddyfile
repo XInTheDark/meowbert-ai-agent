@@ -1,0 +1,44 @@
+{
+	admin off
+	# Keep the client address from an outer reverse proxy (Traefik, Coolify) in X-Forwarded-For.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:5173 {
+	# Serving the API on the web origin removes a CORS preflight from nearly every request.
+	handle /api/* {
+		# User and agent files served from here must not run with the web app's origin and storage.
+		header Content-Security-Policy "sandbox allow-scripts allow-forms allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox"
+		reverse_proxy {$MEOWBERT_API_UPSTREAM:api:4000}
+	}
+
+	handle {
+		root * /srv
+		encode zstd gzip
+
+		# Built assets have content hashes in their names, so browsers never need to recheck them.
+		# A missing asset is left uncacheable, so a request during a deploy can't pin a 404.
+		@assets {
+			path /assets/*
+			file
+		}
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@revalidate {
+			not {
+				path /assets/*
+				file
+			}
+		}
+		header @revalidate Cache-Control "no-cache"
+
+		# App routes load index.html; a missing asset returns 404 instead of HTML.
+		@spa {
+			not path /assets/*
+			not file
+		}
+		rewrite @spa /index.html
+		file_server
+	}
+}

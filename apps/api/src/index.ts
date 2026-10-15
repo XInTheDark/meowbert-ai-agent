@@ -269,7 +269,8 @@ async function registerCoreServerPlugins(app: Fastify.FastifyInstance): Promise<
   app.addContentTypeParser("application/*+json", { parseAs: "string" }, (request, body, done) => {
     parseJsonWithRawBody(request as { rawBody?: string }, body, done);
   });
-  await app.register(cors, { origin: true, credentials: true });
+  // Let browsers reuse preflight results instead of repeating them every five seconds (Chrome caps this at 2h).
+  await app.register(cors, { origin: true, credentials: true, maxAge: 7200 });
   await app.register(multipart);
   await app.register(jwt, { secret: secrets.jwtSecret });
   await app.register(websocket);
