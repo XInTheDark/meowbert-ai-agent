@@ -10,7 +10,7 @@ import type {
   Workspace,
   WorkspaceSettings
 } from "../../../lib/types";
-import { saveLastWorkspaceId } from "./utils";
+import { clearLastWorkspaceId, saveLastWorkspaceId } from "./utils";
 
 interface UseWorkspaceLayoutControllerInput {
   token: string;
@@ -73,6 +73,12 @@ export function upsertEnvironment(environments: Environment[], environment: Envi
 
 export function shouldLogoutForWorkspaceBootstrapError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
+}
+
+// The home page opens the remembered workspace without checking it first, so a workspace the
+// user has lost access to sends them back home to pick one from their account.
+function isUnavailableWorkspaceBootstrapError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 403 || error.status === 404);
 }
 
 export function useWorkspaceLayoutController(
@@ -219,6 +225,9 @@ export function useWorkspaceLayoutController(
     setEnvironments(sortedProjects);
     setWorkspaceSettings(payload.workspaceSettings);
     setEnvironmentsWorkspaceId(input.activeWorkspaceId);
+    if (input.activeWorkspaceId) {
+      saveLastWorkspaceId(input.activeWorkspaceId);
+    }
     api.primeGet?.("/api/auth/me", {
       user: payload.user,
       workspaces: payload.workspaces
@@ -276,6 +285,9 @@ export function useWorkspaceLayoutController(
           if (shouldLogoutForWorkspaceBootstrapError(error)) {
             input.onLogout();
             input.setFlash({ tone: "error", text: "Session expired. Please sign in again." });
+          } else if (isUnavailableWorkspaceBootstrapError(error)) {
+            clearLastWorkspaceId();
+            input.navigate("/app", { replace: true });
           } else {
             const message = error instanceof Error ? error.message : "Could not load your workspace right now.";
             setNavError(message);
@@ -293,7 +305,7 @@ export function useWorkspaceLayoutController(
     return () => {
       cancelled = true;
     };
-  }, [api, bootstrapWorkspace, input.activeWorkspaceId, input.onLogout, input.setFlash]);
+  }, [api, bootstrapWorkspace, input.activeWorkspaceId, input.navigate, input.onLogout, input.setFlash]);
 
   useEffect(() => {
     if (isBootstrapping || workspaces.length === 0) {

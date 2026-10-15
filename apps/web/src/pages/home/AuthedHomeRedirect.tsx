@@ -5,11 +5,21 @@ import { Workspace } from "../../lib/types";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { loadLastWorkspaceId } from "../workspace/layout/utils";
 
+function workspaceHomePath(workspaceId: string): string {
+  return `/app/${workspaceId}/projects`;
+}
+
 export function AuthedHomeRedirect(props: { token: string; onTokenInvalid: () => void }) {
   const api = useMemo(() => createApiClient(props.token), [props.token]);
+  // The workspace page verifies access itself, so a remembered workspace opens without a lookup.
+  const [rememberedWorkspaceId] = useState(loadLastWorkspaceId);
   const [targetPath, setTargetPath] = useState<string | null>(null);
 
   useEffect(() => {
+    if (rememberedWorkspaceId) {
+      return;
+    }
+
     let cancelled = false;
 
     async function resolve(): Promise<void> {
@@ -19,15 +29,13 @@ export function AuthedHomeRedirect(props: { token: string; onTokenInvalid: () =>
           return;
         }
 
-        const remembered = loadLastWorkspaceId();
-        const preferred = me.workspaces.find((workspace) => workspace.id === remembered) ?? me.workspaces[0];
-
+        const preferred = me.workspaces[0];
         if (!preferred) {
           props.onTokenInvalid();
           return;
         }
 
-        setTargetPath(`/app/${preferred.id}/projects`);
+        setTargetPath(workspaceHomePath(preferred.id));
       } catch {
         if (!cancelled) {
           props.onTokenInvalid();
@@ -39,7 +47,11 @@ export function AuthedHomeRedirect(props: { token: string; onTokenInvalid: () =>
     return () => {
       cancelled = true;
     };
-  }, [api, props.onTokenInvalid]);
+  }, [api, props.onTokenInvalid, rememberedWorkspaceId]);
+
+  if (rememberedWorkspaceId) {
+    return <Navigate to={workspaceHomePath(rememberedWorkspaceId)} replace />;
+  }
 
   if (!targetPath) {
     return <LoadingScreen label="Loading your workspace..." />;

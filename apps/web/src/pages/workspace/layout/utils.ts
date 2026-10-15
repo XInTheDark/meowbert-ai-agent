@@ -18,6 +18,14 @@ export function saveLastWorkspaceId(workspaceId: string): void {
   }
 }
 
+export function clearLastWorkspaceId(): void {
+  try {
+    localStorage.removeItem(LAST_WORKSPACE_KEY);
+  } catch {
+    // Nothing to clear when storage is unavailable.
+  }
+}
+
 export function extractTaskIdFromPath(pathname: string): string | null {
   const match = pathname.match(/\/tasks\/([0-9a-fA-F-]{36})(?:$|[/?#])/);
   return match?.[1] ?? null;
