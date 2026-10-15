@@ -479,6 +479,8 @@ export interface TaskConversationPageResponse {
   messages: TaskMessage[];
   message_page: TaskConversationPageInfo;
   branch_options: Record<string, TaskConversationBranchOption>;
+  // Full content of the tool messages that end the newest page.
+  tool_message_contents?: TaskMessage[];
 }
 
 export interface TaskConversationSearchResult {

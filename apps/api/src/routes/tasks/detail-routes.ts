@@ -132,6 +132,7 @@ interface TaskConversationResponse {
     has_newer: boolean;
   };
   branch_options: Record<string, TaskConversationBranchOption>;
+  tool_message_contents: TaskMessageResponse[];
 }
 
 interface SubtaskRow {
@@ -454,6 +455,16 @@ async function loadConversationBranchOptions(
   return branchOptions;
 }
 
+// The client renders the tool calls that end the conversation right away, so the newest page
+// includes their full output instead of waiting for a separate content request.
+function collectTrailingToolMessageContents(rows: TaskConversationLineageRow[]) {
+  const contents: TaskMessageResponse[] = [];
+  for (let index = rows.length - 1; index >= 0 && rows[index].role === "tool"; index -= 1) {
+    contents.unshift(serializeTaskMessageRow(rows[index]));
+  }
+  return contents;
+}
+
 function serializeConversationLineageRow(row: TaskConversationLineageRow) {
   return serializeTaskMessageRow({
     id: row.id,
@@ -484,7 +495,8 @@ async function loadTaskConversationPage(input: {
       active_leaf_message_id: null,
       messages: [],
       message_page: { start_index: 0, end_index: 0, total_items: 0, has_older: false, has_newer: false },
-      branch_options: {}
+      branch_options: {},
+      tool_message_contents: []
     };
   }
   const lineageIds = await loadConversationLineageIds(input.taskId, activeLeafMessageId);
@@ -495,6 +507,7 @@ async function loadTaskConversationPage(input: {
     loadConversationPageRows(input.taskId, pageIds),
     loadConversationBranchOptions(input.taskId, pageIds, activeLeafMessageId)
   ]);
+  const hasNewer = endIndexExclusive < totalItems;
   return {
     active_leaf_message_id: activeLeafMessageId,
     messages: pageRows.map(serializeConversationLineageRow),
@@ -503,9 +516,10 @@ async function loadTaskConversationPage(input: {
       end_index: endIndexExclusive,
       total_items: totalItems,
       has_older: startIndex > 0,
-      has_newer: endIndexExclusive < totalItems
+      has_newer: hasNewer
     },
-    branch_options: branchOptions
+    branch_options: branchOptions,
+    tool_message_contents: hasNewer ? [] : collectTrailingToolMessageContents(pageRows)
   };
 }
 
@@ -700,7 +714,9 @@ async function handleGetTaskConversation(request: FastifyRequest) {
 
   return {
     ...conversation,
-    messages: conversation.messages.map((message) => sanitizeTaskMessageForDebugMode(message, adminSettings.debugMode))
+    messages: conversation.messages.map((message) => sanitizeTaskMessageForDebugMode(message, adminSettings.debugMode)),
+    tool_message_contents: conversation.tool_message_contents
+      .map((message) => sanitizeTaskMessageForDebugMode(message, adminSettings.debugMode))
   };
 }
 

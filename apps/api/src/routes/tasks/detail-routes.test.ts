@@ -585,6 +585,66 @@ describe("registerTaskDetailRoutes", () => {
     await app.close();
   });
 
+  it("includes full output for the tool calls that end the newest page", async () => {
+    const app = Fastify();
+    app.decorate("authenticate", async (request: Fastify.FastifyRequest) => {
+      request.user = { id: "user-1", email: "user@example.com" };
+    });
+
+    const toolContent = {
+      tool: "shell",
+      callId: "call-1",
+      arguments: { command: "ls" },
+      output: "README.md"
+    };
+    mockedQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const lineageResult = respondToLineageQuery([
+        {
+          id: "msg-user",
+          role: "user",
+          content_json: { text: "list files" },
+          parent_message_id: null,
+          edited_from_message_id: null,
+          created_at: "2026-04-21T00:00:00.000Z",
+          branch_index: 0
+        },
+        {
+          id: "msg-tool",
+          role: "tool",
+          content_json: toolContent,
+          parent_message_id: "msg-user",
+          edited_from_message_id: null,
+          created_at: "2026-04-21T00:00:01.000Z",
+          branch_index: 1
+        }
+      ], sql, params);
+      if (lineageResult) {
+        return lineageResult;
+      }
+      if (sql.includes("WITH selected_messages AS")) {
+        return createQueryResult([]);
+      }
+      if (sql.includes("SELECT id") && sql.includes("FROM task_messages") && sql.includes("AND id = $2")) {
+        return createQueryResult([{ id: "msg-tool" }], 1);
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    await registerTaskDetailRoutes(app);
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261/conversation?limit=50&activeLeafMessageId=326522d1-67cc-4475-92ce-a85b18556261"
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.messages.find((message: { id: string }) => message.id === "msg-tool").content_json.output).toBeUndefined();
+    expect(body.tool_message_contents).toEqual([
+      expect.objectContaining({ id: "msg-tool", content_json: toolContent })
+    ]);
+    await app.close();
+  });
+
   it("numbers each stored-text match without duplicating response item text", async () => {
     const app = Fastify();
     app.decorate("authenticate", async (request: Fastify.FastifyRequest) => {

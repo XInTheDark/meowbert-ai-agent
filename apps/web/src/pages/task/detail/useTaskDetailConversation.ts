@@ -322,6 +322,38 @@ export function useTaskDetailConversation(
     messagesRef.current = messages;
   }, [messageIds, messageLookup]);
 
+  const storeHydratedMessageContent = useCallback((items: TaskMessage[]) => {
+    if (items.length === 0) {
+      return;
+    }
+
+    const hydratedById = new Map(items.map((message) => [message.id, message]));
+    setMessageContentById((current) => {
+      const next = { ...current };
+      const order = messageContentCacheOrderRef.current;
+      for (const message of items) {
+        next[message.id] = message;
+        const existingIndex = order.indexOf(message.id);
+        if (existingIndex >= 0) {
+          order.splice(existingIndex, 1);
+        }
+        order.push(message.id);
+      }
+
+      trimMessageCache(order, next, messageIdsRef.current);
+      messageContentByIdRef.current = next;
+      return next;
+    });
+
+    setMessages((current) => current.map((message) => {
+      const hydrated = hydratedById.get(message.id);
+      if (!hydrated || message.role !== "tool") {
+        return message;
+      }
+      return hydrated;
+    }));
+  }, []);
+
   const ensureMessageContentLoaded = useCallback(async (ids: string[]) => {
     if (!options.taskId || ids.length === 0) {
       return;
@@ -354,32 +386,7 @@ export function useTaskDetailConversation(
         `/api/tasks/${options.taskId}/messages/content`,
         { ids: missingIds }
       );
-      const hydratedById = new Map(response.items.map((message) => [message.id, message]));
-
-      setMessageContentById((current) => {
-        const next = { ...current };
-        const order = messageContentCacheOrderRef.current;
-        for (const message of response.items) {
-          next[message.id] = message;
-          const existingIndex = order.indexOf(message.id);
-          if (existingIndex >= 0) {
-            order.splice(existingIndex, 1);
-          }
-          order.push(message.id);
-        }
-
-        trimMessageCache(order, next, messageIdsRef.current);
-        messageContentByIdRef.current = next;
-        return next;
-      });
-
-      setMessages((current) => current.map((message) => {
-        const hydrated = hydratedById.get(message.id);
-        if (!hydrated || message.role !== "tool") {
-          return message;
-        }
-        return hydrated;
-      }));
+      storeHydratedMessageContent(response.items);
     } catch (err) {
       console.error(err);
     } finally {
@@ -387,7 +394,7 @@ export function useTaskDetailConversation(
         messageContentFetchInFlightRef.current.delete(messageId);
       }
     }
-  }, [options.api, options.taskId]);
+  }, [options.api, options.taskId, storeHydratedMessageContent]);
 
   const requestJumpToLoadedMessage = useCallback((
     messageId: string,
@@ -537,11 +544,15 @@ export function useTaskDetailConversation(
         }
       }
 
+      // The newest page carries the full output of trailing tool calls, saving a follow-up request.
+      const includedContent = response.tool_message_contents ?? [];
+      storeHydratedMessageContent(includedContent);
+      const includedContentIds = new Set(includedContent.map((message) => message.id));
       const hydrationIds = collectConversationHydrationIds(
         response.messages.map((message) => message.id),
         new Map(response.messages.map((message) => [message.id, message])),
         requestedToolMessageIdsRef.current
-      );
+      ).filter((messageId) => !includedContentIds.has(messageId));
       void ensureMessageContentLoaded(hydrationIds);
     } catch (err) {
       console.error(err);
@@ -555,7 +566,7 @@ export function useTaskDetailConversation(
         setConversationPageLoadDirection(null);
       }
     }
-  }, [ensureMessageContentLoaded, options.api, options.taskId, requestJumpToLoadedMessage]);
+  }, [ensureMessageContentLoaded, options.api, options.taskId, requestJumpToLoadedMessage, storeHydratedMessageContent]);
 
   useEffect(() => {
     loadedTaskIdRef.current = options.taskId || null;
