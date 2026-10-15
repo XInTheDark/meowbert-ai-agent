@@ -57,10 +57,11 @@ describe("Agent Swarm mailbox", () => {
     const initialState = { pausedSwarmAgents: { "worker-task-1": createSwarmTestPause("agent_swarm_worker") } };
     const { client, getState } = createStatefulSwarmClient(initialState, ["worker-task-2"]);
     mockedWithTransaction.mockImplementation(async (callback) => callback(client as never));
+    const stateBefore = getState();
 
     await expect(pause(createSwarmTestContext(), ["worker-task-1"]))
       .rejects.toThrow("Worker 1 is not running, so waiting would stall the swarm. Assign it work with assign_worker");
-    expect(getState()).toBe(initialState);
+    expect(getState()).toEqual(stateBefore);
     expect(mockedEnqueueWorkflowTaskRun).not.toHaveBeenCalled();
   });
 

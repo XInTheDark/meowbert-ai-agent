@@ -40,9 +40,7 @@ describe("resolveUserTriggeredRunModeInTx", () => {
         state_json: {
           workersStartedAt: "2026-03-18T00:00:00.000Z",
           leaderKickoffMessageNo: 14,
-          finalReview: { approved: true },
-          lastSwarmWaitCycleSignature: "old-cycle",
-          lastSwarmWaitCycleTaskIds: ["worker-1", "worker-2", "worker-1"]
+          finalReview: { approved: true }
         }
       }]))
       .mockResolvedValueOnce(buildRowsResult([{ latest_message_no: 29 }]))
@@ -78,18 +76,27 @@ describe("resolveUserTriggeredRunModeInTx", () => {
           finalReview: null,
           cycleStartMessageNo: 29,
           startedSwarmWorkerTaskIds: [],
-          reviewRounds: [],
-          pausedSwarmAgents: {}
+          reviewRounds: []
         })
       ]
     );
     expect(query).toHaveBeenNthCalledWith(
       5,
-      expect.stringContaining("UPDATE task_runs tr"),
+      expect.stringContaining("DELETE FROM task_workflow_swarm_pauses"),
       ["task-1"]
     );
     expect(query).toHaveBeenNthCalledWith(
       6,
+      expect.stringContaining("DELETE FROM task_workflow_swarm_stalls"),
+      ["task-1"]
+    );
+    expect(query).toHaveBeenNthCalledWith(
+      7,
+      expect.stringContaining("UPDATE task_runs tr"),
+      ["task-1"]
+    );
+    expect(query).toHaveBeenNthCalledWith(
+      8,
       expect.stringContaining("SET status = 'awaiting_input'"),
       ["task-1"]
     );
@@ -128,8 +135,7 @@ describe("resolveUserTriggeredRunModeInTx", () => {
           cycleStartMessageNo: 31,
           startedSwarmWorkerTaskIds: [],
           reviewRounds: [],
-          finalReview: null,
-          pausedSwarmAgents: {}
+          finalReview: null
         })
       ]
     );

@@ -13,20 +13,15 @@ async function reactivateAgentSwarmWorkflowCycleInTx(
     [workflowTaskId]
   );
   const latestMessageNo = Number(latestMessageRes.rows[0]?.latest_message_no ?? 0) || 0;
-  const nextState: Record<string, unknown> = {
+  const nextState = {
     ...(stateJson ?? {}),
     cycleStartMessageNo: latestMessageNo,
     leaderKickoffMessageNo: null,
     workersStartedAt: null,
     startedSwarmWorkerTaskIds: [],
     reviewRounds: [],
-    finalReview: null,
-    pausedSwarmAgents: {}
+    finalReview: null
   };
-  delete nextState.lastSwarmWaitCycleSignature;
-  delete nextState.lastSwarmWaitCycleTaskIds;
-  delete nextState.lastSwarmStallSignature;
-  delete nextState.swarmStall;
 
   await client.query(
     `UPDATE task_workflows
@@ -36,6 +31,8 @@ async function reactivateAgentSwarmWorkflowCycleInTx(
       WHERE task_id = $1`,
     [workflowTaskId, JSON.stringify(nextState)]
   );
+  await client.query(`DELETE FROM task_workflow_swarm_pauses WHERE workflow_task_id = $1`, [workflowTaskId]);
+  await client.query(`DELETE FROM task_workflow_swarm_stalls WHERE workflow_task_id = $1`, [workflowTaskId]);
 
   await client.query(
     `UPDATE task_runs tr

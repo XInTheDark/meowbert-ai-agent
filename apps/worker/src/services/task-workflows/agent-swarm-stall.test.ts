@@ -26,7 +26,8 @@ vi.mock("./shared.js", async () => {
 import { query, withTransaction } from "../../lib/db.js";
 import { appendMessage, getNewestLeafMessageId } from "../agent-db/index.js";
 import { emitTaskEvent } from "../runtime/events.js";
-import { clearSwarmStallAfterProgress, maybeResumeStalledSwarm } from "./agent-swarm-stall.js";
+import { clearSwarmPauseOnRunStart } from "./agent-swarm-mailbox.js";
+import { maybeResumeStalledSwarm } from "./agent-swarm-stall.js";
 import { enqueueWorkflowTaskRun } from "./shared.js";
 import {
   createStatefulSwarmClient,
@@ -52,7 +53,7 @@ describe("Agent Swarm stall recovery", () => {
   });
 
   it("nudges the leader once, then hands the task back to the user from the leader's run", async () => {
-    const { client, getState } = createStatefulSwarmClient(allPaused());
+    const { client, getState, setPause } = createStatefulSwarmClient(allPaused());
     mockedWithTransaction.mockImplementation(async (callback) => callback(client as never));
 
     await expect(maybeResumeStalledSwarm(createSwarmTestContext())).resolves.toBeNull();
@@ -63,8 +64,7 @@ describe("Agent Swarm stall recovery", () => {
     }));
 
     // The nudged leader pauses again without any other agent having run.
-    const state = getState() as { pausedSwarmAgents: Record<string, unknown> };
-    state.pausedSwarmAgents["leader-task"] = { ...createSwarmTestPause("agent_swarm_leader"), status: "Still waiting." };
+    setPause("leader-task", { ...createSwarmTestPause("agent_swarm_leader"), status: "Still waiting." });
     const escalation = await maybeResumeStalledSwarm(createSwarmTestContext());
 
     expect(escalation).toContain("The swarm has stalled");
@@ -96,13 +96,25 @@ describe("Agent Swarm stall recovery", () => {
     expect(mockedEnqueueWorkflowTaskRun).not.toHaveBeenCalled();
   });
 
-  it("nudges again after another agent has run", () => {
-    const nudged = { swarmStall: { nudgedTaskId: "leader-task", escalated: false } };
-    clearSwarmStallAfterProgress(nudged, "leader-task");
-    expect(nudged).toHaveProperty("swarmStall");
+  it("nudges again after another agent has run", async () => {
+    const { client, getState } = createStatefulSwarmClient({
+      ...allPaused(),
+      swarmStall: { nudgedTaskId: "leader-task", escalated: false }
+    });
+    mockedWithTransaction.mockImplementation(async (callback) => callback(client as never));
+    const startRun = async (taskId: string) => {
+      client.query.mockImplementationOnce(async () => ({
+        rows: [{ workflow_type: "agent_swarm", workflow_parent_task_id: "leader-task" }],
+        rowCount: 1
+      }) as never);
+      await clearSwarmPauseOnRunStart(taskId);
+    };
 
-    clearSwarmStallAfterProgress(nudged, "worker-task-1");
-    expect(nudged).not.toHaveProperty("swarmStall");
+    await startRun("leader-task");
+    expect(getState()).toHaveProperty("swarmStall");
+
+    await startRun("worker-task-1");
+    expect(getState()).not.toHaveProperty("swarmStall");
   });
 
   it("does nothing while any active agent is still running", async () => {

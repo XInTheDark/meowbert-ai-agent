@@ -2,27 +2,21 @@ import { query, withTransaction } from "../../lib/db.js";
 import { appendMessage, getNewestLeafMessageId } from "../agent-db/index.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import type { LoadedWorkflowRunContext } from "./context-types.js";
-import { parseSwarmPauses, type StoredSwarmPause } from "./agent-swarm-dependencies.js";
-import { buildSwarmState, enqueueSwarmWakes } from "./agent-swarm-pause-state.js";
+import type { StoredSwarmPause } from "./agent-swarm-dependencies.js";
+import {
+  loadSwarmPausesInTx,
+  loadSwarmStallInTx,
+  saveSwarmStallInTx,
+  takeSwarmPauseInTx
+} from "./agent-swarm-pause-store.js";
+import { enqueueSwarmWakes } from "./agent-swarm-pause-state.js";
 import { asObject, formatSwarmAgentLabel, isSwarmTaskActiveStatus } from "./shared.js";
 
 // After every active agent pauses, the runtime nudges one leader once. If the swarm stalls again
 // before any other agent has run, it stops nudging and hands the task back to the user.
-interface SwarmStallState {
-  nudgedTaskId: string;
-  escalated: boolean;
-}
-
 type StallOutcome =
   | { kind: "nudge"; taskId: string; pause: StoredSwarmPause }
   | { kind: "escalate"; leaderStatus: string | null };
-
-function readStallState(state: Record<string, unknown>): SwarmStallState | null {
-  const stall = asObject(state.swarmStall);
-  return typeof stall.nudgedTaskId === "string"
-    ? { nudgedTaskId: stall.nudgedTaskId, escalated: stall.escalated === true }
-    : null;
-}
 
 function resolveStartedSwarmWorkerTaskIds(
   context: LoadedWorkflowRunContext,
@@ -68,7 +62,7 @@ async function decideStallOutcome(context: LoadedWorkflowRunContext, leaderTaskI
     );
     if (workflowResult.rows[0]?.phase === "completed") return null;
     const currentState = asObject(workflowResult.rows[0]?.state_json);
-    const pauses = parseSwarmPauses(currentState);
+    const pauses = await loadSwarmPausesInTx(client, context.workflowTaskId);
     const startedWorkerTaskIds = resolveStartedSwarmWorkerTaskIds(context, currentState);
     const activeTaskIds = context.agents
       .filter((agent) => isSwarmTaskActiveStatus(agent.status)
@@ -76,23 +70,19 @@ async function decideStallOutcome(context: LoadedWorkflowRunContext, leaderTaskI
       .map((agent) => agent.task_id);
     if (activeTaskIds.length === 0 || activeTaskIds.some((taskId) => !pauses[taskId])) return null;
 
-    const stall = readStallState(currentState);
+    const stall = await loadSwarmStallInTx(client, context.workflowTaskId);
     if (stall?.escalated) return null;
-    const write = (nextState: Record<string, unknown>) => client.query(
-      `UPDATE task_workflows SET state_json = $2::jsonb, updated_at = now() WHERE task_id = $1`,
-      [context.workflowTaskId, JSON.stringify(nextState)]
-    );
     if (stall) {
-      await write({ ...buildSwarmState(currentState, pauses), swarmStall: { ...stall, escalated: true } });
+      await saveSwarmStallInTx(client, context.workflowTaskId, { ...stall, escalated: true });
       return { kind: "escalate", leaderStatus: pauses[leaderTaskId]?.status ?? null };
     }
 
     const stalledTaskId = [...resolvePendingNestedLeaderTaskIds(context), leaderTaskId]
       .find((taskId) => activeTaskIds.includes(taskId) && pauses[taskId]);
     if (!stalledTaskId) return null;
-    const pause = pauses[stalledTaskId];
-    delete pauses[stalledTaskId];
-    await write({ ...buildSwarmState(currentState, pauses), swarmStall: { nudgedTaskId: stalledTaskId, escalated: false } });
+    const pause = await takeSwarmPauseInTx(client, context.workflowTaskId, stalledTaskId);
+    if (!pause) return null;
+    await saveSwarmStallInTx(client, context.workflowTaskId, { nudgedTaskId: stalledTaskId, escalated: false });
     return { kind: "nudge", taskId: stalledTaskId, pause };
   });
 }
@@ -139,10 +129,4 @@ export async function maybeResumeStalledSwarm(context: LoadedWorkflowRunContext)
     `${label} resumed because every active swarm agent was paused before the workflow completed.`
   );
   return null;
-}
-
-// A run by any agent other than the one just nudged is progress, so the next stall gets a fresh nudge.
-export function clearSwarmStallAfterProgress(state: Record<string, unknown>, startedTaskId: string): void {
-  const stall = readStallState(state);
-  if (stall && stall.nudgedTaskId !== startedTaskId) delete state.swarmStall;
 }

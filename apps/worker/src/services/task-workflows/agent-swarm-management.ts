@@ -5,7 +5,8 @@ import { taskQueue } from "../../lib/queue.js";
 import type { LoadedWorkflowRunContext } from "./context.js";
 import { resolveManagedSwarmNode } from "./swarm-management-scope.js";
 import { resolveSwarmTarget, type SwarmTarget } from "./swarm-target.js";
-import { outstandingSwarmDependencies, parseSwarmPauses, type StoredSwarmPauseMap } from "./agent-swarm-dependencies.js";
+import { outstandingSwarmDependencies, type StoredSwarmPauseMap } from "./agent-swarm-dependencies.js";
+import { loadSwarmPauses } from "./agent-swarm-pause-store.js";
 import { removeSwarmPauses } from "./agent-swarm-mailbox.js";
 import { grantSwarmWorkerLeaseInTx, prepareSwarmWorkerLeaseInTx } from "./agent-swarm-worker-lease.js";
 import {
@@ -36,7 +37,6 @@ interface SwarmAgentRow {
   status: string;
   cancellation_requested: boolean;
   has_live_run: boolean;
-  workflow_state_json: Record<string, unknown> | null;
 }
 
 interface LabeledSwarmAgent {
@@ -66,11 +66,9 @@ export function resolveWorkerIds(workers: LabeledSwarmAgent[], identifiers: stri
 async function loadAgents(workflowTaskId: string): Promise<SwarmAgentRow[]> {
   const result = await query<SwarmAgentRow>(
     `SELECT a.task_id, a.role, a.slot_index, t.title, t.status, t.cancellation_requested,
-            EXISTS (SELECT 1 FROM task_runs tr WHERE tr.task_id = t.id AND tr.ended_at IS NULL) AS has_live_run,
-            w.state_json AS workflow_state_json
+            EXISTS (SELECT 1 FROM task_runs tr WHERE tr.task_id = t.id AND tr.ended_at IS NULL) AS has_live_run
        FROM task_workflow_agents a
        JOIN tasks t ON t.id = a.task_id
-       JOIN task_workflows w ON w.task_id = a.workflow_task_id
       WHERE a.workflow_task_id = $1
       ORDER BY a.slot_index ASC, a.task_id ASC`,
     [workflowTaskId]
@@ -174,15 +172,14 @@ export async function manageSwarmWorkers(input: {
   const stoppedGrant = grants.find((grant) => stopIds.includes(grant.taskId));
   if (stoppedGrant) throw new Error("A worker cannot be granted budget and stopped in the same call.");
   if (grants.length > 0 && !target.nodeId) throw new Error("Worker budget grants require a budgeted Swarm.");
-  const snapshot = (agents: SwarmAgentRow[]) => {
-    const state = asObject(agents[0]?.workflow_state_json);
-    const pauses = parseSwarmPauses(state);
+  const snapshot = async (agents: SwarmAgentRow[]) => {
+    const pauses = await loadSwarmPauses(context.workflowTaskId);
     return {
       workers: agents.filter((agent) => managedNode.workerTaskIds.includes(agent.task_id)).map((agent) => toAgent(agent, pauses)),
       agents: agents.map((agent) => toAgent(agent, pauses))
     };
   };
-  if (input.viewOnly) return { started: [], stopped: [], granted: [], ...snapshot(allAgents) };
+  if (input.viewOnly) return { started: [], stopped: [], granted: [], ...(await snapshot(allAgents)) };
   const startTaskIds = workers
     .filter((worker) => startIds.includes(worker.task_id) && !worker.has_live_run)
     .map((worker) => worker.task_id);
@@ -264,6 +261,6 @@ export async function manageSwarmWorkers(input: {
       label: agentLabel(currentWorkers.find((worker) => worker.task_id === grant.taskId) ?? workers.find((worker) => worker.task_id === grant.taskId)!),
       tokens: grant.tokens
     })),
-    ...snapshot(currentAgents)
+    ...(await snapshot(currentAgents))
   };
 }

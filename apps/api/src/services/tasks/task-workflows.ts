@@ -1027,12 +1027,6 @@ interface TaskWorkflowRecord {
   state_json: Record<string, unknown> | null;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-}
-
 async function loadLongHorizonWorkflowOverview(
   taskId: string,
   workflow: TaskWorkflowRecord
@@ -1175,9 +1169,13 @@ async function loadAgentSwarmWorkflowOverview(
               a.slot_index,
               t.title,
               t.status,
+              p.task_id IS NOT NULL AS paused,
+              NULLIF(btrim(p.status), '') AS pause_reason,
               t.updated_at
          FROM task_workflow_agents a
          JOIN tasks t ON t.id = a.task_id
+         LEFT JOIN task_workflow_swarm_pauses p
+           ON p.workflow_task_id = a.workflow_task_id AND p.task_id = a.task_id
         WHERE a.workflow_task_id = $1
           AND a.task_id <> $1
         ORDER BY t.created_at ASC, a.slot_index ASC`,
@@ -1192,18 +1190,7 @@ async function loadAgentSwarmWorkflowOverview(
     agentSwarm: {
       workerCount: workersRes.rows.length,
       channels: channelsRes.rows,
-      workers: workersRes.rows.map((worker) => {
-        const pauseRecord = asRecord(asRecord(workflow.state_json).pausedSwarmAgents)[worker.task_id];
-        const pause = asRecord(pauseRecord);
-        const pauseReason = typeof pause.status === "string" && pause.status.trim().length > 0
-          ? pause.status
-          : null;
-        return {
-          ...worker,
-          paused: Object.keys(pause).length > 0,
-          pause_reason: pauseReason
-        };
-      })
+      workers: workersRes.rows
     }
   };
 }

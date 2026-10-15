@@ -228,11 +228,11 @@ describe("Agent Swarm quota notices", () => {
   const mockedQuery = vi.mocked(query);
   const mockedWithTransaction = vi.mocked(withTransaction);
   const client = { query: vi.fn() };
-  let workflowState: Record<string, unknown> = {};
+  let parentPauseRows: Array<Record<string, unknown>> = [];
 
   beforeEach(() => {
     vi.clearAllMocks();
-    workflowState = {};
+    parentPauseRows = [];
     mockedWithTransaction.mockImplementation(async (callback) => callback(client as never));
     mockedQuery.mockResolvedValueOnce({ rows: [{
       node_id: "child-node", workflow_agent_id: "child-agent", role: "leader", lease_tokens: 14_110,
@@ -246,7 +246,8 @@ describe("Agent Swarm quota notices", () => {
         return { rows: [{ phase: "active", config_json: { swarmChannelIds: { "node-0": "global-channel", "child-key": "child-channel" } } }] };
       }
       if (sql.includes("parent_node.node_key")) return { rows: [{ node_key: "child-key", parent_node_key: "node-0" }] };
-      if (sql.includes("SELECT state_json, phase")) return { rows: [{ phase: "active", state_json: workflowState }] };
+      if (sql.includes("SELECT phase FROM task_workflows")) return { rows: [{ phase: "active" }] };
+      if (sql.includes("DELETE FROM task_workflow_swarm_pauses")) return { rows: parentPauseRows };
       return { rows: [] };
     });
   });
@@ -259,9 +260,10 @@ describe("Agent Swarm quota notices", () => {
   });
 
   it("reports a child budget stop in the parent channel without touching the parent's history", async () => {
-    workflowState = { pausedSwarmAgents: { "root-task": {
-      sinceMessageNo: 3, status: "Waiting.", triggerSource: "web", selectionUserId: "user-1", mode: "agent_swarm_leader"
-    } } };
+    parentPauseRows = [{
+      task_id: "root-task", swarm_node_id: null, since_message_no: 3, status: "Waiting.", waiting_for_task_ids: [],
+      finished_task_ids: [], trigger_source: "web", selection_user_id: "user-1", mode: "agent_swarm_leader"
+    }];
 
     await notify();
 

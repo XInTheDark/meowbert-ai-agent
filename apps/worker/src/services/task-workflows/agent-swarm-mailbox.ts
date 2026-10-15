@@ -3,18 +3,22 @@ import type { TaskExecutionJob } from "@meowbert/shared";
 import { withTransaction } from "../../lib/db.js";
 import type { LoadedWorkflowRunContext } from "./context-types.js";
 import { hasDualSwarmRole, resolveDirectWorkerTaskIds, resolveSwarmTarget, type SwarmTarget } from "./swarm-target.js";
+import { outstandingSwarmDependencies, type StoredSwarmPauseMap } from "./agent-swarm-dependencies.js";
 import {
-  outstandingSwarmDependencies,
-  parseSwarmPauses,
-  type StoredSwarmPauseMap
-} from "./agent-swarm-dependencies.js";
+  clearSwarmStallAfterProgressInTx,
+  deleteSwarmPausesInTx,
+  loadSwarmPausesInTx,
+  lockSwarmWorkflowInTx,
+  saveFinishedSwarmDependenciesInTx,
+  saveSwarmPauseInTx,
+  takeSwarmPauseInTx
+} from "./agent-swarm-pause-store.js";
 import {
-  buildSwarmState,
   emitSwarmActivityEvent,
   enqueueSwarmWakes,
   type SwarmWake
 } from "./agent-swarm-pause-state.js";
-import { clearSwarmStallAfterProgress, maybeResumeStalledSwarm } from "./agent-swarm-stall.js";
+import { maybeResumeStalledSwarm } from "./agent-swarm-stall.js";
 import { asObject, coerceNullableString, formatSwarmAgentLabel } from "./shared.js";
 
 interface SwarmNodeChannel {
@@ -65,13 +69,15 @@ function agentLabel(context: LoadedWorkflowRunContext, taskId: string): string {
 }
 
 // The agent has finished its current work: count it for agents waiting on it, and wake a leader
-// waiting on no one in particular when one of its own workers finishes.
+// waiting on no one in particular when one of its own workers finishes. Woken agents leave `pauses`;
+// `progressed` lists the ones still waiting whose finished list grew.
 function collectWakesForFinishedAgent(
   context: LoadedWorkflowRunContext,
   pauses: StoredSwarmPauseMap,
   finishedTaskId: string
-): SwarmWake[] {
+): { wakes: SwarmWake[]; progressed: Array<{ taskId: string; finishedTaskIds: string[] }> } {
   const wakes: SwarmWake[] = [];
+  const progressed: Array<{ taskId: string; finishedTaskIds: string[] }> = [];
   for (const [taskId, pause] of Object.entries(pauses)) {
     if (taskId === finishedTaskId) continue;
     let shouldWake = false;
@@ -79,6 +85,7 @@ function collectWakesForFinishedAgent(
       if (!pause.waitingForTaskIds.includes(finishedTaskId)) continue;
       if (!pause.finishedTaskIds.includes(finishedTaskId)) pause.finishedTaskIds.push(finishedTaskId);
       shouldWake = outstandingSwarmDependencies(pause).length === 0;
+      if (!shouldWake) progressed.push({ taskId, finishedTaskIds: pause.finishedTaskIds });
     } else {
       shouldWake = resolveDirectWorkerTaskIds(context, taskId).includes(finishedTaskId);
     }
@@ -86,7 +93,16 @@ function collectWakesForFinishedAgent(
     wakes.push({ taskId, ...pause });
     delete pauses[taskId];
   }
-  return wakes;
+  return { wakes, progressed };
+}
+
+async function saveFinishedAgentWakesInTx(
+  client: PoolClient,
+  workflowTaskId: string,
+  finished: ReturnType<typeof collectWakesForFinishedAgent>
+): Promise<void> {
+  await deleteSwarmPausesInTx(client, workflowTaskId, finished.wakes.map((wake) => wake.taskId));
+  await saveFinishedSwarmDependenciesInTx(client, workflowTaskId, finished.progressed);
 }
 
 // Waiting on an agent that is paused or idle would stall the swarm, so only running agents, or ones
@@ -137,23 +153,19 @@ async function persistSwarmPause(
     if (!rosterIds.has(taskId)) throw new Error(`Unknown swarm wait dependency: ${taskId}`);
     if (taskId === context.taskId) throw new Error("An agent cannot wait for itself.");
   }
-  const workflowResult = await client.query<{ phase: string | null; state_json: Record<string, unknown> | null }>(
-    `SELECT state_json, phase FROM task_workflows WHERE task_id = $1 FOR UPDATE`,
-    [context.workflowTaskId]
-  );
-  if (workflowResult.rows[0]?.phase === "completed") {
+  if ((await lockSwarmWorkflowInTx(client, context.workflowTaskId)).completed) {
     throw new Error("The Agent Swarm workflow is already completed.");
   }
-  const currentState = asObject(workflowResult.rows[0]?.state_json);
-  const pauses = parseSwarmPauses(currentState);
+  const pauses = await loadSwarmPausesInTx(client, context.workflowTaskId);
   delete pauses[context.taskId];
-  const wakes = collectWakesForFinishedAgent(context, pauses, context.taskId);
+  const finished = collectWakesForFinishedAgent(context, pauses, context.taskId);
   await assertWaitTargetsRunning(client, context, {
     waitingForTaskIds,
     pauses,
-    wakingTaskIds: new Set(wakes.map((wake) => wake.taskId))
+    wakingTaskIds: new Set(finished.wakes.map((wake) => wake.taskId))
   });
-  pauses[context.taskId] = {
+  await saveFinishedAgentWakesInTx(client, context.workflowTaskId, finished);
+  await saveSwarmPauseInTx(client, context.workflowTaskId, context.taskId, {
     swarmNodeId: dualRole ? target.nodeId : null,
     sinceMessageNo: context.swarm?.latestWorkflowMessageNo ?? 0,
     status: input.status.trim() || "Paused.",
@@ -162,12 +174,8 @@ async function persistSwarmPause(
     triggerSource: input.triggerSource,
     selectionUserId: input.selectionUserId,
     mode: context.currentAgent?.role === "leader" ? "agent_swarm_leader" : "agent_swarm_worker"
-  };
-  await client.query(
-    `UPDATE task_workflows SET state_json = $2::jsonb, updated_at = now() WHERE task_id = $1`,
-    [context.workflowTaskId, JSON.stringify(buildSwarmState(currentState, pauses))]
-  );
-  return wakes;
+  });
+  return finished.wakes;
 }
 
 // Returns the text to hand back to the user when this pause leaves the whole swarm stalled for a
@@ -195,19 +203,11 @@ export async function pauseSwarmAgent(input: {
 // A nested leader publishing its node's output has finished, even before it pauses.
 export async function markSwarmAgentFinished(context: LoadedWorkflowRunContext): Promise<void> {
   const wakes = await withTransaction(async (client) => {
-    const workflowResult = await client.query<{ phase: string | null; state_json: Record<string, unknown> | null }>(
-      `SELECT state_json, phase FROM task_workflows WHERE task_id = $1 FOR UPDATE`,
-      [context.workflowTaskId]
-    );
-    if (workflowResult.rows[0]?.phase === "completed") return [];
-    const currentState = asObject(workflowResult.rows[0]?.state_json);
-    const pauses = parseSwarmPauses(currentState);
-    const found = collectWakesForFinishedAgent(context, pauses, context.taskId);
-    await client.query(
-      `UPDATE task_workflows SET state_json = $2::jsonb, updated_at = now() WHERE task_id = $1`,
-      [context.workflowTaskId, JSON.stringify(buildSwarmState(currentState, pauses))]
-    );
-    return found;
+    if ((await lockSwarmWorkflowInTx(client, context.workflowTaskId)).completed) return [];
+    const pauses = await loadSwarmPausesInTx(client, context.workflowTaskId);
+    const finished = collectWakesForFinishedAgent(context, pauses, context.taskId);
+    await saveFinishedAgentWakesInTx(client, context.workflowTaskId, finished);
+    return finished.wakes;
   });
   await enqueueSwarmWakes(context, wakes, `Swarm agent resumed because ${agentLabel(context, context.taskId)} published its output.`);
 }
@@ -227,13 +227,8 @@ export async function maybeWakePausedSwarmAgentsAfterMessage(
   const node = resolveSwarmNodeChannel(context, input.channelId);
   const isGlobalChannel = context.swarm?.globalChannelId === input.channelId;
   const wakes = await withTransaction(async (client) => {
-    const workflowResult = await client.query<{ phase: string | null; state_json: Record<string, unknown> | null }>(
-      `SELECT state_json, phase FROM task_workflows WHERE task_id = $1 FOR UPDATE`,
-      [context.workflowTaskId]
-    );
-    if (workflowResult.rows[0]?.phase === "completed") return [];
-    const currentState = asObject(workflowResult.rows[0]?.state_json);
-    const pauses = parseSwarmPauses(currentState);
+    if ((await lockSwarmWorkflowInTx(client, context.workflowTaskId)).completed) return [];
+    const pauses = await loadSwarmPausesInTx(client, context.workflowTaskId);
     const found: SwarmWake[] = [];
 
     for (const [taskId, pause] of Object.entries(pauses)) {
@@ -243,14 +238,8 @@ export async function maybeWakePausedSwarmAgentsAfterMessage(
         : input.channelMemberTaskIds.includes(taskId);
       if (!shouldWake) continue;
       found.push({ taskId, ...pause });
-      delete pauses[taskId];
     }
-    if (found.length === 0) return [];
-
-    await client.query(
-      `UPDATE task_workflows SET state_json = $2::jsonb, updated_at = now() WHERE task_id = $1`,
-      [context.workflowTaskId, JSON.stringify(buildSwarmState(currentState, pauses))]
-    );
+    await deleteSwarmPausesInTx(client, context.workflowTaskId, found.map((wake) => wake.taskId));
     return found;
   });
   await enqueueSwarmWakes(context, wakes, "Swarm agent resumed because relevant swarm mail arrived.");
@@ -264,21 +253,8 @@ export async function wakePausedSwarmAgent(
   activityMessage: string
 ): Promise<boolean> {
   const pause = await withTransaction(async (client) => {
-    const workflowResult = await client.query<{ phase: string | null; state_json: Record<string, unknown> | null }>(
-      `SELECT state_json, phase FROM task_workflows WHERE task_id = $1 FOR UPDATE`,
-      [context.workflowTaskId]
-    );
-    if (workflowResult.rows[0]?.phase === "completed") return null;
-    const currentState = asObject(workflowResult.rows[0]?.state_json);
-    const pausedSwarmAgents = parseSwarmPauses(currentState);
-    const stored = pausedSwarmAgents[taskId];
-    if (!stored) return null;
-    delete pausedSwarmAgents[taskId];
-    await client.query(
-      `UPDATE task_workflows SET state_json = $2::jsonb, updated_at = now() WHERE task_id = $1`,
-      [context.workflowTaskId, JSON.stringify(buildSwarmState(currentState, pausedSwarmAgents))]
-    );
-    return stored;
+    if ((await lockSwarmWorkflowInTx(client, context.workflowTaskId)).completed) return null;
+    return takeSwarmPauseInTx(client, context.workflowTaskId, taskId);
   });
   if (!pause) return false;
   await enqueueSwarmWakes(context, [{ taskId, ...pause }], activityMessage);
@@ -295,19 +271,9 @@ export async function clearSwarmPauseOnRunStart(taskId: string): Promise<void> {
     if (task?.workflow_type !== "agent_swarm") return;
 
     const workflowTaskId = task.workflow_parent_task_id ?? taskId;
-    const workflowResult = await client.query<{ state_json: Record<string, unknown> | null }>(
-      `SELECT state_json FROM task_workflows WHERE task_id = $1 FOR UPDATE`,
-      [workflowTaskId]
-    );
-    const currentState = asObject(workflowResult.rows[0]?.state_json);
-    const pausedSwarmAgents = parseSwarmPauses(currentState);
-    delete pausedSwarmAgents[taskId];
-    const nextState = buildSwarmState(currentState, pausedSwarmAgents);
-    clearSwarmStallAfterProgress(nextState, taskId);
-    await client.query(
-      `UPDATE task_workflows SET state_json = $2::jsonb, updated_at = now() WHERE task_id = $1`,
-      [workflowTaskId, JSON.stringify(nextState)]
-    );
+    await lockSwarmWorkflowInTx(client, workflowTaskId);
+    await deleteSwarmPausesInTx(client, workflowTaskId, [taskId]);
+    await clearSwarmStallAfterProgressInTx(client, workflowTaskId, taskId);
   });
 }
 
@@ -316,15 +282,6 @@ export async function removeSwarmPauses(
   workflowTaskId: string,
   taskIds: string[]
 ): Promise<void> {
-  const workflowResult = await client.query<{ state_json: Record<string, unknown> | null }>(
-    `SELECT state_json FROM task_workflows WHERE task_id = $1 FOR UPDATE`,
-    [workflowTaskId]
-  );
-  const currentState = asObject(workflowResult.rows[0]?.state_json);
-  const pausedSwarmAgents = parseSwarmPauses(currentState);
-  for (const taskId of taskIds) delete pausedSwarmAgents[taskId];
-  await client.query(
-    `UPDATE task_workflows SET state_json = $2::jsonb, updated_at = now() WHERE task_id = $1`,
-    [workflowTaskId, JSON.stringify(buildSwarmState(currentState, pausedSwarmAgents))]
-  );
+  await lockSwarmWorkflowInTx(client, workflowTaskId);
+  await deleteSwarmPausesInTx(client, workflowTaskId, taskIds);
 }

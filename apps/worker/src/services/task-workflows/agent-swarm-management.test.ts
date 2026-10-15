@@ -72,11 +72,17 @@ describe("Agent Swarm worker management", () => {
   const mockedRemoveSwarmPauses = vi.mocked(removeSwarmPauses);
   const mockedEnqueueWorkflowTaskRun = vi.mocked(enqueueWorkflowTaskRun);
   const transactionClient = { query: vi.fn() };
-  let workflowState: Record<string, unknown>;
+  let pausedAgents: Record<string, {
+    status: string;
+    waitingForTaskIds: string[];
+    finishedTaskIds: string[];
+    triggerSource: string;
+    mode: string;
+  }>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    workflowState = {};
+    pausedAgents = {};
     const workers = [
       {
         task_id: "leader-task",
@@ -106,9 +112,22 @@ describe("Agent Swarm worker management", () => {
         has_live_run: false
       }
     ];
-    mockedQuery.mockImplementation(async () => {
-      const rows = workers.map((worker) => ({ ...worker, workflow_state_json: workflowState }));
-      return { rows, rowCount: rows.length } as never;
+    mockedQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("task_workflow_swarm_pauses")) {
+        const rows = Object.entries(pausedAgents).map(([taskId, pause]) => ({
+          task_id: taskId,
+          swarm_node_id: null,
+          since_message_no: 0,
+          status: pause.status,
+          waiting_for_task_ids: pause.waitingForTaskIds,
+          finished_task_ids: pause.finishedTaskIds,
+          trigger_source: pause.triggerSource,
+          selection_user_id: null,
+          mode: pause.mode
+        }));
+        return { rows, rowCount: rows.length } as never;
+      }
+      return { rows: workers, rowCount: workers.length } as never;
     });
     transactionClient.query.mockResolvedValue({ rows: [], rowCount: 0 } as never);
     mockedWithTransaction.mockImplementation(async (callback) => callback(transactionClient as never));
@@ -188,22 +207,20 @@ describe("Agent Swarm worker management", () => {
   });
 
   it("shows paused agents and outstanding dependencies across nested nodes", async () => {
-    workflowState = {
-      pausedSwarmAgents: {
-        "leader-task": {
-          status: "Waiting for both reports",
-          waitingForTaskIds: ["worker-task-1", "worker-task-2"],
-          finishedTaskIds: ["worker-task-1"],
-          triggerSource: "web",
-          mode: "agent_swarm_leader"
-        },
-        "worker-task-2": {
-          status: "Waiting for leader decision",
-          waitingForTaskIds: [],
-          finishedTaskIds: [],
-          triggerSource: "web",
-          mode: "agent_swarm_worker"
-        }
+    pausedAgents = {
+      "leader-task": {
+        status: "Waiting for both reports",
+        waitingForTaskIds: ["worker-task-1", "worker-task-2"],
+        finishedTaskIds: ["worker-task-1"],
+        triggerSource: "web",
+        mode: "agent_swarm_leader"
+      },
+      "worker-task-2": {
+        status: "Waiting for leader decision",
+        waitingForTaskIds: [],
+        finishedTaskIds: [],
+        triggerSource: "web",
+        mode: "agent_swarm_worker"
       }
     };
     const result = await manageSwarmWorkers({

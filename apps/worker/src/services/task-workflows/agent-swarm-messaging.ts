@@ -594,11 +594,9 @@ export async function markWorkflowCompleted(
     return false;
   }
 
-  const nextStateJson = {
-    ...(context.workflowType === "long_horizon"
-      ? { currentRound: context.longHorizon?.latestRound ?? 0, approvedRound: context.longHorizon?.approvedRound ?? null }
-      : { pausedSwarmAgents: {} })
-  };
+  const nextStateJson = context.workflowType === "long_horizon"
+    ? { currentRound: context.longHorizon?.latestRound ?? 0, approvedRound: context.longHorizon?.approvedRound ?? null }
+    : {};
 
   const completedWorkflow = await withTransaction(async (client) => {
     const workflowResult = await client.query<{ task_id: string; phase?: string }>(
@@ -624,6 +622,8 @@ export async function markWorkflowCompleted(
     );
 
     if (context.workflowType === "agent_swarm") {
+      await client.query(`DELETE FROM task_workflow_swarm_pauses WHERE workflow_task_id = $1`, [context.workflowTaskId]);
+      await client.query(`DELETE FROM task_workflow_swarm_stalls WHERE workflow_task_id = $1`, [context.workflowTaskId]);
       await client.query(
         `WITH RECURSIVE task_scope AS (
            SELECT id

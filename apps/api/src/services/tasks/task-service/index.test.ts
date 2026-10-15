@@ -602,7 +602,7 @@ describe("createTaskWithInitialMessage", () => {
       if (sql.includes("SELECT COALESCE(MAX(message_no), 0)::int AS latest_message_no")) {
         return buildRowsResult([{ latest_message_no: 33 }]);
       }
-      if (sql.includes("UPDATE task_workflows")) {
+      if (sql.includes("UPDATE task_workflows") || sql.includes("DELETE FROM task_workflow_swarm_")) {
         return buildRowsResult([]);
       }
       if (sql.includes("UPDATE task_runs tr")) {
@@ -711,7 +711,7 @@ describe("createTaskWithInitialMessage", () => {
       if (sql.includes("SELECT COALESCE(MAX(message_no), 0)::int AS latest_message_no")) {
         return buildRowsResult([{ latest_message_no: 33 }]);
       }
-      if (sql.includes("UPDATE task_workflows")) {
+      if (sql.includes("UPDATE task_workflows") || sql.includes("DELETE FROM task_workflow_swarm_")) {
         return buildRowsResult([]);
       }
       if (sql.includes("UPDATE task_runs tr")) {
