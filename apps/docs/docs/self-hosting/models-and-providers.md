@@ -56,6 +56,20 @@ Leave out `responses.reasoning` for models that don't support reasoning. Presets
 
 A small, fast model is a good choice for `internalModel` and `fastModel`.
 
+## Memory embeddings
+
+[Workspace Memory](/core-workflows/workspace-memory) search uses an embedding model. Set it in **Admin Panel → Platform → Embeddings**:
+
+- **Provider** — Follow the selected AI provider, or pin one of your saved providers. It must support the OpenAI-compatible `/v1/embeddings` endpoint.
+- **Model** — The embedding model ID. Defaults to `text-embedding-3-small`.
+- **Prompt templates** — Only for models that expect a prefix, such as `search_query: {text}`. Leave them empty otherwise.
+
+Changing any of these makes each workspace rebuild its Memory index the next time it syncs. To rebuild every workspace now, for example after switching models, use **Wipe & re-index**. Choose how many workspaces to rebuild at once, then follow the progress on the same page. You can cancel a re-index, and a re-index interrupted by a worker restart picks up again on its own.
+
+::: tip Upgrading
+Embedding settings are no longer read from `config/global.json`. If you had a `memory.embeddings` block there, set the same provider and model in the Embeddings tab, then remove the block.
+:::
+
 ## Context windows and model details
 
 Meowbert needs to know each model's context window to decide when to compact long conversations. Add entries in **Admin Panel → Model → Model metadata**. See [Context Compaction](/core-workflows/context-compaction).

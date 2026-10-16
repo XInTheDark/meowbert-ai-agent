@@ -25,6 +25,8 @@ With approval on, new accounts wait in **Admin Panel → Users** until you appro
 
 **Admin Panel → Users** lets you approve or deactivate accounts, reset passwords, make someone an admin, and adjust per-user limits.
 
+Admins can open any workspace, project, or task by its link, even without being a member, for example from **Admin Panel → Operations → Processes**. A workspace you visit this way isn't added to your workspace list, and settings reserved for workspace owners still need an owner.
+
 ## Usage limits
 
 By default, everyone can send as many messages as they like. To cap usage, set **Messages per user** in **Admin Panel → Settings**, override it for individual users in **Admin Panel → Users**, or create subscription plans with token limits in **Admin Panel → Plans**. Admins are never limited, and users who connect [their own provider](/core-workflows/byo-providers) aren't counted against these limits.

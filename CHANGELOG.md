@@ -1,5 +1,21 @@
 # Changelog
 
+## Oct 16, 2026
+
+### AI and agents
+
+- **Better Memory search** — Memory search now matches exact words, such as command names and error codes, as well as meaning, and knows which section of a note each result comes from. Each workspace's Memory index rebuilds once after updating.
+- **Tidier Memory** — Meowbert keeps Memory as named topic files linked from `MEMORY.md`, and Memory refreshes reorganize notes that have become cluttered. A refresh can now take up to 40 steps.
+- **Refreshes no longer skip messages** — When a long stretch of conversation doesn't fit in one Memory refresh, the rest is now picked up by the next one instead of being dropped.
+
+### Self-hosting
+
+- **Embeddings in the Admin Panel** — Choose the Memory embedding provider and model under **Admin Panel → Platform → Embeddings**. `memory.embeddings` in `config/global.json` is no longer read: set the same values in the new tab, then remove the block. Run `npm run migrate` to add the new settings. See **Models & Providers** in the docs.
+- **Re-index all Memory** — After switching embedding models, rebuild every workspace's Memory index from the Embeddings tab. Choose how many workspaces run at once and follow the progress live.
+- **Grouped admin navigation** — The Admin Panel's sections now sit in three menus: Operations, Platform, and Channels.
+- **Admins can open any task** — Admins can now open any workspace, project, or task by link without being a member. Settings reserved for workspace owners still need an owner.
+- **Recent memory refreshes** — **Admin Panel → Operations → Processes** lists the latest Memory refreshes, with a link to each refresh task.
+
 ## Oct 15, 2026
 
 ### Speed

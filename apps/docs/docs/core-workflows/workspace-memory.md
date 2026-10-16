@@ -31,6 +31,10 @@ Good fits for Memory include:
 
 Avoid treating `.memory` like throwaway scratch space. Temporary task artifacts usually belong in normal task output files instead.
 
+## Keeping Memory organized
+
+Meowbert keeps Memory as a small set of topic files rather than one long note. Each file opens with a one-line description and is organized under headings, and `MEMORY.md` links to them. If you edit Memory by hand, following the same shape helps the agent find things.
+
 ## MEMORY.md — your always-on context
 
 Inside `.memory` there's a special file: `MEMORY.md`. Unlike other notes, this file is automatically injected into every run as background context, so the agent always has it available without needing to search for it.
@@ -53,7 +57,7 @@ When Memory is enabled for a workspace:
 - New task drafts in that workspace start with **Memory** enabled by default.
 - You can still turn it off for any individual task.
 
-With the toggle on, the agent can semantically search workspace `.memory` during the run. Search results include relevant snippets plus the source file path and line range, so the agent can open or update the right note instead of guessing.
+With the toggle on, the agent can search workspace `.memory` during the run. Search matches both meaning and exact words, so a query finds related notes as well as specific names such as a command, file, or error code. Search results include relevant snippets plus the source file path and line range, so the agent can open or update the right note instead of guessing.
 
 Meowbert syncs the Memory index in the background. Searches use the last ready index immediately instead of blocking on rebuilds. If the workspace is still being indexed for the first time, Memory search can briefly return no results while indexing finishes.
 
@@ -67,7 +71,7 @@ Workspace owners can enable **Automatic Memory Refresh** in **Workspace Settings
 
 Each Project can opt out from **Project Settings → Memory**. Projects are enabled by default, but their automatic refresh setting only takes effect while the workspace-wide automatic-refresh setting remains enabled.
 
-You can also select a Project and choose **Refresh memory** from the Memory page. A refresh creates a regular task with its own sandbox. It receives the new conversation evidence in `inputs/memory-delta.md`, can update the workspace and Project Memory files, and is limited to 20 agent steps. It uses the normal task execution and platform usage accounting path.
+You can also select a Project and choose **Refresh memory** from the Memory page. A refresh creates a regular task with its own sandbox. It receives the new conversation evidence in `inputs/memory-delta.md`, can update the workspace and Project Memory files, and is limited to 40 agent steps. If Memory has become disorganized, the refresh also reorganizes it: merging overlapping notes, splitting long files, and fixing links. It uses the normal task execution and platform usage accounting path.
 
 Set the Agent Preset for refresh tasks in **Admin → Models → Specialized runtime** with `memorySynthesisAgent`. Its full preset payload, including model and reasoning configuration, is applied and resolved through the normal model-routing path. If it is unset or unavailable, Meowbert uses the default available Agent Preset.
 
@@ -88,34 +92,4 @@ Both point to the workspace `.memory` directory.
 
 ## Self-hosted embedding configuration
 
-If you self-host Meowbert, you can choose the embeddings provider and model used for Memory indexing in `config/global.json`:
-
-By default, Memory uses the connection selected in **Admin → AI providers**. Set `baseUrl` and `apiKey` below only when Memory needs a separate embeddings provider. Switching the default provider causes Memory to rebuild its index on the next sync or search.
-
-```json
-{
-  "memory": {
-    "embeddings": {
-      "mode": "openai",
-      "model": "text-embedding-3-small",
-      "baseUrl": "https://api.openai.com/v1",
-      "apiKey": "REPLACE_WITH_API_KEY"
-    }
-  }
-}
-```
-
-Supported `mode` values are:
-
-- `openai`
-- `ollama`
-- `sentence-transformers`
-- `mlx`
-
-Additional provider fields are available when needed:
-
-- `baseUrl` and `apiKey` for OpenAI-compatible providers.
-- `host` for Ollama.
-- `buildPromptTemplate` and `queryPromptTemplate` for embedding setups that need prompt prefixes.
-
-Changing the Memory embedding settings triggers a background reindex. Existing searches keep using the last ready index until the new one is ready.
+Server admins choose the embedding model used for Memory search in **Admin Panel → Platform → Embeddings**. See [Models & Providers](/self-hosting/models-and-providers#memory-embeddings).
