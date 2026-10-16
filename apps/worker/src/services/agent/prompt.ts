@@ -457,6 +457,7 @@ export function buildSystemPrompt(
         : "- **Task directory** (read-only): `$TASK_DIR` — this thread can inspect task files, but it should not write workspace/environment files from this run"
       : "- **Task directory** (writable): `$TASK_DIR` — this persists for the task, so files you create here remain available on later follow-up messages",
     `- **Task input uploads** (read-only): \`${taskInputDir}\` (also available as \`$TASK_INPUT_DIR\`)`,
+    "- **Task scratch directory** (writable): `$TASK_SCRATCH_DIR` — fast local disk for this task, described below",
     ...writableSharedPaths.map((sharedPath) => (
       `- **Writable shared path**: \`${sharedPath}\` — use this for cross-agent handoffs or other explicitly shared workflow files`
     )),
@@ -471,11 +472,14 @@ export function buildSystemPrompt(
     "",
     "A file the user mentions that isn't in the working directory is likely in the environment or workspace root.",
     "Don't run `find` or similar recursive searches over large directories such as the project or workspace: storage is mounted, so walking many files is slow.",
+    "",
+    "The workspace, project and task directories can be on network storage, where creating or deleting lots of files and folders is very slow: a `git clone` there can take minutes. Do that kind of work in `$TASK_SCRATCH_DIR` instead: cloning repos, installing dependencies such as `node_modules` or virtualenvs, builds, and unpacking large archives.",
+    "Everything else, including documents and normal working files, belongs in `$TASK_DIR` as usual. Scratch isn't shown in the user's file browser and is deleted when the task is archived, so copy anything the user should keep into `$TASK_DIR`. If writes to scratch fail with a disk quota error, its space is full; delete what you no longer need there.",
     ...(options.taskFilesystemReadOnly
       ? writableSharedPaths.length > 0
-        ? ["There is no special scratchpad directory here. For scratch files, make a folder under a writable shared path listed above."]
+        ? ["For other scratch files, make a folder under a writable shared path listed above."]
         : []
-      : ["There is no special scratchpad directory here. For scratch files, make a folder such as `$TASK_DIR/tmp` and remove it when you no longer need it. Avoid `/tmp`: it is not kept if the sandbox restarts."]),
+      : ["For other scratch files, make a folder such as `$TASK_DIR/tmp` and remove it when you no longer need it. Avoid `/tmp`: it is not kept if the sandbox restarts."]),
     options.taskFilesystemReadOnly
       ? `- **Shared project dependencies**: \`${sharedDependenciesDir}\` can be reused, but this run must not install or modify libraries there. Use only the writable workflow paths listed above when they apply.`
       : `- **Shared project dependencies**: create and reuse \`${sharedDependenciesDir}\` for libraries and tools needed across this project's tasks. Check what is installed first, and don't replace or upgrade a shared version unless the task requires it. Keep an application's own dependencies in its package manifest and lockfile.`,
@@ -552,7 +556,7 @@ export function buildSystemPrompt(
     "## Runtime Environment",
     "",
     "- **Linux**: bash, git, gh, curl, wget, jq, ripgrep (rg), make, g++, zip/unzip, and more; `python3` with pip (not `python`); node with npm",
-    `- **Environment variables**: \`TASK_DIR\` (task cwd), \`ENV_ROOT\` (environment root), \`WORKSPACE_ROOT\` (workspace root), \`TASK_INPUT_DIR\` (uploaded inputs for this task)${memoryEnabled ? ", `MEMORY_DIR` / `MEOWBERT_MEMORY_DIR` (persistent workspace Memory)" : ""}`,
+    `- **Environment variables**: \`TASK_DIR\` (task cwd), \`ENV_ROOT\` (environment root), \`WORKSPACE_ROOT\` (workspace root), \`TASK_INPUT_DIR\` (uploaded inputs for this task), \`TASK_SCRATCH_DIR\` (fast local scratch for repos and dependencies)${memoryEnabled ? ", `MEMORY_DIR` / `MEOWBERT_MEMORY_DIR` (persistent workspace Memory)" : ""}`,
     "- **System filesystem**: system directories are read-only, and only the directories marked writable above accept writes. `apt-get` is unavailable.",
     ...(options.taskFilesystemReadOnly
       ? [

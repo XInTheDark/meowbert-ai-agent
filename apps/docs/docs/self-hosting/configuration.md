@@ -45,6 +45,36 @@ Off by default. See [Outgoing Email](/reference/email-delivery).
 
 Where project and workspace files live. The default keeps everything under `/srv/meowbert/runtime`. See [Storage Backends](/reference/storage-backends) and, for per-workspace disk quotas, [XFS Project Quotas](/reference/xfs-project-quotas).
 
+### Task scratch
+
+Each task gets a scratch folder on local disk, `$TASK_SCRATCH_DIR`, for work that makes lots of small files: cloning git repos, installing dependencies, builds. Agents keep normal files in the task folder, but a `git clone` onto a network mount such as `rclone` can take minutes, so they use scratch for this instead.
+
+```json
+"runtime": {
+  "taskScratch": {
+    "root": "/app/runtime/task-scratch",
+    "xfsProjectQuota": { "mountPath": "/app/runtime/task-scratch" }
+  }
+}
+```
+
+- `root`: where scratch folders live inside the API and worker containers. It defaults to `task-scratch` next to `tasksRoot`, which is `/srv/meowbert/runtime/task-scratch` on the host. Keep it on local disk.
+- `xfsProjectQuota`: optional. When `root` is an XFS mount with project quotas, each workspace's scratch is capped at its workspace storage limit (`storageMb`). Without it, scratch is limited only by the disk it's on.
+
+Scratch is deleted when its task is deleted, expires, or moves to cold storage. It isn't shown in the file browser.
+
+To give scratch its own fixed-size XFS filesystem from an image file:
+
+```bash
+sudo truncate -s 10G /srv/meowbert/loop-images/task-scratch.img
+sudo mkfs.xfs /srv/meowbert/loop-images/task-scratch.img
+sudo mkdir -p /srv/meowbert/runtime/task-scratch
+echo "/srv/meowbert/loop-images/task-scratch.img /srv/meowbert/runtime/task-scratch xfs loop,prjquota,nofail,x-systemd.before=docker.service 0 0" | sudo tee -a /etc/fstab
+sudo mount /srv/meowbert/runtime/task-scratch
+```
+
+The image size caps all scratch together. Mount it before Docker starts so the containers see it.
+
 ## Passwords and ports
 
 Postgres, Redis, and Meilisearch listen on `127.0.0.1` only and use default passwords. That's fine on a single machine. If you change the bind addresses, set real passwords in `.env` first:

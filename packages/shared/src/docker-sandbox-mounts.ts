@@ -90,7 +90,7 @@ export function mapContainerPathToHostPath(mounts: MountedPathInfo[], containerP
   return null;
 }
 
-function decodeMountInfoPath(value: string): string {
+export function decodeMountInfoPath(value: string): string {
   return value.replace(/\\([0-7]{3})/g, (_match, octalValue: string) =>
     String.fromCharCode(Number.parseInt(octalValue, 8))
   );

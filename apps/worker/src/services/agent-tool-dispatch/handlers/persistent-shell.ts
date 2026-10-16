@@ -37,6 +37,7 @@ function getPersistentContext(ctx: ToolDispatchContext) {
     environmentId: ctx.environmentId,
     creatorUserId: ctx.actorUserId,
     taskDir: ctx.taskDir,
+    taskScratchDir: ctx.taskScratchDir,
     envRoot: ctx.envRoot,
     workspaceRoot: ctx.workspaceRoot,
     workingDir: ctx.envRoot,

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
+import { ensureMountDeviceNode } from "./xfs-quota-device-node.js";
 
 const execFile = promisify(execFileCallback);
 const DEFAULT_XFS_QUOTA_COMMAND = "xfs_quota";
@@ -75,11 +76,14 @@ export function resolveWorkspaceStorageUnitRoot(workspaceRoot: string): string {
 
 export class XfsProjectQuotaManager {
   private readonly commandRunner: XfsQuotaCommandRunner;
+  private readonly skipDeviceNodeCheck: boolean;
 
   constructor(input: {
     commandRunner?: XfsQuotaCommandRunner;
   } = {}) {
     this.commandRunner = input.commandRunner ?? defaultCommandRunner();
+    // Injected runners are tests or callers that own the environment; leave the host alone.
+    this.skipDeviceNodeCheck = input.commandRunner !== undefined;
   }
 
   async inspectMount(input: {
@@ -87,6 +91,9 @@ export class XfsProjectQuotaManager {
     command?: string;
   }): Promise<XfsProjectQuotaMountStatus> {
     const command = input.command?.trim() || DEFAULT_XFS_QUOTA_COMMAND;
+    if (!this.skipDeviceNodeCheck) {
+      await ensureMountDeviceNode(input.mountPath);
+    }
 
     try {
       const result = await this.commandRunner.execFile(command, [
@@ -123,6 +130,9 @@ export class XfsProjectQuotaManager {
     const command = input.command?.trim() || DEFAULT_XFS_QUOTA_COMMAND;
     const storageUnitRoot = path.resolve(input.storageUnitRoot);
     const quotaMegabytes = formatQuotaMegabytes(input.quotaBytes);
+    if (!this.skipDeviceNodeCheck) {
+      await ensureMountDeviceNode(input.mountPath);
+    }
 
     try {
       await this.commandRunner.execFile(command, [

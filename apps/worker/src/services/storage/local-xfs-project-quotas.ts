@@ -31,7 +31,7 @@ function assertQuotaMountContainsWorkspaceRoot(backend: LocalStorageBackendConfi
   }
 }
 
-async function claimWorkspaceStorageProjectId(workspaceId: string, projectIdBase: number): Promise<number> {
+export async function claimWorkspaceStorageProjectId(workspaceId: string, projectIdBase: number): Promise<number> {
   return withTransaction(async (client) => {
     const workspaceRes = await client.query<{ storage_project_id: number | null }>(
       `SELECT storage_project_id

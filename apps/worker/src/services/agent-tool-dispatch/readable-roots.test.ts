@@ -19,7 +19,8 @@ describe("resolveToolReadableRoots", () => {
       await fs.mkdir(path.dirname(outside), { recursive: true });
       await fs.writeFile(imagePath, "image bytes");
       await fs.writeFile(outside, "private");
-      const roots = resolveToolReadableRoots({ taskDir, envRoot, workspaceRoot });
+      const taskScratchDir = path.join(storage, "task-scratch/workspace-1/current-task");
+      const roots = resolveToolReadableRoots({ taskDir, taskScratchDir, envRoot, workspaceRoot });
       const opened = await openReadablePathWithinRoots(roots, imagePath);
       try {
         expect(await opened.fileHandle.readFile("utf8")).toBe("image bytes");
@@ -38,6 +39,7 @@ describe("resolveToolReadableRoots", () => {
   it("tries the workflow task dir before the worker task dir", () => {
     expect(resolveToolReadableRoots({
       taskDir: "/tmp/env/.meowbert/task-runs/worker-1",
+      taskScratchDir: "/tmp/task-scratch/workspace-1/worker-1",
       envRoot: "/tmp/env",
       workspaceRoot: "/tmp/workspace",
       workflowContext: {
@@ -46,6 +48,7 @@ describe("resolveToolReadableRoots", () => {
     })).toEqual([
       "/tmp/env/.meowbert/task-runs/swarm-main",
       "/tmp/env/.meowbert/task-runs/worker-1",
+      "/tmp/task-scratch/workspace-1/worker-1",
       "/tmp/env",
       "/tmp/workspace"
     ]);

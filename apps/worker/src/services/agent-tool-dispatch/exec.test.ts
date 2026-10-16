@@ -38,6 +38,7 @@ function createContext(): ToolDispatchContext {
     environmentId: "env-1",
     actorUserId: null,
     taskDir: "/tmp/task",
+    taskScratchDir: "/tmp/task-scratch",
     envRoot: "/tmp/env",
     workspaceRoot: "/tmp/workspace",
     liveSyncFiles: [],

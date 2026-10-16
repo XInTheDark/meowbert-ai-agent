@@ -21,6 +21,7 @@ import { ensureWorkspaceMemoryFiles } from "../../services/workspaces/workspace-
 import { getDefaultWorkspaceStorageBackendId } from "../../services/storage/default-backend.js";
 import { ensureWorkspaceStorageRoot } from "../../services/workspaces/workspace-storage.js";
 import { ensureUserHasWorkspace } from "../../services/workspaces/user-workspace.js";
+import { removeWorkspaceScratch } from "../../services/tasks/task-scratch.js";
 import {
   createWorkspaceSchema,
   createWorkspaceSlug,
@@ -629,6 +630,7 @@ export async function registerWorkspaceCoreRoutes(fastify: FastifyInstance): Pro
     }
 
     await query(`DELETE FROM workspaces WHERE id = $1`, [wsId]);
+    await removeWorkspaceScratch(wsId);
     return { ok: true };
   });
 

@@ -11,6 +11,9 @@ vi.mock("../../services/workspaces/workspace-access.js", () => ({
   assertWorkspaceMember: vi.fn(async () => {})
 }));
 
+vi.mock("../../services/tasks/task-scratch.js", () => ({
+  removeWorkspaceScratch: vi.fn()
+}));
 vi.mock("../../services/workspaces/user-workspace.js", () => ({
   ensureUserHasWorkspace: vi.fn(async () => {})
 }));

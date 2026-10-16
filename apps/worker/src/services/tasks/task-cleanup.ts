@@ -4,6 +4,7 @@ import { isWithinPath, parseTaskCleanupSettings } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { resolveTaskEnvironmentRoot } from "../runtime/environment-storage.js";
 import { deleteTaskHistoryArchive } from "./task-history.js";
+import { removeTasksScratch } from "./task-scratch.js";
 
 const TERMINAL_TASK_STATUSES = ["succeeded", "failed", "cancelled"] as const;
 const ACTIVE_TASK_STATUSES = ["queued", "starting", "running"] as const;
@@ -220,6 +221,7 @@ async function runEnvironmentCleanup(input: {
     taskIds: combinedDeleted.taskIds,
     workspacePaths: combinedDeleted.workspacePaths
   });
+  await removeTasksScratch(input.workspaceId, combinedDeleted.taskIds);
   await removeTaskArchiveFiles(combinedDeleted.archiveKeys);
 
   return combinedDeleted.taskIds.length;

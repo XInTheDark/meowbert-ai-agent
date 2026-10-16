@@ -33,6 +33,7 @@ export interface ToolDispatchContext {
   searchWeb?: (query: string) => Promise<string>;
   contextManagementV2?: ContextManagementV2State | null;
   taskDir: string;
+  taskScratchDir: string;
   taskRootPath?: string;
   envRoot: string;
   workspaceRoot: string;

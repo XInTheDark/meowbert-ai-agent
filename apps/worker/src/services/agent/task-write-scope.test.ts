@@ -11,6 +11,7 @@ import {
 import { resolveSwarmSharedDir } from "../task-workflows/paths.js";
 
 const tempDirs: string[] = [];
+const taskScratchDir = "/scratch/workspace-1/task-1";
 
 function createTempDir(prefix: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -54,6 +55,7 @@ describe("task write scope", () => {
     const mounts = await buildTaskSandboxMounts({
       envRoot,
       workspaceRoot,
+      taskScratchDir,
       isThreadTask: true,
       workflowType: "agent_swarm",
       workflowTaskId,
@@ -63,6 +65,7 @@ describe("task write scope", () => {
     expect(mounts).toEqual([
       { path: storageUnitRoot, readOnly: true },
       { path: sharedDir },
+      { path: taskScratchDir },
       { path: skillsRootDir, readOnly: true, optional: true }
     ]);
     expect(fs.existsSync(sharedDir)).toBe(true);
@@ -74,6 +77,7 @@ describe("task write scope", () => {
     const mounts = await buildTaskSandboxMounts({
       envRoot,
       workspaceRoot,
+      taskScratchDir,
       isThreadTask: false,
       workflowType: null,
       workflowTaskId: null,
@@ -81,7 +85,8 @@ describe("task write scope", () => {
     });
 
     expect(mounts).toEqual([
-      { path: storageUnitRoot }
+      { path: storageUnitRoot },
+      { path: taskScratchDir }
     ]);
   });
 
@@ -91,6 +96,7 @@ describe("task write scope", () => {
     const mounts = await buildTaskSandboxMounts({
       envRoot,
       workspaceRoot,
+      taskScratchDir,
       isThreadTask: false,
       workflowType: "agent_swarm",
       workflowTaskId: "swarm-main",
@@ -98,7 +104,8 @@ describe("task write scope", () => {
     });
 
     expect(mounts).toEqual([
-      { path: storageUnitRoot }
+      { path: storageUnitRoot },
+      { path: taskScratchDir }
     ]);
   });
 
@@ -109,6 +116,7 @@ describe("task write scope", () => {
     const mounts = await buildTaskSandboxMounts({
       envRoot,
       workspaceRoot,
+      taskScratchDir,
       isThreadTask: false,
       workflowType: null,
       workflowTaskId: null,
@@ -117,22 +125,25 @@ describe("task write scope", () => {
 
     expect(mounts).toEqual([
       { path: storageUnitRoot },
-      { path: envRoot }
+      { path: envRoot },
+      { path: taskScratchDir }
     ]);
   });
 
-  it("limits thread apply_patch writes to the swarm shared handoff dir", () => {
+  it("limits thread apply_patch writes to its scratch and the swarm shared handoff dir", () => {
     const { envRoot, workspaceRoot } = createWorkspaceLayout("meowbert-write-roots-");
     const taskDir = path.join(envRoot, ".meowbert", "task-runs", "worker-1");
 
     expect(resolveApplyPatchWritableRoots({
       taskDir,
+      taskScratchDir,
       envRoot,
       workspaceRoot,
       isThreadTask: true,
       workflowType: "agent_swarm",
       workflowTaskId: "workflow-1"
     })).toEqual([
+      taskScratchDir,
       resolveSwarmSharedDir(envRoot, "workflow-1")
     ]);
   });
@@ -143,12 +154,13 @@ describe("task write scope", () => {
 
     expect(resolveApplyPatchWritableRoots({
       taskDir,
+      taskScratchDir,
       envRoot,
       workspaceRoot,
       isThreadTask: false,
       workflowType: "agent_swarm",
       workflowTaskId: "workflow-1"
-    })).toEqual([taskDir, envRoot, resolveWorkspaceStorageUnitRoot(workspaceRoot)]);
+    })).toEqual([taskDir, taskScratchDir, envRoot, resolveWorkspaceStorageUnitRoot(workspaceRoot)]);
   });
 
   it("detects when an external environment root needs its own readable mount", async () => {

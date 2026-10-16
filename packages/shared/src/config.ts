@@ -2,7 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { sandboxConfigSchema } from "./sandbox.js";
-import { storageConfigSchema, type NormalizedStorageConfig, normalizeStorageConfig } from "./storage-backends.js";
+import {
+  storageConfigSchema,
+  type NormalizedStorageConfig,
+  normalizeStorageConfig,
+  type XfsProjectQuotaConfig,
+  xfsProjectQuotaSchema
+} from "./storage-backends.js";
 import {
   taskHistoryArchiveConfigInputSchema,
   type NormalizedTaskHistoryArchiveConfig,
@@ -10,6 +16,11 @@ import {
 } from "./task-history-archive.js";
 
 const DEFAULT_MEMORY_INDEX_CACHE_ROOT = "/tmp/meowbert-memory-index-cache";
+const DEFAULT_TASK_SCRATCH_DIR_NAME = "task-scratch";
+const taskScratchConfigSchema = z.object({
+  root: z.string().min(1).optional(),
+  xfsProjectQuota: xfsProjectQuotaSchema.optional()
+});
 const browserUseConfigSchema = z.object({
   enabled: z.boolean().optional()
 });
@@ -67,7 +78,8 @@ const configSchema = z.object({
     maxCommandOutputKb: z.number().int().positive(),
     maxSteps: z.number().int().positive(),
     workerConcurrency: z.number().int().positive(),
-    sandbox: sandboxConfigSchema
+    sandbox: sandboxConfigSchema,
+    taskScratch: taskScratchConfigSchema.optional()
   }),
   security: z.object({
     jwtSecret: z.string().min(1),
@@ -128,10 +140,39 @@ const configSchema = z.object({
 
 type ParsedAppConfig = z.infer<typeof configSchema>;
 
-export type AppConfig = Omit<ParsedAppConfig, "storage" | "taskHistoryArchive"> & {
+export interface TaskScratchConfig {
+  root: string;
+  xfsProjectQuota?: XfsProjectQuotaConfig;
+}
+
+export type AppConfig = Omit<ParsedAppConfig, "storage" | "taskHistoryArchive" | "runtime"> & {
   storage: NormalizedStorageConfig;
   taskHistoryArchive: NormalizedTaskHistoryArchiveConfig;
+  runtime: Omit<ParsedAppConfig["runtime"], "taskScratch"> & {
+    taskScratch: TaskScratchConfig;
+  };
 };
+
+function normalizeTaskScratchConfig(
+  raw: ParsedAppConfig["runtime"]["taskScratch"],
+  baseDir: string,
+  tasksRoot: string
+): TaskScratchConfig {
+  const root = raw?.root
+    ? resolvePathFromRoot(baseDir, raw.root)
+    : path.resolve(tasksRoot, "..", DEFAULT_TASK_SCRATCH_DIR_NAME);
+  return {
+    root,
+    ...(raw?.xfsProjectQuota
+      ? {
+          xfsProjectQuota: {
+            ...raw.xfsProjectQuota,
+            mountPath: resolvePathFromRoot(baseDir, raw.xfsProjectQuota.mountPath)
+          }
+        }
+      : {})
+  };
+}
 
 function resolveConfigBaseDir(configPath: string): string {
   const configDir = path.dirname(configPath);
@@ -143,11 +184,13 @@ function resolveConfigBaseDir(configPath: string): string {
 }
 
 function normalizeRuntimePaths(parsed: ParsedAppConfig, baseDir: string): AppConfig {
+  const tasksRoot = resolvePathFromRoot(baseDir, parsed.runtime.tasksRoot);
   const runtime = {
     ...parsed.runtime,
     workspacesRoot: resolvePathFromRoot(baseDir, parsed.runtime.workspacesRoot),
     environmentsRoot: resolvePathFromRoot(baseDir, parsed.runtime.environmentsRoot),
-    tasksRoot: resolvePathFromRoot(baseDir, parsed.runtime.tasksRoot)
+    tasksRoot,
+    taskScratch: normalizeTaskScratchConfig(parsed.runtime.taskScratch, baseDir, tasksRoot)
   };
 
   return {

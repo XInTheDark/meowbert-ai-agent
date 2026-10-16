@@ -67,6 +67,8 @@ export interface PersistentShellContext {
   environmentId: string;
   creatorUserId: string;
   taskDir: string;
+  // Mounted into sessions this task launches; other tasks reusing the session don't get theirs.
+  taskScratchDir: string;
   envRoot: string;
   workspaceRoot: string;
   workingDir: string;
@@ -204,6 +206,7 @@ async function launchSessionCommand(
     envRoot: session.env_root,
     workspaceRoot: session.workspace_root
   })).map((mountPath) => ({ path: mountPath }));
+  mounts.push({ path: context.taskScratchDir });
   const resources = await resolveUserSandboxContainerResources(session.creator_user_id);
   const sandbox = await workerSandboxManager.createPersistentSandbox({
     workingDir: session.working_dir,

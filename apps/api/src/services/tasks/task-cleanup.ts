@@ -10,6 +10,7 @@ import {
 import { query, withTransaction } from "../../lib/db.js";
 import { ensureEnvironmentStorageRoot } from "../environments/environment-storage.js";
 import { deleteTaskHistoryArchive } from "./task-history.js";
+import { removeTasksScratch } from "./task-scratch.js";
 
 const TERMINAL_TASK_STATUSES = ["succeeded", "failed", "cancelled"] as const;
 const ACTIVE_TASK_STATUSES = ["queued", "starting", "running"] as const;
@@ -388,6 +389,7 @@ export async function finalizeDeletedTasks(input: {
     taskRootPaths: input.deleted.taskRootPaths,
     workspacePaths: input.deleted.workspacePaths
   });
+  await removeTasksScratch(input.workspaceId, input.deleted.taskIds);
   const archiveCleanup = await removeTaskArchiveFiles(input.deleted.archiveKeys);
 
   return {
@@ -508,6 +510,7 @@ export async function runEnvironmentTaskCleanup(input: RunEnvironmentTaskCleanup
     taskRootPaths: combinedDeleted.taskRootPaths,
     workspacePaths: combinedDeleted.workspacePaths
   });
+  await removeTasksScratch(input.workspaceId, combinedDeleted.taskIds);
   const archiveCleanup = await removeTaskArchiveFiles(combinedDeleted.archiveKeys);
 
   return {

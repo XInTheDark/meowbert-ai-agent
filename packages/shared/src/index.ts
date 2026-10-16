@@ -45,6 +45,8 @@ export * from "./source-provider-security.js";
 export * from "./computer-use.js";
 export * from "./context-usage.js";
 export * from "./xfs-project-quota.js";
+export * from "./xfs-quota-device-node.js";
+export * from "./task-scratch-paths.js";
 export * from "./user-resource-limits.js";
 export * from "./task-scheduler.js";
 export * from "./task-history-search.js";

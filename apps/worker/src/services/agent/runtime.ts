@@ -67,6 +67,7 @@ import {
   readWorkspaceMemoryMainFile
 } from "../memory/index.js";
 import { resolveTaskDir } from "../tasks/task-paths.js";
+import { ensureTaskScratchDir } from "../tasks/task-scratch.js";
 import { buildTaskSandboxMounts } from "./task-write-scope.js";
 import { getMaxContextWindowTokens } from "../context-compaction/index.js";
 import type { OpenAiProviderConfig } from "./openai-client.js";
@@ -126,6 +127,7 @@ export interface PreparedAgentRunContext {
   envRoot: string;
   workspaceRoot: string;
   taskDir: string;
+  taskScratchDir: string;
   liveSyncFiles: TaskLiveSyncFileSummary[];
   runStartedAt: Date;
   baseEnvironmentJsonPayload: Record<string, unknown>;
@@ -632,6 +634,7 @@ async function createSandbox(input: {
   isThreadTask: boolean;
   skillsRootDir: string | null;
   taskDir: string;
+  taskScratchDir: string;
   taskId: string;
   runId: string;
   workspaceId: string;
@@ -661,6 +664,7 @@ async function createSandbox(input: {
     run: () => buildTaskSandboxMounts({
       envRoot: input.envRoot,
       workspaceRoot: input.workspaceRoot,
+      taskScratchDir: input.taskScratchDir,
       isThreadTask: input.isThreadTask,
       workflowType: input.workflowType,
       workflowTaskId: input.workflowTaskId,
@@ -919,6 +923,13 @@ async function loadPreparedRunIdentity(job: TaskExecutionJob, debugLogger: TaskD
     run: () => registerTaskWorkspace(job.taskId, taskDir, envRoot),
     successPayload: { taskDir }
   });
+  const taskScratchDir = await debugLogger.stage({
+    stage: "startup.task_scratch",
+    startMessage: "Preparing task scratch directory.",
+    successMessage: "Prepared task scratch directory.",
+    run: () => ensureTaskScratchDir({ workspaceId: snapshot.task.workspace_id, taskId: job.taskId }),
+    successPayload: (resolvedScratchDir) => ({ taskScratchDir: resolvedScratchDir })
+  });
   const liveSyncFiles = await debugLogger.stage({
     stage: "startup.live_sync",
     startMessage: "Loading live sync file links.",
@@ -948,6 +959,7 @@ async function loadPreparedRunIdentity(job: TaskExecutionJob, debugLogger: TaskD
     envRoot,
     workspaceRoot,
     taskDir,
+    taskScratchDir,
     liveSyncFiles,
     runStartedAt
   };
@@ -956,11 +968,13 @@ async function loadPreparedRunIdentity(job: TaskExecutionJob, debugLogger: TaskD
 function buildInitialShellEnvironment(
   snapshot: TaskSnapshot,
   envRoot: string,
-  workspaceRoot: string
+  workspaceRoot: string,
+  taskScratchDir: string
 ): Record<string, string> {
   const shellEnvOverrides: Record<string, string> = {
     WORKSPACE_ROOT: workspaceRoot,
-    MEOWBERT_WORKSPACE_ROOT: workspaceRoot
+    MEOWBERT_WORKSPACE_ROOT: workspaceRoot,
+    TASK_SCRATCH_DIR: taskScratchDir
   };
   if (snapshot.interactive_canvas) {
     const canvasDir = path.resolve(envRoot, snapshot.interactive_canvas.root_path);
@@ -999,10 +1013,11 @@ async function resolvePreparedRunBase(job: TaskExecutionJob, debugLogger: TaskDe
     envRoot,
     workspaceRoot,
     taskDir,
+    taskScratchDir,
     liveSyncFiles,
     runStartedAt
   } = identity;
-  const shellEnvOverrides = buildInitialShellEnvironment(snapshot, envRoot, workspaceRoot);
+  const shellEnvOverrides = buildInitialShellEnvironment(snapshot, envRoot, workspaceRoot, taskScratchDir);
   const cancellationMonitor = await startPreparedCancellationMonitor(job, snapshot, debugLogger);
   try {
     const refreshGitHubToken = await createRefreshGitHubToken(
@@ -1095,6 +1110,7 @@ async function resolvePreparedRunBase(job: TaskExecutionJob, debugLogger: TaskDe
       envRoot,
       workspaceRoot,
       taskDir,
+      taskScratchDir,
       liveSyncFiles,
       runStartedAt,
       shellEnvOverrides,
@@ -1119,6 +1135,7 @@ interface PreparedRunResourceInput {
   envRoot: string;
   workspaceRoot: string;
   taskDir: string;
+  taskScratchDir: string;
   shellEnvOverrides: Record<string, string>;
   runtimeConfig: Awaited<ReturnType<typeof resolveRuntimeConfig>>;
   resolvedRunActorIsSuperAdmin: boolean;
@@ -1243,6 +1260,7 @@ async function createPreparedRunSandbox(
     isThreadTask: input.snapshot.task.is_thread,
     skillsRootDir: tooling.skillsRootDir,
     taskDir: input.taskDir,
+    taskScratchDir: input.taskScratchDir,
     taskId: input.job.taskId,
     runId: input.job.runId,
     workspaceId: input.snapshot.task.workspace_id,
@@ -1388,6 +1406,7 @@ export async function prepareAgentRunContext(
       envRoot: base.envRoot,
       workspaceRoot: base.workspaceRoot,
       taskDir: base.taskDir,
+      taskScratchDir: base.taskScratchDir,
       shellEnvOverrides: base.shellEnvOverrides,
       runtimeConfig: base.runtimeConfig,
       resolvedRunActorIsSuperAdmin: base.resolvedRunActorIsSuperAdmin
@@ -1409,6 +1428,7 @@ export async function prepareAgentRunContext(
       envRoot: base.envRoot,
       workspaceRoot: base.workspaceRoot,
       taskDir: base.taskDir,
+      taskScratchDir: base.taskScratchDir,
       liveSyncFiles: base.liveSyncFiles,
       runStartedAt: base.runStartedAt,
       baseEnvironmentJsonPayload: base.runtimeConfig.baseEnvironmentJsonPayload,

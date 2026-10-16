@@ -1,5 +1,6 @@
 interface ToolReadableRootsInput {
   taskDir: string;
+  taskScratchDir: string;
   envRoot: string;
   workspaceRoot: string;
   workflowContext?: {
@@ -12,6 +13,7 @@ export function resolveToolReadableRoots(ctx: ToolReadableRootsInput): string[] 
   return [
     ...(workflowTaskDir && workflowTaskDir.length > 0 ? [workflowTaskDir] : []),
     ctx.taskDir,
+    ctx.taskScratchDir,
     ctx.envRoot,
     ctx.workspaceRoot
   ];

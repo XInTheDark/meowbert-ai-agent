@@ -117,6 +117,32 @@ describe("loadConfig runtime path normalization", () => {
     expect(loaded.runtime.sandbox.image).toBe("meowbert-sandbox-runtime:local");
   });
 
+  it("defaults task scratch next to the tasks root without a quota", () => {
+    const temp = writeTempConfig("config");
+    const loaded = loadConfig(temp.configPath);
+
+    expect(loaded.runtime.taskScratch).toEqual({ root: path.resolve(temp.root, "runtime/task-scratch") });
+    fs.rmSync(temp.root, { recursive: true, force: true });
+  });
+
+  it("resolves a configured task scratch root and XFS quota mount", () => {
+    const temp = writeTempConfig("config");
+    fs.writeFileSync(temp.configPath, JSON.stringify({
+      ...baseConfig,
+      runtime: {
+        ...baseConfig.runtime,
+        taskScratch: { root: "./scratch", xfsProjectQuota: { mountPath: "./scratch" } }
+      }
+    }));
+    const loaded = loadConfig(temp.configPath);
+
+    expect(loaded.runtime.taskScratch).toEqual({
+      root: path.resolve(temp.root, "scratch"),
+      xfsProjectQuota: { mountPath: path.resolve(temp.root, "scratch"), projectIdBase: 10_000 }
+    });
+    fs.rmSync(temp.root, { recursive: true, force: true });
+  });
+
   it("does not retain the retired fastModel config key", () => {
     const temp = writeTempConfig("config");
     const raw = JSON.parse(fs.readFileSync(temp.configPath, "utf-8")) as Record<string, unknown>;

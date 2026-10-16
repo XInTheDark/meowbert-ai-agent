@@ -153,6 +153,7 @@ export async function handleApplyPatch(
   const absolutePaths: string[] = [];
   const writableRoots = resolveApplyPatchWritableRoots({
     taskDir: ctx.taskDir,
+    taskScratchDir: ctx.taskScratchDir,
     envRoot: ctx.envRoot,
     workspaceRoot: ctx.workspaceRoot,
     isThreadTask: ctx.isThreadTask,

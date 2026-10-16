@@ -43,6 +43,9 @@
     "maxCommandOutputKb": 256,
     "maxSteps": 800,
     "workerConcurrency": 4,
+    "taskScratch": {
+      "root": "/app/runtime/task-scratch"
+    },
     "sandbox": {
       "provider": "docker",
       "image": "ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main",

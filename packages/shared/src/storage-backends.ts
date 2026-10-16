@@ -12,7 +12,7 @@ const backendBaseSchema = z.object({
 });
 
 const optionalSubdirSchema = z.string().trim().min(1).max(240).optional();
-const xfsProjectQuotaSchema = z.object({
+export const xfsProjectQuotaSchema = z.object({
   mountPath: z.string().min(1),
   projectIdBase: z.number().int().positive().max(2_147_483_647).default(DEFAULT_XFS_PROJECT_ID_BASE),
   command: z.string().trim().min(1).max(240).optional()

@@ -850,6 +850,7 @@ function buildDispatchContext(execution: AgentExecutionContext, codeModeTools: F
     actorUserId: execution.prepared.runActorUserId ?? null,
     selectionUserId: execution.job.selectionUserId ?? null,
     taskDir: execution.prepared.taskDir,
+    taskScratchDir: execution.prepared.taskScratchDir,
     taskRootPath: execution.prepared.snapshot.task.task_root_path,
     envRoot: execution.prepared.envRoot,
     workspaceRoot: execution.prepared.workspaceRoot,

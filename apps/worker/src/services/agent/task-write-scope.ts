@@ -39,6 +39,7 @@ export function resolveWorkflowWritableSharedPaths(workflowContext: LoadedWorkfl
 
 export function resolveApplyPatchWritableRoots(input: {
   taskDir: string;
+  taskScratchDir: string;
   envRoot: string;
   workspaceRoot: string;
   isThreadTask: boolean;
@@ -48,16 +49,20 @@ export function resolveApplyPatchWritableRoots(input: {
   if (!input.isThreadTask) {
     return [
       input.taskDir,
+      input.taskScratchDir,
       input.envRoot,
       resolveWorkspaceStorageUnitRoot(input.workspaceRoot)
     ];
   }
 
-  return resolveTaskWritableSharedPaths({
-    envRoot: input.envRoot,
-    workflowType: input.workflowType,
-    workflowTaskId: input.workflowTaskId
-  });
+  return [
+    input.taskScratchDir,
+    ...resolveTaskWritableSharedPaths({
+      envRoot: input.envRoot,
+      workflowType: input.workflowType,
+      workflowTaskId: input.workflowTaskId
+    })
+  ];
 }
 
 export async function resolveTaskReadableMountPaths(input: {
@@ -73,6 +78,7 @@ export async function resolveTaskReadableMountPaths(input: {
 export async function buildTaskSandboxMounts(input: {
   envRoot: string;
   workspaceRoot: string;
+  taskScratchDir: string;
   isThreadTask: boolean;
   workflowType: TaskWorkflowType | null;
   workflowTaskId: string | null;
@@ -100,6 +106,7 @@ export async function buildTaskSandboxMounts(input: {
       ...(input.isThreadTask ? { readOnly: true } : {})
     })),
     ...writableSharedPaths.map((sharedPath) => ({ path: sharedPath })),
+    { path: input.taskScratchDir },
     ...(input.skillsRootDir ? [{ path: input.skillsRootDir, readOnly: true, optional: true }] : [])
   ];
 }

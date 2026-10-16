@@ -6,6 +6,7 @@ import {
 } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import { query, withTransaction } from "../../lib/db.js";
+import { removeTasksScratch } from "./task-scratch.js";
 
 const taskHistoryDeps = {
   archiveConfig: config.taskHistoryArchive,
@@ -25,7 +26,20 @@ export async function ensureTaskHistoryWarm(taskId: string): Promise<void> {
 }
 
 export async function archiveTaskHistory(taskId: string) {
-  return archiveSharedTaskHistory(taskId, taskHistoryDeps);
+  const result = await archiveSharedTaskHistory(taskId, taskHistoryDeps);
+  if (result.status === "archived") {
+    await removeArchivedTaskScratch(taskId);
+  }
+  return result;
+}
+
+// Scratch is disposable and never archived; a restored task starts with an empty one.
+async function removeArchivedTaskScratch(taskId: string): Promise<void> {
+  const taskRes = await query<{ workspace_id: string }>("SELECT workspace_id FROM tasks WHERE id = $1", [taskId]);
+  const workspaceId = taskRes.rows[0]?.workspace_id;
+  if (workspaceId) {
+    await removeTasksScratch(workspaceId, [taskId]);
+  }
 }
 
 export async function resetStaleTaskHistoryArchiving(now?: Date): Promise<number> {

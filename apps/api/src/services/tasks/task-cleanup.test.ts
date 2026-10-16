@@ -10,8 +10,13 @@ vi.mock("../environments/environment-storage.js", () => ({
 vi.mock("./task-history.js", () => ({
   deleteTaskHistoryArchive: vi.fn()
 }));
+vi.mock("./task-scratch.js", () => ({
+  removeTasksScratch: vi.fn()
+}));
 
-import { deleteTaskTreesInTx, TaskDeletionConflictError } from "./task-cleanup.js";
+import { ensureEnvironmentStorageRoot } from "../environments/environment-storage.js";
+import { deleteTaskTreesInTx, finalizeDeletedTasks, TaskDeletionConflictError } from "./task-cleanup.js";
+import { removeTasksScratch } from "./task-scratch.js";
 
 function buildRowsResult<Row extends object>(rows: Row[]) {
   return { rows, rowCount: rows.length };
@@ -50,5 +55,20 @@ describe("deleteTaskTreesInTx", () => {
     await expect(deleteTaskTreesInTx({ query } as never, ["root"]))
       .rejects.toBeInstanceOf(TaskDeletionConflictError);
     expect(query).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("finalizeDeletedTasks", () => {
+  it("removes scratch for every deleted task in the tree", async () => {
+    vi.mocked(ensureEnvironmentStorageRoot).mockResolvedValue("/tmp/meowbert-env-root");
+
+    await finalizeDeletedTasks({
+      environmentId: "environment-1",
+      workspaceId: "workspace-1",
+      rootPath: "root",
+      deleted: { taskIds: ["root", "thread"], taskRootPaths: [], workspacePaths: [], archiveKeys: [] }
+    });
+
+    expect(removeTasksScratch).toHaveBeenCalledWith("workspace-1", ["root", "thread"]);
   });
 });
