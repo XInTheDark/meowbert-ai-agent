@@ -225,12 +225,13 @@ export function useWorkspaceLayoutController(
     setEnvironments(sortedProjects);
     setWorkspaceSettings(payload.workspaceSettings);
     setEnvironmentsWorkspaceId(input.activeWorkspaceId);
-    if (input.activeWorkspaceId) {
+    const visiting = payload.workspaces.some((workspace) => workspace.id === input.activeWorkspaceId && workspace.visiting);
+    if (input.activeWorkspaceId && !visiting) {
       saveLastWorkspaceId(input.activeWorkspaceId);
     }
     api.primeGet?.("/api/auth/me", {
       user: payload.user,
-      workspaces: payload.workspaces
+      workspaces: payload.workspaces.filter((workspace) => !workspace.visiting)
     });
     api.primeGet?.(`/api/workspaces/${input.activeWorkspaceId}/projects`, { items: sortedProjects });
     api.primeGet?.(`/api/workspaces/${input.activeWorkspaceId}/settings`, payload.workspaceSettings);
@@ -313,10 +314,11 @@ export function useWorkspaceLayoutController(
     }
 
     const workspaceExists = workspaces.some((workspace) => workspace.id === input.activeWorkspaceId);
-    if (!workspaceExists) {
+    // Super admins may open any workspace by link without being a member.
+    if (!workspaceExists && !user?.is_super_admin) {
       input.navigate(`/app/${workspaces[0].id}/projects`, { replace: true });
     }
-  }, [input.activeWorkspaceId, input.navigate, isBootstrapping, workspaces]);
+  }, [input.activeWorkspaceId, input.navigate, isBootstrapping, user?.is_super_admin, workspaces]);
 
   useEffect(() => {
     if (isBootstrapping) {

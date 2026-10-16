@@ -67,6 +67,8 @@ export interface Workspace {
   role: WorkspaceRole;
   root_path?: string;
   memberCount?: number;
+  /** A super admin viewing a workspace they are not a member of. */
+  visiting?: boolean;
 }
 
 export interface WorkspaceInviteActor {

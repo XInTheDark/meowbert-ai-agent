@@ -1,8 +1,18 @@
 import { query } from "../../lib/db.js";
 
+// Super admins pass member checks in every workspace so they can open any task or project by
+// link. Owner-only actions still require a real owner membership.
+// The user ID is always bound as $2.
+function memberOrSuperAdmin(workspaceIdColumn: string): string {
+  return `(
+    EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.workspace_id = ${workspaceIdColumn} AND wm.user_id = $2)
+    OR EXISTS (SELECT 1 FROM users u WHERE u.id = $2 AND u.is_super_admin = true)
+  )`;
+}
+
 export async function assertWorkspaceMember(workspaceId: string, userId: string): Promise<void> {
   const result = await query(
-    `SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`,
+    `SELECT 1 FROM workspaces WHERE id = $1 AND ${memberOrSuperAdmin("workspaces.id")}`,
     [workspaceId, userId]
   );
 
@@ -33,10 +43,9 @@ export async function assertEnvironmentMember(environmentId: string, userId: str
   const result = await query<{ workspace_id: string }>(
     `SELECT e.workspace_id
        FROM environments e
-       JOIN workspace_members wm ON wm.workspace_id = e.workspace_id
       WHERE e.id = $1
-        AND wm.user_id = $2
-        AND e.status != 'archived'`,
+        AND e.status != 'archived'
+        AND ${memberOrSuperAdmin("e.workspace_id")}`,
     [environmentId, userId]
   );
 
@@ -56,8 +65,8 @@ export async function assertTaskMember(
   const result = await query<{ workspace_id: string; environment_id: string }>(
     `SELECT t.workspace_id, t.environment_id
        FROM tasks t
-       JOIN workspace_members wm ON wm.workspace_id = t.workspace_id AND wm.user_id = $2
-      WHERE t.id = $1`,
+      WHERE t.id = $1
+        AND ${memberOrSuperAdmin("t.workspace_id")}`,
     [taskId, userId]
   );
 

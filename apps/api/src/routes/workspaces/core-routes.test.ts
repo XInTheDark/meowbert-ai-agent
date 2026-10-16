@@ -136,13 +136,21 @@ describe("registerWorkspaceCoreRoutes", () => {
         return createQueryResult([]);
       }
 
-      if (sql.includes("FROM workspace_members wm") && sql.includes("JOIN workspaces w")) {
-        return createQueryResult([{
-          id: "11111111-1111-4111-8111-111111111111",
-          name: "Workspace",
-          icon_key: "database",
-          role: "owner"
-        }]);
+      if (sql.includes("FROM workspaces w") && sql.includes("LEFT JOIN workspace_members wm")) {
+        return createQueryResult([
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "Workspace",
+            icon_key: "database",
+            role: "owner"
+          },
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            name: "Visited workspace",
+            icon_key: "database",
+            role: null
+          }
+        ]);
       }
 
       if (sql.includes("FROM environments e") && sql.includes("ORDER BY updated_at DESC")) {
@@ -196,7 +204,10 @@ describe("registerWorkspaceCoreRoutes", () => {
           ui: { sendWithShiftEnter: true }
         }
       },
-      workspaces: [{ id: "11111111-1111-4111-8111-111111111111", name: "Workspace", iconKey: "database", role: "owner" }],
+      workspaces: [
+        { id: "11111111-1111-4111-8111-111111111111", name: "Workspace", iconKey: "database", role: "owner" },
+        { id: "33333333-3333-4333-8333-333333333333", name: "Visited workspace", role: "member", visiting: true }
+      ],
       projects: [{ id: "22222222-2222-4222-8222-222222222222", name: "Active project" }],
       workspaceSettings: { memoryEnabled: true },
       activeProject: { id: "22222222-2222-4222-8222-222222222222", name: "Active project" }

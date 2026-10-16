@@ -339,26 +339,36 @@ async function markWorkspaceOpened(wsId: string, userId: string): Promise<void> 
   );
 }
 
-async function listWorkspacesForBootstrap(userId: string): Promise<Array<{ id: string; name: string; iconKey: string; role: string; memberCount: number }>> {
-  const workspacesRes = await query<{ id: string; name: string; icon_key: string; role: string; member_count: number }>(
+// Includes the opened workspace when a super admin visits one they are not a member of,
+// marked as visiting so the app shows it without treating it as theirs.
+async function listWorkspacesForBootstrap(userId: string, openedWorkspaceId: string): Promise<Array<{
+  id: string;
+  name: string;
+  iconKey: string;
+  role: string;
+  memberCount: number;
+  visiting?: boolean;
+}>> {
+  const workspacesRes = await query<{ id: string; name: string; icon_key: string; role: string | null; member_count: number }>(
     `SELECT w.id,
             w.name,
             w.icon_key,
             wm.role,
             (SELECT COUNT(*)::int FROM workspace_members member_wm WHERE member_wm.workspace_id = w.id) AS member_count
-       FROM workspace_members wm
-       JOIN workspaces w ON w.id = wm.workspace_id
-      WHERE wm.user_id = $1
+       FROM workspaces w
+       LEFT JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $1
+      WHERE wm.user_id IS NOT NULL OR w.id = $2
       ORDER BY wm.last_opened_at DESC NULLS LAST, w.created_at ASC`,
-    [userId]
+    [userId, openedWorkspaceId]
   );
 
   return workspacesRes.rows.map((workspace) => ({
     id: workspace.id,
     name: workspace.name,
     iconKey: workspace.icon_key,
-    role: workspace.role,
-    memberCount: workspace.member_count
+    role: workspace.role ?? "member",
+    memberCount: workspace.member_count,
+    ...(workspace.role ? {} : { visiting: true })
   }));
 }
 
@@ -473,7 +483,7 @@ export async function registerWorkspaceCoreRoutes(fastify: FastifyInstance): Pro
           WHERE id = $1`,
         [request.user.id]
       ),
-      listWorkspacesForBootstrap(request.user.id),
+      listWorkspacesForBootstrap(request.user.id, params.wsId),
       listWorkspaceProjectsForBootstrap(params.wsId),
       getWorkspaceSettingsForBootstrap(params.wsId)
     ]);
