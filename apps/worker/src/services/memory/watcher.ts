@@ -2,8 +2,10 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
 import type { Connection, Table } from "@lancedb/lancedb";
-import { buildIndexRows, diffTrackedFiles, resolveMemoryEmbeddingConfig, scanMemoryFiles } from "./indexing.js";
+import { resolveMemoryEmbeddingConfig } from "./embedding-config.js";
+import { buildIndexRows, diffTrackedFiles, scanMemoryFiles } from "./indexing.js";
 import {
+  LEGACY_MEMORY_TABLE_NAMES,
   MEMORY_INDEX_DEBOUNCE_MS,
   MEMORY_TABLE_NAME,
   createMemorySyncStatus,
@@ -15,6 +17,7 @@ import {
   writeMemoryManifest,
   writeMemorySyncStatus,
   type ResolvedMemoryEmbeddingConfig,
+  type MemorySyncStatus,
   type MemoryTrackedFile,
   type WorkspaceMemoryPaths
 } from "./shared.js";
@@ -98,7 +101,9 @@ async function rebuildMemoryIndex(input: {
   currentFiles: MemoryTrackedFile[];
   embeddingConfig: ResolvedMemoryEmbeddingConfig;
 }): Promise<void> {
-  await input.connection.dropTable(MEMORY_TABLE_NAME).catch(() => undefined);
+  for (const tableName of [MEMORY_TABLE_NAME, ...LEGACY_MEMORY_TABLE_NAMES]) {
+    await input.connection.dropTable(tableName).catch(() => undefined);
+  }
 
   const table = await createTableFromFiles({
     connection: input.connection,
@@ -315,14 +320,8 @@ async function initializeWatcherEntry(entry: WorkspaceMemoryWatcherEntry): Promi
   return entry.initPromise;
 }
 
-function getOrCreateWatcherEntry(workspaceRoot: string): WorkspaceMemoryWatcherEntry {
-  const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
-  const existing = watcherEntries.get(resolvedWorkspaceRoot);
-  if (existing) {
-    return existing;
-  }
-
-  const entry: WorkspaceMemoryWatcherEntry = {
+function createWatcherEntry(resolvedWorkspaceRoot: string): WorkspaceMemoryWatcherEntry {
+  return {
     workspaceRoot: resolvedWorkspaceRoot,
     paths: getWorkspaceMemoryPaths(resolvedWorkspaceRoot),
     connection: null,
@@ -333,6 +332,16 @@ function getOrCreateWatcherEntry(workspaceRoot: string): WorkspaceMemoryWatcherE
     lastOptimizeAtMs: 0,
     stopped: false
   };
+}
+
+function getOrCreateWatcherEntry(workspaceRoot: string): WorkspaceMemoryWatcherEntry {
+  const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
+  const existing = watcherEntries.get(resolvedWorkspaceRoot);
+  if (existing) {
+    return existing;
+  }
+
+  const entry = createWatcherEntry(resolvedWorkspaceRoot);
   watcherEntries.set(resolvedWorkspaceRoot, entry);
   return entry;
 }
@@ -357,6 +366,16 @@ export async function syncWorkspaceMemoryNow(workspaceRoot: string): Promise<voi
   const entry = getOrCreateWatcherEntry(workspaceRoot);
   await initializeWatcherEntry(entry);
   await queueWorkspaceSync(entry);
+}
+
+// One-off sync for bulk jobs such as a full re-index. It shares a live watcher's queue when one
+// exists so syncs stay serialized, but never starts a file watcher of its own.
+export async function syncWorkspaceMemoryOnce(workspaceRoot: string): Promise<MemorySyncStatus | null> {
+  const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
+  const entry = watcherEntries.get(resolvedWorkspaceRoot) ?? createWatcherEntry(resolvedWorkspaceRoot);
+  await fsPromises.mkdir(entry.paths.indexDir, { recursive: true });
+  await queueWorkspaceSync(entry);
+  return readPersistedStatus(entry.paths);
 }
 
 export async function stopWorkspaceMemoryWatchers(): Promise<void> {

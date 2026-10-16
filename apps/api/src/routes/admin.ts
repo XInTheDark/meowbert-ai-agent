@@ -4,6 +4,7 @@ import { registerAdminUsageActivationRoutes } from "./admin-usage-activation-rou
 import { registerAdminConnectorRoutes } from "./admin-connector-routes.js";
 import { registerAdminCoreRoutes } from "./admin-core-routes.js";
 import { registerAdminHostStorageRoutes } from "./admin-host-storage-routes.js";
+import { registerAdminMemoryEmbeddingRoutes } from "./admin-memory-embedding-routes.js";
 import { registerAdminNewsletterRoutes } from "./admin-newsletter-routes.js";
 import { registerAdminRuntimeMigrationRoutes } from "./admin-runtime-migration-routes.js";
 import { registerAdminStorageRoutes } from "./admin-storage-routes.js";
@@ -13,6 +14,7 @@ import { registerAdminUserRoutes } from "./admin-user-routes.js";
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   registerAdminCoreRoutes(fastify);
   registerAdminAiProviderRoutes(fastify);
+  registerAdminMemoryEmbeddingRoutes(fastify);
   registerAdminUsageActivationRoutes(fastify);
   registerAdminHostStorageRoutes(fastify);
   registerAdminStorageRoutes(fastify);

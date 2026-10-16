@@ -1,7 +1,15 @@
 import path from "node:path";
+import { MatchQuery, rerankers, type Table } from "@lancedb/lancedb";
 import { isWithinPath, PROJECT_MEMORY_PARENT_DIRNAME, WORKSPACE_MEMORY_DIRNAME } from "@meowbert/shared";
-import { applyEmbeddingTemplate, embedTexts, resolveMemoryEmbeddingConfig } from "./indexing.js";
-import { getWorkspaceMemoryPaths, readMemoryManifest, type MemorySearchResult, type MemorySearchScope } from "./shared.js";
+import { resolveMemoryEmbeddingConfig } from "./embedding-config.js";
+import { applyEmbeddingTemplate, embedTexts } from "./indexing.js";
+import {
+  getWorkspaceMemoryPaths,
+  MEMORY_SEARCH_TEXT_COLUMN,
+  readMemoryManifest,
+  type MemorySearchResult,
+  type MemorySearchScope
+} from "./shared.js";
 import { openMemoryConnection, openMemoryTable, readMemorySyncStatus } from "./storage.js";
 import { ensureWorkspaceMemoryWatcher, syncWorkspaceMemoryNow } from "./watcher.js";
 
@@ -98,6 +106,45 @@ function buildMemorySearchPredicate(input: {
   return predicates.map((predicate) => `(${predicate})`).join(" AND ");
 }
 
+const RESULT_COLUMNS = ["id", "text", "file_path", "relative_path", "line_start", "line_end"];
+let rrfReranker: Promise<rerankers.RRFReranker> | null = null;
+
+// Higher is always better: RRF relevance for hybrid results, cosine similarity for vector-only.
+function readScore(row: Record<string, unknown>): number {
+  if (typeof row._relevance_score === "number") {
+    return row._relevance_score;
+  }
+  return typeof row._distance === "number" ? 1 - row._distance : 0;
+}
+
+// Hybrid search: keyword (BM25) and vector results merged with Reciprocal Rank Fusion, so exact
+// names and commands match even when embeddings miss them. Falls back to vector-only when the
+// keyword index is unavailable.
+async function runMemoryQuery(input: {
+  table: Table;
+  queryVector: number[];
+  queryText: string;
+  predicate: string | null;
+  limit: number;
+}): Promise<Array<Record<string, unknown>>> {
+  const vectorQuery = () => {
+    const query = input.table.vectorSearch(input.queryVector).distanceType("cosine").limit(input.limit);
+    return input.predicate ? query.where(input.predicate) : query;
+  };
+
+  try {
+    rrfReranker ??= rerankers.RRFReranker.create();
+    return await vectorQuery()
+      .fullTextSearch(new MatchQuery(input.queryText, MEMORY_SEARCH_TEXT_COLUMN))
+      .rerank(await rrfReranker)
+      .select(RESULT_COLUMNS)
+      .toArray();
+  } catch (error) {
+    console.warn(`[memory] Hybrid search unavailable, using vector search: ${error instanceof Error ? error.message : String(error)}`);
+    return vectorQuery().select(RESULT_COLUMNS).toArray();
+  }
+}
+
 export async function searchMemoryIndex(input: {
   workspaceRoot: string;
   currentProjectId?: string | null;
@@ -137,23 +184,13 @@ export async function searchMemoryIndex(input: {
       paths: input.paths,
       currentProjectId: input.currentProjectId
     });
-    const query = table
-      .vectorSearch(queryVector)
-      .column("vector")
-      .distanceType("cosine")
-      .limit(input.limit);
-    if (predicate) {
-      query.where(predicate);
-    }
-    const rows = await query
-      .select(["id", "text", "file_path", "relative_path", "line_start", "line_end", "_distance"])
-      .toArray();
+    const rows = await runMemoryQuery({ table, queryVector, queryText: input.query, predicate, limit: input.limit });
 
     return {
       sync_status: syncStatus,
       items: rows.map((row) => ({
         id: typeof row.id === "string" ? row.id : "",
-        score: typeof row._distance === "number" ? row._distance : 0,
+        score: readScore(row),
         text: typeof row.text === "string" ? row.text : "",
         file_path: typeof row.file_path === "string" ? row.file_path : "",
         relative_path: typeof row.relative_path === "string" ? row.relative_path : "",

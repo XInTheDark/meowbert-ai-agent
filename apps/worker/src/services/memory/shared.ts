@@ -10,8 +10,9 @@ import {
 } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 
-export const DEFAULT_MEMORY_EMBEDDING_MODEL = "text-embedding-3-small";
-export const MEMORY_TABLE_NAME = "memory_chunks_v1";
+export const MEMORY_TABLE_NAME = "memory_chunks_v2";
+export const LEGACY_MEMORY_TABLE_NAMES = ["memory_chunks_v1"];
+export const MEMORY_SEARCH_TEXT_COLUMN = "search_text";
 export const MEMORY_STATUS_FILENAME = "status.json";
 export const MEMORY_MANIFEST_FILENAME = "manifest.json";
 export const MEMORY_BINARY_SAMPLE_BYTES = 8 * 1024;
@@ -98,6 +99,7 @@ export interface ResolvedMemoryEmbeddingConfig {
 export interface MemoryChunk {
   id: string;
   text: string;
+  context: string;
   filePath: string;
   relativePath: string;
   lineStart: number;
@@ -108,6 +110,7 @@ export interface MemoryIndexRow {
   [key: string]: unknown;
   id: string;
   text: string;
+  search_text: string;
   file_path: string;
   relative_path: string;
   line_start: number;

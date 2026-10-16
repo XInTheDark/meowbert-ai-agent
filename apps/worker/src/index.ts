@@ -26,6 +26,7 @@ import { startSandboxOrphanCleanupLoop } from "./services/tasks/sandbox-orphan-c
 import { startEventRetentionCleanupLoop } from "./services/tasks/event-retention.js";
 import { workerSandboxManager } from "./services/runtime/sandbox.js";
 import { restorePersistentShellExpiryTimers } from "./services/runtime/persistent-shell-sessions.js";
+import { startMemoryReindexListener } from "./services/memory-reindex/service.js";
 import { startMemorySynthesisEventListener } from "./services/memory-synthesis/service.js";
 
 import { startRunDeliveryLoop } from "./services/notifications/run-delivery-loop.js";
@@ -106,6 +107,7 @@ async function start(): Promise<void> {
   const workspaceStorageMigrationLoop = startWorkspaceStorageMigrationLoop();
   const sandboxOrphanCleanupLoop = startSandboxOrphanCleanupLoop();
   const memorySynthesisEventListener = startMemorySynthesisEventListener();
+  const memoryReindexListener = startMemoryReindexListener();
 
   worker.on("ready", () => {
     console.log("Worker ready");
@@ -168,6 +170,7 @@ async function start(): Promise<void> {
     await workspaceStorageMigrationLoop.stop();
     await sandboxOrphanCleanupLoop.stop();
     await memorySynthesisEventListener.stop();
+    await memoryReindexListener.stop();
     await worker.close();
     await emailWorker.close();
     await runDeliveryLoop.stop();

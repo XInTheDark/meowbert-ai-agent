@@ -312,28 +312,7 @@ describe("loadConfig skill settings", () => {
 });
 
 
-describe("loadConfig memory embeddings settings", () => {
-  it("loads memory embedding overrides", () => {
-    const temp = writeTempConfig("config");
-    const raw = JSON.parse(fs.readFileSync(temp.configPath, "utf-8")) as Record<string, unknown>;
-    raw.memory = {
-      embeddings: {
-        mode: "ollama",
-        model: "nomic-embed-text",
-        host: "http://127.0.0.1:11434",
-        queryPromptTemplate: "query: "
-      }
-    };
-    fs.writeFileSync(temp.configPath, JSON.stringify(raw, null, 2), "utf-8");
-
-    const loaded = loadConfig(temp.configPath);
-
-    expect(loaded.memory?.embeddings?.mode).toBe("ollama");
-    expect(loaded.memory?.embeddings?.model).toBe("nomic-embed-text");
-    expect(loaded.memory?.embeddings?.host).toBe("http://127.0.0.1:11434");
-    expect(loaded.memory?.embeddings?.queryPromptTemplate).toBe("query: ");
-  });
-
+describe("loadConfig memory settings", () => {
   it("resolves a custom local memory index cache root", () => {
     const temp = writeTempConfig("config");
     const raw = JSON.parse(fs.readFileSync(temp.configPath, "utf-8")) as Record<string, unknown>;

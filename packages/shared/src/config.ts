@@ -9,7 +9,6 @@ import {
   normalizeTaskHistoryArchiveConfig
 } from "./task-history-archive.js";
 
-const memoryEmbeddingModeSchema = z.enum(["openai", "ollama", "sentence-transformers", "mlx"]);
 const DEFAULT_MEMORY_INDEX_CACHE_ROOT = "/tmp/meowbert-memory-index-cache";
 const browserUseConfigSchema = z.object({
   enabled: z.boolean().optional()
@@ -57,16 +56,7 @@ const configSchema = z.object({
     defaultModel: z.string().min(1)
   }),
   memory: z.object({
-    indexCacheRoot: z.string().min(1).optional(),
-    embeddings: z.object({
-      mode: memoryEmbeddingModeSchema.optional(),
-      model: z.string().min(1).optional(),
-      baseUrl: z.string().url().optional(),
-      apiKey: z.string().min(1).optional(),
-      host: z.string().url().optional(),
-      buildPromptTemplate: z.string().optional(),
-      queryPromptTemplate: z.string().optional()
-    }).optional()
+    indexCacheRoot: z.string().min(1).optional()
   }).optional(),
   runtime: z.object({
     shell: z.string().min(1),

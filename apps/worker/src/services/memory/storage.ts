@@ -5,6 +5,7 @@ import { config } from "../../lib/config.js";
 import {
   MEMORY_INDEX_MIN_ROWS,
   MEMORY_OPTIMIZE_MIN_INTERVAL_MS,
+  MEMORY_SEARCH_TEXT_COLUMN,
   MEMORY_TABLE_NAME,
   createMemorySyncStatus,
   getWorkspaceMemoryPaths,
@@ -26,10 +27,10 @@ const OPTIONAL_MEMORY_LOCK_ERROR_PATTERNS: readonly RegExp[] = [
   /\boperation not permitted\b/i,
 ];
 const RECOVERABLE_MEMORY_TABLE_ERROR_PATTERNS: readonly RegExp[] = [
-  /table ['"]memory_chunks_v1['"] was not found/i,
-  /memory_chunks_v1\.lance\/_versions/i,
-  /memory_chunks_v1\.lance .* was not found/i,
-  /dataset at path .*memory_chunks_v1\.lance .* not found/i,
+  /table ['"]memory_chunks_v\d+['"] was not found/i,
+  /memory_chunks_v\d+\.lance\/_versions/i,
+  /memory_chunks_v\d+\.lance .* was not found/i,
+  /dataset at path .*memory_chunks_v\d+\.lance .* not found/i,
 ];
 
 let memoryLockPool: Pool | null = null;
@@ -165,6 +166,13 @@ export async function readMemorySyncStatus(workspaceRoot: string): Promise<Memor
 }
 
 export async function ensureTableIndices(table: Table): Promise<void> {
+  // Keyword search needs its index at any size; rows added later are still matched until optimize folds them in.
+  try {
+    await table.createIndex(MEMORY_SEARCH_TEXT_COLUMN, { replace: false, config: Index.fts() });
+  } catch {
+    // Best effort only; search falls back to vector-only.
+  }
+
   const rowCount = await table.countRows();
   if (rowCount < MEMORY_INDEX_MIN_ROWS) {
     return;

@@ -132,10 +132,6 @@
     }
   },
   "memory": {
-    "indexCacheRoot": "/tmp/meowbert-memory-index-cache",
-    "embeddings": {
-      "mode": "openai",
-      "model": "text-embedding-3-small"
-    }
+    "indexCacheRoot": "/tmp/meowbert-memory-index-cache"
   }
 }

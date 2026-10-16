@@ -17,6 +17,10 @@
       "types": "./dist/memory.d.ts",
       "default": "./dist/memory.js"
     },
+    "./memory-embeddings": {
+      "types": "./dist/memory-embeddings.d.ts",
+      "default": "./dist/memory-embeddings.js"
+    },
     "./sandbox": {
       "types": "./dist/sandbox.d.ts",
       "default": "./dist/sandbox.js"

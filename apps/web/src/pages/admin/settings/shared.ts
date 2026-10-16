@@ -466,6 +466,7 @@ export type AdminSettingsTabKey =
   | "migrations"
   | "model"
   | "ai-providers"
+  | "embeddings"
   | "connectors"
   | "sources"
   | "users"

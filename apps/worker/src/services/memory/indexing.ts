@@ -1,15 +1,11 @@
 import { createHash } from "node:crypto";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { requireSelectedAiProvider, WORKSPACE_MEMORY_DIRNAME } from "@meowbert/shared";
-import { config } from "../../lib/config.js";
-import { query } from "../../lib/db.js";
-import { getOpenAiClient, type OpenAiProviderConfig } from "../agent/openai-client.js";
+import { WORKSPACE_MEMORY_DIRNAME } from "@meowbert/shared";
+import { getOpenAiClient } from "../agent/openai-client.js";
+import { buildChunkContext, chunkMemoryFile } from "./chunking.js";
 import {
-  DEFAULT_MEMORY_EMBEDDING_MODEL,
   MEMORY_BINARY_SAMPLE_BYTES,
-  MEMORY_CHUNK_OVERLAP,
-  MEMORY_CHUNK_SIZE,
   MEMORY_EMBED_BATCH_SIZE,
   pathExists,
   type MemoryChunk,
@@ -168,45 +164,6 @@ function resolveLineNumber(offsets: number[], charIndex: number): number {
   return Math.max(1, high + 1);
 }
 
-function chunkText(
-  text: string,
-  chunkSize = MEMORY_CHUNK_SIZE,
-  overlap = MEMORY_CHUNK_OVERLAP
-): Array<{ start: number; end: number; text: string }> {
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const chunks: Array<{ start: number; end: number; text: string }> = [];
-  const totalLength = normalized.length;
-  let start = 0;
-
-  while (start < totalLength) {
-    let end = Math.min(totalLength, start + chunkSize);
-    if (end < totalLength) {
-      const paragraphBreak = normalized.lastIndexOf("\n\n", end);
-      if (paragraphBreak > start + Math.floor(chunkSize / 2)) {
-        end = paragraphBreak + 2;
-      } else {
-        const lineBreak = normalized.lastIndexOf("\n", end);
-        if (lineBreak > start + Math.floor(chunkSize / 2)) {
-          end = lineBreak + 1;
-        }
-      }
-    }
-
-    const chunkValue = normalized.slice(start, end).trim();
-    if (chunkValue.length > 0) {
-      chunks.push({ start, end, text: chunkValue });
-    }
-
-    if (end >= totalLength) {
-      break;
-    }
-
-    start = Math.max(start + 1, end - overlap);
-  }
-
-  return chunks;
-}
-
 async function readUtf8(filePath: string): Promise<string> {
   return fsPromises.readFile(filePath, "utf8");
 }
@@ -217,59 +174,21 @@ async function buildFileChunks(file: MemoryTrackedFile): Promise<MemoryChunk[]> 
     return [];
   }
 
-  const offsets = lineStartOffsets(text);
-  return chunkText(text).map((chunk) => ({
+  const chunked = chunkMemoryFile(file.relativePath, text);
+  const offsets = lineStartOffsets(chunked.normalizedText);
+  return chunked.chunks.map((chunk) => ({
     id: createHash("sha256").update(`${file.relativePath}:${chunk.start}:${chunk.end}:${chunk.text}`).digest("hex").slice(0, 32),
     text: chunk.text,
+    context: buildChunkContext({
+      relativePath: file.relativePath,
+      headingPath: chunk.headingPath,
+      description: chunked.description
+    }),
     filePath: file.absolutePath,
     relativePath: file.relativePath,
     lineStart: resolveLineNumber(offsets, chunk.start),
     lineEnd: resolveLineNumber(offsets, Math.max(chunk.start, chunk.end - 1))
   }));
-}
-
-export async function resolveMemoryEmbeddingConfig(): Promise<ResolvedMemoryEmbeddingConfig> {
-  const configuredEmbeddings = config.memory?.embeddings;
-  const mode = configuredEmbeddings?.mode ?? "openai";
-  if (mode !== "openai") {
-    throw new Error("Workspace Memory currently supports openai-compatible embeddings only.");
-  }
-
-  const model = typeof configuredEmbeddings?.model === "string" && configuredEmbeddings.model.trim().length > 0
-    ? configuredEmbeddings.model.trim()
-    : DEFAULT_MEMORY_EMBEDDING_MODEL;
-  const apiKey = configuredEmbeddings?.apiKey?.trim();
-  const baseUrl = configuredEmbeddings?.baseUrl?.trim();
-  const platformProvider = apiKey && baseUrl ? null : await requireSelectedAiProvider(query);
-  const provider: OpenAiProviderConfig = {
-    apiKey: apiKey || platformProvider!.apiKey,
-    baseUrl: baseUrl || platformProvider!.baseUrl
-  };
-
-  const buildPromptTemplate = typeof configuredEmbeddings?.buildPromptTemplate === "string"
-    ? configuredEmbeddings.buildPromptTemplate
-    : null;
-  const queryPromptTemplate = typeof configuredEmbeddings?.queryPromptTemplate === "string"
-    ? configuredEmbeddings.queryPromptTemplate
-    : null;
-
-  const configHash = createHash("sha256")
-    .update(JSON.stringify({
-      mode,
-      model,
-      baseUrl: provider.baseUrl,
-      buildPromptTemplate,
-      queryPromptTemplate
-    }))
-    .digest("hex");
-
-  return {
-    provider,
-    model,
-    buildPromptTemplate,
-    queryPromptTemplate,
-    configHash
-  };
 }
 
 export function applyEmbeddingTemplate(
@@ -347,7 +266,7 @@ export async function buildIndexRows(
     return [];
   }
 
-  const embeddingInputs = chunks.map((chunk) => applyEmbeddingTemplate(embeddingConfig.buildPromptTemplate, chunk.text, {
+  const embeddingInputs = chunks.map((chunk) => applyEmbeddingTemplate(embeddingConfig.buildPromptTemplate, `${chunk.context}\n\n${chunk.text}`, {
     relativePath: chunk.relativePath,
     filePath: chunk.filePath,
     lineStart: chunk.lineStart,
@@ -358,6 +277,7 @@ export async function buildIndexRows(
   return chunks.map((chunk, index) => ({
     id: chunk.id,
     text: chunk.text,
+    search_text: `${chunk.context}\n\n${chunk.text}`,
     file_path: chunk.filePath,
     relative_path: chunk.relativePath,
     line_start: chunk.lineStart,

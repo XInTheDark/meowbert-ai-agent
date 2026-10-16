@@ -13,6 +13,7 @@ export * from "./openai-response-stream.js";
 export * from "./fs-guards.js";
 export * from "./github.js";
 export * from "./memory.js";
+export * from "./memory-embeddings.js";
 export * from "./task-cleanup.js";
 export * from "./inline-artifacts.js";
 export * from "./task-message-metadata.js";

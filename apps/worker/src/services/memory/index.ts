@@ -17,5 +17,6 @@ export { searchMemoryIndex } from "./search.js";
 export {
   ensureWorkspaceMemoryWatcher,
   stopWorkspaceMemoryWatchers,
-  syncWorkspaceMemoryNow
+  syncWorkspaceMemoryNow,
+  syncWorkspaceMemoryOnce
 } from "./watcher.js";

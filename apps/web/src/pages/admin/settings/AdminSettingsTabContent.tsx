@@ -1,6 +1,7 @@
 import { UsersTab } from "../../../components/admin/UsersTab";
 import { AnnouncementsTab } from "./AnnouncementsTab";
 import { AiProvidersTab } from "./AiProvidersTab";
+import { EmbeddingsTab } from "./EmbeddingsTab";
 import { UtilitiesTab } from "./UtilitiesTab";
 import { ConnectorSettingsTab } from "./ConnectorSettingsTab";
 import { HostStorageSettingsTab } from "./HostStorageSettingsTab";
@@ -106,6 +107,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
   if (activeTab === "processes") return <ProcessesTab />;
   if (activeTab === "statistics") return <StatisticsSettingsTab />;
   if (activeTab === "ai-providers") return <AiProvidersTab />;
+  if (activeTab === "embeddings") return <EmbeddingsTab />;
   if (activeTab === "utilities") return <UtilitiesTab models={Object.keys(platform.settings?.modelMetadata ?? {})} />;
   if (activeTab === "model") {
     return (
