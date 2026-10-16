@@ -78,6 +78,9 @@ function createLifecycleArchiveClient(executedSql: string[] = []): TaskHistoryAr
       if (text.includes("SELECT id, content FROM task_context_notes")) {
         return { rows: [{id: lifecycleIds.note, content: "Branch notes"} as T], rowCount: 1 };
       }
+      if (text.includes("FROM task_media_blobs WHERE task_id = $1")) {
+        return { rows: [{ sha256: "abc123", mime_type: "image/png", bytes: Buffer.from("png-bytes") } as T], rowCount: 1 };
+      }
       if (text.includes("SELECT m.id, m.content_markdown")) {
         return { rows: [{ id: lifecycleIds.workflowMessage, content_markdown: "Swarm output" } as T], rowCount: 1 };
       }
@@ -164,6 +167,7 @@ describe("archiveTaskHistory", () => {
       expect(archived.status).toBe("archived");
       expect(archiveSql).toContain("UPDATE task_context_history_items SET payload_json = '{}'::jsonb WHERE task_id = $1");
       expect(archiveSql).toContain("UPDATE task_context_notes SET content = '' WHERE task_id = $1");
+      expect(archiveSql).toContain("DELETE FROM task_media_blobs WHERE task_id = $1");
       expect(archived.metrics).toMatchObject({
         messageCount: 1,
         eventCount: 1,
@@ -178,6 +182,7 @@ describe("archiveTaskHistory", () => {
       expect(document.events[0].payload_json).toEqual({ message: "event" });
       expect(document.context.history[0]).toEqual({id: lifecycleIds.contextItem, payload_json: {type: "function_call_output", output: "Private history"}});
       expect(document.context.notes[0]).toEqual({id: lifecycleIds.note, content: "Branch notes"});
+      expect(document.media).toEqual([{ sha256: "abc123", mime_type: "image/png", bytes_base64: Buffer.from("png-bytes").toString("base64") }]);
 
       const restoreUpdates: Array<{ text: string; params?: unknown[] }> = [];
       const restoreClient: TaskHistoryArchiveQueryable = {
@@ -208,6 +213,12 @@ describe("archiveTaskHistory", () => {
       expect(restoreUpdates.some(({ text, params }) =>
         text.includes("UPDATE task_messages")
         && params?.[1] === JSON.stringify({ text: "Archived answer" })
+      )).toBe(true);
+      expect(restoreUpdates.some(({ text, params }) =>
+        text.includes("INSERT INTO task_media_blobs")
+        && params?.[0] === lifecycleIds.task
+        && params?.[1] === "abc123"
+        && Buffer.from("png-bytes").equals(params?.[3] as Buffer)
       )).toBe(true);
       expect(restoreUpdates.some(({ text, params }) =>
         text.includes("UPDATE task_events")

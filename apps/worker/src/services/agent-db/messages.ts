@@ -1,5 +1,5 @@
 import { saveConversationSnapshots, remapConversationMap, remapConversationOutline, conversationMapSchema, type ConversationSnapshot, type TaskHistoryArchiveQueryable } from "@meowbert/shared";
-import { createTaskMessageMetadata, touchTaskHistoryActivity } from "@meowbert/shared";
+import { createTaskMessageMetadata, externalizeTaskMedia, rehydrateTaskMedia, touchTaskHistoryActivity } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import type { TaskMessageRow } from "../agent/types.js";
 
@@ -28,6 +28,7 @@ export async function appendMessage(
         agentId: role === "assistant" ? options.agentId : null,
         reasoningContentCount: role === "assistant" ? options.reasoningContentCount : null
       });
+  const storedPayload = await externalizeTaskMedia(db, taskId, payload);
   const result = await db.query<{ id: string }>(
     `INSERT INTO task_messages (
       task_id,
@@ -43,7 +44,7 @@ export async function appendMessage(
     [
       taskId,
       role,
-      JSON.stringify(payload),
+      JSON.stringify(storedPayload),
       messageMetadata ? JSON.stringify(messageMetadata) : null,
       options.parentMessageId ?? null,
       options.editedFromMessageId ?? null,
@@ -158,5 +159,5 @@ export async function loadBranchPathMessages(taskId: string, leafMessageId: stri
     ORDER BY depth DESC`,
     [taskId, leafMessageId]
   );
-  return pathRes.rows;
+  return rehydrateTaskMedia({ query }, taskId, pathRes.rows);
 }

@@ -1,4 +1,4 @@
-import { cloneConversationSnapshots } from "@meowbert/shared";
+import { cloneConversationSnapshots, copyTaskMediaBlobs } from "@meowbert/shared";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { createTaskMessageMetadata } from "@meowbert/shared";
@@ -215,6 +215,11 @@ async function cloneLineageMessages(client: PoolClient, input: {
     idMap.set(sourceMessage.id, insertedMessage.rows[0].id);
   }
 
+  await copyTaskMediaBlobs(client, {
+    sourceTaskId: input.sourceTaskId,
+    targetTaskId: input.taskId,
+    contents: input.sourceMessages.map((message) => message.content_json)
+  });
   if (input.sourceMessages.length) {
     await cloneConversationSnapshots(client, {
       sourceTaskId: input.sourceTaskId, sourceLeafId: input.sourceMessages[input.sourceMessages.length - 1].id,

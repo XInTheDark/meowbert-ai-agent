@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 import type { PoolClient } from "pg";
-import { createTaskMessageMetadata, isWithinPath } from "@meowbert/shared";
+import { copyTaskMediaBlobs, createTaskMessageMetadata, isWithinPath } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { ensureEnvironmentStorageRoot } from "../environments/environment-storage.js";
 
@@ -298,6 +298,11 @@ export async function cloneTaskIntoFork(input: {
     });
     const sourceMessages = await loadForkSourceMessages(client, input);
     await insertForkMessages(client, { forkTaskId, sourceMessages });
+    await copyTaskMediaBlobs(client, {
+      sourceTaskId: input.sourceTaskId,
+      targetTaskId: forkTaskId,
+      contents: sourceMessages.map((message) => message.content_json)
+    });
 
     return {
       taskId: forkTaskId,

@@ -49,6 +49,7 @@ export * from "./user-resource-limits.js";
 export * from "./task-scheduler.js";
 export * from "./task-history-search.js";
 export * from "./task-history-archive.js";
+export * from "./task-media-blobs.js";
 export * from "./task-event-retention.js";
 export * from "./web-push.js";
 
