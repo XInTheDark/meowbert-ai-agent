@@ -1,15 +1,20 @@
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   Bell,
   Binary,
   ChartNoAxesCombined,
+  ChevronDown,
   Database,
   HardDrive,
+  LayoutGrid,
   Mail,
   MessageSquareText,
   Plug,
+  Radio,
   Server,
   Settings,
+  SlidersHorizontal,
   UserRoundCog,
   Users,
   Wrench,
@@ -23,9 +28,16 @@ interface AdminTabDefinition {
   Icon: LucideIcon;
 }
 
-const tabGroups: Array<{ label: string; tabs: AdminTabDefinition[] }> = [
+interface AdminTabGroup {
+  label: string;
+  Icon: LucideIcon;
+  tabs: AdminTabDefinition[];
+}
+
+const tabGroups: AdminTabGroup[] = [
   {
     label: "Operations",
+    Icon: LayoutGrid,
     tabs: [
       { key: "statistics", label: "Statistics", Icon: ChartNoAxesCombined },
       { key: "processes", label: "Processes", Icon: Activity },
@@ -37,6 +49,7 @@ const tabGroups: Array<{ label: string; tabs: AdminTabDefinition[] }> = [
   },
   {
     label: "Platform",
+    Icon: SlidersHorizontal,
     tabs: [
       { key: "settings", label: "Settings", Icon: Settings },
       { key: "model", label: "Model", Icon: MessageSquareText },
@@ -48,6 +61,7 @@ const tabGroups: Array<{ label: string; tabs: AdminTabDefinition[] }> = [
   },
   {
     label: "Channels",
+    Icon: Radio,
     tabs: [
       { key: "newsletter", label: "Newsletter", Icon: Mail },
       { key: "announcements", label: "Announcements", Icon: Bell },
@@ -62,31 +76,103 @@ interface AdminSettingsTabBarProps {
   onTabChange: (tab: AdminSettingsTabKey) => void;
 }
 
-export function AdminSettingsTabBar({ activeTab, onTabChange }: AdminSettingsTabBarProps) {
+function useCloseOnOutsideInteraction(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        close();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        close();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, close]);
+  return ref;
+}
+
+function AdminTabGroupMenu(props: {
+  group: AdminTabGroup;
+  activeTab: AdminSettingsTabKey;
+  open: boolean;
+  onToggle: () => void;
+  onSelect: (tab: AdminSettingsTabKey) => void;
+}) {
+  const { group, activeTab, open } = props;
+  const activeEntry = group.tabs.find((tab) => tab.key === activeTab);
+  const GroupIcon = group.Icon;
+  const menuId = `admin-nav-menu-${group.label.toLowerCase()}`;
+
   return (
-    <nav className="admin-nav" aria-label="Admin sections">
-      {tabGroups.map((group) => (
-        <section key={group.label} className="admin-nav__group" aria-label={group.label}>
-          <span className="admin-nav__group-label">{group.label}</span>
-          <div className="admin-nav__items">
-            {group.tabs.map((tab) => {
-              const Icon = tab.Icon;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  className={`admin-nav__item ${activeTab === tab.key ? "active" : ""}`}
-                  aria-current={activeTab === tab.key ? "page" : undefined}
-                  onClick={() => onTabChange(tab.key)}
-                >
-                  <Icon size={16} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      ))}
-    </nav>
+    <div className="admin-nav__group">
+      <button
+        type="button"
+        className={`admin-nav__trigger ${activeEntry ? "active" : ""}`}
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={props.onToggle}
+      >
+        <GroupIcon size={16} />
+        <span>{group.label}</span>
+        {activeEntry ? <span className="admin-nav__current">{activeEntry.label}</span> : null}
+        <ChevronDown size={14} className="admin-nav__chevron" />
+      </button>
+      {open ? (
+        <div id={menuId} className="admin-nav__menu" role="group" aria-label={group.label}>
+          {group.tabs.map((tab) => {
+            const Icon = tab.Icon;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                className={`admin-nav__item ${activeTab === tab.key ? "active" : ""}`}
+                aria-current={activeTab === tab.key ? "page" : undefined}
+                onClick={() => props.onSelect(tab.key)}
+              >
+                <Icon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function AdminSettingsTabBar({ activeTab, onTabChange }: AdminSettingsTabBarProps) {
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const close = useRef(() => setOpenGroup(null)).current;
+  const navRef = useCloseOnOutsideInteraction(openGroup !== null, close);
+
+  return (
+    <div ref={navRef}>
+      <nav className="admin-nav" aria-label="Admin sections">
+        {tabGroups.map((group) => (
+          <AdminTabGroupMenu
+            key={group.label}
+            group={group}
+            activeTab={activeTab}
+            open={openGroup === group.label}
+            onToggle={() => setOpenGroup((current) => (current === group.label ? null : group.label))}
+            onSelect={(tab) => {
+              setOpenGroup(null);
+              onTabChange(tab);
+            }}
+          />
+        ))}
+      </nav>
+    </div>
   );
 }
