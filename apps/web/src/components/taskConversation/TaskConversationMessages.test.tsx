@@ -9,6 +9,7 @@ import {
   TaskConversationMessages
 } from "./TaskConversationMessages";
 import { HistoricalConversationItems } from "./HistoricalConversationItems";
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import type { TaskMessage } from "../../lib/types";
 
 vi.mock("../../contexts/WorkspaceContext", () => ({
@@ -18,6 +19,11 @@ vi.mock("../../contexts/WorkspaceContext", () => ({
     }
   })
 }));
+
+// Stored messages reach the browser through the API's display projection.
+function storedMessages(messages: TaskMessage[]): TaskMessage[] {
+  return messages.map(toDisplayTaskMessage);
+}
 
 function createToolMessage(input: {
   id: string;
@@ -231,7 +237,7 @@ describe("TaskConversationMessages", () => {
         <TaskConversationMessages
           taskId="task-1"
           showMessageActions
-          messages={[
+          messages={storedMessages([
             {
               id: "assistant-segmented",
               role: "assistant",
@@ -279,7 +285,7 @@ describe("TaskConversationMessages", () => {
               edited_from_message_id: null,
               created_at: "2026-03-10T00:00:03.000Z"
             }
-          ]}
+          ])}
           onThreadComposerRequested={() => undefined}
           hydratedMessageIds={new Set<string>()}
           buildInlineArtifactUrl={(relativePath) => `https://example.test/${relativePath}`}
@@ -412,7 +418,7 @@ describe("TaskConversationMessages", () => {
   it("renders inline HTML artifacts before the assistant message", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           {
             id: "assistant-inline-artifact",
             role: "assistant",
@@ -446,7 +452,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:03.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>()}
         buildInlineArtifactUrl={(relativePath) => `https://example.test/${relativePath}`}
       />
@@ -464,7 +470,7 @@ describe("TaskConversationMessages", () => {
   it("does not duplicate inline artifacts already represented by ordered assistant response items", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           {
             id: "tool-inline-artifact",
             role: "tool",
@@ -524,7 +530,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:03.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>()}
         buildInlineArtifactUrl={(relativePath) => `https://example.test/${relativePath}`}
       />
@@ -538,7 +544,7 @@ describe("TaskConversationMessages", () => {
   it("renders partial final responses and inline artifacts in response item order", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           {
             id: "assistant-inline-sequence",
             role: "assistant",
@@ -586,7 +592,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:03.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>()}
         buildInlineArtifactUrl={(relativePath) => `https://example.test/${relativePath}`}
       />
@@ -599,7 +605,7 @@ describe("TaskConversationMessages", () => {
   it("renders only the latest final_response group from persisted response items", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           {
             id: "assistant-duplicate-final",
             role: "assistant",
@@ -628,7 +634,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:03.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>()}
       />
     );
@@ -639,7 +645,7 @@ describe("TaskConversationMessages", () => {
   it("deduplicates adjacent partial and final_response text segments", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           {
             id: "assistant-overlap-final",
             role: "assistant",
@@ -676,7 +682,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:03.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>()}
       />
     );
@@ -856,7 +862,7 @@ describe("TaskConversationMessages", () => {
   });
 
   it("groups assistant thoughts inside the preceding worked-for tool section", () => {
-    const messages: TaskMessage[] = [
+    const messages: TaskMessage[] = storedMessages([
       createToolMessage({
         id: "tool-1",
         createdAt: "2026-03-10T00:00:01.000Z",
@@ -879,7 +885,7 @@ describe("TaskConversationMessages", () => {
         edited_from_message_id: null,
         created_at: "2026-03-10T00:00:02.000Z"
       }
-    ];
+    ]);
     const html = renderToStaticMarkup(
       <>
         {HistoricalConversationItems({
@@ -1067,7 +1073,7 @@ describe("TaskConversationMessages", () => {
   it("renders context window rollover checkpoint with response tool activity", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           {
             id: "checkpoint-rollover-1",
             role: "system",
@@ -1105,7 +1111,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:01.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>()}
       />
     );
@@ -1146,7 +1152,7 @@ describe("TaskConversationMessages", () => {
   it("renders thought summaries from assistant response items", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           {
             id: "user-1",
             role: "user",
@@ -1172,7 +1178,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:04.000Z"
           }
-        ]}
+        ])}
       />
     );
 
@@ -1199,7 +1205,7 @@ describe("TaskConversationMessages", () => {
             showSelectionThreadActions: true,
             showSelectionThreadHighlights: true
         }}
-        messages={[
+        messages={storedMessages([
           {
             id: "assistant-1",
             role: "assistant",
@@ -1217,7 +1223,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:01.000Z"
           }
-        ]}
+        ])}
       />
     );
 
@@ -1639,7 +1645,7 @@ describe("TaskConversationMessages", () => {
   it("does not render duplicate tool activity bubbles from assistant response items", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           createToolMessage({
             id: "tool-1",
             createdAt: "2026-03-10T00:00:01.000Z",
@@ -1670,7 +1676,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:03.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>(["tool-1"])}
       />
     );
@@ -1684,7 +1690,7 @@ describe("TaskConversationMessages", () => {
   it("keeps response-item activity when a different call follows a standalone tool message", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           createToolMessage({
             id: "tool-1",
             createdAt: "2026-03-10T00:00:01.000Z",
@@ -1715,7 +1721,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:03.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>(["tool-1"])}
       />
     );
@@ -1728,7 +1734,7 @@ describe("TaskConversationMessages", () => {
   it("renders web search activity bubbles from assistant response items when no standalone tool message exists", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           {
             id: "user-1",
             role: "user",
@@ -1754,7 +1760,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:02.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>()}
       />
     );
@@ -1767,7 +1773,7 @@ describe("TaskConversationMessages", () => {
   it("merges contiguous run_shell and apply_patch tool messages into a single activity bubble and deduplicates response items", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages
-        messages={[
+        messages={storedMessages([
           createToolMessage({
             id: "tool-1",
             createdAt: "2026-03-10T00:00:01.000Z",
@@ -1815,7 +1821,7 @@ describe("TaskConversationMessages", () => {
             edited_from_message_id: null,
             created_at: "2026-03-10T00:00:03.000Z"
           }
-        ]}
+        ])}
         hydratedMessageIds={new Set<string>(["tool-1", "tool-2"])}
       />
     );

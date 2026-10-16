@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { TaskWorkflowType } from "@meowbert/shared";
 import { extractTaskSearchableText } from "@meowbert/shared/task-history-search";
+import { toDisplayTaskMessage, type TaskMessageDisplay } from "@meowbert/shared/task-message-display";
 import { query } from "../../lib/db.js";
 import { listTaskCanvases } from "../../services/canvases/project-canvases.js";
 import { listTaskThreadCounts } from "../../services/tasks/task-threads.js";
@@ -44,6 +45,7 @@ interface TaskMessageResponse extends Omit<TaskMessageRow, "author_user_id" | "a
     email: string;
     display_name: string | null;
   } | null;
+  display?: TaskMessageDisplay;
 }
 
 interface TaskDetailRow {
@@ -168,7 +170,7 @@ function normalizeQueryInteger(value: number | string, fallback = 0): number {
 function serializeTaskMessageRow(row: TaskMessageRow): TaskMessageResponse {
   const { author_user_id, author_email, author_display_name, ...message } = row;
   const serialized: TaskMessageResponse = {
-    ...message,
+    ...toDisplayTaskMessage(message),
     author: author_user_id && author_email
       ? {
           id: author_user_id,

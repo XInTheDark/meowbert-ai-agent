@@ -1,3 +1,4 @@
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import { describe, expect, it } from "vitest";
 import type { TaskMessage } from "../lib/types";
 import { buildConversationDisplayEntries } from "../components/taskConversation/conversationActivityEntries";
@@ -42,10 +43,10 @@ describe("Master task cards", () => {
   });
 
   it("shows delivered task reports as cards instead of empty bubbles", () => {
-    const inbox = (items: unknown[]) => ({
+    const inbox = (items: unknown[]) => toDisplayTaskMessage({
       id: "r1", role: "system", created_at: "2026-09-29T00:00:00.000Z",
       content_json: { text: "", response_items: items }
-    }) as unknown as TaskMessage;
+    } as unknown as TaskMessage);
     const report = { role: "user", content: `[Task report] "Fix #75" (${TASK_ID}) finished: succeeded\nDone.` };
 
     expect(getRunInboxReportCards(inbox([report]))).toEqual([{ taskId: TASK_ID, action: "reported", fallbackTitle: "Fix #75" }]);

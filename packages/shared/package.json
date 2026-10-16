@@ -49,6 +49,10 @@
       "types": "./dist/inline-artifacts.d.ts",
       "default": "./dist/inline-artifacts.js"
     },
+    "./task-message-display": {
+      "types": "./dist/task-message-display.d.ts",
+      "default": "./dist/task-message-display.js"
+    },
     "./responses-settings": {
       "types": "./dist/responses-settings.d.ts",
       "default": "./dist/responses-settings.js"

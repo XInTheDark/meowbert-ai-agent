@@ -1,17 +1,18 @@
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import { describe, expect, it } from "vitest";
 import type { TaskMessage } from "../../lib/types";
 import { buildConversationDisplayEntries, getConversationActivityGroups } from "./conversationActivityEntries";
 import { buildStableHistoricalToolGroupDescriptors, resolveToolInspectorSelection } from "./shared";
 
 function message(id: string, role: TaskMessage["role"], content_json: TaskMessage["content_json"]): TaskMessage {
-  return { id, role, content_json, created_at: "2026-09-11T00:00:00.000Z", parent_message_id: null, edited_from_message_id: null };
+  return toDisplayTaskMessage({ id, role, content_json, created_at: "2026-09-11T00:00:00.000Z", parent_message_id: null, edited_from_message_id: null });
 }
 
 const tool = (id: string): TaskMessage => message(id, "tool", { tool: "run_shell", callId: id, durationMs: 100 });
 const retry = (id: string): TaskMessage => message(id, "system", { text: "Model request failed (attempt 1/6): Timeout. Retrying in 3s..." });
-const response = (id: string, callId: string, text = ""): TaskMessage => message(id, "assistant", { text, response_items: [
+const response = (id: string, callId: string, text = "", output = "image shown"): TaskMessage => message(id, "assistant", { text, response_items: [
   { type: "function_call", call_id: callId, name: "view_image", arguments: "{}" },
-  { type: "function_call_output", call_id: callId, output: "image shown" }
+  { type: "function_call_output", call_id: callId, output }
 ] });
 
 describe("conversation activity consolidation", () => {
@@ -55,8 +56,7 @@ describe("conversation activity consolidation", () => {
 
   it("keeps the latest output when a response call is replayed after recovery", () => {
     const first = response("a", "one");
-    const completed = response("b", "one");
-    (completed.content_json.response_items as Array<Record<string, unknown>>)[1].output = "Completed output";
+    const completed = response("b", "one", "", "Completed output");
     const [group] = getConversationActivityGroups([first, retry("retry"), completed]);
     expect(group.toolGroup).toHaveLength(1);
     expect(group.toolGroup[0].id).toBe("a:response-tool:one");

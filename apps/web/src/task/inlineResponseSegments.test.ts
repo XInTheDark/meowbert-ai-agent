@@ -1,16 +1,17 @@
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import { describe, expect, it } from "vitest";
 import type { TaskMessage } from "../lib/types";
 import { getInlineResponseSegments } from "./inlineResponseSegments";
 
 function assistantMessage(responseItems: unknown[]): TaskMessage {
-  return {
+  return toDisplayTaskMessage({
     id: "message-1",
     role: "assistant",
     content_json: { text: "Waiting for Worker 1.", response_items: responseItems },
     parent_message_id: null,
     edited_from_message_id: null,
     created_at: "2026-10-14T00:00:00.000Z"
-  } as TaskMessage;
+  } as TaskMessage);
 }
 
 function finalResponseCall(callId: string, response: string): Record<string, unknown> {

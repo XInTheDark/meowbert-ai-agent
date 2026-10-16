@@ -459,14 +459,15 @@ describe("registerTaskDetailRoutes", () => {
         id: "msg-assistant",
         role: "assistant",
         content_json: {
-          text: "Here is the result",
-          response_items: [
-            {
-              type: "reasoning",
-              id: "rs_1",
-              summary: [{ type: "summary_text", text: "reasoned" }]
-            }
-          ]
+          text: "Here is the result"
+        },
+        display: {
+          tool_messages: [],
+          thought_summaries: [{ id: "msg-assistant:response-thought:rs_1", text: "reasoned", nextCallIds: [] }],
+          inline_segments: [],
+          inline_artifact_identities: [],
+          report_cards: null,
+          final_text: ""
         },
         message_metadata_json: {
           message_time: "2026-04-21T00:00:02.000Z",
@@ -641,6 +642,70 @@ describe("registerTaskDetailRoutes", () => {
     expect(body.messages.find((message: { id: string }) => message.id === "msg-tool").content_json.output).toBeUndefined();
     expect(body.tool_message_contents).toEqual([
       expect.objectContaining({ id: "msg-tool", content_json: toolContent })
+    ]);
+    await app.close();
+  });
+
+  it("sends display data instead of raw response items, so viewed images never reach the browser", async () => {
+    const app = Fastify();
+    app.decorate("authenticate", async (request: Fastify.FastifyRequest) => {
+      request.user = { id: "user-1", email: "user@example.com" };
+    });
+
+    const imagePayload = "A".repeat(4096);
+    mockedQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const lineageResult = respondToLineageQuery([
+        {
+          id: "msg-assistant",
+          role: "assistant",
+          content_json: {
+            text: "Marked both papers.",
+            response_items: [
+              { type: "reasoning", id: "rs_1", summary: [{ type: "summary_text", text: "Checking the photos." }] },
+              { type: "function_call", call_id: "call_view", name: "view_image", arguments: "{\"file_path\":\"a.jpeg\"}" },
+              { type: "function_call_output", call_id: "call_view", output: "{\"ok\":true}" },
+              {
+                role: "user",
+                content: [{ type: "input_image", detail: "high", image_url: `data:image/jpeg;base64,${imagePayload}` }]
+              }
+            ]
+          },
+          parent_message_id: null,
+          edited_from_message_id: null,
+          created_at: "2026-04-21T00:00:01.000Z",
+          branch_index: 0
+        }
+      ], sql, params);
+      if (lineageResult) {
+        return lineageResult;
+      }
+      if (sql.includes("WITH selected_messages AS")) {
+        return createQueryResult([]);
+      }
+      if (sql.includes("SELECT id") && sql.includes("FROM task_messages") && sql.includes("AND id = $2")) {
+        return createQueryResult([{ id: "msg-assistant" }], 1);
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    await registerTaskDetailRoutes(app);
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261/conversation?limit=50&activeLeafMessageId=326522d1-67cc-4475-92ce-a85b18556261"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).not.toContain(imagePayload);
+    const [message] = response.json().messages;
+    expect(message.content_json).toEqual({ text: "Marked both papers." });
+    expect(message.display.thought_summaries).toEqual([
+      expect.objectContaining({ text: "Checking the photos.", nextCallIds: ["call_view"] })
+    ]);
+    expect(message.display.tool_messages).toEqual([
+      expect.objectContaining({
+        id: "msg-assistant:response-tool:call_view",
+        content_json: expect.objectContaining({ tool: "view_image", callId: "call_view" })
+      })
     ]);
     await app.close();
   });

@@ -1,3 +1,4 @@
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "../lib/api";
 import type { TaskConversationPageResponse, TaskDetail, TaskMessage } from "../lib/types";
@@ -8,7 +9,7 @@ import {
 } from "./taskChatExport";
 
 function buildMessage(overrides: Partial<TaskMessage>): TaskMessage {
-  return {
+  return toDisplayTaskMessage({
     id: overrides.id ?? "message-1",
     role: overrides.role ?? "assistant",
     content_json: overrides.content_json ?? { text: "Hello" },
@@ -16,7 +17,7 @@ function buildMessage(overrides: Partial<TaskMessage>): TaskMessage {
     parent_message_id: overrides.parent_message_id ?? null,
     edited_from_message_id: overrides.edited_from_message_id ?? null,
     created_at: overrides.created_at ?? "2026-05-09T07:00:00.000Z"
-  };
+  });
 }
 
 function buildTask(overrides: Partial<TaskDetail["task"]> = {}): TaskDetail["task"] {

@@ -1,3 +1,4 @@
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import { describe, expect, it } from "vitest";
 import { getResponseThoughtSummaries } from "./responseThoughtSummaries";
 import type { TaskMessage } from "../lib/types";
@@ -26,7 +27,7 @@ describe("getResponseThoughtSummaries", () => {
       created_at: "2026-03-10T06:00:00.000Z"
     };
 
-    expect(getResponseThoughtSummaries(message)).toEqual([
+    expect(getResponseThoughtSummaries(toDisplayTaskMessage(message))).toEqual([
       {
         id: "msg_assistant_1:response-thought:rs_1",
         text: "Checked the task requirements.\n\nPlanned the next coding step.",
@@ -54,6 +55,6 @@ describe("getResponseThoughtSummaries", () => {
       created_at: "2026-03-10T06:00:00.000Z"
     };
 
-    expect(getResponseThoughtSummaries(message)).toEqual([]);
+    expect(getResponseThoughtSummaries(toDisplayTaskMessage(message))).toEqual([]);
   });
 });

@@ -1,3 +1,4 @@
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import { describe, expect, it } from "vitest";
 import { getResponseToolMessages } from "./responseToolMessages";
 import type { TaskMessage } from "../lib/types";
@@ -20,7 +21,7 @@ describe("getResponseToolMessages", () => {
       created_at: "2026-03-10T06:00:00.000Z"
     };
 
-    expect(getResponseToolMessages(message)).toEqual([
+    expect(getResponseToolMessages(toDisplayTaskMessage(message))).toEqual([
       {
         id: "msg_assistant_1:response-tool:ws_1",
         role: "tool",
@@ -66,7 +67,7 @@ describe("getResponseToolMessages", () => {
       created_at: "2026-03-10T06:00:30.000Z"
     };
 
-    expect(getResponseToolMessages(message)).toEqual([
+    expect(getResponseToolMessages(toDisplayTaskMessage(message))).toEqual([
       {
         id: "msg_assistant_custom_patch:response-tool:call_patch_custom_1",
         role: "tool",
@@ -129,7 +130,7 @@ describe("getResponseToolMessages", () => {
       created_at: "2026-03-10T06:00:45.000Z"
     };
 
-    expect(getResponseToolMessages(message)).toEqual([
+    expect(getResponseToolMessages(toDisplayTaskMessage(message))).toEqual([
       {
         id: "msg_assistant_inline_artifact:response-tool:call_inline_1",
         role: "tool",
@@ -205,7 +206,7 @@ describe("getResponseToolMessages", () => {
       created_at: "2026-03-10T06:00:50.000Z"
     };
 
-    expect(getResponseToolMessages(message)).toEqual([
+    expect(getResponseToolMessages(toDisplayTaskMessage(message))).toEqual([
       expect.objectContaining({
         role: "tool",
         content_json: expect.objectContaining({
@@ -248,7 +249,7 @@ describe("getResponseToolMessages", () => {
       created_at: "2026-03-10T06:01:00.000Z"
     };
 
-    expect(getResponseToolMessages(message)).toEqual([
+    expect(getResponseToolMessages(toDisplayTaskMessage(message))).toEqual([
       {
         id: "msg_assistant_2:response-tool:call_patch_1",
         role: "tool",
@@ -292,7 +293,7 @@ describe("getResponseToolMessages", () => {
       created_at: "2026-03-10T06:00:00.000Z"
     };
 
-    expect(getResponseToolMessages(userMessage)).toEqual([]);
+    expect(getResponseToolMessages(toDisplayTaskMessage(userMessage))).toEqual([]);
   });
 
   it("extracts response tools from system context checkpoint messages", () => {
@@ -323,7 +324,7 @@ describe("getResponseToolMessages", () => {
       created_at: "2026-03-10T06:00:00.000Z"
     };
 
-    expect(getResponseToolMessages(checkpointMessage)).toEqual([
+    expect(getResponseToolMessages(toDisplayTaskMessage(checkpointMessage))).toEqual([
       {
         id: "msg_system_checkpoint_1:response-tool:call_shell_1",
         role: "tool",
@@ -369,6 +370,6 @@ describe("getResponseToolMessages", () => {
       created_at: "2026-03-10T06:00:00.000Z"
     };
 
-    expect(getResponseToolMessages(compactionMessage)).toEqual([]);
+    expect(getResponseToolMessages(toDisplayTaskMessage(compactionMessage))).toEqual([]);
   });
 });

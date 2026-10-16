@@ -1,6 +1,7 @@
 import { THEME_MODE_VALUES, type ThemeMode } from "@meowbert/shared/themes";
 import type { AgentSwarmAgentAllocation } from "@meowbert/shared/agent-swarm";
 import type { TaskSearchPreview } from "@meowbert/shared/task-history-search";
+import type { TaskMessageDisplay } from "@meowbert/shared/task-message-display";
 import type { WorkspaceIconKey } from "@meowbert/shared/workspace-icons";
 import { ApiClient } from "./api";
 
@@ -203,6 +204,7 @@ export interface TaskMessage {
   parent_message_id: string | null;
   edited_from_message_id: string | null;
   created_at: string;
+  display?: TaskMessageDisplay;
 }
 
 export interface TaskDetail {

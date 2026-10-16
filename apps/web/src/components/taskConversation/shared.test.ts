@@ -1,3 +1,4 @@
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import { describe, expect, it } from "vitest";
 import type { TaskMessage } from "../../lib/types";
 import { resolveHistoricalToolGroupMessages } from "./shared";
@@ -25,7 +26,7 @@ function createAssistantMessage(
   createdAt: string,
   responseItems: unknown[]
 ): TaskMessage {
-  return {
+  return toDisplayTaskMessage({
     id,
     role: "assistant",
     content_json: {
@@ -34,7 +35,7 @@ function createAssistantMessage(
     parent_message_id: null,
     edited_from_message_id: null,
     created_at: createdAt
-  };
+  });
 }
 
 describe("resolveHistoricalToolGroupMessages", () => {

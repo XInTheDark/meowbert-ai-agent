@@ -1,10 +1,11 @@
+import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import { describe, expect, it } from "vitest";
 import type { TaskMessage } from "../../lib/types";
 import { getConversationActivityGroups } from "./conversationActivityEntries";
 import { buildActivityTimeline } from "./activityTimeline";
 
 function message(id: string, role: TaskMessage["role"], content_json: TaskMessage["content_json"]): TaskMessage {
-  return { id, role, content_json, created_at: "2026-09-11T00:00:00.000Z", parent_message_id: null, edited_from_message_id: null };
+  return toDisplayTaskMessage({ id, role, content_json, created_at: "2026-09-11T00:00:00.000Z", parent_message_id: null, edited_from_message_id: null });
 }
 
 const tool = (callId: string): TaskMessage => message(callId, "tool", { tool: "run_shell", callId, durationMs: 100 });
