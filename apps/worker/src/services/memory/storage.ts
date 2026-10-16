@@ -119,9 +119,20 @@ export async function openMemoryConnection(paths: WorkspaceMemoryPaths): Promise
   return connect(paths.dbDir);
 }
 
+async function hasMemoryTable(connection: Connection): Promise<boolean> {
+  let pageToken: string | undefined;
+  do {
+    const page = await connection.listTables({ pageToken });
+    if (page.tables.includes(MEMORY_TABLE_NAME)) {
+      return true;
+    }
+    pageToken = page.pageToken ?? undefined;
+  } while (pageToken);
+  return false;
+}
+
 export async function openMemoryTable(connection: Connection): Promise<Table | null> {
-  const tableNames = await connection.tableNames();
-  if (!tableNames.includes(MEMORY_TABLE_NAME)) {
+  if (!(await hasMemoryTable(connection))) {
     return null;
   }
 
@@ -138,7 +149,7 @@ export async function openMemoryTable(connection: Connection): Promise<Table | n
 export async function memoryTableExists(paths: WorkspaceMemoryPaths): Promise<boolean> {
   const connection = await openMemoryConnection(paths);
   try {
-    return (await connection.tableNames()).includes(MEMORY_TABLE_NAME);
+    return await hasMemoryTable(connection);
   } finally {
     connection.close();
   }
@@ -168,7 +179,8 @@ export async function readMemorySyncStatus(workspaceRoot: string): Promise<Memor
 export async function ensureTableIndices(table: Table): Promise<void> {
   // Keyword search needs its index at any size; rows added later are still matched until optimize folds them in.
   try {
-    await table.createIndex(MEMORY_SEARCH_TEXT_COLUMN, { replace: false, config: Index.fts() });
+    // The default 40-character limit silently drops long hashes and IDs, which keyword search exists to find.
+    await table.createIndex(MEMORY_SEARCH_TEXT_COLUMN, { replace: false, config: Index.fts({ maxTokenLength: 80 }) });
   } catch {
     // Best effort only; search falls back to vector-only.
   }

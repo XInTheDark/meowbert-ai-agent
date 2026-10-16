@@ -4,7 +4,7 @@
 
 ### AI and agents
 
-- **Better Memory search** — Memory search now matches exact words, such as command names and error codes, as well as meaning, and knows which section of a note each result comes from. Each workspace's Memory index rebuilds once after updating.
+- **Better Memory search** — Memory search now matches exact words, such as command names, error codes, and long IDs or hashes, as well as meaning, and knows which section of a note each result comes from. Each workspace's Memory index rebuilds once after updating.
 - **Tidier Memory** — Meowbert keeps Memory as named topic files linked from `MEMORY.md`, and Memory refreshes reorganize notes that have become cluttered. A refresh can now take up to 40 steps.
 - **Refreshes no longer skip messages** — When a long stretch of conversation doesn't fit in one Memory refresh, the rest is now picked up by the next one instead of being dropped.
 

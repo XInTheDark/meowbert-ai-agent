@@ -4,7 +4,7 @@ import { query } from "../../lib/db.js";
 import type { ResolvedMemoryEmbeddingConfig } from "./shared.js";
 
 // Bump when chunking or the table layout changes so every index rebuilds once.
-const MEMORY_INDEX_FORMAT_VERSION = 2;
+const MEMORY_INDEX_FORMAT_VERSION = 3;
 
 export async function resolveMemoryEmbeddingConfig(): Promise<ResolvedMemoryEmbeddingConfig> {
   const settings = await readMemoryEmbeddingSettings(query);

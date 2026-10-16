@@ -22,6 +22,7 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages pypdf
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/package.json
 COPY apps/worker/package.json apps/worker/package.json
+COPY stubs stubs
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
   npm ci --workspace packages/shared --workspace apps/worker --include-workspace-root=false
 COPY packages/shared/tsconfig.json packages/shared/tsconfig.json

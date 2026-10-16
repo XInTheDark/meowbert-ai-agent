@@ -1,0 +1,8 @@
+{
+  "name": "unused-optional-dependency",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stands in for optional dependencies Meowbert never loads, such as LanceDB's built-in embedding libraries, to keep them out of images.",
+  "main": "index.js",
+  "license": "AGPL-3.0-only"
+}
