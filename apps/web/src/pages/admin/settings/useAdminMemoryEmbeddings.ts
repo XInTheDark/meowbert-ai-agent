@@ -78,9 +78,15 @@ export function useAdminMemoryEmbeddings() {
       const response = await api.put<{ settings: AdminMemoryEmbeddingSettings }>("/api/admin/memory-embeddings", input);
       setSettings(response.settings);
     }),
+    reembedLazily: () => run(async () => {
+      const response = await api.post<{ settings: AdminMemoryEmbeddingSettings }>("/api/admin/memory-embeddings/reembed");
+      setSettings(response.settings);
+    }),
     startReindex: (concurrency: number) => run(async () => {
       const response = await api.post<{ job: MemoryReindexJob }>("/api/admin/memory-embeddings/reindex", { concurrency });
       setJob(response.job);
+      const refreshed = await api.get<EmbeddingsResponse>("/api/admin/memory-embeddings");
+      setSettings(refreshed.settings);
     }),
     cancelReindex: () => run(async () => {
       const response = await api.post<{ job: MemoryReindexJob | null }>("/api/admin/memory-embeddings/reindex/cancel");

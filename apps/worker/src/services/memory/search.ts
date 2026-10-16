@@ -10,7 +10,7 @@ import {
   type MemorySearchResult,
   type MemorySearchScope
 } from "./shared.js";
-import { openMemoryConnection, openMemoryTable, readMemorySyncStatus } from "./storage.js";
+import { assertVectorDimensionsMatch, openMemoryConnection, openMemoryTable, readMemorySyncStatus } from "./storage.js";
 import { ensureWorkspaceMemoryWatcher, syncWorkspaceMemoryNow } from "./watcher.js";
 
 function escapeSqlString(value: string): string {
@@ -178,6 +178,7 @@ export async function searchMemoryIndex(input: {
 
     const queryText = applyEmbeddingTemplate(embeddingConfig.queryPromptTemplate, input.query);
     const [queryVector] = await embedTexts([queryText], embeddingConfig);
+    await assertVectorDimensionsMatch(table, queryVector.length);
     const predicate = buildMemorySearchPredicate({
       scope: input.scope ?? "all",
       memoryDir: paths.memoryDir,

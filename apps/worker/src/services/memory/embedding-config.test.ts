@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 
 describe("memory embedding config", () => {
-  it("follows the selected provider when none is pinned and rehashes when it changes", async () => {
+  it("follows the selected provider when none is pinned without invalidating indexes", async () => {
     mockQueries([settingsRow], [{ base_url: "https://one.test/v1", api_key: "one" }]);
     const first = await resolveMemoryEmbeddingConfig();
     expect(first.provider).toEqual({ baseUrl: "https://one.test/v1", apiKey: "one" });
@@ -31,7 +31,17 @@ describe("memory embedding config", () => {
     mockQueries([settingsRow], [{ base_url: "https://two.test/v1", api_key: "two" }]);
     const second = await resolveMemoryEmbeddingConfig();
     expect(second.provider).toEqual({ baseUrl: "https://two.test/v1", apiKey: "two" });
-    expect(second.configHash).not.toBe(first.configHash);
+    expect(second.configHash).toBe(first.configHash);
+  });
+
+  it("keeps existing indexes when the model or templates change", async () => {
+    const pinned = { ...settingsRow, base_url: "https://embed.test/v1", api_key: "key" };
+    mockQueries([pinned]);
+    const before = await resolveMemoryEmbeddingConfig();
+    mockQueries([{ ...pinned, model: "embeddinggemma-2:270m", query_template: "task: search result | query: {text}" }]);
+    const after = await resolveMemoryEmbeddingConfig();
+    expect(after.model).toBe("embeddinggemma-2:270m");
+    expect(after.configHash).toBe(before.configHash);
   });
 
   it("uses a pinned provider without consulting the selected one", async () => {
@@ -40,7 +50,7 @@ describe("memory embedding config", () => {
     expect(query).toHaveBeenCalledTimes(1);
   });
 
-  it("changes the index hash when the generation is bumped for a full re-index", async () => {
+  it("changes the index hash when an admin re-embeds", async () => {
     const pinned = { ...settingsRow, base_url: "https://embed.test/v1", api_key: "key" };
     mockQueries([pinned]);
     const before = await resolveMemoryEmbeddingConfig();

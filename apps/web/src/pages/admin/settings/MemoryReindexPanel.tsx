@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, Square } from "lucide-react";
+import { Clock, RefreshCw, Square } from "lucide-react";
 import {
   MEMORY_REINDEX_DEFAULT_CONCURRENCY,
   MEMORY_REINDEX_MAX_CONCURRENCY,
@@ -10,6 +10,7 @@ import { isReindexActive } from "./useAdminMemoryEmbeddings";
 interface MemoryReindexPanelProps {
   job: MemoryReindexJob | null;
   disabled: boolean;
+  onReembedLazily: () => Promise<boolean>;
   onStart: (concurrency: number) => Promise<boolean>;
   onCancel: () => Promise<boolean>;
 }
@@ -51,13 +52,22 @@ function ReindexProgress({ job }: { job: MemoryReindexJob }) {
   );
 }
 
-export function MemoryReindexPanel({ job, disabled, onStart, onCancel }: MemoryReindexPanelProps) {
+export function MemoryReindexPanel({ job, disabled, onReembedLazily, onStart, onCancel }: MemoryReindexPanelProps) {
   const [concurrency, setConcurrency] = useState(MEMORY_REINDEX_DEFAULT_CONCURRENCY);
   const active = isReindexActive(job);
 
+  function reembedLazily() {
+    const confirmed = window.confirm(
+      "Mark every Memory index for re-embedding? Each workspace rebuilds with the current settings the next time it's used, and its first Memory search waits for that."
+    );
+    if (confirmed) {
+      void onReembedLazily();
+    }
+  }
+
   function start() {
     const confirmed = window.confirm(
-      "Wipe every Memory index and rebuild it with the current embedding settings? Memory search returns fewer results until each workspace finishes."
+      "Wipe every Memory index and rebuild them all now with the current embedding settings? Memory search returns fewer results until each workspace finishes."
     );
     if (confirmed) {
       void onStart(concurrency);
@@ -67,8 +77,11 @@ export function MemoryReindexPanel({ job, disabled, onStart, onCancel }: MemoryR
   return (
     <section className="admin-reindex" aria-labelledby="memory-reindex-title">
       <div>
-        <h3 id="memory-reindex-title">Re-index all Memory</h3>
-        <p className="muted-text">Use after switching embedding models. Every workspace's index is wiped and rebuilt.</p>
+        <h3 id="memory-reindex-title">Re-embed Memory</h3>
+        <p className="muted-text">
+          Use after changing the model or templates. <strong>On next use</strong> rebuilds each workspace when it's next used.
+          {" "}<strong>Wipe &amp; re-index</strong> rebuilds every workspace now, a few at a time.
+        </p>
       </div>
       <div className="admin-reindex__controls">
         <label>
@@ -81,9 +94,14 @@ export function MemoryReindexPanel({ job, disabled, onStart, onCancel }: MemoryR
             <Square size={16} /> Cancel
           </button>
         ) : (
-          <button type="button" className="btn danger-outline" disabled={disabled} onClick={start}>
-            <RefreshCw size={16} /> Wipe &amp; re-index
-          </button>
+          <>
+            <button type="button" className="btn ghost" disabled={disabled} onClick={reembedLazily}>
+              <Clock size={16} /> On next use
+            </button>
+            <button type="button" className="btn danger-outline" disabled={disabled} onClick={start}>
+              <RefreshCw size={16} /> Wipe &amp; re-index
+            </button>
+          </>
         )}
       </div>
       {job ? <ReindexProgress job={job} /> : null}

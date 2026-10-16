@@ -16,7 +16,20 @@ export function EmbeddingsTab() {
       {state.settings ? (
         <EmbeddingSettingsForm settings={state.settings} providers={state.providers} disabled={disabled} onSave={state.saveSettings} />
       ) : null}
-      <MemoryReindexPanel job={state.job} disabled={disabled} onStart={state.startReindex} onCancel={state.cancelReindex} />
+      {state.settings?.indexOutdated ? (
+        <p className="admin-embeddings-outdated" role="status">
+          Memory indexes were built with {state.settings.indexedModel ?? "different settings"}
+          {state.settings.indexedModel === state.settings.model ? " and different templates" : ""}.
+          Search quality is reduced until you re-embed.
+        </p>
+      ) : null}
+      <MemoryReindexPanel
+        job={state.job}
+        disabled={disabled}
+        onReembedLazily={state.reembedLazily}
+        onStart={state.startReindex}
+        onCancel={state.cancelReindex}
+      />
       {state.error ? (
         <div className="row-actions">
           <p className="error-text" role="alert">{state.error}</p>

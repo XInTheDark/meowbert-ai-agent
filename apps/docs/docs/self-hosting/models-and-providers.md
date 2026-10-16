@@ -64,7 +64,12 @@ A small, fast model is a good choice for `internalModel` and `fastModel`.
 - **Model** — The embedding model ID. Defaults to `text-embedding-3-small`.
 - **Prompt templates** — Only for models that expect a prefix, such as `search_query: {text}`. Leave them empty otherwise.
 
-Changing any of these makes each workspace rebuild its Memory index the next time it syncs. To rebuild every workspace now, for example after switching models, use **Wipe & re-index**. Choose how many workspaces to rebuild at once, then follow the progress on the same page. You can cancel a re-index, and a re-index interrupted by a worker restart picks up again on its own.
+Saving these settings never re-embeds Memory, so you can switch providers that serve the same model without rebuilding anything. After changing the model or templates, the tab shows that the indexes are out of date, and search quality drops until you re-embed. If the new model returns a different vector size, Memory search stops working until you do:
+
+- **On next use** marks every index for rebuilding. Each workspace re-embeds the next time it's used, and its first Memory search waits for that.
+- **Wipe & re-index** rebuilds every workspace now. Choose how many to rebuild at once, then follow the progress on the same page. You can cancel it, and one interrupted by a worker restart picks up again on its own.
+
+If a provider serves different weights under the same model name, re-embed after switching to it.
 
 ::: tip Upgrading
 Embedding settings are no longer read from `config/global.json`. If you had a `memory.embeddings` block there, set the same provider and model in the Embeddings tab, then remove the block.

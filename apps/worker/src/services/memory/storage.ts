@@ -176,6 +176,19 @@ export async function readMemorySyncStatus(workspaceRoot: string): Promise<Memor
   });
 }
 
+// Indexes are only re-embedded when an admin asks, so a model that returns a different vector
+// size has to be reported rather than silently mixed into the existing index.
+export async function assertVectorDimensionsMatch(table: Table, vectorLength: number): Promise<void> {
+  const field = (await table.schema()).fields.find((entry) => entry.name === "vector");
+  const indexed = (field?.type as { listSize?: number } | undefined)?.listSize;
+  if (typeof indexed === "number" && indexed !== vectorLength) {
+    throw new Error(
+      `The embedding model now returns ${vectorLength}-dimension vectors, but this workspace's Memory index has ${indexed}. ` +
+      "Re-embed Memory in Admin Panel → Platform → Embeddings."
+    );
+  }
+}
+
 export async function ensureTableIndices(table: Table): Promise<void> {
   // Keyword search needs its index at any size; rows added later are still matched until optimize folds them in.
   try {

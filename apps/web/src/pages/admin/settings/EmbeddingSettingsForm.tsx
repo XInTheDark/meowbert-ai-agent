@@ -67,7 +67,7 @@ export function EmbeddingSettingsForm({ settings, providers, disabled, onSave }:
             onChange={(event) => setQueryTemplate(event.target.value)} disabled={disabled} />
         </label>
       </details>
-      <p className="muted-text">Changing the provider, model, or templates rebuilds each workspace's index the next time it syncs.</p>
+      <p className="muted-text">Saving never re-embeds Memory. After changing the model or templates, re-embed below to apply them.</p>
       <div>
         <button type="submit" className="btn primary" disabled={disabled || !model.trim()}>Save</button>
       </div>

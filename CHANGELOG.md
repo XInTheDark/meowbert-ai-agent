@@ -11,7 +11,7 @@
 ### Self-hosting
 
 - **Embeddings in the Admin Panel** — Choose the Memory embedding provider and model under **Admin Panel → Platform → Embeddings**. `memory.embeddings` in `config/global.json` is no longer read: set the same values in the new tab, then remove the block. Run `npm run migrate` to add the new settings. See **Models & Providers** in the docs.
-- **Re-index all Memory** — After switching embedding models, rebuild every workspace's Memory index from the Embeddings tab. Choose how many workspaces run at once and follow the progress live.
+- **Re-embed Memory when you choose** — Saving embedding settings never re-embeds Memory, so switching providers for the same model costs nothing. After changing the model or templates, the Embeddings tab shows the indexes are out of date: re-embed each workspace on its next use, or wipe and re-index everything now with live progress and a choice of how many workspaces run at once.
 - **Grouped admin navigation** — The Admin Panel's sections now sit in three menus: Operations, Platform, and Channels.
 - **Admins can open any task** — Admins can now open any workspace, project, or task by link without being a member. Settings reserved for workspace owners still need an owner.
 - **Recent memory refreshes** — **Admin Panel → Operations → Processes** lists the latest Memory refreshes, with a link to each refresh task.

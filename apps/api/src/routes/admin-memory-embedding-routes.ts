@@ -5,6 +5,7 @@ import {
   cancelMemoryReindex,
   getLatestMemoryReindexJob,
   getMemoryEmbeddingSettings,
+  markMemoryIndexesForReembed,
   startMemoryReindex,
   updateMemoryEmbeddingSettings
 } from "../services/admin/admin-memory-embeddings.js";
@@ -23,6 +24,11 @@ export function registerAdminMemoryEmbeddingRoutes(fastify: Parameters<FastifyPl
   fastify.put("/api/admin/memory-embeddings", { preHandler: fastify.authenticate }, async (request) => {
     await assertSuperAdmin(request.user.id);
     return { settings: await updateMemoryEmbeddingSettings(request.body as never) };
+  });
+
+  fastify.post("/api/admin/memory-embeddings/reembed", { preHandler: fastify.authenticate }, async (request) => {
+    await assertSuperAdmin(request.user.id);
+    return { settings: await markMemoryIndexesForReembed() };
   });
 
   fastify.get("/api/admin/memory-embeddings/reindex", { preHandler: fastify.authenticate }, async (request) => {

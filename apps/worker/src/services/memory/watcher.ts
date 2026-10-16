@@ -22,6 +22,7 @@ import {
   type WorkspaceMemoryPaths
 } from "./shared.js";
 import {
+  assertVectorDimensionsMatch,
   buildRelativePathPredicate,
   closeMemoryWriteLockPool,
   ensureTableIndices,
@@ -130,17 +131,20 @@ async function applyIncrementalMemoryChanges(input: {
   changedFiles: MemoryTrackedFile[];
   removedPaths: string[];
 }): Promise<void> {
+  // Embed and check before deleting, so a rejected batch leaves the old rows searchable.
+  const rowsToAdd = input.changedFiles.length > 0 ? await buildIndexRows(input.changedFiles, input.embeddingConfig) : [];
+  if (rowsToAdd.length > 0) {
+    await assertVectorDimensionsMatch(input.table, rowsToAdd[0].vector.length);
+  }
+
   if (input.removedPaths.length > 0) {
     await input.table.delete(buildRelativePathPredicate(input.removedPaths));
   }
 
-  if (input.changedFiles.length > 0) {
-    const rowsToAdd = await buildIndexRows(input.changedFiles, input.embeddingConfig);
-    if (rowsToAdd.length > 0) {
-      await input.table.add(rowsToAdd);
-      await ensureTableIndices(input.table);
-      await maybeOptimizeTable(input.entry, input.table);
-    }
+  if (rowsToAdd.length > 0) {
+    await input.table.add(rowsToAdd);
+    await ensureTableIndices(input.table);
+    await maybeOptimizeTable(input.entry, input.table);
   }
 
   await writeMemoryManifest(input.entry.paths, input.currentFiles, input.embeddingConfig.configHash);

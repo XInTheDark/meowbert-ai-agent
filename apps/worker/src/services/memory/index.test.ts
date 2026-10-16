@@ -70,7 +70,7 @@ afterEach(async () => {
 });
 
 describe("workspace memory indexing", () => {
-  it("rebuilds on search after the selected provider changes embedding dimensions", async () => {
+  it("does not re-embed when the provider changes, and asks for a re-embed when vector sizes differ", async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "meowbert-memory-provider-"));
     const memoryDir = path.join(workspaceRoot, ".memory");
     fs.mkdirSync(memoryDir, { recursive: true });
@@ -80,11 +80,31 @@ describe("workspace memory indexing", () => {
       const { manifestPath } = getWorkspaceMemoryPaths(workspaceRoot);
       const before = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
       vi.mocked(query).mockResolvedValue({ rows: [{ api_key: "new-key", base_url: "https://new-embeddings.test/v1" }] } as never);
+
+      await expect(searchMemoryIndex({ workspaceRoot, query: "pnpm", limit: 5 })).rejects.toThrow("Re-embed Memory");
+      expect(JSON.parse(fs.readFileSync(manifestPath, "utf8")).embedding_config_hash).toBe(before.embedding_config_hash);
+    } finally {
+      await stopWorkspaceMemoryWatchers();
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("re-embeds on the next search after an admin bumps the index generation", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "meowbert-memory-reembed-"));
+    const memoryDir = path.join(workspaceRoot, ".memory");
+    fs.mkdirSync(memoryDir, { recursive: true });
+    fs.writeFileSync(path.join(memoryDir, "preferences.md"), "Use pnpm for package management.");
+    try {
+      await syncWorkspaceMemoryNow(workspaceRoot);
+      const { manifestPath } = getWorkspaceMemoryPaths(workspaceRoot);
+      const before = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+      vi.mocked(query).mockResolvedValue({
+        rows: [{ api_key: "new-key", base_url: "https://new-embeddings.test/v1", index_generation: 2 }]
+      } as never);
+
       const result = await searchMemoryIndex({ workspaceRoot, query: "pnpm", limit: 5 });
-      expect(result.sync_status.state).toBe("ready");
       expect(result.items[0]?.text).toContain("pnpm");
-      const after = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-      expect(after.embedding_config_hash).not.toBe(before.embedding_config_hash);
+      expect(JSON.parse(fs.readFileSync(manifestPath, "utf8")).embedding_config_hash).not.toBe(before.embedding_config_hash);
     } finally {
       await stopWorkspaceMemoryWatchers();
       fs.rmSync(workspaceRoot, { recursive: true, force: true });

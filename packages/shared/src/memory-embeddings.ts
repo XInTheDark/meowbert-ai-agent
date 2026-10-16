@@ -22,6 +22,10 @@ export const memoryReindexInputSchema = z.object({
 export interface AdminMemoryEmbeddingSettings extends MemoryEmbeddingSettingsInput {
   indexGeneration: number;
   updatedAt: string;
+  /** The model the current indexes were built with. */
+  indexedModel: string | null;
+  /** True when the saved model or templates differ from what the indexes were built with. */
+  indexOutdated: boolean;
 }
 
 export type MemoryReindexJobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";

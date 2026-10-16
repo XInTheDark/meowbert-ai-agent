@@ -6,6 +6,7 @@ import {
   type MemoryEmbeddingSettingsInput,
   type MemoryReindexJob
 } from "@meowbert/shared";
+import type { PoolClient } from "pg";
 import { query, withTransaction } from "../../lib/db.js";
 import { redis } from "../../lib/redis.js";
 
@@ -15,6 +16,7 @@ interface SettingsRow {
   document_template: string | null;
   query_template: string | null;
   index_generation: number;
+  indexed_settings_json: { model?: string; documentTemplate?: string | null; queryTemplate?: string | null } | null;
   updated_at: Date;
 }
 
@@ -37,6 +39,16 @@ function inputError(message: string, statusCode = 400): Error {
   return Object.assign(new Error(message), { statusCode, exposeMessage: true });
 }
 
+function isIndexOutdated(row: SettingsRow): boolean {
+  const indexed = row.indexed_settings_json;
+  if (!indexed) {
+    return false;
+  }
+  return indexed.model !== row.model
+    || (indexed.documentTemplate ?? null) !== row.document_template
+    || (indexed.queryTemplate ?? null) !== row.query_template;
+}
+
 function mapSettings(row: SettingsRow): AdminMemoryEmbeddingSettings {
   return {
     providerId: row.provider_id,
@@ -44,8 +56,29 @@ function mapSettings(row: SettingsRow): AdminMemoryEmbeddingSettings {
     documentTemplate: row.document_template,
     queryTemplate: row.query_template,
     indexGeneration: row.index_generation,
-    updatedAt: row.updated_at.toISOString()
+    updatedAt: row.updated_at.toISOString(),
+    indexedModel: row.indexed_settings_json?.model ?? null,
+    indexOutdated: isIndexOutdated(row)
   };
+}
+
+// Bumping the generation makes every Memory index stale on every worker; each one re-embeds with
+// the saved settings the next time it syncs or is searched. Records what the new indexes use.
+async function bumpIndexGeneration(client: PoolClient): Promise<SettingsRow> {
+  const active = await client.query("SELECT 1 FROM memory_reindex_jobs WHERE status IN ('queued', 'running') FOR UPDATE");
+  if (active.rowCount) {
+    throw inputError("A re-index is already in progress.", 409);
+  }
+  const result = await client.query<SettingsRow>(
+    `UPDATE memory_embedding_settings
+        SET index_generation = index_generation + 1,
+            indexed_settings_json = jsonb_build_object(
+              'model', model, 'documentTemplate', document_template, 'queryTemplate', query_template
+            ),
+            updated_at = now()
+      RETURNING *`
+  );
+  return result.rows[0];
 }
 
 function mapJob(row: JobRow): MemoryReindexJob {
@@ -95,24 +128,20 @@ export async function getLatestMemoryReindexJob(): Promise<MemoryReindexJob | nu
   return result.rows[0] ? mapJob(result.rows[0]) : null;
 }
 
-// Bumping the generation invalidates every Memory index on every worker; the job then rebuilds
-// them eagerly, and any index it misses rebuilds on its next sync or search.
+export async function markMemoryIndexesForReembed(): Promise<AdminMemoryEmbeddingSettings> {
+  return mapSettings(await withTransaction(bumpIndexGeneration));
+}
+
+// Same as the lazy re-embed, but a job then rebuilds every workspace now instead of on next use.
 export async function startMemoryReindex(raw: { concurrency: number }, userId: string): Promise<MemoryReindexJob> {
   const input = memoryReindexInputSchema.parse(raw);
   const job = await withTransaction(async (client) => {
-    const active = await client.query("SELECT 1 FROM memory_reindex_jobs WHERE status IN ('queued', 'running') FOR UPDATE");
-    if (active.rowCount) {
-      throw inputError("A re-index is already in progress.", 409);
-    }
-    const settings = await client.query<{ index_generation: number }>(
-      `UPDATE memory_embedding_settings SET index_generation = index_generation + 1, updated_at = now()
-       RETURNING index_generation`
-    );
+    const settings = await bumpIndexGeneration(client);
     const inserted = await client.query<JobRow>(
       `INSERT INTO memory_reindex_jobs (concurrency, index_generation, requested_by_user_id)
        VALUES ($1, $2, $3)
        RETURNING *`,
-      [input.concurrency, settings.rows[0].index_generation, userId]
+      [input.concurrency, settings.index_generation, userId]
     );
     return mapJob(inserted.rows[0]);
   });
