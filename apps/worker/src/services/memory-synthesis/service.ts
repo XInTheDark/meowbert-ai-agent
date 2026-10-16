@@ -16,10 +16,15 @@ import {
   MEMORY_SYNTHESIS_MIN_REFRESH_INTERVAL_MS,
   MEMORY_SYNTHESIS_URGENCY_THRESHOLD
 } from "./urgency.js";
+import {
+  buildMemoryDelta,
+  MAX_DELTA_MESSAGE_CHARS,
+  MAX_DELTA_MESSAGES,
+  type MemoryDeltaMessage
+} from "./delta.js";
 
-const MAX_DELTA_MESSAGES = 120;
-const MAX_DELTA_CHARS = 120_000;
 const MEMORY_SYNTHESIS_EVENT_CHANNEL = "memory_synthesis_ready";
+const MEMORY_SYNTHESIS_MAX_STEPS = 40;
 
 interface SynthesisRequestRow {
   id: string;
@@ -27,13 +32,6 @@ interface SynthesisRequestRow {
   environment_id: string;
   initiator_user_id: string | null;
   source_through_at: string | null;
-}
-
-interface DeltaMessageRow {
-  role: "user" | "assistant";
-  text: string;
-  created_at: string;
-  task_title: string | null;
 }
 
 interface MemorySynthesisMetricsRow {
@@ -62,28 +60,11 @@ function buildSynthesisPrompt(): string {
     "Clean up clearly useless Memory as you refresh it: remove obsolete or temporary notes, consolidate duplicates, and trim details that no longer help future runs. Use judgment and preserve anything still plausibly useful.",
     "Prefix every new Memory entry with the current date and time.",
     "Write project-specific knowledge under the Project Memory directory and workspace-wide knowledge under the Workspace Memory directory.",
+    "Keep Memory well structured: topic files with clear names and a one-line description at the top, organized under headings, with each `MEMORY.md` as a short overview linking to them. If Memory is currently disorganized (one long file, scattered or overlapping notes, vague filenames), reorganize it as part of this refresh by merging, splitting, renaming, and fixing links, without losing anything still useful.",
     "Also create or update `actions.json` in the Project Memory directory with up to 8 (typically 3-6) concise, relevant suggested starter actions for this Project. Do not fill it with random actions based on what the user has done before, and do not blindly guess what the user will want next. Choose actions with judgment from one or more of these categories: very frequently used actions or automations; broadly useful actions the user may reasonably want to take in this Project even if they have not explicitly requested them before (for example, reviewing the current paper draft); or creative, fun, and useful actions grounded in the Project context (for example, learning fun facts about a topic, researching an interesting angle, or exploring a promising idea). Be creative while keeping every suggestion concrete, useful, and grounded in the current Project context. Format as a JSON array of objects with `id`, `label` (concise button label), `prompt` (actionable starter prompt for the task composer), and optional `icon` ('sparkles', 'code', 'globe', 'terminal', 'search', 'zap').",
     "Do not invent facts, copy transient discussion, or create duplicate notes. If no update is warranted, leave Memory unchanged.",
     "Finish with a short final response describing any files changed."
   ].join("\n");
-}
-
-function formatDelta(messages: DeltaMessageRow[]): string {
-  const lines = ["# Conversation delta", ""];
-  let remaining = MAX_DELTA_CHARS;
-
-  for (const message of messages) {
-    const heading = `## ${message.role === "user" ? "User" : "Agent"} · ${message.created_at}${message.task_title ? ` · ${message.task_title}` : ""}`;
-    const text = message.text.trim();
-    if (!text || remaining <= heading.length + 4) {
-      continue;
-    }
-    const bounded = text.slice(0, Math.max(0, remaining - heading.length - 4));
-    lines.push(heading, "", bounded, "");
-    remaining -= heading.length + bounded.length + 4;
-  }
-
-  return lines.join("\n");
 }
 
 export async function syncFinishedMemorySynthesisRequests(): Promise<void> {
@@ -151,7 +132,7 @@ async function loadMemorySynthesisMetrics(input: MemorySynthesisEvent): Promise<
         WHERE role = 'user' AND author_user_id IS NOT NULL
      ), task_token_usage AS (
        SELECT ute.task_id,
-              SUM(ute.input_tokens + ute.output_tokens)::bigint AS recorded_tokens
+              SUM(ute.weighted_tokens / NULLIF(ute.input_token_multiplier, 0))::bigint AS recorded_tokens
          FROM user_token_usage_events ute
          JOIN active_user_tasks aut ON aut.task_id = ute.task_id
          LEFT JOIN latest_success success ON true
@@ -159,7 +140,7 @@ async function loadMemorySynthesisMetrics(input: MemorySynthesisEvent): Promise<
         GROUP BY ute.task_id
      ), task_delta_text AS (
        SELECT delta.task_id,
-              SUM(LEAST(length(delta.text), 16_000))::bigint AS task_char_count
+              SUM(LEAST(length(delta.text), $3))::bigint AS task_char_count
          FROM delta_messages delta
          JOIN active_user_tasks aut ON aut.task_id = delta.task_id
         GROUP BY delta.task_id
@@ -186,7 +167,7 @@ async function loadMemorySynthesisMetrics(input: MemorySynthesisEvent): Promise<
             ) AS initiator_user_id,
             refresh.completed_at::text AS last_refresh_at,
             MIN(delta.created_at)::text AS earliest_delta_at,
-            COALESCE(SUM(LEAST(length(delta.text), 16_000)), 0)::int AS delta_char_count,
+            COALESCE(SUM(LEAST(length(delta.text), $3)), 0)::int AS delta_char_count,
             COALESCE(
               (SELECT json_agg(session_tokens) FROM session_stats),
               '[]'::json
@@ -209,7 +190,7 @@ async function loadMemorySynthesisMetrics(input: MemorySynthesisEvent): Promise<
              AND active_request.status IN ('queued', 'running')
         )
       GROUP BY e.workspace_id, e.id, success.source_through_at, refresh.completed_at`,
-    [input.workspaceId, input.environmentId]
+    [input.workspaceId, input.environmentId, MAX_DELTA_MESSAGE_CHARS]
   );
   return result.rows[0] ?? null;
 }
@@ -276,8 +257,8 @@ async function claimNextRequest(input?: MemorySynthesisEvent): Promise<Synthesis
 async function loadDelta(input: {
   environmentId: string;
   sourceAfter: string | null;
-}): Promise<DeltaMessageRow[]> {
-  const result = await query<DeltaMessageRow>(
+}): Promise<MemoryDeltaMessage[]> {
+  const result = await query<MemoryDeltaMessage>(
     `SELECT tm.role,
             COALESCE(tm.content_json->>'text', '') AS text,
             tm.created_at,
@@ -311,11 +292,11 @@ async function loadLatestCompletedCursor(environmentId: string): Promise<string 
 
 async function createSynthesisTask(input: {
   request: SynthesisRequestRow;
-  delta: DeltaMessageRow[];
+  delta: MemoryDeltaMessage[];
 }): Promise<void> {
   const taskId = randomUUID();
   const runId = randomUUID();
-  const sourceThroughAt = input.delta.at(-1)?.created_at ?? null;
+  const delta = buildMemoryDelta(input.delta);
   const environmentRes = await query<{ root_path: string; storage_backend_id: string }>(
     `SELECT e.root_path, w.storage_backend_id
        FROM environments e
@@ -342,7 +323,7 @@ async function createSynthesisTask(input: {
   const inputDir = path.resolve(taskDir, "inputs");
   const deltaPath = path.resolve(inputDir, "memory-delta.md");
   await fsPromises.mkdir(inputDir, { recursive: true });
-  await fsPromises.writeFile(deltaPath, formatDelta(input.delta), "utf8");
+  await fsPromises.writeFile(deltaPath, delta.markdown, "utf8");
   await ensureSandboxWritablePath({ rootPath: path.resolve(taskDir, "..", "..", ".."), targetPath: deltaPath });
 
   const createdAt = new Date().toISOString();
@@ -360,8 +341,8 @@ async function createSynthesisTask(input: {
       `INSERT INTO tasks (
         id, workspace_id, environment_id, title, status, source, initiator_user_id,
         default_timezone, max_steps_override, allow_waiting, is_hidden, task_root_path
-      ) VALUES ($1, $2, $3, 'Refresh memory', 'queued', 'web', $4, 'UTC', 20, false, true, $5)`,
-      [taskId, input.request.workspace_id, input.request.environment_id, input.request.initiator_user_id, taskRootPath]
+      ) VALUES ($1, $2, $3, 'Refresh memory', 'queued', 'web', $4, 'UTC', $6, false, true, $5)`,
+      [taskId, input.request.workspace_id, input.request.environment_id, input.request.initiator_user_id, taskRootPath, MEMORY_SYNTHESIS_MAX_STEPS]
     );
     await client.query(
       `INSERT INTO task_messages (
@@ -387,7 +368,7 @@ async function createSynthesisTask(input: {
       `UPDATE memory_synthesis_requests
           SET task_id = $2, source_through_at = $3, updated_at = now()
         WHERE id = $1`,
-      [input.request.id, taskId, sourceThroughAt]
+      [input.request.id, taskId, delta.throughAt]
     );
     await insertTaskRunDispatchWithClient(client, {
       runId,
