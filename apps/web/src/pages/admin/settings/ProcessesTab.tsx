@@ -4,6 +4,7 @@ import { badgeClass } from "../../../lib/utils";
 import { AdminTable, AdminTableCell, AdminTableRow } from "../../../components/admin/AdminTable";
 import { useWorkspaceApp } from "../../../contexts/WorkspaceContext";
 import type { ApiClient } from "../../../lib/api";
+import { MemoryRefreshesSection } from "./MemoryRefreshesSection";
 import type { AdminProcessOverview, AdminProcessesResponse, AdminTaskProcessSummary } from "./shared";
 
 const PROCESS_REFRESH_INTERVAL_MS = 10_000;
@@ -323,6 +324,8 @@ export function ProcessesTab() {
       </div>
 
       {overview ? <ProcessesTable overview={overview} /> : null}
+
+      <MemoryRefreshesSection reloadKey={lastLoadedAt} />
     </div>
   );
 }

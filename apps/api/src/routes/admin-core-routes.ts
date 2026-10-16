@@ -6,6 +6,7 @@ import {
   AGENT_SWARM_MAX_WORKERS
 } from "@meowbert/shared";
 import { listAdminProcesses } from "../services/admin/admin-processes.js";
+import { listRecentMemoryRefreshes } from "../services/admin/admin-memory-refreshes.js";
 import {
   getAdminUsageStatistics,
   type AdminStatisticsBucket,
@@ -119,6 +120,11 @@ export function registerAdminCoreRoutes(fastify: Parameters<FastifyPluginAsync>[
     return {
       processes: await listAdminProcesses()
     };
+  });
+
+  fastify.get("/api/admin/memory-refreshes", { preHandler: fastify.authenticate }, async (request) => {
+    await assertSuperAdmin(request.user.id);
+    return { refreshes: await listRecentMemoryRefreshes() };
   });
 
   fastify.get("/api/admin/statistics/usage", { preHandler: fastify.authenticate }, async (request) => {
