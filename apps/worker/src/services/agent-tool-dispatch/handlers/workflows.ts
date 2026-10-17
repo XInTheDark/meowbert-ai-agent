@@ -261,14 +261,12 @@ export async function handleSwarmManage(
       ...(parsed.value.target_swarm ? { targetSwarm: parsed.value.target_swarm } : {}),
       start: parsed.value.start,
       stop: parsed.value.stop,
-      grantBudget: parsed.value.grant_budget ?? [],
       viewOnly: parsed.value.view_only
     });
     return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       started: result.started,
       stopped: result.stopped,
-      granted: result.granted,
       workers: result.workers.map((worker) => ({
         task_id: worker.taskId,
         label: worker.label,
@@ -325,14 +323,16 @@ export async function handleSwarmBudgetStatus(
     return await finishBuiltinToolSuccess(ctx, execution, {
       ok: true,
       status: result.status,
-      remaining_tokens: result.remainingTokens,
-      unassigned_tokens: result.unassignedTokens,
+      pool_tokens: result.poolTokens,
+      protected_reserve_tokens: result.protectedReserveTokens,
+      low_budget: result.lowBudget,
       deadline_at: result.deadlineAt,
       minimum_spawn_allocation_tokens: result.minimumSpawnAllocationTokens,
       workers: result.workers.map((worker) => ({
+        worker: worker.label,
         task_id: worker.taskId,
         status: worker.status,
-        remaining_tokens: worker.remainingTokens
+        spent_tokens: worker.spentTokens
       })),
       children: result.children.map((child) => ({
         node_id: child.nodeId,

@@ -308,23 +308,18 @@ export const swarmManageArgumentsSchema = z.object({
   target_swarm: z.enum(["outer", "inner"]).nullable().optional(),
   start: z.array(z.string().min(1)).max(6),
   stop: z.array(z.string().min(1)).max(6),
-  // Omitted from the tool schema when the swarm has no budget.
-  grant_budget: z.array(z.object({
-    worker: z.string().min(1),
-    tokens: z.number().int().positive()
-  }).strict()).max(6).optional(),
   view_only: z.boolean()
 }).strict().superRefine((value, context) => {
   const overlap = value.start.find((worker) => value.stop.includes(worker));
   if (overlap) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: `Worker cannot be both started and stopped: ${overlap}` });
   }
-  const changes = value.start.length + value.stop.length + (value.grant_budget?.length ?? 0);
+  const changes = value.start.length + value.stop.length;
   if (value.view_only && changes > 0) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "view_only cannot be combined with start, stop, or grant_budget." });
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "view_only cannot be combined with start or stop." });
   }
   if (!value.view_only && changes === 0) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "Provide a worker to start, stop, or grant budget to, or set view_only to true." });
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Provide a worker to start or stop, or set view_only to true." });
   }
 });
 

@@ -8,7 +8,6 @@ import { COMPUTER_LOCAL_SHELL_TOOL_NAME, COMPUTER_RESPONSE_FUNCTION_TOOLS } from
 import {
   INIT_SANDBOX_TOOL,
   buildSwarmPauseFunctionTool,
-  buildUnbudgetedSwarmManageFunctionTool,
   buildRunShellFunctionTool,
   CONTEXT_V2_FUNCTION_TOOLS,
   RESPONSE_FUNCTION_TOOLS,
@@ -322,11 +321,7 @@ export function buildResponseTools(
           return runShellTool;
         }
         return withSwarmTarget(
-          tool.name === SWARM_PAUSE_TOOL_NAME
-            ? buildSwarmPauseFunctionTool()
-            : tool.name === SWARM_MANAGE_TOOL_NAME && availability.allowSwarmBudgetTools !== true
-              ? buildUnbudgetedSwarmManageFunctionTool()
-              : tool,
+          tool.name === SWARM_PAUSE_TOOL_NAME ? buildSwarmPauseFunctionTool() : tool,
           availability.requireSwarmTarget === true
         );
       }),

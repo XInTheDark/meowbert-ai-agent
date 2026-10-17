@@ -183,7 +183,6 @@ describe("buildResponseTools", () => {
     expect(names(budgeted)).toEqual(expect.arrayContaining(budgetToolNames));
     for (const name of budgetToolNames) expect(names(unbudgeted)).not.toContain(name);
     const manage = unbudgeted.find((tool): tool is FunctionTool => tool.type === "function" && tool.name === SWARM_MANAGE_TOOL_NAME)!;
-    expect((manage.parameters as { properties: Record<string, unknown> }).properties).not.toHaveProperty("grant_budget");
     expect(validateTool(manage)).toEqual([]);
   });
 

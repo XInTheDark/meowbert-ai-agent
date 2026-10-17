@@ -25,6 +25,7 @@ import { buildAgentTurnRequest } from "./turn-request.js";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "./prompt-envelope.js";
 import { appendQueuedPromptDeltas } from "./queued-prompt-deltas.js";
+import { appendSwarmBudgetNotes } from "./swarm-budget-notes.js";
 import { runClaudeWebSearch } from "./claude-web-search.js";
 import { resolveRunUsageBilling } from "./usage-billing.js";
 import {
@@ -51,6 +52,7 @@ import {
   recordSwarmReviewRound,
   deliverSwarmInbox,
   pauseSwarmAgent,
+  assertSwarmBudgetAllowsWaiting,
   readSwarmChannel,
   sendSwarmChannelMessage,
   submitSwarmOutput,
@@ -434,14 +436,17 @@ function buildWorkflowActions(execution: AgentExecutionContext): WorkflowActions
       ? async (response: string, targetSwarm) => submitSwarmOutput(execution.workflow.workflowContext!, response, targetSwarm)
       : undefined,
     pauseSwarmAgent: execution.workflow.allowSwarmTools
-      ? async (input) => pauseSwarmAgent({
-        context: execution.workflow.workflowContext!,
-        triggerSource: execution.job.triggerSource,
-        selectionUserId: execution.job.selectionUserId ?? null,
-        status: input.status,
-        targetSwarm: input.targetSwarm,
-        waitingForTaskIds: input.waitingForTaskIds
-      })
+      ? async (input) => {
+        await assertSwarmBudgetAllowsWaiting(execution.workflow.workflowContext!, input);
+        return pauseSwarmAgent({
+          context: execution.workflow.workflowContext!,
+          triggerSource: execution.job.triggerSource,
+          selectionUserId: execution.job.selectionUserId ?? null,
+          status: input.status,
+          targetSwarm: input.targetSwarm,
+          waitingForTaskIds: input.waitingForTaskIds
+        });
+      }
       : undefined
   };
 }
@@ -605,28 +610,19 @@ async function requestModelTurn(input: {
       if (!isSwarmQuotaError(error)) throw error;
       // Post the budget notice before pausing, so a stall wake triggered by this pause cannot resume
       // the leader ahead of the notice.
-      await wakeParentForSwarmQuota({
-        context: execution.workflow.workflowContext,
-        triggerSource: execution.job.triggerSource,
-        selectionUserId: execution.job.selectionUserId ?? null,
-        reason: error.message
-      }).catch(() => undefined);
+      if (error.notify) {
+        await wakeParentForSwarmQuota({
+          context: execution.workflow.workflowContext,
+          reason: error.reason,
+          detail: error.message
+        }).catch(() => undefined);
+      }
       await applyRuntimeSwarmPause(execution, error.message);
       throw error;
     }
   }
 
-  if (swarmReservation?.overLeaderAllowance) {
-    execution.state.dispatchState.conversationItems.push({
-      role: "system",
-      content: "[System: You have spent your leader share of this swarm's budget on your own work, so this step comes from the protected reserve kept for final synthesis. Hand the remaining work to your workers: assign it with assign_worker and fund them with swarm_manage grant_budget. Funding workers raises your share again.]"
-    });
-  } else if (swarmReservation?.recovery) {
-    execution.state.dispatchState.conversationItems.push({
-      role: "system",
-      content: "[System: The swarm operating budget is exhausted. This inference uses the protected leader recovery reserve. Use it only to cancel or reset unproductive child work, send the necessary parent handoff, or deliver a concise degraded synthesis with final_response.]"
-    });
-  }
+  appendSwarmBudgetNotes(execution, swarmReservation);
 
   await emitTaskEvent(execution.job.taskId, "thinking_start", { step });
   let recoveredItemCount = 0;
@@ -716,9 +712,8 @@ async function requestModelTurn(input: {
       if (!accepted) {
         await wakeParentForSwarmQuota({
           context: execution.workflow.workflowContext,
-          triggerSource: execution.job.triggerSource,
-          selectionUserId: execution.job.selectionUserId ?? null,
-          reason: "A response arrived after its deadline or after this node was cancelled. Its tool calls were discarded."
+          reason: "response_quarantined",
+          detail: "A response arrived after its deadline or after this node was cancelled. Its tool calls were discarded."
         }).catch(() => undefined);
         await applyRuntimeSwarmPause(execution, "Swarm response arrived after its deadline or after the node was cancelled.");
         throw new Error("SWARM_RESPONSE_QUARANTINED");

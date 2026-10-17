@@ -158,6 +158,8 @@ The leader is added automatically.
 
 By default, a swarm has a token budget (and an optional time budget), and the leader can bring in extra agents as the work grows. Turn on **Disable spawning and budgets** to keep the swarm to the agents you picked, with no token or time budget.
 
+The leader and its workers share one token budget, so nobody has to hand out tokens to individual workers. A small part is held back for the leader to write up the answer. When the budget is nearly spent, every agent is told to report what it has found and start wrapping up. Once it runs out, the workers stop and the leader delivers its answer from what they reported. Extra agents the leader brings in get their own share of the budget, and the leader can give them more if they run out.
+
 ### Tool access
 
 Whatever tools you enable in the composer apply to the swarm too. If you enable Web Search, Memory, Computer Use, Subtasks, or Skills, the swarm agents receive those same selected capabilities for their runs.

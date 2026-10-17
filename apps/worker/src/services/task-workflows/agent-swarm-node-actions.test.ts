@@ -62,19 +62,18 @@ describe("Swarm child budget grants", () => {
     expect(enqueueWorkflowTaskRun).not.toHaveBeenCalled();
   });
 
-  it("activates a seeded child, funds its worker, leaves the rest to its leader, and queues it", async () => {
+  it("activates a seeded child, puts the grant beyond its reserve into the child's shared pool, and queues it", async () => {
     const result = await grantSwarmNodeBudget({
       context, nodeId: "child-quota", additionalTokens: 40_000, extendDeadlineMinutes: null
     });
 
     expect(result).toMatchObject({ nodeId: "child-quota", allocatedTokens: 40_000, resumed: true });
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("status = CASE WHEN status = 'paused' THEN 'active'"),
-      expect.arrayContaining(["child-quota", 40_000]));
-    const leases = client.query.mock.calls.filter(([sql]) => String(sql).includes("SET lease_tokens = lease_tokens +"));
-    expect(leases.map(([, args]) => [args[2], args[1]])).toEqual([
-      ["child-leader-agent", 0],
-      ["child-worker-agent", 8_192]
-    ]);
+    // Reserve is two 8,192-token recovery steps; the other 23,616 tokens go to the shared pool.
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("unassigned_tokens = unassigned_tokens + $4"),
+      ["child-quota", 40_000, 16_384, 23_616, null]);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("unassigned_tokens = unassigned_tokens - $2"),
+      ["root-quota", 40_000]);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("SET low_budget_notified = false"), ["child-quota"]);
     expect(enqueueWorkflowTaskRun).toHaveBeenCalledWith(expect.objectContaining({ taskId: "child-leader-task" }));
   });
 });

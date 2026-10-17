@@ -8,7 +8,7 @@ import { resolveSwarmTarget, type SwarmTarget } from "./swarm-target.js";
 import { outstandingSwarmDependencies, type StoredSwarmPauseMap } from "./agent-swarm-dependencies.js";
 import { loadSwarmPauses } from "./agent-swarm-pause-store.js";
 import { removeSwarmPauses } from "./agent-swarm-mailbox.js";
-import { grantSwarmWorkerLeaseInTx, prepareSwarmWorkerLeaseInTx } from "./agent-swarm-worker-lease.js";
+import { assertSwarmWorkerCanStartInTx } from "./agent-swarm-worker-start.js";
 import {
   asObject,
   enqueueWorkflowTaskRun,
@@ -149,12 +149,10 @@ export async function manageSwarmWorkers(input: {
   targetSwarm?: SwarmTarget;
   start: string[];
   stop: string[];
-  grantBudget: Array<{ worker: string; tokens: number }>;
   viewOnly: boolean;
 }): Promise<{
   started: string[];
   stopped: string[];
-  granted: Array<{ label: string; tokens: number }>;
   workers: SwarmWorker[];
   agents: SwarmWorker[];
 }> {
@@ -168,10 +166,6 @@ export async function manageSwarmWorkers(input: {
   const workers = allAgents.filter((agent) => managedNode.workerTaskIds.includes(agent.task_id));
   const startIds = resolveWorkerIds(workers, input.start);
   const stopIds = resolveWorkerIds(workers, input.stop);
-  const grants = input.grantBudget.map((grant) => ({ taskId: resolveWorkerIds(workers, [grant.worker])[0], tokens: grant.tokens }));
-  const stoppedGrant = grants.find((grant) => stopIds.includes(grant.taskId));
-  if (stoppedGrant) throw new Error("A worker cannot be granted budget and stopped in the same call.");
-  if (grants.length > 0 && !target.nodeId) throw new Error("Worker budget grants require a budgeted Swarm.");
   const snapshot = async (agents: SwarmAgentRow[]) => {
     const pauses = await loadSwarmPauses(context.workflowTaskId);
     return {
@@ -179,21 +173,13 @@ export async function manageSwarmWorkers(input: {
       agents: agents.map((agent) => toAgent(agent, pauses))
     };
   };
-  if (input.viewOnly) return { started: [], stopped: [], granted: [], ...(await snapshot(allAgents)) };
+  if (input.viewOnly) return { started: [], stopped: [], ...(await snapshot(allAgents)) };
   const startTaskIds = workers
     .filter((worker) => startIds.includes(worker.task_id) && !worker.has_live_run)
     .map((worker) => worker.task_id);
   const legacyWorkerTaskIds = context.agents.filter((agent) => agent.role === "worker").map((agent) => agent.task_id);
 
   await withTransaction(async (client) => {
-    for (const grant of grants) {
-      await grantSwarmWorkerLeaseInTx(client, {
-        workflowTaskId: context.workflowTaskId,
-        nodeKey: target.nodeId!,
-        workerTaskId: grant.taskId,
-        tokens: grant.tokens
-      });
-    }
     if (stopIds.length > 0) {
       await client.query(
         `UPDATE tasks SET cancellation_requested = true, resume_after_interrupt = false, updated_at = now()
@@ -206,7 +192,7 @@ export async function manageSwarmWorkers(input: {
     if (startTaskIds.length > 0) {
       if (target.nodeId) {
         for (const taskId of startTaskIds) {
-          await prepareSwarmWorkerLeaseInTx(client, {
+          await assertSwarmWorkerCanStartInTx(client, {
             workflowTaskId: context.workflowTaskId,
             nodeKey: target.nodeId,
             workerTaskId: taskId
@@ -257,10 +243,6 @@ export async function manageSwarmWorkers(input: {
   return {
     started: currentWorkers.filter((worker) => startTaskIds.includes(worker.task_id)).map(agentLabel),
     stopped: currentWorkers.filter((worker) => stopIds.includes(worker.task_id)).map(agentLabel),
-    granted: grants.map((grant) => ({
-      label: agentLabel(currentWorkers.find((worker) => worker.task_id === grant.taskId) ?? workers.find((worker) => worker.task_id === grant.taskId)!),
-      tokens: grant.tokens
-    })),
     ...(await snapshot(currentAgents))
   };
 }

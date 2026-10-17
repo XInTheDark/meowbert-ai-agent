@@ -2526,12 +2526,12 @@ describe("dispatchResponseOutput", () => {
       type: "function_call",
       name: "swarm_manage",
       call_id: "call_swarm_manage",
-      arguments: JSON.stringify({ start: ["Worker 1"], stop: ["Worker 2"], grant_budget: [{ worker: "Worker 1", tokens: 2_000_000 }], view_only: false }),
+      arguments: JSON.stringify({ start: ["Worker 1"], stop: ["Worker 2"], view_only: false }),
       status: "completed"
     }], ctx, state);
 
     expect(manageSwarmWorkers).toHaveBeenCalledWith({
-      start: ["Worker 1"], stop: ["Worker 2"], grantBudget: [{ worker: "Worker 1", tokens: 2_000_000 }], viewOnly: false
+      start: ["Worker 1"], stop: ["Worker 2"], viewOnly: false
     });
     const output = state.runPersistedItems.find(
       (item) => item.type === "function_call_output" && item.call_id === "call_swarm_manage"
@@ -2553,7 +2553,7 @@ describe("dispatchResponseOutput", () => {
     });
 
     for (let index = 1; index <= 3; index += 1) {
-      await dispatchResponseOutput([call("swarm_manage", { start: [], stop: [], grant_budget: [], view_only: true }, index)], ctx, state);
+      await dispatchResponseOutput([call("swarm_manage", { start: [], stop: [], view_only: true }, index)], ctx, state);
     }
     const rosterOutput = state.conversationItems.find(
       (item) => item.type === "function_call_output" && item.call_id === "call_repeat_3"

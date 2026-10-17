@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import {
   buildTaskRunQueueJobId,
   calculateAgentSwarmBudgetEstimate,
-  calculateAgentSwarmInitialLeases,
   calculateAgentSwarmSystemReserve,
   AGENT_SWARM_MINIMUM_CHILD_NODE_TOKENS,
   AGENT_SWARM_MINIMUM_INFERENCE_TOKENS,
@@ -318,12 +317,7 @@ export async function spawnSwarmNode(input: {
     const parentDeadlineAt = parentRow.deadline_at;
     const deadlineAt = deadlineFromMinutes(parentDeadlineAt, input.timeBudgetMinutes);
     const childTitle = input.title.trim();
-    const operatingTokens = Math.max(0, input.tokenBudget - reserveTokens);
-    const { leaderLeaseTokens, workerLeaseTokens, unassignedTokens } = calculateAgentSwarmInitialLeases({
-      operatingTokens,
-      workerCount,
-      minimumStepTokens: AGENT_SWARM_MINIMUM_INFERENCE_TOKENS
-    });
+    const unassignedTokens = Math.max(0, input.tokenBudget - reserveTokens);
 
     await client.query(
       `UPDATE task_workflow_swarm_nodes
@@ -395,10 +389,9 @@ export async function spawnSwarmNode(input: {
       ]
     );
     await client.query(
-      `INSERT INTO task_workflow_swarm_node_members
-        (node_id, workflow_agent_id, role, slot_index, lease_tokens)
-       VALUES ($1, $2, 'leader', 0, $3)`,
-      [nodeId, leaderAgentId, leaderLeaseTokens]
+      `INSERT INTO task_workflow_swarm_node_members (node_id, workflow_agent_id, role, slot_index)
+       VALUES ($1, $2, 'leader', 0)`,
+      [nodeId, leaderAgentId]
     );
 
     const workerAgentIds: string[] = [];
@@ -448,10 +441,9 @@ export async function spawnSwarmNode(input: {
         title: `${childTitle} · Worker ${index + 1}`, state: workerState
       }));
       await client.query(
-        `INSERT INTO task_workflow_swarm_node_members
-          (node_id, workflow_agent_id, role, slot_index, lease_tokens)
-         VALUES ($1, $2, 'worker', $3, $4)`,
-        [nodeId, workerAgentId, index, workerLeaseTokens]
+        `INSERT INTO task_workflow_swarm_node_members (node_id, workflow_agent_id, role, slot_index)
+         VALUES ($1, $2, 'worker', $3)`,
+        [nodeId, workerAgentId, index]
       );
     }
 
@@ -643,11 +635,6 @@ export async function grantSwarmNodeBudget(input: {
     if (deadlineAt && Date.parse(deadlineAt) <= Date.now()) {
       throw new Error("Child deadline has expired. Extend it within the parent deadline before resuming.");
     }
-    const leases = calculateAgentSwarmInitialLeases({
-      operatingTokens: operatingGrantTokens,
-      workerCount: members.rows.filter((member) => member.role === "worker").length,
-      minimumStepTokens
-    });
     await client.query(
       `UPDATE task_workflow_swarm_nodes
           SET allocated_tokens = allocated_tokens + $2,
@@ -658,18 +645,15 @@ export async function grantSwarmNodeBudget(input: {
               deadline_at = COALESCE($5::timestamptz, deadline_at),
               updated_at = now()
         WHERE id = $1`,
-      [childRow.id, input.additionalTokens, nextSystemReserveTokens, leases.unassignedTokens, deadlineAt]
+      [childRow.id, input.additionalTokens, nextSystemReserveTokens, operatingGrantTokens, deadlineAt]
     );
-    for (const member of members.rows) {
-      await client.query(
-        `UPDATE task_workflow_swarm_node_members
-            SET lease_tokens = lease_tokens + $2,
-                status = CASE WHEN status = 'paused' THEN 'active' ELSE status END,
-                updated_at = now()
-          WHERE node_id = $1 AND workflow_agent_id = $3`,
-        [childRow.id, member.role === "worker" ? leases.workerLeaseTokens : leases.leaderLeaseTokens, member.workflow_agent_id]
-      );
-    }
+    // A refilled pool can run low again, so its agents are warned again then.
+    await client.query(
+      `UPDATE task_workflow_swarm_node_members
+          SET low_budget_notified = false, updated_at = now()
+        WHERE node_id = $1 AND low_budget_notified`,
+      [childRow.id]
+    );
     await client.query(
       `UPDATE task_workflow_swarm_nodes
           SET unassigned_tokens = unassigned_tokens - $2, updated_at = now()

@@ -33,6 +33,12 @@ function groupSwarmUnreadMessages(rows: WorkflowMessageRecord[]): Map<string, Wo
   return grouped;
 }
 
+// Messages without a sender are system notices, such as budget events.
+function inboxSenderLabel(row: WorkflowMessageRecord): string {
+  if (row.sender_task_id === null) return "System";
+  return formatSwarmAgentLabel(row.sender_role, row.sender_slot_index, row.sender_title ?? row.sender_task_id);
+}
+
 async function buildSwarmInboxBundle(context: LoadedWorkflowRunContext, targetSwarm?: SwarmTarget): Promise<SwarmInboxRefreshResult> {
   if (context.workflowType !== "agent_swarm") {
     throw new Error("Swarm inbox is only available for agent_swarm workflows.");
@@ -94,9 +100,7 @@ async function buildSwarmInboxBundle(context: LoadedWorkflowRunContext, targetSw
 
     for (let index = unreadRows.length - 1; index >= 0; index -= 1) {
       const row = unreadRows[index];
-      const senderLabel = row.sender_role === "leader"
-        ? "Leader"
-        : formatSwarmAgentLabel(row.sender_role, row.sender_slot_index, row.sender_title ?? row.sender_task_id);
+      const senderLabel = inboxSenderLabel(row);
       const line = `- #${row.message_no} · ${senderLabel} · ${row.created_at}\n${row.content_markdown.trim()}`;
       const nextCost = deliveredLines.length === 0
         ? estimateTextCost(line)
@@ -113,9 +117,7 @@ async function buildSwarmInboxBundle(context: LoadedWorkflowRunContext, targetSw
     if (overflowCount > 0) {
       const omittedPreview = unreadRows
         .slice(0, overflowCount)
-        .map((row) => row.sender_role === "leader"
-          ? "Leader"
-          : formatSwarmAgentLabel(row.sender_role, row.sender_slot_index, row.sender_title))
+        .map(inboxSenderLabel)
         .slice(0, 4);
       sectionLines.push(`- Older unread messages summarized: ${overflowCount} omitted (${Array.from(new Set(omittedPreview)).join(", ") || "various senders"}).`);
     }

@@ -2,285 +2,192 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LoadedWorkflowRunContext } from "./context-types.js";
 
 vi.mock("../../lib/db.js", () => ({ query: vi.fn(), withTransaction: vi.fn() }));
-vi.mock("../runtime/events.js", () => ({ emitTaskEvent: vi.fn() }));
-vi.mock("./shared.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./shared.js")>(),
-  enqueueWorkflowTaskRun: vi.fn()
-}));
 
 import { query, withTransaction } from "../../lib/db.js";
-import { enqueueWorkflowTaskRun } from "./shared.js";
 import {
-  getSwarmBudgetStatus,
   reserveSwarmInference,
   settleSwarmInference,
-  wakeParentForSwarmQuota
+  type SwarmInferenceReservation
 } from "./agent-swarm-budget.js";
 
 const context = {
   workflowTaskId: "workflow-1",
   workflowType: "agent_swarm",
   phase: "active",
-  config: { tokenBudget: 100_000 },
-  taskId: "leader-task",
+  config: { tokenBudget: 1_000_000 },
+  taskId: "agent-task",
   taskDir: "/tmp/task",
   workspaceId: "workspace-1",
   environmentId: "environment-1",
   currentAgent: {
-    id: "agent-1", role: "leader", slot_index: 0, task_id: "leader-task", title: "Leader", status: "running",
+    id: "agent-1", role: "leader", slot_index: 0, task_id: "agent-task", title: "Leader", status: "running",
     task_root_path: "/tmp/task", last_inbox_refresh_message_no: 0, state_json: {}
   },
   agents: [],
   planContent: null
 } satisfies LoadedWorkflowRunContext;
 
-describe("Agent Swarm quota enforcement", () => {
+// With no recorded usage, one step reserves the 8,192-token minimum.
+const STEP = 8_192;
+
+const rows = (value: Array<Record<string, unknown>>, rowCount = value.length) => ({ rows: value, rowCount });
+
+interface ReserveSetup {
+  role: "leader" | "worker";
+  pool: number;
+  reserve?: number;
+  memberSpent?: number;
+  delegated?: number;
+  deadlineAt?: string | null;
+  lowBudgetClaimed?: boolean;
+  othersOutOfBudget?: number;
+}
+
+describe("Agent Swarm shared node pool", () => {
   const mockedQuery = vi.mocked(query);
   const mockedWithTransaction = vi.mocked(withTransaction);
   const client = { query: vi.fn() };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedQuery.mockResolvedValue({ rows: [], rowCount: 0 } as never);
-    client.query.mockResolvedValue({ rows: [], rowCount: 0 });
     mockedWithTransaction.mockImplementation(async (callback) => callback(client as never));
   });
 
-  it("uses a leader-only reserve when the operating lease and pool are exhausted", async () => {
-    mockedQuery
-      .mockResolvedValueOnce({ rows: [{
-        node_id: "node-1", workflow_agent_id: "agent-1", role: "leader", lease_tokens: 8_192,
-        member_spent_tokens: 8_192, member_reserved_tokens: 0, member_status: "active",
-        allocated_tokens: 100_000, spent_tokens: 8_192, reserved_tokens: 0,
-        system_reserve_tokens: 10_000, unassigned_tokens: 0, debt_tokens: 0,
-        status: "active", deadline_at: null, node_leader_task_id: "leader-task", parent_leader_task_id: null
-      }], rowCount: 1 } as never)
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 } as never);
-    client.query
-      .mockResolvedValueOnce({ rows: [{ status: "active", deadline_at: null, system_reserve_tokens: 10_000, unassigned_tokens: 0 }] })
-      .mockResolvedValueOnce({ rows: [{ status: "active", lease_tokens: 8_192, spent_tokens: 8_192, reserved_tokens: 0 }] })
-      .mockResolvedValueOnce({ rows: [{ id: "reservation-1" }] });
+  // 1M allocated: 900k operating, so the leader's fixed share is 180k.
+  const setupReserve = (setup: ReserveSetup) => {
+    mockedQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("member.id AS workflow_agent_id")) {
+        return rows([{ node_id: "node-1", workflow_agent_id: "agent-1", role: setup.role,
+          node_leader_task_id: "leader-task", parent_leader_task_id: null }]) as never;
+      }
+      if (sql.includes("WITH paused AS")) {
+        return rows([{ newly_paused: true, others_paused: setup.othersOutOfBudget ?? 0 }]) as never;
+      }
+      return rows([]) as never;
+    });
+    client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("SELECT status, deadline_at, allocated_tokens")) {
+        return rows([{ status: "active", deadline_at: setup.deadlineAt ?? null, allocated_tokens: 1_000_000,
+          system_reserve_tokens: setup.reserve ?? 100_000, unassigned_tokens: setup.pool }]);
+      }
+      if (sql.includes("SELECT status, spent_tokens, reserved_tokens")) {
+        return rows([{ status: "active", spent_tokens: setup.memberSpent ?? 0, reserved_tokens: 0 }]);
+      }
+      if (sql.includes("delegated_tokens")) return rows([{ delegated_tokens: setup.delegated ?? 0 }]);
+      if (sql.includes("SELECT COUNT(*) AS count")) return rows([{ count: 6 }]);
+      if (sql.includes("SET low_budget_notified = true")) return rows([], setup.lowBudgetClaimed === false ? 0 : 1);
+      if (sql.includes("INSERT INTO task_workflow_swarm_quota_reservations")) return rows([{ id: "reservation-1" }]);
+      return rows([]);
+    });
+    return reserveSwarmInference(context, false, "run-1");
+  };
+  const debitedFromReserve = () => {
+    const debit = client.query.mock.calls.find(([sql]) => String(sql).includes("SET reserved_tokens = reserved_tokens + $2"));
+    return debit?.[1][2];
+  };
 
-    const reservation = await reserveSwarmInference(context, false, "run-1");
+  it("funds a worker's step from the node's shared pool", async () => {
+    const reservation = await setupReserve({ role: "worker", pool: 500_000 });
 
-    expect(reservation).toMatchObject({ recovery: true, runId: "run-1", requestedTokens: 8_192 });
-    expect(client.query).toHaveBeenCalledWith(
-      expect.stringContaining("system_reserve_tokens - $2"),
-      ["node-1", 8_192, true]
-    );
+    expect(reservation).toMatchObject({ role: "worker", recovery: false, lowBudget: false, requestedTokens: STEP });
+    expect(debitedFromReserve()).toBe(false);
   });
 
-  describe("leader allowance", () => {
-    // 1M allocated: 900k operating, so the fixed leader share is 180k.
-    const reserveForLeader = async (input: {
-      leaderDrawn: number;
-      delegated: number;
-      unassigned?: number;
-      systemReserve?: number;
-    }) => {
-      const unassigned = input.unassigned ?? 500_000;
-      const systemReserve = input.systemReserve ?? 100_000;
-      mockedQuery
-        .mockResolvedValueOnce({ rows: [{
-          node_id: "node-1", workflow_agent_id: "agent-1", role: "leader", lease_tokens: input.leaderDrawn,
-          member_spent_tokens: input.leaderDrawn, member_reserved_tokens: 0, member_status: "active",
-          allocated_tokens: 1_000_000, spent_tokens: input.leaderDrawn, reserved_tokens: 0,
-          system_reserve_tokens: systemReserve, unassigned_tokens: unassigned, debt_tokens: 0,
-          status: "active", deadline_at: null, node_leader_task_id: "leader-task", parent_leader_task_id: null
-        }], rowCount: 1 } as never)
-        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as never);
-      client.query.mockImplementation(async (sql: string) => {
-        if (sql.includes("SELECT status, deadline_at, allocated_tokens")) {
-          return { rows: [{ status: "active", deadline_at: null, allocated_tokens: 1_000_000,
-            system_reserve_tokens: systemReserve, unassigned_tokens: unassigned }] };
-        }
-        if (sql.includes("SELECT status, lease_tokens")) {
-          return { rows: [{ status: "active", lease_tokens: input.leaderDrawn, spent_tokens: input.leaderDrawn, reserved_tokens: 0 }] };
-        }
-        if (sql.includes("delegated_tokens")) return { rows: [{ delegated_tokens: input.delegated }] };
-        if (sql.includes("INSERT INTO task_workflow_swarm_quota_reservations")) return { rows: [{ id: "reservation-1" }] };
-        return { rows: [], rowCount: 0 };
-      });
-      return reserveSwarmInference(context, false, "run-1");
-    };
-    const toppedUpFromPool = () => client.query.mock.calls.some(([sql]) => String(sql).includes("lease_tokens = lease_tokens + $2"));
-
-    it("lets a leader within its share draw from the unassigned pool", async () => {
-      const reservation = await reserveForLeader({ leaderDrawn: 100_000, delegated: 90_000 });
-
-      expect(reservation).toMatchObject({ recovery: false, overLeaderAllowance: false });
-      expect(toppedUpFromPool()).toBe(true);
+  it("stops a worker when the pool cannot fund its step and alerts the leader for the first one only", async () => {
+    await expect(setupReserve({ role: "worker", pool: 1_000 })).rejects.toMatchObject({
+      reason: "worker_budget_exhausted",
+      notify: true
     });
-
-    it("moves a leader past its share onto the protected reserve without pausing it", async () => {
-      const reservation = await reserveForLeader({ leaderDrawn: 180_000, delegated: 90_000 });
-
-      expect(reservation).toMatchObject({ recovery: true, overLeaderAllowance: true });
-      expect(toppedUpFromPool()).toBe(false);
-      expect(mockedQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'paused'"))).toBe(false);
+    await expect(setupReserve({ role: "worker", pool: 1_000, othersOutOfBudget: 1 })).rejects.toMatchObject({
+      reason: "worker_budget_exhausted",
+      notify: false
     });
+    expect(debitedFromReserve()).toBeUndefined();
+  });
 
-    it("raises the share as the leader funds its workers and child nodes", async () => {
-      const reservation = await reserveForLeader({ leaderDrawn: 300_000, delegated: 400_000 });
-
-      expect(reservation).toMatchObject({ recovery: false, overLeaderAllowance: false });
-      expect(toppedUpFromPool()).toBe(true);
-    });
-
-    it("never pauses a leader for its share when the reserve cannot cover the step", async () => {
-      const reservation = await reserveForLeader({ leaderDrawn: 300_000, delegated: 90_000, systemReserve: 1_000 });
-
-      expect(reservation).toMatchObject({ recovery: false, overLeaderAllowance: false });
-      expect(toppedUpFromPool()).toBe(true);
+  it("never lets a worker spend the protected reserve", async () => {
+    await expect(setupReserve({ role: "worker", pool: 0, reserve: 500_000 })).rejects.toMatchObject({
+      reason: "worker_budget_exhausted"
     });
   });
 
-  it("quarantines a response received after the deadline before tool dispatch", async () => {
-    client.query.mockResolvedValueOnce({ rows: [{
-      requested_tokens: 8_192, recovery: false, status: "active", quota_generation: 0,
-      node_generation: 0, node_status: "active", deadline_at: "2020-01-01T00:00:00.000Z"
-    }] });
-
-    const accepted = await settleSwarmInference(context, {
-      reservationId: "reservation-1", requestedTokens: 8_192, nodeId: "node-1",
-      workflowAgentId: "agent-1", recovery: false, overLeaderAllowance: false, runId: "run-1"
-    }, 7_000);
-
-    expect(accepted).toBe(false);
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("status = 'paused'"), ["node-1"]);
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("status = 'expired'"), ["reservation-1", 7_000]);
-    expect(client.query.mock.calls.some(([sql]) => String(sql).includes("spent_tokens = spent_tokens +"))).toBe(false);
+  it("warns each agent once when the pool can cover only a few more steps", async () => {
+    // Six agents at three steps each is 147,456 tokens, more than the 91,808 left after this step.
+    await expect(setupReserve({ role: "worker", pool: 100_000 })).resolves.toMatchObject({ lowBudget: true });
+    await expect(setupReserve({ role: "worker", pool: 100_000, lowBudgetClaimed: false })).resolves.toMatchObject({ lowBudget: false });
   });
 
-  it("persists a deadline pause even when the locked reservation transaction rolls back", async () => {
-    mockedQuery.mockResolvedValueOnce({ rows: [{
-      node_id: "node-1", workflow_agent_id: "agent-1", role: "leader", lease_tokens: 30_000,
-      member_spent_tokens: 0, member_reserved_tokens: 0, member_status: "active",
-      allocated_tokens: 100_000, spent_tokens: 0, reserved_tokens: 0,
-      system_reserve_tokens: 16_384, unassigned_tokens: 20_000, debt_tokens: 0,
-      status: "active", deadline_at: null, node_leader_task_id: "leader-task", parent_leader_task_id: null
-    }], rowCount: 1 } as never);
-    client.query.mockResolvedValueOnce({ rows: [{ status: "active", deadline_at: "2020-01-01T00:00:00.000Z",
-      system_reserve_tokens: 16_384, unassigned_tokens: 20_000 }] });
+  it("moves a leader to the reserve once the pool is spent", async () => {
+    const reservation = await setupReserve({ role: "leader", pool: 0 });
 
-    await expect(reserveSwarmInference(context, false, "run-1")).rejects.toMatchObject({ reason: "deadline_reached" });
+    expect(reservation).toMatchObject({ recovery: true, overLeaderAllowance: false });
+    expect(debitedFromReserve()).toBe(true);
+  });
+
+  it("pauses the node when neither the pool nor the reserve can fund a leader step", async () => {
+    await expect(setupReserve({ role: "leader", pool: 0, reserve: 0 })).rejects.toMatchObject({ reason: "budget_exhausted" });
+    expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining("paused_reason = $2"), ["node-1", "budget_exhausted"]);
+  });
+
+  it("persists a deadline pause even though the reservation transaction rolls back", async () => {
+    await expect(setupReserve({ role: "leader", pool: 500_000, deadlineAt: "2020-01-01T00:00:00.000Z" }))
+      .rejects.toMatchObject({ reason: "deadline_reached" });
     expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining("paused_reason = $2"), ["node-1", "deadline_reached"]);
   });
 
-  it("returns unused protected tokens after a recovery inference", async () => {
-    client.query.mockResolvedValueOnce({ rows: [{
-      requested_tokens: 8_192, recovery: true, status: "active", quota_generation: 0,
-      node_generation: 0, node_status: "active", deadline_at: null
-    }] });
-
-    const accepted = await settleSwarmInference(context, {
-      reservationId: "reservation-1", requestedTokens: 8_192, nodeId: "node-1",
-      workflowAgentId: "agent-1", recovery: true, overLeaderAllowance: false, runId: "run-1"
-    }, 5_000);
-
-    expect(accepted).toBe(true);
-    expect(client.query).toHaveBeenCalledWith(
-      expect.stringContaining("system_reserve_tokens + GREATEST(0, $2 - $3)"),
-      ["node-1", 8_192, 5_000, 0, true]
-    );
-  });
-
-  it("shows the unassigned pool and direct child usage for the selected node", async () => {
-    mockedQuery.mockImplementation(async (sql: string) => {
-      if (sql.includes("FROM task_workflow_swarm_nodes") && sql.includes("node_key = $1")) {
-        return { rows: [{ id: "node-uuid", title: "Root", status: "active", allocated_tokens: 100_000,
-          spent_tokens: 20_000, reserved_tokens: 0, system_reserve_tokens: 10_000,
-          unassigned_tokens: 30_000, debt_tokens: 0, deadline_at: null }], rowCount: 1 } as never;
-      }
-      if (sql.includes("JOIN task_workflow_agents agent") && sql.includes("member.role = 'worker'")) {
-        return { rows: [{ task_id: "worker-task", status: "active", lease_tokens: 12_000,
-          spent_tokens: 5_000, reserved_tokens: 1_000 }], rowCount: 1 } as never;
-      }
-      if (sql.includes("FROM task_workflow_swarm_nodes") && sql.includes("parent_node_id = $1")) {
-        return { rows: [{ id: "child-uuid", title: "Research", status: "active", allocated_tokens: 20_000,
-          spent_tokens: 5_000, reserved_tokens: 0, system_reserve_tokens: 2_000,
-          unassigned_tokens: 6_000, debt_tokens: 0, deadline_at: null,
-          worker_slots: 1, lease_remaining_tokens: 7_000 }], rowCount: 1 } as never;
-      }
-      if (sql.includes("remaining_tokens") && sql.includes("FROM task_workflow_swarm_node_members")) {
-        return { rows: [{ remaining_tokens: 10_000 }], rowCount: 1 } as never;
-      }
-      return { rows: [], rowCount: 0 } as never;
+  describe("leader share", () => {
+    it("lets a leader within its share draw from the pool", async () => {
+      await expect(setupReserve({ role: "leader", pool: 500_000, memberSpent: 100_000 }))
+        .resolves.toMatchObject({ recovery: false, overLeaderAllowance: false });
     });
 
-    const status = await getSwarmBudgetStatus(context);
-
-    expect(status).toEqual({
-      status: "active",
-      remainingTokens: 40_000,
-      unassignedTokens: 30_000,
-      deadlineAt: null,
-      minimumSpawnAllocationTokens: 1_000_000,
-      workers: [{ taskId: "worker-task", status: "active", remainingTokens: 6_000 }],
-      children: [{ nodeId: "child-uuid", title: "Research", status: "active", remainingTokens: 13_000,
-        deadlineAt: null, minimumGrantTokens: expect.any(Number) }]
+    it("moves a leader past its share onto the reserve without pausing it", async () => {
+      await expect(setupReserve({ role: "leader", pool: 500_000, memberSpent: 180_000 }))
+        .resolves.toMatchObject({ recovery: true, overLeaderAllowance: true });
+      expect(mockedQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'paused'"))).toBe(false);
     });
-    expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining("node_key = $1"), ["node-0", "workflow-1"]);
-  });
-});
 
-describe("Agent Swarm quota notices", () => {
-  const mockedQuery = vi.mocked(query);
-  const mockedWithTransaction = vi.mocked(withTransaction);
-  const client = { query: vi.fn() };
-  let parentPauseRows: Array<Record<string, unknown>> = [];
+    it("raises the share as its workers spend", async () => {
+      await expect(setupReserve({ role: "leader", pool: 500_000, memberSpent: 300_000, delegated: 400_000 }))
+        .resolves.toMatchObject({ recovery: false, overLeaderAllowance: false });
+    });
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    parentPauseRows = [];
-    mockedWithTransaction.mockImplementation(async (callback) => callback(client as never));
-    mockedQuery.mockResolvedValueOnce({ rows: [{
-      node_id: "child-node", workflow_agent_id: "child-agent", role: "leader", lease_tokens: 14_110,
-      member_spent_tokens: 14_000, member_reserved_tokens: 0, member_status: "active",
-      allocated_tokens: 36_412, spent_tokens: 14_000, reserved_tokens: 0, system_reserve_tokens: 16_384,
-      unassigned_tokens: 0, debt_tokens: 0, status: "paused", deadline_at: null,
-      node_leader_task_id: "child-task", parent_leader_task_id: "root-task"
-    }], rowCount: 1 } as never);
-    client.query.mockImplementation(async (sql: string) => {
-      if (sql.includes("SELECT phase, config_json")) {
-        return { rows: [{ phase: "active", config_json: { swarmChannelIds: { "node-0": "global-channel", "child-key": "child-channel" } } }] };
-      }
-      if (sql.includes("parent_node.node_key")) return { rows: [{ node_key: "child-key", parent_node_key: "node-0" }] };
-      if (sql.includes("SELECT phase FROM task_workflows")) return { rows: [{ phase: "active" }] };
-      if (sql.includes("DELETE FROM task_workflow_swarm_pauses")) return { rows: parentPauseRows };
-      return { rows: [] };
+    it("keeps drawing from the pool when the reserve cannot cover the step", async () => {
+      await expect(setupReserve({ role: "leader", pool: 500_000, memberSpent: 300_000, reserve: 1_000 }))
+        .resolves.toMatchObject({ recovery: false, overLeaderAllowance: false });
     });
   });
 
-  const notify = () => wakeParentForSwarmQuota({
-    context: { ...context, taskId: "child-task" },
-    triggerSource: "web",
-    selectionUserId: "user-1",
-    reason: "Swarm budget exhausted."
-  });
+  describe("settlement", () => {
+    const reservation: SwarmInferenceReservation = {
+      reservationId: "reservation-1", requestedTokens: STEP, nodeId: "node-1", workflowAgentId: "agent-1",
+      role: "worker", recovery: false, overLeaderAllowance: false, lowBudget: false, runId: "run-1"
+    };
+    const settle = (row: { recovery: boolean; deadlineAt?: string | null }, actual: number) => {
+      client.query.mockImplementation(async (sql: string) => sql.includes("FROM task_workflow_swarm_quota_reservations r")
+        ? rows([{ requested_tokens: STEP, recovery: row.recovery, status: "active", quota_generation: 0,
+          node_generation: 0, node_status: "active", deadline_at: row.deadlineAt ?? null }])
+        : rows([]));
+      return settleSwarmInference(context, { ...reservation, recovery: row.recovery }, actual);
+    };
+    const nodeCharge = () => client.query.mock.calls.find(([sql]) => String(sql).includes("debt_tokens = debt_tokens +"));
 
-  it("reports a child budget stop in the parent channel without touching the parent's history", async () => {
-    parentPauseRows = [{
-      task_id: "root-task", swarm_node_id: null, since_message_no: 3, status: "Waiting.", waiting_for_task_ids: [],
-      finished_task_ids: [], trigger_source: "web", selection_user_id: "user-1", mode: "agent_swarm_leader"
-    }];
+    it("charges the actual cost and returns the unused part to the pool", async () => {
+      await expect(settle({ recovery: false }, 5_000)).resolves.toBe(true);
+      expect(nodeCharge()?.[1]).toEqual(["node-1", STEP, 5_000, false]);
+    });
 
-    await notify();
+    it("returns the unused part of a reserve step to the reserve", async () => {
+      await expect(settle({ recovery: true }, 5_000)).resolves.toBe(true);
+      expect(nodeCharge()?.[1]).toEqual(["node-1", STEP, 5_000, true]);
+    });
 
-    const sql = client.query.mock.calls.map(([statement]) => String(statement));
-    expect(sql.some((statement) => statement.includes("INSERT INTO task_messages"))).toBe(false);
-    expect(mockedQuery.mock.calls.some(([statement]) => String(statement).includes("INSERT INTO task_messages"))).toBe(false);
-    const notice = client.query.mock.calls.find(([statement]) => String(statement).includes("INSERT INTO task_workflow_messages"));
-    expect(notice?.[1]).toEqual(["workflow-1", "global-channel", "child-agent", expect.stringContaining("Swarm budget exhausted.")]);
-    expect(vi.mocked(enqueueWorkflowTaskRun)).toHaveBeenCalledWith(expect.objectContaining({
-      taskId: "root-task", mode: "agent_swarm_leader", selectionUserId: "user-1"
-    }));
-  });
-
-  it("does not queue a second run for a parent that is still running", async () => {
-    await notify();
-
-    expect(client.query.mock.calls.some(([statement]) => String(statement).includes("INSERT INTO task_workflow_messages"))).toBe(true);
-    expect(vi.mocked(enqueueWorkflowTaskRun)).not.toHaveBeenCalled();
+    it("discards a response that arrives after the deadline and refunds its reservation", async () => {
+      await expect(settle({ recovery: false, deadlineAt: "2020-01-01T00:00:00.000Z" }, 7_000)).resolves.toBe(false);
+      expect(client.query).toHaveBeenCalledWith(expect.stringContaining("status = 'paused'"), ["node-1"]);
+      expect(client.query).toHaveBeenCalledWith(expect.stringContaining("SET settled_tokens = $2, status = $3"), ["reservation-1", 7_000, "expired"]);
+      expect(client.query).toHaveBeenCalledWith(expect.stringContaining("unassigned_tokens + $2"), ["node-1", STEP, false]);
+      expect(nodeCharge()).toBeUndefined();
+    });
   });
 });

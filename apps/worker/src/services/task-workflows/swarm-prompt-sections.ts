@@ -28,13 +28,10 @@ export function buildDualSwarmRolePrompt(context: LoadedWorkflowRunContext): str
 
 export const SWARM_BUDGET_PROMPT = [
   "### Budget",
-  "- Swarm budgets count weighted input, output, and reasoning tokens. Each worker has its own lease; the node's protected reserve is for leader recovery and synthesis.",
-  "- Check `swarm_budget_status` before delegating. A child node keeps 10% of its grant as a protected reserve and starts its workers with at most another 10%; the rest stays unassigned for its leader to spend or delegate. Child grants below 1M weighted tokens are rejected.",
-  "- Size budgets from your own remaining budget and how hard the work really is. One inference step costs roughly 10k–50k weighted tokens and grows with context. Even a quick check needs 1–2M; real investigation or implementation often needs far more, well past 10M when the work is open-ended or tricky. Estimate pessimistically, and keep enough for your own coordination and synthesis.",
-  "- Workers start with a small lease, so fund them for the work you assign with `swarm_manage` and `grant_budget`.",
-  "- Your own steps come from the same pool, up to a fifth of the operating budget or as much as you have given your workers and child nodes, whichever is larger. Past that, your steps use the protected reserve, so fund your workers rather than doing the work yourself.",
-  "- When the current workers cannot cover useful independent work, spawn a fitting child node with `swarm_spawn_node` and enough budget for the assignment. If your node has no workers, spawn one before substantive work; if no node type or budget allows it, report that blocker instead of working alone.",
-  "- If a child or worker exhausts its allocation, inspect usage, then grant enough (`swarm_grant_budget` for a child, `swarm_manage` with `grant_budget` for a worker), cancel the child with `swarm_cancel_node`, or synthesize what you have. A late provider result is discarded after the deadline, although usage is charged."
+  "- Budgets count weighted input, output, and reasoning tokens. You and your workers draw every step from your node's shared pool. A protected reserve is kept for your own wrap-up.",
+  "- Workers need no funding. Spend through what you assign, and stop work that is not paying off. Your own steps come from the pool up to a fifth of it, or as much as your workers have used, whichever is larger; past that they use the reserve, so delegate rather than doing the work yourself.",
+  "- Give a separate piece of work to a child node with `swarm_spawn_node` and a budget sized to it. A child keeps 10% of its grant as its own reserve, and grants below 1M weighted tokens are rejected. One step costs roughly 10k–50k weighted tokens and grows with context: a quick check needs 1–2M, and real investigation or implementation often needs well past 10M. Estimate pessimistically and keep enough for your own synthesis. `swarm_budget_status` shows what is left.",
+  "- When the pool runs low, everyone in the node is told to report and wrap up. Once it is spent your workers stop, and you deliver with what you have: `final_response`, or `submit_swarm_output` from a child node. If a child node runs out, grant it more with `swarm_grant_budget`, cancel it with `swarm_cancel_node`, or continue without it. A late provider result is discarded after the deadline, although usage is charged."
 ].join("\n");
 
 export function buildSwarmNodeTypesPrompt(context: LoadedWorkflowRunContext): string {

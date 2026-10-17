@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateAgentSwarmBudgetEstimate,
-  calculateAgentSwarmInitialLeases,
   calculateAgentSwarmLeaderAllowance,
   calculateAgentSwarmMinimumGrant,
   calculateAgentSwarmSystemReserve,
+  isAgentSwarmPoolLow,
   AGENT_SWARM_MAX_ACTIVE_NODES,
   AGENT_SWARM_MAX_DEPTH
 } from "./agent-swarm-quota.js";
 
 describe("agent swarm quota contracts", () => {
-  it("lets a leader spend a fifth of the operating budget, or as much as it has delegated", () => {
+  it("lets a leader spend a fifth of the operating budget, or as much as its workers and children use", () => {
     expect(calculateAgentSwarmLeaderAllowance({ allocatedTokens: 10_000_000, delegatedTokens: 1_000_000 })).toBe(1_800_000);
     expect(calculateAgentSwarmLeaderAllowance({ allocatedTokens: 10_000_000, delegatedTokens: 4_000_000 })).toBe(4_000_000);
   });
@@ -43,21 +43,8 @@ describe("agent swarm quota contracts", () => {
     expect(AGENT_SWARM_MAX_ACTIVE_NODES).toBe(256);
   });
 
-  it("leaves at least 90% of the operating budget for the leader to delegate", () => {
-    expect(calculateAgentSwarmInitialLeases({
-      operatingTokens: 900_000,
-      workerCount: 3,
-      minimumStepTokens: 8_192
-    })).toEqual({ leaderLeaseTokens: 0, workerLeaseTokens: 30_000, unassignedTokens: 810_000 });
-    expect(calculateAgentSwarmInitialLeases({
-      operatingTokens: 900_000,
-      workerCount: 0,
-      minimumStepTokens: 8_192
-    })).toEqual({ leaderLeaseTokens: 0, workerLeaseTokens: 0, unassignedTokens: 900_000 });
-    expect(calculateAgentSwarmInitialLeases({
-      operatingTokens: 100_000,
-      workerCount: 3,
-      minimumStepTokens: 8_192
-    })).toEqual({ leaderLeaseTokens: 0, workerLeaseTokens: 8_192, unassignedTokens: 75_424 });
+  it("treats a pool as low once it covers fewer than three more steps per agent", () => {
+    expect(isAgentSwarmPoolLow({ poolTokens: 1_800_000, minimumStepTokens: 100_000, memberCount: 6 })).toBe(false);
+    expect(isAgentSwarmPoolLow({ poolTokens: 1_700_000, minimumStepTokens: 100_000, memberCount: 6 })).toBe(true);
   });
 });

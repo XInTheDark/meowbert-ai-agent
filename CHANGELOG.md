@@ -4,10 +4,13 @@
 
 ### AI and agents
 
+- **Agent Swarm shares one budget** — The leader and its workers now spend from one shared token budget, so workers no longer stop partway through while the leader forgets to give them more. When the budget runs low, every agent is told to report and wrap up, and once it is spent the leader delivers with what the workers found instead of waiting on them. See **Task Workflows** in the docs.
+- **Swarm usage adds up** — **Task usage** now counts the tokens of every agent a task brings in, such as swarm workers and subagents, with one **Spawned agents** row in the run table.
 - **Fast scratch space for repos and builds** — Each task now has a local scratch folder for work that creates lots of small files, such as cloning git repositories, installing dependencies, and building code. Clones that used to time out on network-mounted storage now finish in seconds. Normal files still go in the task's folder. Scratch isn't shown in the Files browser and is cleared when the task is deleted or archived. See **Files Browser** in the docs.
 
 ### Self-hosting
 
+- **Swarm budget migration** — Run `npm run migrate`. It returns any unused per-worker swarm budget to its swarm's shared budget, so swarms that are already running carry on under the new model.
 - **Task scratch storage** — Scratch folders live under `runtime.taskScratch.root`, which defaults to `task-scratch` next to `tasksRoot` (`/srv/meowbert/runtime/task-scratch` on the host). Keep it on local disk. Add `runtime.taskScratch.xfsProjectQuota` to cap each workspace's scratch at its storage limit on an XFS mount. See **Configuration** in the docs.
 - **XFS quotas work inside containers** — Meowbert now creates the XFS device node a container needs for `xfs_quota`, so XFS project quotas no longer fail with "No such device or address" when only the mount is passed in.
 

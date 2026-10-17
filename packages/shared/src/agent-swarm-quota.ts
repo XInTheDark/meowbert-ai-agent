@@ -3,10 +3,12 @@ export const AGENT_SWARM_MAX_ACTIVE_NODES = 256;
 export const AGENT_SWARM_MAX_ACTIVE_AGENTS = 256;
 export const AGENT_SWARM_DEFAULT_TOKEN_BUDGET = 10_000_000;
 export const AGENT_SWARM_SYSTEM_RESERVE_PERCENT = 0.1;
-export const AGENT_SWARM_INITIAL_WORKER_LEASE_PERCENT = 0.1;
-// Share of a node's operating budget its leader may spend on its own work before it has handed out
-// at least as much to its workers and child nodes.
+// Share of a node's operating budget its leader may spend on its own work before its workers and
+// child nodes have used at least as much.
 export const AGENT_SWARM_LEADER_SHARE_PERCENT = 0.2;
+// Once a node's pool covers fewer than this many more steps for each of its agents, they are told
+// once to report what they have and start wrapping up.
+export const AGENT_SWARM_LOW_BUDGET_STEPS_PER_MEMBER = 3;
 export const AGENT_SWARM_RECOVERY_STEPS = 2;
 export const AGENT_SWARM_MIN_OUTPUT_RESERVATION = 512;
 export const AGENT_SWARM_MINIMUM_INFERENCE_TOKENS = 8_192;
@@ -37,7 +39,6 @@ export interface AgentSwarmResourceQuota {
   spentTokens: number;
   reservedTokens: number;
   systemReserveTokens: number;
-  workerLeaseTokens: number;
   unassignedTokens: number;
   debtTokens: number;
   deadlineAt: string | null;
@@ -96,34 +97,13 @@ export function calculateAgentSwarmMinimumGrant(input: {
   return reserve + (input.spawning ? estimate.minimumSpawnAllocationTokens : estimate.minimumResumeGrantTokens);
 }
 
-// Leaders draw from their node's unassigned pool on demand, so they start without a lease. Workers
-// share at most 10% of the operating budget upfront (at least one step each); the rest stays with
-// the leader to delegate.
-export function calculateAgentSwarmInitialLeases(input: {
-  operatingTokens: number;
-  workerCount: number;
-  minimumStepTokens: number;
-}): { leaderLeaseTokens: number; workerLeaseTokens: number; unassignedTokens: number } {
-  const operatingTokens = finiteInteger(input.operatingTokens);
-  const workerCount = finiteInteger(input.workerCount);
-  const minimumStepTokens = Math.max(1, finiteInteger(input.minimumStepTokens));
-  if (workerCount === 0) {
-    return { leaderLeaseTokens: 0, workerLeaseTokens: 0, unassignedTokens: operatingTokens };
-  }
-  const workerPool = Math.min(
-    operatingTokens,
-    Math.max(Math.floor(operatingTokens * AGENT_SWARM_INITIAL_WORKER_LEASE_PERCENT), workerCount * minimumStepTokens)
-  );
-  const workerLeaseTokens = Math.floor(workerPool / workerCount);
-  return {
-    leaderLeaseTokens: 0,
-    workerLeaseTokens,
-    unassignedTokens: operatingTokens - workerLeaseTokens * workerCount
-  };
+export function isAgentSwarmPoolLow(input: { poolTokens: number; minimumStepTokens: number; memberCount: number }): boolean {
+  const stepsLeft = finiteInteger(input.minimumStepTokens) * Math.max(1, finiteInteger(input.memberCount));
+  return finiteInteger(input.poolTokens) < stepsLeft * AGENT_SWARM_LOW_BUDGET_STEPS_PER_MEMBER;
 }
 
-// How much a node's leader may draw from the unassigned pool for itself: a fixed share of the
-// operating budget, or as much as it has handed to its workers and child nodes, whichever is larger.
+// How much a node's leader may draw from the shared pool for itself: a fixed share of the operating
+// budget, or as much as its workers have spent and its child nodes were granted, whichever is larger.
 export function calculateAgentSwarmLeaderAllowance(input: {
   allocatedTokens: number;
   delegatedTokens: number;

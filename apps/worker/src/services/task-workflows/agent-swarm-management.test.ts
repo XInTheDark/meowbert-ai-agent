@@ -140,7 +140,6 @@ describe("Agent Swarm worker management", () => {
       context: createContext(),
       start: ["Worker 1"],
       stop: [],
-      grantBudget: [],
       viewOnly: false
     });
 
@@ -184,21 +183,21 @@ describe("Agent Swarm worker management", () => {
     };
 
     const rootContext = { ...context, taskId: "leader-task", currentAgent: context.agents[0] };
-    const rootView = await manageSwarmWorkers({ context: rootContext, start: [], stop: [], grantBudget: [], viewOnly: true });
+    const rootView = await manageSwarmWorkers({ context: rootContext, start: [], stop: [], viewOnly: true });
     expect(rootView.workers.map((worker) => worker.taskId)).toEqual(["worker-task-1"]);
 
-    await expect(manageSwarmWorkers({ context, start: [], stop: [], grantBudget: [], viewOnly: true }))
+    await expect(manageSwarmWorkers({ context, start: [], stop: [], viewOnly: true }))
       .rejects.toThrow("target_swarm");
-    await expect(manageSwarmWorkers({ context, targetSwarm: "outer", start: [], stop: [], grantBudget: [], viewOnly: true }))
+    await expect(manageSwarmWorkers({ context, targetSwarm: "outer", start: [], stop: [], viewOnly: true }))
       .rejects.toThrow("Only an Agent Swarm node leader");
-    const view = await manageSwarmWorkers({ context, targetSwarm: "inner", start: [], stop: [], grantBudget: [], viewOnly: true });
+    const view = await manageSwarmWorkers({ context, targetSwarm: "inner", start: [], stop: [], viewOnly: true });
     expect(view.workers.map((worker) => worker.taskId)).toEqual(["worker-task-2"]);
     await expect(manageSwarmWorkers({
-      context, targetSwarm: "inner", start: ["worker-task-1"], stop: [], grantBudget: [], viewOnly: false
+      context, targetSwarm: "inner", start: ["worker-task-1"], stop: [], viewOnly: false
     })).rejects.toThrow("Unknown swarm worker");
 
     const result = await manageSwarmWorkers({
-      context, targetSwarm: "inner", start: ["worker-task-2"], stop: [], grantBudget: [], viewOnly: false
+      context, targetSwarm: "inner", start: ["worker-task-2"], stop: [], viewOnly: false
     });
     expect(result.started).toEqual(["Worker 2"]);
     expect(mockedEnqueueWorkflowTaskRun).toHaveBeenCalledWith(expect.objectContaining({
@@ -224,7 +223,7 @@ describe("Agent Swarm worker management", () => {
       }
     };
     const result = await manageSwarmWorkers({
-      context: createContext(), start: [], stop: [], grantBudget: [], viewOnly: true
+      context: createContext(), start: [], stop: [], viewOnly: true
     });
 
     expect(result.agents).toEqual(expect.arrayContaining([

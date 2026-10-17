@@ -111,7 +111,7 @@ function buildWorkerGuide(context: LoadedWorkflowRunContext, qualityReviewOverla
       `- Your identity in swarm chat is ${formatSwarmAgentLabel("worker", context.currentAgent?.slot_index ?? null)}.`,
       `- Your report channel is channel_id ${resolveReportChannelId(context)}.`,
       budgeted && !leadsNode
-        ? "- Your weighted-token lease is separate from your peers'. Check `swarm_budget_status` for what remains, and tell your leader when you need more."
+        ? "- You share your node's token budget with your peers. When you are told it is nearly spent, post your findings to your leader right away."
         : null
     ].filter(Boolean).join("\n"),
     buildDualSwarmRolePrompt(context),
@@ -137,6 +137,15 @@ function buildUnassignedWorkersLine(context: LoadedWorkflowRunContext): string {
   return `- None of your ${labels.length} workers (${labels.join(", ")}) has been assigned yet. Plan how to use all of them before you work out any answer yourself.`;
 }
 
+function buildOutOfBudgetLine(context: LoadedWorkflowRunContext): string | null {
+  const outOfBudget = new Set(context.swarm?.outOfBudgetWorkerTaskIds ?? []);
+  const labels = resolveDirectWorkerTaskIds(context, context.taskId)
+    .filter((taskId) => outOfBudget.has(taskId))
+    .map((taskId) => formatSwarmAgentLabel("worker", context.agents.find((agent) => agent.task_id === taskId)?.slot_index ?? null, taskId));
+  if (labels.length === 0) return null;
+  return `- Stopped because your node's budget is spent: ${labels.join(", ")}. They will not report again. Deliver with what you have.`;
+}
+
 function buildLeaderLiveState(context: LoadedWorkflowRunContext): string {
   const swarm = context.swarm;
   const missing = swarm?.missingWorkerGlobalReportLabels ?? [];
@@ -148,6 +157,7 @@ function buildLeaderLiveState(context: LoadedWorkflowRunContext): string {
       : missing.length > 0
         ? `- Still waiting on reports from: ${missing.join(", ")}.`
         : "- Every assigned worker has reported at least once.",
+    buildOutOfBudgetLine(context),
     swarm?.pendingNestedSwarmNodeIds?.length
       ? `- Child nodes that have not published their output: ${swarm.pendingNestedSwarmNodeIds.join(", ")}.`
       : null,

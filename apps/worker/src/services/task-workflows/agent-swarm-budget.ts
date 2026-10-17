@@ -1,123 +1,93 @@
 import {
   calculateAgentSwarmLeaderAllowance,
-  calculateAgentSwarmMinimumGrant,
-  AGENT_SWARM_MINIMUM_CHILD_NODE_TOKENS,
+  isAgentSwarmPoolLow,
   AGENT_SWARM_MINIMUM_INFERENCE_TOKENS
 } from "@meowbert/shared";
-import type { TaskExecutionJob } from "@meowbert/shared";
 import type { PoolClient } from "pg";
 import { query, withTransaction } from "../../lib/db.js";
-import { wakePausedSwarmAgent } from "./agent-swarm-mailbox.js";
 import type { LoadedWorkflowRunContext } from "./context-types.js";
-import { resolveSwarmTarget, type SwarmTarget } from "./swarm-target.js";
 
-export interface SwarmBudgetChildStatus {
-  nodeId: string;
-  title: string;
-  status: string;
-  remainingTokens: number;
-  deadlineAt: string | null;
-  minimumGrantTokens: number;
-}
-
-export interface SwarmBudgetWorkerStatus {
-  taskId: string;
-  status: string;
-  remainingTokens: number;
-}
-
-// Only what a leader acts on: its own runway, what it can hand out, and each direct report.
-export interface SwarmBudgetStatus {
-  status: string;
-  remainingTokens: number;
-  unassignedTokens: number;
-  deadlineAt: string | null;
-  minimumSpawnAllocationTokens: number;
-  workers: SwarmBudgetWorkerStatus[];
-  children: SwarmBudgetChildStatus[];
-}
+// Every member of a Swarm node, leader and workers alike, draws each inference step from the node's
+// shared pool (`unassigned_tokens`). The node's protected reserve (`system_reserve_tokens`) is kept
+// for its leader to wrap up once the pool is spent, or once the leader has used its own share.
 
 export interface SwarmInferenceReservation {
   reservationId: string;
   requestedTokens: number;
   nodeId: string;
   workflowAgentId: string;
+  role: "leader" | "worker";
   recovery: boolean;
-  // The leader had budget left in the pool but had already spent its own share on its own work.
+  // The pool still had budget, but the leader had already spent its own share on its own work.
   overLeaderAllowance: boolean;
+  // The node's pool just ran low for this agent; it should report what it has and wrap up.
+  lowBudget: boolean;
   runId: string | null;
 }
 
-export class SwarmQuotaError extends Error {
-  readonly reason: "budget_exhausted" | "deadline_reached" | "worker_budget_exhausted" | "parent_cancelled";
-  readonly minimumTokens: number;
+export type SwarmQuotaReason = "budget_exhausted" | "deadline_reached" | "worker_budget_exhausted" | "parent_cancelled";
 
-  constructor(reason: SwarmQuotaError["reason"], minimumTokens: number, message: string) {
+export class SwarmQuotaError extends Error {
+  readonly reason: SwarmQuotaReason;
+  readonly minimumTokens: number;
+  // Whether the node's leader (or, for a leader, its parent) should hear about this stop.
+  notify: boolean;
+
+  constructor(reason: SwarmQuotaReason, minimumTokens: number, message: string, notify = true) {
     super(message);
     this.name = "SwarmQuotaError";
     this.reason = reason;
     this.minimumTokens = minimumTokens;
+    this.notify = notify;
   }
 }
 
-function numberValue(value: unknown): number {
+export interface SwarmQuotaMember {
+  nodeId: string;
+  workflowAgentId: string;
+  role: "leader" | "worker";
+  nodeLeaderTaskId: string;
+  parentLeaderTaskId: string | null;
+}
+
+interface LockedNode {
+  status: string;
+  deadline_at: string | null;
+  allocated_tokens: string | number;
+  system_reserve_tokens: string | number;
+  unassigned_tokens: string | number;
+}
+
+interface LockedMember {
+  status: string;
+  spent_tokens: string | number;
+  reserved_tokens: string | number;
+}
+
+type FundingSource = "pool" | "over_allowance" | "recovery" | "none";
+
+export function numberValue(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
 }
 
-async function loadCurrentNode(context: LoadedWorkflowRunContext, preferPaused = false): Promise<{
-  nodeId: string;
-  workflowAgentId: string;
-  role: "leader" | "worker";
-  leaseTokens: number;
-  memberSpentTokens: number;
-  memberReservedTokens: number;
-  memberStatus: string;
-  allocatedTokens: number;
-  spentTokens: number;
-  reservedTokens: number;
-  systemReserveTokens: number;
-  unassignedTokens: number;
-  debtTokens: number;
-  status: string;
-  deadlineAt: string | null;
-  nodeLeaderTaskId: string;
-  parentLeaderTaskId: string | null;
-}> {
+function readStringList(value: unknown): string[] | null {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : null;
+}
+
+// Resolves the node this agent is spending from. A dual-role agent leads one node and works in its
+// parent; it spends from the node it leads.
+export async function loadSwarmQuotaMember(context: LoadedWorkflowRunContext, preferPaused = false): Promise<SwarmQuotaMember> {
   const result = await query<{
     node_id: string;
     workflow_agent_id: string;
     role: "leader" | "worker";
-    lease_tokens: string | number;
-    member_spent_tokens: string | number;
-    member_reserved_tokens: string | number;
-    member_status: string;
-    allocated_tokens: string | number;
-    spent_tokens: string | number;
-    reserved_tokens: string | number;
-    system_reserve_tokens: string | number;
-    unassigned_tokens: string | number;
-    debt_tokens: string | number;
-    status: string;
-    deadline_at: string | null;
     node_leader_task_id: string;
     parent_leader_task_id: string | null;
   }>(
     `SELECT n.id AS node_id,
             member.id AS workflow_agent_id,
-            member.role,
-            cm.lease_tokens,
-            cm.spent_tokens AS member_spent_tokens,
-            cm.reserved_tokens AS member_reserved_tokens,
-            cm.status AS member_status,
-            n.allocated_tokens,
-            n.spent_tokens,
-            n.reserved_tokens,
-            n.system_reserve_tokens,
-            n.unassigned_tokens,
-            n.debt_tokens,
-            n.status,
-            n.deadline_at,
+            cm.role,
             n.leader_task_id AS node_leader_task_id,
             parent_agent.task_id AS parent_leader_task_id
        FROM task_workflow_swarm_nodes n
@@ -141,12 +111,8 @@ async function loadCurrentNode(context: LoadedWorkflowRunContext, preferPaused =
     [
       context.workflowTaskId,
       context.taskId,
-      Array.isArray(context.currentAgent?.state_json?.swarmLeaderNodeIds)
-        ? context.currentAgent.state_json.swarmLeaderNodeIds.filter((value): value is string => typeof value === "string")
-        : null,
-      Array.isArray(context.currentAgent?.state_json?.swarmNodeIds)
-        ? context.currentAgent.state_json.swarmNodeIds.filter((value): value is string => typeof value === "string")
-        : null,
+      readStringList(context.currentAgent?.state_json?.swarmLeaderNodeIds),
+      readStringList(context.currentAgent?.state_json?.swarmNodeIds),
       preferPaused
     ]
   );
@@ -156,18 +122,6 @@ async function loadCurrentNode(context: LoadedWorkflowRunContext, preferPaused =
     nodeId: row.node_id,
     workflowAgentId: row.workflow_agent_id,
     role: row.role,
-    leaseTokens: numberValue(row.lease_tokens),
-    memberSpentTokens: numberValue(row.member_spent_tokens),
-    memberReservedTokens: numberValue(row.member_reserved_tokens),
-    memberStatus: row.member_status,
-    allocatedTokens: numberValue(row.allocated_tokens),
-    spentTokens: numberValue(row.spent_tokens),
-    reservedTokens: numberValue(row.reserved_tokens),
-    systemReserveTokens: numberValue(row.system_reserve_tokens),
-    unassignedTokens: numberValue(row.unassigned_tokens),
-    debtTokens: numberValue(row.debt_tokens),
-    status: row.status,
-    deadlineAt: row.deadline_at,
     nodeLeaderTaskId: row.node_leader_task_id,
     parentLeaderTaskId: row.parent_leader_task_id
   };
@@ -185,7 +139,7 @@ async function loadMinimumStepTokens(context: LoadedWorkflowRunContext): Promise
   return Math.max(AGENT_SWARM_MINIMUM_INFERENCE_TOKENS, numberValue(result.rows[0]?.weighted_tokens));
 }
 
-async function markNodePaused(nodeId: string, reason: SwarmQuotaError["reason"]): Promise<void> {
+async function markNodePaused(nodeId: string, reason: SwarmQuotaReason): Promise<void> {
   await query(
     `UPDATE task_workflow_swarm_nodes
         SET status = 'paused', paused_reason = $2, updated_at = now()
@@ -194,46 +148,219 @@ async function markNodePaused(nodeId: string, reason: SwarmQuotaError["reason"])
   );
 }
 
-async function markWorkerPaused(nodeId: string, workflowAgentId: string): Promise<void> {
-  await query(
-    `UPDATE task_workflow_swarm_node_members
-        SET status = 'paused', updated_at = now()
-      WHERE node_id = $1 AND workflow_agent_id = $2 AND status = 'active'`,
-    [nodeId, workflowAgentId]
+// Returns true only for the first worker of the node to stop on an empty pool, so its leader hears
+// about the empty pool once rather than once per worker.
+async function markWorkerOutOfBudget(member: SwarmQuotaMember): Promise<boolean> {
+  const result = await query<{ newly_paused: boolean; others_paused: string | number }>(
+    `WITH paused AS (
+       UPDATE task_workflow_swarm_node_members
+          SET status = 'paused', updated_at = now()
+        WHERE node_id = $1 AND workflow_agent_id = $2 AND status = 'active'
+        RETURNING node_id
+     )
+     SELECT EXISTS (SELECT 1 FROM paused) AS newly_paused,
+            (SELECT COUNT(*) FROM task_workflow_swarm_node_members
+              WHERE node_id = $1 AND role = 'worker' AND status = 'paused' AND workflow_agent_id <> $2) AS others_paused`,
+    [member.nodeId, member.workflowAgentId]
   );
+  const row = result.rows[0];
+  return Boolean(row?.newly_paused) && numberValue(row?.others_paused) === 0;
 }
 
-// Where a leader's next step comes from when its own lease is short. Within its allowance it draws
-// from the unassigned pool as usual. Beyond it, the step comes from the protected recovery reserve,
-// whose notice tells the leader to delegate or wrap up. The allowance alone never pauses a leader:
-// when the reserve cannot cover the step, the unassigned pool still does.
-async function chooseLeaderFunding(client: PoolClient, input: {
-  nodeId: string;
-  allocatedTokens: number;
-  leaderDrawnTokens: number;
-  shortfall: number;
-  minimumStepTokens: number;
-  unassignedTokens: number;
-  systemReserveTokens: number;
-}): Promise<"unassigned" | "over_allowance" | "recovery" | "none"> {
-  const unassignedCovers = input.unassignedTokens >= input.shortfall;
-  const reserveCovers = input.systemReserveTokens >= input.minimumStepTokens;
-  if (unassignedCovers && reserveCovers) {
-    const delegated = await client.query<{ delegated_tokens: string | number }>(
-      `SELECT (SELECT COALESCE(SUM(lease_tokens), 0) FROM task_workflow_swarm_node_members
-                WHERE node_id = $1 AND role = 'worker')
-            + (SELECT COALESCE(SUM(allocated_tokens), 0) FROM task_workflow_swarm_nodes
-                WHERE parent_node_id = $1) AS delegated_tokens`,
-      [input.nodeId]
-    );
-    const allowance = calculateAgentSwarmLeaderAllowance({
-      allocatedTokens: input.allocatedTokens,
-      delegatedTokens: numberValue(delegated.rows[0]?.delegated_tokens)
-    });
-    return input.leaderDrawnTokens + input.shortfall <= allowance ? "unassigned" : "over_allowance";
+async function persistQuotaStop(member: SwarmQuotaMember, error: SwarmQuotaError): Promise<void> {
+  if (error.reason === "worker_budget_exhausted") {
+    error.notify = await markWorkerOutOfBudget(member);
+  } else if (error.reason === "budget_exhausted" || error.reason === "deadline_reached") {
+    await markNodePaused(member.nodeId, error.reason);
   }
-  if (unassignedCovers) return "unassigned";
-  return reserveCovers ? "recovery" : "none";
+}
+
+async function lockNode(client: PoolClient, nodeId: string, step: number): Promise<LockedNode> {
+  const locked = await client.query<LockedNode>(
+    `SELECT status, deadline_at, allocated_tokens, system_reserve_tokens, unassigned_tokens
+       FROM task_workflow_swarm_nodes
+      WHERE id = $1
+      FOR UPDATE`,
+    [nodeId]
+  );
+  const node = locked.rows[0];
+  if (!node) throw new SwarmQuotaError("parent_cancelled", step, "Swarm node could not be found.", false);
+  if (node.deadline_at && Date.parse(node.deadline_at) <= Date.now()) {
+    throw new SwarmQuotaError(
+      "deadline_reached",
+      step,
+      "Swarm deadline reached. The current node is paused and its parent was notified.",
+      node.status === "active"
+    );
+  }
+  if (node.status !== "active") {
+    throw new SwarmQuotaError(
+      node.status === "paused" ? "budget_exhausted" : "parent_cancelled",
+      step,
+      `Swarm node is ${node.status} and cannot start another inference.`,
+      false
+    );
+  }
+  return node;
+}
+
+async function lockMember(client: PoolClient, member: SwarmQuotaMember, step: number): Promise<LockedMember> {
+  const locked = await client.query<LockedMember>(
+    `SELECT status, spent_tokens, reserved_tokens
+       FROM task_workflow_swarm_node_members
+      WHERE node_id = $1 AND workflow_agent_id = $2
+      FOR UPDATE`,
+    [member.nodeId, member.workflowAgentId]
+  );
+  const row = locked.rows[0];
+  if (!row || row.status === "cancelled" || row.status === "completed") {
+    throw new SwarmQuotaError("parent_cancelled", step, "This Swarm agent was stopped and cannot start another inference.", false);
+  }
+  return row;
+}
+
+// What the leader's workers have spent plus what its child nodes were granted.
+async function loadDelegatedTokens(client: PoolClient, nodeId: string): Promise<number> {
+  const delegated = await client.query<{ delegated_tokens: string | number }>(
+    `SELECT (SELECT COALESCE(SUM(spent_tokens + reserved_tokens), 0) FROM task_workflow_swarm_node_members
+              WHERE node_id = $1 AND role = 'worker')
+          + (SELECT COALESCE(SUM(allocated_tokens), 0) FROM task_workflow_swarm_nodes
+              WHERE parent_node_id = $1) AS delegated_tokens`,
+    [nodeId]
+  );
+  return numberValue(delegated.rows[0]?.delegated_tokens);
+}
+
+// Workers spend only from the pool. A leader spends from the pool within its share; past its share,
+// or once the pool is empty, its steps come from the protected reserve. Its share alone never stops
+// a leader: when the reserve cannot cover the step, the pool still does.
+async function chooseFunding(client: PoolClient, input: {
+  member: SwarmQuotaMember;
+  node: LockedNode;
+  leaderSpentTokens: number;
+  step: number;
+  recovery: boolean;
+}): Promise<FundingSource> {
+  const poolCovers = numberValue(input.node.unassigned_tokens) >= input.step;
+  const reserveCovers = numberValue(input.node.system_reserve_tokens) >= input.step;
+  if (input.member.role === "worker") return poolCovers && !input.recovery ? "pool" : "none";
+  if (input.recovery || !poolCovers) return reserveCovers ? "recovery" : "none";
+  if (!reserveCovers) return "pool";
+  const allowance = calculateAgentSwarmLeaderAllowance({
+    allocatedTokens: numberValue(input.node.allocated_tokens),
+    delegatedTokens: await loadDelegatedTokens(client, input.member.nodeId)
+  });
+  return input.leaderSpentTokens + input.step <= allowance ? "pool" : "over_allowance";
+}
+
+function exhaustedError(member: SwarmQuotaMember, step: number): SwarmQuotaError {
+  return member.role === "worker"
+    ? new SwarmQuotaError(
+      "worker_budget_exhausted",
+      step,
+      `This Swarm node's shared budget is spent. Another step needs ${step} weighted tokens.`
+    )
+    : new SwarmQuotaError(
+      "budget_exhausted",
+      step,
+      `This Swarm node's budget, including its protected reserve, is spent. Another step needs ${step} weighted tokens.`
+    );
+}
+
+// Tells each agent once that its node's pool is about to run out.
+async function claimLowBudgetNotice(client: PoolClient, member: SwarmQuotaMember, poolTokens: number, step: number): Promise<boolean> {
+  const members = await client.query<{ count: string | number }>(
+    `SELECT COUNT(*) AS count FROM task_workflow_swarm_node_members
+      WHERE node_id = $1 AND status IN ('active', 'paused')`,
+    [member.nodeId]
+  );
+  if (!isAgentSwarmPoolLow({ poolTokens, minimumStepTokens: step, memberCount: numberValue(members.rows[0]?.count) })) {
+    return false;
+  }
+  const claimed = await client.query(
+    `UPDATE task_workflow_swarm_node_members
+        SET low_budget_notified = true, updated_at = now()
+      WHERE node_id = $1 AND workflow_agent_id = $2 AND NOT low_budget_notified`,
+    [member.nodeId, member.workflowAgentId]
+  );
+  return (claimed.rowCount ?? 0) > 0;
+}
+
+async function debitReservationInTx(client: PoolClient, input: {
+  context: LoadedWorkflowRunContext;
+  member: SwarmQuotaMember;
+  step: number;
+  fromReserve: boolean;
+  runId: string | null;
+}): Promise<string> {
+  const { member, step, fromReserve } = input;
+  await client.query(
+    `UPDATE task_workflow_swarm_nodes
+        SET reserved_tokens = reserved_tokens + $2,
+            unassigned_tokens = CASE WHEN $3 THEN unassigned_tokens ELSE unassigned_tokens - $2 END,
+            system_reserve_tokens = CASE WHEN $3 THEN system_reserve_tokens - $2 ELSE system_reserve_tokens END,
+            updated_at = now()
+      WHERE id = $1`,
+    [member.nodeId, step, fromReserve]
+  );
+  await client.query(
+    `UPDATE task_workflow_swarm_node_members
+        SET reserved_tokens = reserved_tokens + $3, status = 'active', updated_at = now()
+      WHERE node_id = $1 AND workflow_agent_id = $2`,
+    [member.nodeId, member.workflowAgentId, step]
+  );
+  const reservation = await client.query<{ id: string }>(
+    `INSERT INTO task_workflow_swarm_quota_reservations
+      (workflow_task_id, node_id, workflow_agent_id, run_id, quota_generation, requested_tokens, recovery)
+     SELECT $1, n.id, $2, $3, n.generation, $4, $5
+       FROM task_workflow_swarm_nodes n
+      WHERE n.id = $6
+     RETURNING id`,
+    [input.context.workflowTaskId, member.workflowAgentId, input.runId, step, fromReserve, member.nodeId]
+  );
+  await client.query(
+    `INSERT INTO task_workflow_swarm_quota_ledger
+      (workflow_task_id, node_id, workflow_agent_id, run_id, kind, amount_tokens, metadata_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+    [input.context.workflowTaskId, member.nodeId, member.workflowAgentId, input.runId,
+      fromReserve ? "recovery" : "reservation", step, JSON.stringify({ recovery: fromReserve })]
+  );
+  return reservation.rows[0].id;
+}
+
+async function reserveInTx(client: PoolClient, input: {
+  context: LoadedWorkflowRunContext;
+  member: SwarmQuotaMember;
+  step: number;
+  recovery: boolean;
+  runId: string | null;
+}): Promise<SwarmInferenceReservation> {
+  const { member, step } = input;
+  const node = await lockNode(client, member.nodeId, step);
+  const lockedMember = await lockMember(client, member, step);
+  const funding = await chooseFunding(client, {
+    member,
+    node,
+    leaderSpentTokens: numberValue(lockedMember.spent_tokens) + numberValue(lockedMember.reserved_tokens),
+    step,
+    recovery: input.recovery
+  });
+  if (funding === "none") throw exhaustedError(member, step);
+  const fromReserve = funding !== "pool";
+  const reservationId = await debitReservationInTx(client, { ...input, fromReserve });
+  const lowBudget = !fromReserve
+    && await claimLowBudgetNotice(client, member, numberValue(node.unassigned_tokens) - step, step);
+  return {
+    reservationId,
+    requestedTokens: step,
+    nodeId: member.nodeId,
+    workflowAgentId: member.workflowAgentId,
+    role: member.role,
+    recovery: fromReserve,
+    overLeaderAllowance: funding === "over_allowance",
+    lowBudget,
+    runId: input.runId
+  };
 }
 
 export async function reserveSwarmInference(
@@ -244,211 +371,67 @@ export async function reserveSwarmInference(
 ): Promise<SwarmInferenceReservation | null> {
   if (context.workflowType !== "agent_swarm") return null;
   if (numberValue(context.config.tokenBudget) <= 0) return null;
-  const current = await loadCurrentNode(context);
-  const minimumStepTokens = Math.max(await loadMinimumStepTokens(context), Math.ceil(estimatedStepTokens));
-  if (current.deadlineAt && Date.parse(current.deadlineAt) <= Date.now()) {
-    await markNodePaused(current.nodeId, "deadline_reached");
-    throw new SwarmQuotaError(
-      "deadline_reached",
-      minimumStepTokens,
-      "Swarm deadline reached. The current node is paused and its parent was notified."
-    );
+  const member = await loadSwarmQuotaMember(context);
+  const step = Math.max(await loadMinimumStepTokens(context), Math.ceil(estimatedStepTokens));
+  if (recovery && member.role !== "leader") {
+    throw new SwarmQuotaError("worker_budget_exhausted", step, "Only a node leader can use the protected reserve.", false);
   }
-  if (current.status !== "active") {
-    throw new SwarmQuotaError(
-      current.status === "paused" ? "budget_exhausted" : "parent_cancelled",
-      minimumStepTokens,
-      `Swarm node is ${current.status} and cannot start another inference.`
-    );
-  }
-  if (current.role === "worker" && current.memberStatus !== "active") {
-    throw new SwarmQuotaError(
-      "worker_budget_exhausted",
-      minimumStepTokens,
-      "This worker lease is paused and cannot start another inference."
-    );
-  }
-
-  // Member leases are carved from the node's operating budget, so the node reserve
-  // has already been removed and must not be subtracted a second time here.
-  const available = current.leaseTokens - current.memberSpentTokens - current.memberReservedTokens;
-  const operatingAvailable = Math.max(0, available);
-  if (recovery && current.role !== "leader") {
-    throw new SwarmQuotaError(
-      "worker_budget_exhausted",
-      minimumStepTokens,
-      "Only a node leader can use the protected recovery reserve."
-    );
-  }
-  const leaderAvailable = current.role === "leader"
-    ? Math.max(operatingAvailable + current.unassignedTokens, current.systemReserveTokens)
-    : operatingAvailable;
-  if ((recovery ? current.systemReserveTokens : leaderAvailable) < minimumStepTokens) {
-    const reason = current.role === "worker" ? "worker_budget_exhausted" : "budget_exhausted";
-    if (current.role === "worker") {
-      await markWorkerPaused(current.nodeId, current.workflowAgentId);
-    } else {
-      await markNodePaused(current.nodeId, reason);
-    }
-    throw new SwarmQuotaError(
-      reason,
-      minimumStepTokens,
-      `Swarm budget exhausted. Minimum required for the next inference is ${minimumStepTokens} weighted tokens.`
-    );
-  }
-
   try {
-    return await withTransaction(async (client) => {
-      const locked = await client.query<{
-        status: string;
-        deadline_at: string | null;
-        allocated_tokens: string | number;
-        system_reserve_tokens: string | number;
-        unassigned_tokens: string | number;
-      }>(
-        `SELECT status, deadline_at, allocated_tokens, system_reserve_tokens, unassigned_tokens
-           FROM task_workflow_swarm_nodes
-          WHERE id = $1
-          FOR UPDATE`,
-        [current.nodeId]
-      );
-      const lockedNode = locked.rows[0];
-      if (!lockedNode || lockedNode.status !== "active") {
-        throw new SwarmQuotaError("budget_exhausted", minimumStepTokens, "Swarm node changed before its inference reservation could be created.");
-      }
-      if (lockedNode.deadline_at && Date.parse(lockedNode.deadline_at) <= Date.now()) {
-        await client.query(
-          `UPDATE task_workflow_swarm_nodes
-              SET status = 'paused', paused_reason = 'deadline_reached', updated_at = now()
-            WHERE id = $1 AND status = 'active'`,
-          [current.nodeId]
-        );
-        throw new SwarmQuotaError("deadline_reached", minimumStepTokens, "Swarm deadline reached before its inference reservation could be created.");
-      }
-      const lockedMember = await client.query<{
-        status: string;
-        lease_tokens: string | number;
-        spent_tokens: string | number;
-        reserved_tokens: string | number;
-      }>(
-        `SELECT status, lease_tokens, spent_tokens, reserved_tokens
-           FROM task_workflow_swarm_node_members
-          WHERE node_id = $1 AND workflow_agent_id = $2
-          FOR UPDATE`,
-        [current.nodeId, current.workflowAgentId]
-      );
-      const member = lockedMember.rows[0];
-      if (!member || member.status !== "active") {
-        const reason = current.role === "worker" ? "worker_budget_exhausted" : "budget_exhausted";
-        throw new SwarmQuotaError(reason, minimumStepTokens, "This Swarm member lease is paused and cannot start another inference.");
-      }
-      const lockedOperatingAvailable = numberValue(member.lease_tokens)
-        - numberValue(member.spent_tokens)
-        - numberValue(member.reserved_tokens);
-      const shortfall = Math.max(0, minimumStepTokens - lockedOperatingAvailable);
-      const funding = !recovery && current.role === "leader" && shortfall > 0
-        ? await chooseLeaderFunding(client, {
-          nodeId: current.nodeId,
-          allocatedTokens: numberValue(lockedNode.allocated_tokens),
-          leaderDrawnTokens: numberValue(member.lease_tokens),
-          shortfall,
-          minimumStepTokens,
-          unassignedTokens: numberValue(lockedNode.unassigned_tokens),
-          systemReserveTokens: numberValue(lockedNode.system_reserve_tokens)
-        })
-        : "none";
-      if (funding === "unassigned") {
-        await client.query(
-          `UPDATE task_workflow_swarm_node_members
-              SET lease_tokens = lease_tokens + $2, updated_at = now()
-            WHERE node_id = $1 AND workflow_agent_id = $3`,
-          [current.nodeId, shortfall, current.workflowAgentId]
-        );
-        await client.query(
-          `UPDATE task_workflow_swarm_nodes
-              SET unassigned_tokens = unassigned_tokens - $2, updated_at = now()
-            WHERE id = $1`,
-          [current.nodeId, shortfall]
-        );
-      }
-      const useRecovery = recovery || funding === "recovery" || funding === "over_allowance";
-      const lockedAvailable = useRecovery
-        ? numberValue(lockedNode.system_reserve_tokens)
-        : lockedOperatingAvailable + (funding === "unassigned" ? shortfall : 0);
-      if (recovery && current.role !== "leader") {
-        throw new SwarmQuotaError("worker_budget_exhausted", minimumStepTokens, "Only a node leader can use the protected recovery reserve.");
-      }
-      if (lockedAvailable < minimumStepTokens) {
-        if (current.role === "worker") {
-          await client.query(
-            `UPDATE task_workflow_swarm_node_members
-                SET status = 'paused', updated_at = now()
-              WHERE node_id = $1 AND workflow_agent_id = $2 AND status = 'active'`,
-            [current.nodeId, current.workflowAgentId]
-          );
-        } else {
-          await client.query(
-            `UPDATE task_workflow_swarm_nodes
-                SET status = 'paused', paused_reason = $2, updated_at = now()
-              WHERE id = $1 AND status = 'active'`,
-            [current.nodeId, "budget_exhausted"]
-          );
-        }
-        throw new SwarmQuotaError(
-          current.role === "worker" ? "worker_budget_exhausted" : "budget_exhausted",
-          minimumStepTokens,
-          `Swarm budget exhausted. Minimum required for the next inference is ${minimumStepTokens} weighted tokens.`
-        );
-      }
-      const reservation = await client.query<{ id: string }>(
-        `INSERT INTO task_workflow_swarm_quota_reservations
-          (workflow_task_id, node_id, workflow_agent_id, run_id, quota_generation, requested_tokens, recovery)
-         SELECT $1, n.id, $2, $3, n.generation, $4, $5
-           FROM task_workflow_swarm_nodes n
-         WHERE n.id = $6
-         RETURNING id`,
-        [context.workflowTaskId, current.workflowAgentId, runId ?? null, minimumStepTokens, useRecovery, current.nodeId]
-      );
-      await client.query(
-        `UPDATE task_workflow_swarm_node_members
-            SET reserved_tokens = reserved_tokens + $2, updated_at = now()
-          WHERE node_id = $1 AND workflow_agent_id = $3`,
-        [current.nodeId, minimumStepTokens, current.workflowAgentId]
-      );
-      await client.query(
-        `UPDATE task_workflow_swarm_nodes
-            SET reserved_tokens = reserved_tokens + $2,
-                system_reserve_tokens = CASE WHEN $3 THEN system_reserve_tokens - $2 ELSE system_reserve_tokens END,
-                updated_at = now()
-          WHERE id = $1`,
-        [current.nodeId, minimumStepTokens, useRecovery]
-      );
-      await client.query(
-        `INSERT INTO task_workflow_swarm_quota_ledger
-          (workflow_task_id, node_id, workflow_agent_id, run_id, kind, amount_tokens, metadata_json)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-        [context.workflowTaskId, current.nodeId, current.workflowAgentId, runId ?? null, useRecovery ? "recovery" : "reservation", minimumStepTokens, JSON.stringify({ recovery: useRecovery })]
-      );
-      return {
-        reservationId: reservation.rows[0].id,
-        requestedTokens: minimumStepTokens,
-        nodeId: current.nodeId,
-        workflowAgentId: current.workflowAgentId,
-        recovery: useRecovery,
-        overLeaderAllowance: funding === "over_allowance",
-        runId: runId ?? null
-      };
-    });
+    return await withTransaction((client) => reserveInTx(client, { context, member, step, recovery, runId: runId ?? null }));
   } catch (error) {
-    if (error instanceof SwarmQuotaError) {
-      if (error.reason === "worker_budget_exhausted") {
-        await markWorkerPaused(current.nodeId, current.workflowAgentId);
-      } else if (error.reason === "budget_exhausted" || error.reason === "deadline_reached") {
-        await markNodePaused(current.nodeId, error.reason);
-      }
-    }
+    // Pauses are written after the reservation transaction rolls back, so they always persist.
+    if (error instanceof SwarmQuotaError) await persistQuotaStop(member, error);
     throw error;
   }
+}
+
+// Returns an unused reservation to the pool or reserve it was drawn from.
+async function refundReservationInTx(client: PoolClient, reservation: SwarmInferenceReservation, requestedTokens: number, recovery: boolean): Promise<void> {
+  await client.query(
+    `UPDATE task_workflow_swarm_node_members
+        SET reserved_tokens = GREATEST(0, reserved_tokens - $3), updated_at = now()
+      WHERE node_id = $1 AND workflow_agent_id = $2`,
+    [reservation.nodeId, reservation.workflowAgentId, requestedTokens]
+  );
+  await client.query(
+    `UPDATE task_workflow_swarm_nodes
+        SET reserved_tokens = GREATEST(0, reserved_tokens - $2),
+            unassigned_tokens = CASE WHEN $3 THEN unassigned_tokens ELSE unassigned_tokens + $2 END,
+            system_reserve_tokens = CASE WHEN $3 THEN system_reserve_tokens + $2 ELSE system_reserve_tokens END,
+            updated_at = now()
+      WHERE id = $1`,
+    [reservation.nodeId, requestedTokens, recovery]
+  );
+}
+
+// Charges the actual cost. An unused part returns to its source; an overrun is taken from the same
+// source while it lasts and recorded as debt beyond that.
+async function chargeReservationInTx(
+  client: PoolClient,
+  reservation: SwarmInferenceReservation,
+  requestedTokens: number,
+  settledTokens: number,
+  recovery: boolean
+): Promise<void> {
+  await client.query(
+    `UPDATE task_workflow_swarm_node_members
+        SET reserved_tokens = GREATEST(0, reserved_tokens - $3),
+            spent_tokens = spent_tokens + $4,
+            updated_at = now()
+      WHERE node_id = $1 AND workflow_agent_id = $2`,
+    [reservation.nodeId, reservation.workflowAgentId, requestedTokens, settledTokens]
+  );
+  await client.query(
+    `UPDATE task_workflow_swarm_nodes
+        SET reserved_tokens = GREATEST(0, reserved_tokens - $2),
+            spent_tokens = spent_tokens + $3,
+            unassigned_tokens = CASE WHEN $4 THEN unassigned_tokens ELSE GREATEST(0, unassigned_tokens + $2 - $3) END,
+            system_reserve_tokens = CASE WHEN $4 THEN GREATEST(0, system_reserve_tokens + $2 - $3) ELSE system_reserve_tokens END,
+            debt_tokens = debt_tokens + GREATEST(0, $3 - $2 - CASE WHEN $4 THEN system_reserve_tokens ELSE unassigned_tokens END),
+            updated_at = now()
+      WHERE id = $1`,
+    [reservation.nodeId, requestedTokens, settledTokens, recovery]
+  );
 }
 
 export async function settleSwarmInference(
@@ -478,79 +461,38 @@ export async function settleSwarmInference(
     const row = reservationResult.rows[0];
     if (!row || row.status !== "active") return false;
     const requestedTokens = numberValue(row.requested_tokens);
-    const debt = Math.max(0, settledTokens - requestedTokens);
-    const quarantined = row.quota_generation !== row.node_generation
+    const late = row.deadline_at !== null && Date.parse(row.deadline_at) <= Date.now();
+    const quarantined = late
+      || row.quota_generation !== row.node_generation
       || row.node_status === "cancelled"
-      || row.node_status === "completed"
-      || (row.deadline_at !== null && Date.parse(row.deadline_at) <= Date.now());
-    if (quarantined) {
-      if (row.deadline_at !== null && Date.parse(row.deadline_at) <= Date.now() && row.node_status === "active") {
-        await client.query(
-          `UPDATE task_workflow_swarm_nodes
-              SET status = 'paused', paused_reason = 'deadline_reached', updated_at = now()
-            WHERE id = $1`,
-          [reservation.nodeId]
-        );
-      }
-      await client.query(
-        `UPDATE task_workflow_swarm_quota_reservations
-            SET settled_tokens = $2, status = 'expired', settled_at = now()
-          WHERE id = $1`,
-        [reservation.reservationId, settledTokens]
-      );
-      await client.query(
-        `UPDATE task_workflow_swarm_node_members
-            SET reserved_tokens = GREATEST(0, reserved_tokens - $2), updated_at = now()
-          WHERE node_id = $1 AND workflow_agent_id = $3`,
-        [reservation.nodeId, requestedTokens, reservation.workflowAgentId]
-      );
+      || row.node_status === "completed";
+    if (late && row.node_status === "active") {
       await client.query(
         `UPDATE task_workflow_swarm_nodes
-            SET reserved_tokens = GREATEST(0, reserved_tokens - $2),
-                system_reserve_tokens = CASE WHEN $3 THEN system_reserve_tokens + $2 ELSE system_reserve_tokens END,
-                updated_at = now()
+            SET status = 'paused', paused_reason = 'deadline_reached', updated_at = now()
           WHERE id = $1`,
-        [reservation.nodeId, requestedTokens, row.recovery]
+        [reservation.nodeId]
       );
-      await client.query(
-        `INSERT INTO task_workflow_swarm_quota_ledger
-          (workflow_task_id, node_id, workflow_agent_id, run_id, kind, amount_tokens, metadata_json)
-         VALUES ($1, $2, $3, $4, 'settlement', $5, $6::jsonb)`,
-        [context.workflowTaskId, reservation.nodeId, reservation.workflowAgentId, reservation.runId, settledTokens, JSON.stringify({ requestedTokens, debt, quarantined: true, late: row.deadline_at !== null && Date.parse(row.deadline_at) <= Date.now() })]
-      );
-      return false;
     }
     await client.query(
       `UPDATE task_workflow_swarm_quota_reservations
-          SET settled_tokens = $2, status = 'settled', settled_at = now()
+          SET settled_tokens = $2, status = $3, settled_at = now()
         WHERE id = $1`,
-      [reservation.reservationId, settledTokens]
+      [reservation.reservationId, settledTokens, quarantined ? "expired" : "settled"]
     );
-    await client.query(
-      `UPDATE task_workflow_swarm_node_members
-          SET reserved_tokens = GREATEST(0, reserved_tokens - $2),
-              spent_tokens = spent_tokens + $3,
-              updated_at = now()
-        WHERE node_id = $1 AND workflow_agent_id = $4`,
-      [reservation.nodeId, requestedTokens, settledTokens, reservation.workflowAgentId]
-    );
-    await client.query(
-      `UPDATE task_workflow_swarm_nodes
-          SET reserved_tokens = GREATEST(0, reserved_tokens - $2),
-              spent_tokens = spent_tokens + $3,
-              debt_tokens = debt_tokens + $4,
-              system_reserve_tokens = CASE WHEN $5 THEN system_reserve_tokens + GREATEST(0, $2 - $3) ELSE system_reserve_tokens END,
-              updated_at = now()
-        WHERE id = $1`,
-      [reservation.nodeId, requestedTokens, settledTokens, debt, row.recovery]
-    );
+    if (quarantined) {
+      await refundReservationInTx(client, reservation, requestedTokens, row.recovery);
+    } else {
+      await chargeReservationInTx(client, reservation, requestedTokens, settledTokens, row.recovery);
+    }
     await client.query(
       `INSERT INTO task_workflow_swarm_quota_ledger
         (workflow_task_id, node_id, workflow_agent_id, run_id, kind, amount_tokens, metadata_json)
        VALUES ($1, $2, $3, $4, 'settlement', $5, $6::jsonb)`,
-      [context.workflowTaskId, reservation.nodeId, reservation.workflowAgentId, reservation.runId, settledTokens, JSON.stringify({ requestedTokens, debt })]
+      [context.workflowTaskId, reservation.nodeId, reservation.workflowAgentId, reservation.runId, settledTokens,
+        JSON.stringify({ requestedTokens, quarantined, late })]
     );
-    return true;
+    return !quarantined;
   });
 }
 
@@ -568,196 +510,12 @@ export async function releaseSwarmInference(
     );
     const row = result.rows[0];
     if (!row || row.status !== "active") return;
-    const requestedTokens = numberValue(row.requested_tokens);
     await client.query(
       `UPDATE task_workflow_swarm_quota_reservations
           SET status = 'released', settled_at = now()
         WHERE id = $1`,
       [reservation.reservationId]
     );
-    await client.query(
-      `UPDATE task_workflow_swarm_node_members
-          SET reserved_tokens = GREATEST(0, reserved_tokens - $2), updated_at = now()
-        WHERE node_id = $1 AND workflow_agent_id = $3`,
-      [reservation.nodeId, requestedTokens, reservation.workflowAgentId]
-    );
-    await client.query(
-      `UPDATE task_workflow_swarm_nodes
-          SET reserved_tokens = GREATEST(0, reserved_tokens - $2),
-              system_reserve_tokens = CASE WHEN $3 THEN system_reserve_tokens + $2 ELSE system_reserve_tokens END,
-              updated_at = now()
-        WHERE id = $1`,
-      [reservation.nodeId, requestedTokens, row.recovery]
-    );
+    await refundReservationInTx(client, reservation, numberValue(row.requested_tokens), row.recovery);
   });
-}
-
-export async function wakeParentForSwarmQuota(input: {
-  context: LoadedWorkflowRunContext;
-  triggerSource: TaskExecutionJob["triggerSource"];
-  selectionUserId: string | null;
-  reason: string;
-}): Promise<void> {
-  const current = await loadCurrentNode(input.context, true);
-  const wakeTaskId = current.role === "worker" ? current.nodeLeaderTaskId : current.parentLeaderTaskId;
-  if (!wakeTaskId) return;
-  const subject = current.role === "worker" ? `Worker ${input.context.taskId}` : `Child Swarm node ${current.nodeId}`;
-  const posted = await postSwarmQuotaNotice(input.context, {
-    nodeId: current.nodeId,
-    senderWorkflowAgentId: current.workflowAgentId,
-    notifyParentNode: current.role === "leader",
-    message: `[Swarm budget event] ${subject}: ${input.reason} Check swarm_budget_status, then grant enough budget, cancel the child, or synthesize available work.`
-  });
-  if (!posted) return;
-  await wakePausedSwarmAgent(input.context, wakeTaskId, `Swarm leader resumed for a budget event: ${subject}.`);
-}
-
-// The notice goes through the swarm channel shared with the leader being woken, never into that
-// leader's task history: an out-of-band task message starts a detached branch that drops its context.
-async function postSwarmQuotaNotice(context: LoadedWorkflowRunContext, input: {
-  nodeId: string;
-  senderWorkflowAgentId: string;
-  notifyParentNode: boolean;
-  message: string;
-}): Promise<boolean> {
-  return withTransaction(async (client) => {
-    const workflow = await client.query<{ phase: string | null; config_json: Record<string, unknown> | null }>(
-      `SELECT phase, config_json FROM task_workflows WHERE task_id = $1 FOR UPDATE`,
-      [context.workflowTaskId]
-    );
-    if (!workflow.rows[0] || workflow.rows[0].phase === "completed") return false;
-    const node = await client.query<{ node_key: string; parent_node_key: string | null }>(
-      `SELECT n.node_key, parent_node.node_key AS parent_node_key
-         FROM task_workflow_swarm_nodes n
-         LEFT JOIN task_workflow_swarm_nodes parent_node ON parent_node.id = n.parent_node_id
-        WHERE n.id = $1`,
-      [input.nodeId]
-    );
-    const channelKey = input.notifyParentNode ? node.rows[0]?.parent_node_key : node.rows[0]?.node_key;
-    const channelIds = workflow.rows[0].config_json?.swarmChannelIds;
-    const channelId = channelKey && channelIds && typeof channelIds === "object"
-      ? (channelIds as Record<string, unknown>)[channelKey]
-      : null;
-    if (typeof channelId !== "string") return false;
-    await client.query(
-      `INSERT INTO task_workflow_messages (workflow_task_id, channel_id, sender_workflow_agent_id, content_markdown)
-       VALUES ($1, $2, $3, $4)`,
-      [context.workflowTaskId, channelId, input.senderWorkflowAgentId, input.message]
-    );
-    return true;
-  });
-}
-
-export async function getSwarmBudgetStatus(
-  context: LoadedWorkflowRunContext,
-  targetSwarm?: SwarmTarget
-): Promise<SwarmBudgetStatus> {
-  const target = resolveSwarmTarget(context, targetSwarm);
-  const legacyStatus: SwarmBudgetStatus = {
-    status: "legacy",
-    remainingTokens: 0,
-    unassignedTokens: 0,
-    deadlineAt: null,
-    minimumSpawnAllocationTokens: AGENT_SWARM_MINIMUM_CHILD_NODE_TOKENS,
-    workers: [],
-    children: []
-  };
-  if (!target.nodeId) return legacyStatus;
-
-  const nodeResult = await query<{
-    id: string;
-    status: string;
-    unassigned_tokens: string | number;
-    deadline_at: string | null;
-  }>(
-    `SELECT id, status, unassigned_tokens, deadline_at
-       FROM task_workflow_swarm_nodes
-      WHERE node_key = $1
-        AND workflow_task_id = $2`,
-    [target.nodeId, context.workflowTaskId]
-  );
-  const node = nodeResult.rows[0];
-  if (!node) return legacyStatus;
-
-  const workersResult = await query<{
-    task_id: string;
-    status: string;
-    lease_tokens: string | number;
-    spent_tokens: string | number;
-    reserved_tokens: string | number;
-  }>(
-    `SELECT agent.task_id, member.status, member.lease_tokens, member.spent_tokens, member.reserved_tokens
-       FROM task_workflow_swarm_node_members member
-       JOIN task_workflow_agents agent ON agent.id = member.workflow_agent_id
-      WHERE member.node_id = $1 AND member.role = 'worker'
-      ORDER BY member.slot_index`,
-    [node.id]
-  );
-  const leaseRemainingResult = await query<{ remaining_tokens: string | number | null }>(
-    `SELECT COALESCE(SUM(GREATEST(0, lease_tokens - spent_tokens - reserved_tokens)), 0) AS remaining_tokens
-       FROM task_workflow_swarm_node_members
-      WHERE node_id = $1 AND status = 'active'`,
-    [node.id]
-  );
-  const latestUsageResult = await query<{ weighted_tokens: string | number | null }>(
-    `SELECT weighted_tokens
-       FROM user_token_usage_events
-      WHERE task_id = ANY($1::uuid[])
-      ORDER BY occurred_at DESC, created_at DESC
-      LIMIT 1`,
-    [target.memberTaskIds]
-  );
-  const minimumStepTokens = Math.max(AGENT_SWARM_MINIMUM_INFERENCE_TOKENS, numberValue(latestUsageResult.rows[0]?.weighted_tokens));
-  const unassignedTokens = numberValue(node.unassigned_tokens);
-
-  return {
-    status: node.status,
-    remainingTokens: unassignedTokens + numberValue(leaseRemainingResult.rows[0]?.remaining_tokens),
-    unassignedTokens,
-    deadlineAt: node.deadline_at,
-    minimumSpawnAllocationTokens: AGENT_SWARM_MINIMUM_CHILD_NODE_TOKENS,
-    workers: workersResult.rows.map((worker) => ({
-      taskId: worker.task_id,
-      status: worker.status,
-      remainingTokens: Math.max(0, numberValue(worker.lease_tokens) - numberValue(worker.spent_tokens) - numberValue(worker.reserved_tokens))
-    })),
-    children: await loadSwarmBudgetChildren(node.id, minimumStepTokens)
-  };
-}
-
-async function loadSwarmBudgetChildren(nodeId: string, minimumStepTokens: number): Promise<SwarmBudgetChildStatus[]> {
-  const childrenResult = await query<{
-    id: string;
-    title: string;
-    status: string;
-    allocated_tokens: string | number;
-    unassigned_tokens: string | number;
-    deadline_at: string | null;
-    worker_slots: string | number;
-    lease_remaining_tokens: string | number;
-  }>(
-    `SELECT id, title, status, allocated_tokens, unassigned_tokens, deadline_at,
-            (SELECT COUNT(*) FROM task_workflow_swarm_node_members member
-              WHERE member.node_id = task_workflow_swarm_nodes.id AND member.role = 'worker') AS worker_slots,
-            (SELECT COALESCE(SUM(GREATEST(0, member.lease_tokens - member.spent_tokens - member.reserved_tokens)), 0)
-               FROM task_workflow_swarm_node_members member
-              WHERE member.node_id = task_workflow_swarm_nodes.id AND member.status = 'active') AS lease_remaining_tokens
-       FROM task_workflow_swarm_nodes
-      WHERE parent_node_id = $1
-      ORDER BY created_at ASC, id ASC`,
-    [nodeId]
-  );
-  return childrenResult.rows.map((child) => ({
-    nodeId: child.id,
-    title: child.title,
-    status: child.status,
-    remainingTokens: numberValue(child.unassigned_tokens) + numberValue(child.lease_remaining_tokens),
-    deadlineAt: child.deadline_at,
-    minimumGrantTokens: calculateAgentSwarmMinimumGrant({
-      allocatedTokens: numberValue(child.allocated_tokens),
-      minimumStepTokens,
-      workerSlots: numberValue(child.worker_slots),
-      spawning: false
-    })
-  }));
 }

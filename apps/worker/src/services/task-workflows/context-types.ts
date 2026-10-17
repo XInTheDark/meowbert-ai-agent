@@ -85,6 +85,8 @@ export interface LoadedWorkflowRunContext {
     workerGlobalReportLabels: string[];
     missingWorkerGlobalReportTaskIds: string[];
     missingWorkerGlobalReportLabels: string[];
+    // Workers whose last step could not be funded because their node's shared pool is spent.
+    outOfBudgetWorkerTaskIds: string[];
     workersStartedAt: string | null;
     completedReviewRounds: number;
     pendingNestedSwarmNodeIds?: string[];

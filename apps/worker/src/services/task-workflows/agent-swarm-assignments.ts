@@ -38,7 +38,6 @@ export async function assignSwarmWorkers(input: {
     targetSwarm: input.targetSwarm,
     start: taskIds,
     stop: [],
-    grantBudget: [],
     viewOnly: false
   });
   const pause = input.wait

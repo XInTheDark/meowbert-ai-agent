@@ -303,7 +303,7 @@ export const SWARM_MANAGE_TOOL: FunctionTool = {
   type: "function",
   name: SWARM_MANAGE_TOOL_NAME,
   description:
-    "For Agent Swarm node leaders: view every agent's status, pause reason, and wait dependencies; start, resume, or stop only direct workers, and grant them budget from your node's unassigned pool. Identify workers by task ID or label such as 'Worker 1'.",
+    "For Agent Swarm node leaders: view every agent's status, pause reason, and wait dependencies; start, resume, or stop only direct workers. Identify workers by task ID or label such as 'Worker 1'.",
   strict: true,
   parameters: {
     type: "object",
@@ -318,50 +318,22 @@ export const SWARM_MANAGE_TOOL: FunctionTool = {
         items: { type: "string" },
         description: "Existing swarm workers to stop completely. May be empty."
       },
-      grant_budget: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            worker: { type: "string", description: "Worker task ID or label." },
-            tokens: { type: "integer", minimum: 1, description: "Weighted tokens moved from your unassigned pool into this worker's budget." }
-          },
-          required: ["worker", "tokens"],
-          additionalProperties: false
-        },
-        description: "Budget to add to direct workers, applied before any start. Any amount the pool can cover. May be empty."
-      },
       view_only: {
         type: "boolean",
         description: "Set true to view current workers without changing them."
       }
     },
-    required: ["start", "stop", "grant_budget", "view_only"],
+    required: ["start", "stop", "view_only"],
     additionalProperties: false
   }
 };
 
 // Swarms without a budget manage workers without moving budget between them.
-export function buildUnbudgetedSwarmManageFunctionTool(): FunctionTool {
-  const parameters = SWARM_MANAGE_TOOL.parameters as { properties: Record<string, unknown>; required: string[] };
-  const { grant_budget: _grantBudget, ...properties } = parameters.properties;
-  return {
-    ...SWARM_MANAGE_TOOL,
-    description:
-      "For Agent Swarm node leaders: view every agent's status, pause reason, and wait dependencies; start, resume, or stop only direct workers. Identify workers by task ID or label such as 'Worker 1'.",
-    parameters: {
-      ...parameters,
-      properties,
-      required: parameters.required.filter((name) => name !== "grant_budget")
-    }
-  };
-}
-
 export const SWARM_BUDGET_STATUS_TOOL: FunctionTool = {
   type: "function",
   name: SWARM_BUDGET_STATUS_TOOL_NAME,
   description:
-    "For Agent Swarm leaders and workers: inspect the node's remaining and unassigned budget, deadline, minimum spawn allocation, worker budgets, and direct child budgets.",
+    "For Agent Swarm leaders and workers: inspect the budget pool this node's agents share, its protected reserve, deadline, minimum spawn allocation, what each worker has spent, and direct child budgets.",
   strict: true,
   parameters: {
     type: "object",

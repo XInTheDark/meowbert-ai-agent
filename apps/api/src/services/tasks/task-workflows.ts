@@ -3,7 +3,6 @@ import type { PoolClient } from "pg";
 import {
   clampAgentSwarmWorkerCount,
   calculateAgentSwarmBudgetEstimate,
-  calculateAgentSwarmInitialLeases,
   calculateAgentSwarmSystemReserve,
   AGENT_SWARM_MINIMUM_INFERENCE_TOKENS,
   createTaskMessageMetadata,
@@ -812,10 +811,6 @@ async function insertAgentSwarmWorkflowRecords(
     const directWorkerAgentIds = rootNode
       ? rootNode.workerLeafIds.map((leafId) => leafAgentIds.get(leafId)).filter((id): id is string => Boolean(id))
       : workerAgentIds;
-    const delegatedLeaderIds = new Set(compiledSwarm?.nodes
-      .filter((node) => node.parentNodeId === rootNode?.id)
-      .map((node) => leafAgentIds.get(node.leaderLeafId))
-      .filter((id): id is string => Boolean(id)) ?? []);
     const estimate = calculateAgentSwarmBudgetEstimate({ minimumStepTokens: AGENT_SWARM_MINIMUM_INFERENCE_TOKENS, workerSlots: directWorkerAgentIds.length });
     const reserveTokens = calculateAgentSwarmSystemReserve(input.tokenBudget, AGENT_SWARM_MINIMUM_INFERENCE_TOKENS);
     if (input.tokenBudget < reserveTokens + estimate.minimumSpawnAllocationTokens) {
@@ -846,32 +841,18 @@ async function insertAgentSwarmWorkflowRecords(
     );
     const nodeId = quotaRoot.rows[0]?.id;
     if (nodeId) {
-      const operatingTokens = Math.max(0, input.tokenBudget - reserveTokens);
-      const { leaderLeaseTokens, workerLeaseTokens, unassignedTokens } = calculateAgentSwarmInitialLeases({
-        operatingTokens,
-        workerCount: directWorkerAgentIds.filter((id) => !delegatedLeaderIds.has(id)).length,
-        minimumStepTokens: AGENT_SWARM_MINIMUM_INFERENCE_TOKENS
-      });
       await client.query(
-        `INSERT INTO task_workflow_swarm_node_members
-          (node_id, workflow_agent_id, role, slot_index, lease_tokens)
-         VALUES ($1, $2, 'leader', 0, $3)`,
-        [nodeId, leaderAgent.id, leaderLeaseTokens]
+        `INSERT INTO task_workflow_swarm_node_members (node_id, workflow_agent_id, role, slot_index)
+         VALUES ($1, $2, 'leader', 0)`,
+        [nodeId, leaderAgent.id]
       );
       for (let index = 0; index < directWorkerAgentIds.length; index += 1) {
         await client.query(
-          `INSERT INTO task_workflow_swarm_node_members
-            (node_id, workflow_agent_id, role, slot_index, lease_tokens)
-           VALUES ($1, $2, 'worker', $3, $4)`,
-          [nodeId, directWorkerAgentIds[index], index, delegatedLeaderIds.has(directWorkerAgentIds[index]) ? 0 : workerLeaseTokens]
+          `INSERT INTO task_workflow_swarm_node_members (node_id, workflow_agent_id, role, slot_index)
+           VALUES ($1, $2, 'worker', $3)`,
+          [nodeId, directWorkerAgentIds[index], index]
         );
       }
-      await client.query(
-        `UPDATE task_workflow_swarm_nodes
-            SET unassigned_tokens = $2
-          WHERE id = $1`,
-        [nodeId, unassignedTokens]
-      );
       await client.query(
         `INSERT INTO task_workflow_swarm_quota_ledger
           (workflow_task_id, node_id, kind, amount_tokens, metadata_json)

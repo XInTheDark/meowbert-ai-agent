@@ -3,7 +3,6 @@ import type { PoolClient } from "pg";
 import {
   clampAgentSwarmWorkerCount,
   calculateAgentSwarmBudgetEstimate,
-  calculateAgentSwarmInitialLeases,
   calculateAgentSwarmSystemReserve,
   AGENT_SWARM_MINIMUM_INFERENCE_TOKENS,
   AGENT_SWARM_DEFAULT_TOKEN_BUDGET,
@@ -63,7 +62,6 @@ async function ensureAgentSwarmQuotaRootInTx(input: {
   timeBudgetMinutes: number | null;
   leaderAgentId: string;
   workerAgentIds: string[];
-  delegatedLeaderAgentIds?: Set<string>;
 }): Promise<string | null> {
   const tokenBudget = asPositiveInteger(input.tokenBudget);
   if (tokenBudget === null) {
@@ -121,12 +119,7 @@ async function ensureAgentSwarmQuotaRootInTx(input: {
     );
     return existing.id;
   }
-  const operatingTokens = Math.max(0, tokenBudget - reserveTokens);
-  const { leaderLeaseTokens, workerLeaseTokens, unassignedTokens } = calculateAgentSwarmInitialLeases({
-    operatingTokens,
-    workerCount: input.workerAgentIds.filter((id) => !input.delegatedLeaderAgentIds?.has(id)).length,
-    minimumStepTokens: AGENT_SWARM_MINIMUM_INFERENCE_TOKENS
-  });
+  const unassignedTokens = Math.max(0, tokenBudget - reserveTokens);
 
   const nodeResult = await input.client.query<{ id: string }>(
     `INSERT INTO task_workflow_swarm_nodes (
@@ -140,18 +133,15 @@ async function ensureAgentSwarmQuotaRootInTx(input: {
   const nodeId = nodeResult.rows[0]?.id;
   if (!nodeId) throw new Error("Agent Swarm quota root could not be created.");
   await input.client.query(
-    `INSERT INTO task_workflow_swarm_node_members
-        (node_id, workflow_agent_id, role, slot_index, lease_tokens)
-       VALUES ($1, $2, 'leader', 0, $3)`,
-    [nodeId, input.leaderAgentId, leaderLeaseTokens]
+    `INSERT INTO task_workflow_swarm_node_members (node_id, workflow_agent_id, role, slot_index)
+       VALUES ($1, $2, 'leader', 0)`,
+    [nodeId, input.leaderAgentId]
   );
   for (let index = 0; index < input.workerAgentIds.length; index += 1) {
     await input.client.query(
-      `INSERT INTO task_workflow_swarm_node_members
-          (node_id, workflow_agent_id, role, slot_index, lease_tokens)
-         VALUES ($1, $2, 'worker', $3, $4)`,
-      [nodeId, input.workerAgentIds[index], index,
-        input.delegatedLeaderAgentIds?.has(input.workerAgentIds[index]) ? 0 : workerLeaseTokens]
+      `INSERT INTO task_workflow_swarm_node_members (node_id, workflow_agent_id, role, slot_index)
+         VALUES ($1, $2, 'worker', $3)`,
+      [nodeId, input.workerAgentIds[index], index]
     );
   }
   await input.client.query(
@@ -829,11 +819,7 @@ async function createAgentSwarmTransitionInTx(
     tokenBudget: typeof input.config.tokenBudget === "number" ? input.config.tokenBudget : null,
     timeBudgetMinutes: typeof input.config.timeBudgetMinutes === "number" ? input.config.timeBudgetMinutes : null,
     leaderAgentId: leaderAgent.id,
-    workerAgentIds: directWorkerAgentIds,
-    delegatedLeaderAgentIds: new Set(compiledSwarm?.nodes
-      .filter((node) => node.parentNodeId === rootNode?.id)
-      .map((node) => agentIdsByLeaf.get(node.leaderLeafId))
-      .filter((id): id is string => Boolean(id)) ?? [])
+    workerAgentIds: directWorkerAgentIds
   });
   if (quotaRootNodeId && compiledSwarm && compiledSwarm.nodes.length > 1) {
     await insertSeededSwarmQuotaNodesInTx(client, {
@@ -958,11 +944,7 @@ async function transitionToAgentSwarmInTx(
         tokenBudget: typeof config.tokenBudget === "number" ? config.tokenBudget : null,
         timeBudgetMinutes: typeof config.timeBudgetMinutes === "number" ? config.timeBudgetMinutes : null,
         leaderAgentId: leaderAgent.id,
-        workerAgentIds: directWorkerAgentIds,
-        delegatedLeaderAgentIds: new Set(compiledSwarm?.nodes
-          .filter((node) => node.parentNodeId === rootNode?.id)
-          .map((node) => agentIdsByLeaf.get(node.leaderLeafId))
-          .filter((id): id is string => Boolean(id)) ?? [])
+        workerAgentIds: directWorkerAgentIds
       });
       if (quotaRootNodeId && compiledSwarm && compiledSwarm.nodes.length > 1 && existingBudget === null) {
         await insertSeededSwarmQuotaNodesInTx(client, {

@@ -11,7 +11,7 @@ import type { TaskLiveSyncFileSummary } from "../agent/live-sync-types.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
 import type { LoadedWorkflowRunContext } from "../task-workflows/service.js";
 import type { SwarmTarget } from "../task-workflows/swarm-target.js";
-import type { SwarmBudgetStatus } from "../task-workflows/agent-swarm-budget.js";
+import type { SwarmBudgetStatus } from "../task-workflows/agent-swarm-budget-status.js";
 import type { ContextManagementV2State } from "../context-management-v2/index.js";
 import type { ProjectMasterTaskAgent } from "../project-master/task-agent.js";
 
@@ -88,12 +88,10 @@ export interface ToolDispatchContext {
       targetSwarm?: SwarmTarget;
       start: string[];
       stop: string[];
-      grantBudget: Array<{ worker: string; tokens: number }>;
       viewOnly: boolean;
     }) => Promise<{
       started: string[];
       stopped: string[];
-      granted: Array<{ label: string; tokens: number }>;
       workers: Array<{
         taskId: string;
         label: string;

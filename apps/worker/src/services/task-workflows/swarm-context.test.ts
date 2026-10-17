@@ -21,6 +21,7 @@ function buildRowsResult<Row extends object>(rows: Row[]): QueryResult<Row> {
 describe("buildSwarmContext", () => {
   beforeEach(() => {
     vi.mocked(query).mockReset();
+    vi.mocked(query).mockResolvedValue(buildRowsResult([]));
   });
 
   it("tracks started nested swarms awaiting output", async () => {

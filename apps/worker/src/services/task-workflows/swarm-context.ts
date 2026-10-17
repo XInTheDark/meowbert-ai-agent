@@ -144,6 +144,18 @@ async function loadSwarmMessageStats(input: {
   };
 }
 
+async function loadOutOfBudgetWorkerTaskIds(workflowTaskId: string): Promise<string[]> {
+  const result = await query<{ task_id: string }>(
+    `SELECT agent.task_id
+       FROM task_workflow_swarm_node_members member
+       JOIN task_workflow_swarm_nodes node ON node.id = member.node_id
+       JOIN task_workflow_agents agent ON agent.id = member.workflow_agent_id
+      WHERE node.workflow_task_id = $1 AND member.role = 'worker' AND member.status = 'paused'`,
+    [workflowTaskId]
+  );
+  return result.rows.map((row) => row.task_id);
+}
+
 function buildWorkerReportState(workerAgents: WorkflowAgentRecord[], globalMessageCountByTaskId: Map<string, number>) {
   const workerGlobalReportTaskIds = workerAgents
     .filter((agent) => (globalMessageCountByTaskId.get(agent.task_id) ?? 0) > 0)
@@ -256,6 +268,7 @@ export async function buildSwarmContext(input: {
     workerGlobalReportLabels: workerReportState.workerGlobalReportLabels,
     missingWorkerGlobalReportTaskIds: workerReportState.missingWorkerGlobalReportTaskIds,
     missingWorkerGlobalReportLabels: workerReportState.missingWorkerGlobalReportLabels,
+    outOfBudgetWorkerTaskIds: await loadOutOfBudgetWorkerTaskIds(input.workflowTaskId),
     workersStartedAt: coerceNullableString(input.stateJson.workersStartedAt) ?? null,
     completedReviewRounds: Array.isArray(input.stateJson.reviewRounds) ? input.stateJson.reviewRounds.length : 0,
     pendingNestedSwarmNodeIds,
