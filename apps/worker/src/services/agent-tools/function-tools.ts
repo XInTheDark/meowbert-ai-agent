@@ -623,7 +623,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: VIEW_PDF_FILE_TOOL_NAME,
-    description: "Load a PDF file and read its contents, optionally limited to a page range.",
+    description: "Load a PDF file and see its pages as a reader would: the rendered layout, figures, and text together. Use this to read or visually review a PDF instead of converting its pages to images. Optionally limit it to a page range.",
     strict: true,
     parameters: {
       type: "object",

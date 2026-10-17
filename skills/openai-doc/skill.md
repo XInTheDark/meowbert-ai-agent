@@ -23,16 +23,18 @@ Keep tables readable at the final page size, use real headings and lists, and al
 
 The sandbox bundles `python-docx`, `pdf2image`, and Poppler. LibreOffice is bundled when the Office build option is enabled. Use these dependencies directly; if a custom runtime lacks them, explain the missing capability rather than installing replacements during the task.
 
+Export a PDF preview and review it with `view_pdf_file`:
+
 ```bash
-python3 /app/skills/openai-doc/scripts/render_docx.py report.docx --output_dir ./preview
+soffice --headless --convert-to pdf --outdir ./preview report.docx
 ```
 
-Inspect the rendered pages for clipped text, broken tables, missing glyphs, awkward page breaks, and inconsistent spacing. After layout changes, render again and review the affected pages. Check the complete exported document before delivery.
+Inspect the pages for clipped text, broken tables, missing glyphs, awkward page breaks, and inconsistent spacing. After layout changes, export again and review the affected pages. Check the complete document before delivery. For a requested PDF copy, export to `./output` the same way.
 
-For a PDF copy:
+If `view_pdf_file` is unavailable, render pages to images and inspect them with `view_image`:
 
 ```bash
-soffice --headless --convert-to pdf --outdir ./output report.docx
+python3 /app/skills/openai-doc/scripts/render_docx.py report.docx --output_dir ./preview
 ```
 
 If rendering is unavailable, text extraction can still verify content, but it does not verify page layout. State that limitation.

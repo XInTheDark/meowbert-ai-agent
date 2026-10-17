@@ -67,13 +67,13 @@ For unfamiliar features, read the relevant official reference: [styling](https:/
 
 ## Review and deliver
 
-Render the exported PDF, so review covers the actual deliverable:
+Review the exported PDF itself with `view_pdf_file`, so review covers the actual deliverable. Look for clipping, missing glyphs, table breaks, crowded margins, and unwanted blank pages. Fix the source and recompile affected output before delivery.
+
+If `view_pdf_file` is unavailable, render pages to images and inspect them with `view_image`:
 
 ```bash
 mkdir -p output/report/preview
 pdftoppm -scale-to 1600 -png output/report/report.pdf output/report/preview/page
 ```
-
-Inspect the page images for clipping, missing glyphs, table breaks, crowded margins, and unwanted blank pages. Fix the source and recompile affected output before delivery. Check references and selectable text with `view_pdf_file` or `pdftotext` as appropriate.
 
 Deliver the PDF and retain the editable `.typ` source, copied theme, and local assets together. Keep review images separate from final deliverables. A PDF export does not produce a Word-editable document; if Word is needed, use the Word workflow from the start.
