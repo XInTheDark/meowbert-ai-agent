@@ -64,8 +64,7 @@ describe("create task with an Agent Swarm preset", () => {
 
     const response = await app.inject({ method: "POST", url: "/api/projects/11111111-1111-4111-8111-111111111111/tasks", payload: {
       message: "Research this", agent: { id: "solo-swarm" },
-      workflow: { type: "agent_swarm", workerCount: 2, leaderAgentId: "luna-xhigh",
-        modelAllocations: [{ agentId: "luna-xhigh", workerCount: 2 }], tokenBudget: 80_000 }
+      workflow: { type: "agent_swarm", workerCount: 2, tokenBudget: 80_000 }
     } });
 
     expect(response.statusCode, response.body).toBe(201);
