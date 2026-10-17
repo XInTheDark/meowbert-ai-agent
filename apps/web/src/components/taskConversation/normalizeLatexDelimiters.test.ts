@@ -77,6 +77,13 @@ describe("normalizeLatexDelimiters", () => {
     expect(normalized).toContain("### Next section");
   });
 
+  it("keeps inline $$ math that starts a line inside a paragraph", () => {
+    const input = "and $$\\text{pH} = 4.74$$. Both are\n$$1.25/0.0375 = 0.0333$$ M.";
+    const normalized = normalizeLatexDelimiters(input);
+
+    expect(normalized).toBe(input);
+  });
+
   it("normalizes standalone \\begin{equation} blocks into display math", () => {
     const input = "Equation:\n\\begin{equation}\nE = mc^2\n\\end{equation}\nNext.";
     const normalized = normalizeLatexDelimiters(input);

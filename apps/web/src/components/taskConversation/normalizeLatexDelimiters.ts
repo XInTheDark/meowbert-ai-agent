@@ -5,7 +5,7 @@ const LATEX_INLINE_PAREN_PATTERN = /(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)/g;
 const LATEX_PAIRED_DOUBLE_DOLLAR_PATTERN = /\$\$([\s\S]*?)\$\$/g;
 const LATEX_STANDALONE_LINE_DOUBLE_DOLLAR_PATTERN = /(^|\n)([ \t]*)\$\$([^\n$]+)\$\$([ \t]*)(?=\n|$)/g;
 const LATEX_ENVIRONMENT_BLOCK_PATTERN = /(?<!\\)\\begin\{(equation|align|gather)\*?\}([\s\S]*?)(?<!\\)\\end\{\1\*?\}/g;
-const UNMATCHED_START_DOUBLE_DOLLAR_PATTERN = /(^|\n)([ \t]*)\$\$(?!\$)/g;
+const UNMATCHED_START_DOUBLE_DOLLAR_PATTERN = /(^|\n)([ \t]*)\$\$(?!\$)(?![^\n]*?\$\$)/g;
 
 function protectCodeSegments(content: string): { text: string; codeBlocks: string[] } {
   const codeBlocks: string[] = [];
@@ -90,7 +90,7 @@ function normalizeStandaloneBlocks(
     return `\uE000MATH_BLOCK_${idx}\uE000`;
   });
 
-  // 6. Escape any remaining unmatched $$ at line starts
+  // 6. Escape $$ at line starts that has no closing $$ on the same line
   text = text.replace(UNMATCHED_START_DOUBLE_DOLLAR_PATTERN, "$1$2\\$\\$");
 
   return text;
