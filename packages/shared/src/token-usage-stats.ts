@@ -22,8 +22,15 @@ export interface TaskUsageRun extends TokenUsageTotals {
   models: string[];
 }
 
+export interface TaskUsageSpawnedTotals extends TokenUsageTotals {
+  taskCount: number;
+}
+
 export interface TaskUsageSummary {
+  /** The task's own usage plus every agent it spawned. */
   totals: TokenUsageTotals;
+  /** Usage from spawned agents only; their runs are not listed individually. */
+  spawned: TaskUsageSpawnedTotals;
   runs: TaskUsageRun[];
   runCount: number;
 }

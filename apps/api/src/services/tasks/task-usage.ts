@@ -16,6 +16,22 @@ interface TaskUsageRunRow extends TokenUsageAggregateRow {
   run_count: string | number;
 }
 
+interface SpawnedUsageRow extends TokenUsageAggregateRow {
+  task_count: string | number;
+}
+
+// Agents a task spawned (subagents, subtasks, swarm/long-horizon workflow children),
+// recursively. Thread side-conversations are user-started and keep their own usage.
+const SPAWNED_TASKS_CTE = `WITH RECURSIVE spawned_tasks(id) AS (
+    SELECT t.id FROM tasks t
+     WHERE (t.parent_task_id = $1 OR t.workflow_parent_task_id = $1)
+       AND NOT EXISTS (SELECT 1 FROM task_threads th WHERE th.task_id = t.id)
+    UNION
+    SELECT t.id FROM tasks t
+      JOIN spawned_tasks s ON t.parent_task_id = s.id OR t.workflow_parent_task_id = s.id
+     WHERE NOT EXISTS (SELECT 1 FROM task_threads th WHERE th.task_id = t.id)
+  )`;
+
 function mapRun(row: TaskUsageRunRow): TaskUsageRun {
   return {
     runId: row.run_id,
@@ -27,11 +43,21 @@ function mapRun(row: TaskUsageRunRow): TaskUsageRun {
 }
 
 export async function getTaskUsageSummary(taskId: string): Promise<TaskUsageSummary> {
-  const [totalsResult, runsResult] = await Promise.all([
+  const [totalsResult, spawnedResult, runsResult] = await Promise.all([
     query<TokenUsageAggregateRow>(
-      `SELECT ${tokenUsageAggregateSql("e")}
+      `${SPAWNED_TASKS_CTE}
+       SELECT ${tokenUsageAggregateSql("e")}
          FROM user_token_usage_events e
-        WHERE e.task_id = $1
+        WHERE (e.task_id = $1 OR e.task_id IN (SELECT id FROM spawned_tasks))
+          AND e.usage_event_kind = 'model_response'`,
+      [taskId]
+    ),
+    query<SpawnedUsageRow>(
+      `${SPAWNED_TASKS_CTE}
+       SELECT COUNT(DISTINCT e.task_id)::text AS task_count,
+              ${tokenUsageAggregateSql("e")}
+         FROM user_token_usage_events e
+        WHERE e.task_id IN (SELECT id FROM spawned_tasks)
           AND e.usage_event_kind = 'model_response'`,
       [taskId]
     ),
@@ -55,6 +81,10 @@ export async function getTaskUsageSummary(taskId: string): Promise<TaskUsageSumm
 
   return {
     totals: mapTokenUsageTotals(totalsResult.rows[0]),
+    spawned: {
+      ...mapTokenUsageTotals(spawnedResult.rows[0]),
+      taskCount: toSafeInteger(spawnedResult.rows[0]?.task_count)
+    },
     runs: runsResult.rows.map(mapRun),
     runCount: toSafeInteger(runsResult.rows[0]?.run_count)
   };

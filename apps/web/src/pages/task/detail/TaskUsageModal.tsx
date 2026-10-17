@@ -36,7 +36,12 @@ function TaskUsageContent(props: { usage: TaskUsageSummary; weighting: TokenUsag
         <TaskUsageStat label="Runs" value={formatNumber(props.usage.runCount)} />
       </div>
       <TokenUsageBreakdown totals={totals} weighting={props.weighting} />
-      <TaskUsageRunTable runs={props.usage.runs} runCount={props.usage.runCount} weighting={props.weighting} />
+      <TaskUsageRunTable
+        runs={props.usage.runs}
+        runCount={props.usage.runCount}
+        spawned={props.usage.spawned}
+        weighting={props.weighting}
+      />
     </>
   );
 }
