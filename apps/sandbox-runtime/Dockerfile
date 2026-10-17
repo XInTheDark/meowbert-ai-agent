@@ -144,6 +144,7 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
 COPY apps/sandbox-runtime/scripts/persistent_shell/*.py /opt/meowbert/persistent-shell/
 RUN PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s /opt/meowbert/persistent-shell -p 'test_*.py'
 COPY packages/shared/src/path-containment.mjs packages/shared/src/path-containment.mjs
+COPY packages/shared/src/canvas-frame-runtime.mjs packages/shared/src/canvas-frame-runtime.mjs
 COPY skills skills
 RUN PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app/skills/google-workspace \
   python3 -m unittest discover -s /app/skills/google-workspace/tests -p 'test_*.py'

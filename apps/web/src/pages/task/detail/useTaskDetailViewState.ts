@@ -17,7 +17,6 @@ export function useTaskDetailViewState(taskId: string, debugModeEnabled: boolean
   const [activityInspectorSelection, setActivityInspectorSelection] = useState<ToolInspectorSelection | null>(null);
   const [toolDisclosureState, setToolDisclosureState] = useState<Record<string, boolean>>({});
   const actionsMenuRef = useRef<HTMLDivElement>(null);
-  const autoOpenedCanvasIdRef = useRef<string | null>(null);
   const latestArtifactEventIdRef = useRef<string | null>(null);
   const layout = useTaskDetailLayoutState(taskId);
   const workflowSidebar = useTaskDetailWorkflowSidebar();
@@ -64,7 +63,6 @@ export function useTaskDetailViewState(taskId: string, debugModeEnabled: boolean
     toolDisclosureState,
     setToolDisclosureState,
     actionsMenuRef,
-    autoOpenedCanvasIdRef,
     latestArtifactEventIdRef,
     layout,
     workflowSidebar

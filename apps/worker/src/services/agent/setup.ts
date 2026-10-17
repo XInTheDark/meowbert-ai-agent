@@ -1,7 +1,7 @@
 import { prepareConversationOrganization, conversationOrganizationPrompt } from "./conversation-organization.js";
 import { buildSubagentPrompt } from "../subagents/prompt.js";
 import { buildProjectMasterPrompt } from "../project-master/prompt.js";
-import { getPersistentRuntimeEnabled } from "@meowbert/shared";
+import { getPersistentRuntimeEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
@@ -275,7 +275,8 @@ function buildRunSystemPrompt(input: {
       allowMemorySearch: input.prepared.runToolOptions.memorySearch === true,
       allowTaskHistoryTools: input.prepared.memoryEnabled || input.prepared.isProjectMaster === true,
       allowLiveSyncTools: input.prepared.liveSyncFiles.length > 0,
-      allowInteractiveCanvasTools: input.prepared.snapshot.task.is_thread !== true,
+      allowCanvasTools: input.prepared.snapshot.task.is_thread !== true
+        && input.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),
       taskFilesystemReadOnly: input.prepared.snapshot.task.is_thread,
       taskInputDir: input.taskInputDir,
       liveSyncFiles: input.prepared.liveSyncFiles,
@@ -324,9 +325,7 @@ function buildRunSystemPrompt(input: {
             name: interactiveCanvas.name,
             rootPath: interactiveCanvas.root_path,
             entryPath: interactiveCanvas.entry_path,
-            runtimeMode: interactiveCanvas.runtime_mode,
-            absolutePath: path.resolve(input.prepared.envRoot, interactiveCanvas.root_path),
-            intent: input.prepared.snapshot.task.interactive_canvas_intent
+            absolutePath: path.resolve(input.prepared.envRoot, interactiveCanvas.root_path)
           }
         : null
     }

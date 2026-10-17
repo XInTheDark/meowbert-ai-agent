@@ -45,7 +45,7 @@ export function buildDefaultTaskWorkflowComposerConfig(): TaskWorkflowComposerCo
 
 export function buildDefaultTaskToolOptions(defaults?: TaskInputDraftDefaults): TaskToolOptions {
   const defaultToolset = defaults?.defaultToolset;
-  return normalizeInteractiveCanvasToolOptions({
+  return normalizeCanvasToolOptions({
     webSearch: defaultToolset?.webSearch === true,
     memorySearch: defaults?.memorySearch === true,
     scheduleTask: defaultToolset?.scheduleTask === true,
@@ -86,18 +86,19 @@ function normalizeToolIdList(value: unknown): string[] {
   ));
 }
 
-function removeHtmlCanvasSkill(skillIds: string[]): string[] {
-  return skillIds.filter((skillId) => skillId !== HTML_CANVAS_SKILL_ID);
-}
-
-export function normalizeInteractiveCanvasToolOptions(options: TaskToolOptions): TaskToolOptions {
+// Interactive Canvas and the Canvas skill are one feature now; older drafts and workspace
+// defaults that turned on Interactive Canvas mean the Canvas skill.
+export function normalizeCanvasToolOptions(options: TaskToolOptions): TaskToolOptions {
   if (options.interactiveCanvas !== true) {
     return options;
   }
 
   return {
     ...options,
-    enabledSkills: removeHtmlCanvasSkill(options.enabledSkills)
+    interactiveCanvas: false,
+    enabledSkills: options.enabledSkills.includes(HTML_CANVAS_SKILL_ID)
+      ? options.enabledSkills
+      : [...options.enabledSkills, HTML_CANVAS_SKILL_ID]
   };
 }
 
@@ -178,7 +179,7 @@ function normalizeTaskAttachments(value: unknown): TaskAttachment[] {
 export function normalizeToolOptions(value: unknown, defaults?: TaskInputDraftDefaults): TaskToolOptions {
   const fallback = buildDefaultTaskToolOptions(defaults);
   if (!value || typeof value !== "object") {
-    return normalizeInteractiveCanvasToolOptions(fallback);
+    return normalizeCanvasToolOptions(fallback);
   }
 
   const candidate = value as {
@@ -191,7 +192,7 @@ export function normalizeToolOptions(value: unknown, defaults?: TaskInputDraftDe
     enabledSkills?: unknown;
     enabledSources?: unknown;
   };
-  return normalizeInteractiveCanvasToolOptions({
+  return normalizeCanvasToolOptions({
     webSearch: typeof candidate.webSearch === "boolean" ? candidate.webSearch : fallback.webSearch,
     memorySearch: typeof candidate.memorySearch === "boolean"
       ? candidate.memorySearch

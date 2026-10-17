@@ -164,13 +164,16 @@ export const markArtifactArgumentsSchema = z.object({
   remove: z.boolean().nullable().optional()
 });
 
-export const createInteractiveCanvasArgumentsSchema = z.object({
+export const createProjectCanvasArgumentsSchema = z.object({
   name: z.string().min(1).max(120),
-  entry_path: z.string().min(1).max(240).nullable().optional(),
-  runtime_mode: z.enum(["static", "dev_server"]).nullable().optional(),
-  dev_command: z.string().min(1).max(500).nullable().optional(),
-  dev_port: z.number().int().min(1).max(65535).nullable().optional(),
-  description: z.string().max(1000).nullable().optional()
+  entry_path: z.string().min(1).max(240).nullable().optional()
+}).strict();
+
+export const showCanvasArgumentsSchema = z.object({
+  path: z.string().min(1).max(1000),
+  title: z.string().max(200).nullable().optional(),
+  display: z.enum(["inline", "panel"]).nullable().optional(),
+  height: z.number().int().min(120).max(1600).nullable().optional()
 }).strict();
 
 export const taskTitleArgumentsSchema = z.object({

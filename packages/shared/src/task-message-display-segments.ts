@@ -160,7 +160,7 @@ export function getInlineArtifactIdentity(
     return `call:${normalizedCallId}`;
   }
 
-  return `artifact:${artifact.type}:${artifact.relativePath}`;
+  return `artifact:${artifact.type}:${artifact.canvasId ? `${artifact.canvasId}/` : ""}${artifact.relativePath}`;
 }
 
 export function buildInlineResponseArtifactIdentities(

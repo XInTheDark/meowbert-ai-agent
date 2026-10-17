@@ -29,7 +29,7 @@ export function ProjectCanvasOverviewTab(props: ProjectCanvasOverviewTabProps) {
           <div className="project-canvas-card-main">
             <strong>{canvas.name}</strong>
             <span className="muted-text">
-              {canvas.runtimeMode === "dev_server" ? "Dev server" : "Static"} · updated {formatRelative(canvas.updatedAt)}
+              Updated {formatRelative(canvas.updatedAt)}
             </span>
           </div>
           <div className="row-actions">

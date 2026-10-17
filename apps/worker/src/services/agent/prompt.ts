@@ -28,7 +28,7 @@ export interface SystemPromptRuntimeOptions {
   allowMemorySearch?: boolean;
   allowTaskHistoryTools?: boolean;
   allowLiveSyncTools?: boolean;
-  allowInteractiveCanvasTools?: boolean;
+  allowCanvasTools?: boolean;
   taskFilesystemReadOnly?: boolean;
   taskInputDir?: string;
   liveSyncFiles?: Array<{
@@ -92,9 +92,7 @@ export interface SystemPromptRuntimeOptions {
     name: string;
     rootPath: string;
     entryPath: string;
-    runtimeMode: "static" | "dev_server";
     absolutePath: string;
-    intent: "create" | "update" | "view" | null;
   } | null;
 }
 
@@ -155,48 +153,24 @@ function buildProjectContextSection(options: SystemPromptRuntimeOptions): string
   ].join("\n");
 }
 
-const CANVAS_DESIGN_GUIDE_NOTE = "- Before you build or substantially restyle the site, read `/app/skills/html-canvas/design-guide.md` in full and follow it.";
-
-function buildInteractiveCanvasSection(options: SystemPromptRuntimeOptions): string {
-  const canvas = options.interactiveCanvas;
-  if (!canvas) {
-    if (options.allowInteractiveCanvasTools !== true) {
-      return "";
-    }
-
-    return [
-      "## Interactive Canvas",
-      "",
-      "Interactive Canvas is available for this run, but no canvas exists yet.",
-      "",
-      "- Do not create canvas directories by hand.",
-      "- If the user's request should become a project-level interactive website/canvas, call `create_interactive_canvas` first.",
-      "- After the tool returns, write the real website files under the returned `canvas_dir` / `$CANVAS_DIR`.",
-      "- Do not create a default placeholder canvas. The first visible page should be the actual first version of the user's requested canvas.",
-      CANVAS_DESIGN_GUIDE_NOTE
-    ].join("\n");
+function buildCanvasSection(options: SystemPromptRuntimeOptions): string {
+  if (options.allowCanvasTools !== true) {
+    return "";
   }
 
+  const canvas = options.interactiveCanvas;
+  const placement = canvas
+    ? `This task is attached to the project canvas "${canvas.name}" in \`$CANVAS_DIR\` (\`${canvas.absolutePath}\`), entry \`${canvas.entryPath}\`. It is the main artifact here: edit its files in place.`
+    : "One-off visuals live in `$TASK_DIR`. When the user wants a site to keep in the project and keep improving, call `create_project_canvas` and build in the directory it returns.";
   return [
-    "## Interactive Canvas",
+    "## Canvas",
     "",
-    "This run is attached to a project-level Interactive Canvas. Treat it as the primary artifact for this task.",
+    "You can show the user web pages: write HTML with its CSS, scripts and assets beside it, then call `show_canvas` on the entry file. It opens the page where the user sees it, checks it in the same sandbox, and tells you about errors, failed requests or a blank render, so fix those before you reply. Read the Canvas skill doc before building something substantial.",
     "",
-    `- Canvas name: ${canvas.name}`,
-    `- Canvas id: ${canvas.id}`,
-    `- Intent: ${canvas.intent ?? "update"}`,
-    `- Runtime mode: ${canvas.runtimeMode}`,
-    `- Canvas directory: \`${canvas.absolutePath}\` (also available as \`$CANVAS_DIR\`)`,
-    `- Entry path: \`${canvas.entryPath}\` (also available as \`$CANVAS_ENTRY_PATH\`)`,
+    placement,
     "",
-    "Rules:",
-    "- Treat the canvas directory as the editable source of truth.",
-    "- Use `$CANVAS_DIR` for canvas files and `$ENV_ROOT` for wider project files.",
-    "- Do not put canvas source files under `$TASK_DIR`; `$TASK_DIR` is only for task-local scratch files and inputs.",
-    "- Create or update a real local website, not an inline artifact, unless the user explicitly asks for an export.",
-    "- Keep `canvas.json` current after meaningful edits, including the entry file, runtime mode, dev command, and dev port when applicable.",
-    "- If the page should trigger AI work, use `window.meowbert.run({ prompt, title })` from browser code instead of embedding credentials or calling private backend APIs directly.",
-    CANVAS_DESIGN_GUIDE_NOTE
+    "Pages are served as static files from a sandboxed frame, so there is no server side. Frameworks are fine when built to static HTML with relative paths (for example `vite build --base ./`, then show `dist/index.html`). A page can ask you for more work with `window.meowbert.run({ prompt })`.",
+    ""
   ].join("\n");
 }
 
@@ -548,7 +522,7 @@ export function buildSystemPrompt(
         ]
       : []),
     buildLiveSyncSection(options),
-    buildInteractiveCanvasSection(options),
+    buildCanvasSection(options),
     "## Tool Usage Notes",
     "",
     buildToolUsageNotes(options),

@@ -20,6 +20,8 @@ describe("inline-artifacts", () => {
     ).toEqual({
       type: "html",
       relativePath: "reports/summary.html",
+      canvasId: null,
+      display: "inline",
       title: "Summary",
       description: "Visual summary",
       width: 820,
@@ -32,6 +34,8 @@ describe("inline-artifacts", () => {
       serializeInlineArtifact({
         type: "html",
         relativePath: "reports/summary.html",
+        canvasId: null,
+        display: "inline",
         title: "Summary",
         description: null,
         width: 820,
@@ -44,6 +48,14 @@ describe("inline-artifacts", () => {
       width: 820,
       height: 540
     });
+  });
+
+  it("round-trips project canvas artifacts shown in the panel", () => {
+    const artifact = parseInlineArtifact({
+      inline_artifact: { type: "html", relative_path: "dist/index.html", canvas_id: "canvas-1", display: "panel" }
+    });
+    expect(artifact).toMatchObject({ canvasId: "canvas-1", display: "panel", relativePath: "dist/index.html" });
+    expect(parseInlineArtifact(serializeInlineArtifact(artifact!))).toEqual(artifact);
   });
 
   it("accepts image and mermaid artifacts", () => {

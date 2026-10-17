@@ -261,14 +261,12 @@ export async function getTaskSnapshot(taskId: string, branchMessageId?: string |
         slug: string;
         root_path: string;
         entry_path: string;
-        runtime_mode: "static" | "dev_server";
       }>(
         `SELECT id,
                 name,
                 slug,
                 root_path,
-                entry_path,
-                runtime_mode
+                entry_path
            FROM project_canvases
           WHERE id = $1
             AND workspace_id = $2

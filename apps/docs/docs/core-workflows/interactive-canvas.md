@@ -1,76 +1,49 @@
 ---
-title: Interactive Canvas
-summary: Build and refine persistent project websites with Meowbert.
+title: Canvas
+summary: See and use the pages, visuals, and sites Meowbert builds, inline or beside the chat.
 onboardingId: interactive-canvas
-checklistLabel: Interactive Canvas
+checklistLabel: Canvas
 ---
 
-# Interactive Canvas
+# Canvas
 
-Interactive Canvas is a project workspace for learning, experiments, visual tools, and other work that is easier to do in a live page than in a linear chat.
+Canvas lets Meowbert show you web pages instead of only describing them: charts, diagrams, calculators, interactive explanations, slide decks, dashboards, small apps, and whole sites.
 
-A canvas is a real website stored in your project. Meowbert edits its files, you preview the page directly, and the conversation stays available in a compact side panel.
+## Turn it on
 
-## When to use it
+Open **Tools** in the Task Composer and turn on **Canvas**. It is on by default in new workspaces. Then ask for what you want to see, for example:
 
-Use Interactive Canvas when you want Meowbert to build or refine something you can inspect and interact with:
+- "Chart these sales numbers and let me filter by region."
+- "Build an interactive explainer for how TCP handshakes work."
+- "Make a landing page for this product and keep it in the project."
 
-- a learning playground,
-- a simulation or visual explanation,
-- a small local app,
-- an experiment dashboard,
-- a design or UI prototype,
-- or any project-specific website that should persist across tasks.
+## Inline and beside the chat
 
-For one-off documents, slides, and rendered visual artifacts, the **Canvas** skill may still be a better fit. Interactive Canvas is for a project-level website you want to keep working on.
+Meowbert picks where each canvas appears:
 
-## Start a canvas
+- **Inline** — small visuals sit inside the reply, sized to their content and matched to your light or dark theme.
+- **Beside the chat** — pages, apps, decks, and sites open in a panel next to the conversation. The reply shows a card you can click to reopen it.
 
-1. Open a project.
-2. Click **New Task**.
-3. Open **Tools** and turn on **Interactive Canvas**.
-4. Describe what you want Meowbert to build.
-5. Send the task.
+Hover over an inline canvas to open it beside the chat, reload it, or open it in a new browser tab. The panel has buttons to preview at full, tablet, or phone width, reload, open the canvas files, and close. Drag its edge to resize it.
 
-Turning on Interactive Canvas does not create a blank canvas by itself. It gives Meowbert the canvas tool and the right project-level instructions. When Meowbert decides the task needs a canvas, it creates one, writes the real website files, and then the task opens in the canvas view.
+When Meowbert changes a canvas, open views reload on their own.
 
-## Canvas view
+## When something breaks
 
-The canvas view has two main areas:
+Meowbert opens every page before showing it to you and fixes the errors it finds. If a page still fails in your browser, the canvas says so instead of showing a blank box: you see the error, a **Retry** button, and a **Fix** button that sends the errors to Meowbert.
 
-- **Preview** — the live website fills the main page.
-- **Task sidebar** — the active or latest task for that canvas stays beside the preview.
+## Pages that ask Meowbert
 
-The top bar shows the canvas name, runtime mode, refresh control, file shortcut, and dev-server controls when the canvas uses a dev server.
+A canvas can include buttons that ask Meowbert for more work, such as **Check my answer** or **Explain this step**. When you click one, the canvas shows exactly what it wants to send, and nothing is sent until you press **Send**.
 
-On mobile, the preview and chat are separate tabs, with preview shown first.
+Canvases never receive your account credentials. They run in an isolated sandbox, and anything they save in the browser (such as progress or settings) stays with that canvas.
 
-## Continue an existing canvas
+## Project canvases
 
-From the Project Overview, use the **Canvases** section to open an existing canvas.
+Most canvases belong to the task that made them. When you want a site you keep coming back to, ask Meowbert to keep it in the project. It becomes a **project canvas**, stored in the project's `canvases/` folder, that later tasks keep improving.
 
-You can also open the attachment menu in a task or follow-up composer and choose **Canvases**. Selecting a canvas can attach it as context, and **Canvas mode** continues work against that canvas.
+Project canvases are listed under **Canvases** in the project. **Open** shows the canvas beside its latest task, and **Continue** starts a new task for it. You can also attach a canvas from the attachment menu in any composer.
 
-## Files and persistence
+## Frameworks
 
-Canvas files live in the project, not inside a single task run. That means future tasks can keep editing the same canvas.
-
-Each canvas has:
-
-- a source folder under the project,
-- an entry file, usually `index.html`,
-- and a `canvas.json` manifest with title, entry file, runtime mode, and dev-server settings when needed.
-
-Use the **Files** button in the canvas top bar to inspect or edit the canvas files directly.
-
-## Runtime modes
-
-Most canvases start in **Static** mode. Static mode is fast and works well for plain HTML, CSS, and JavaScript.
-
-If a canvas needs a local framework dev server, it can use **Dev server** mode. In that mode, Meowbert runs the configured development command for the canvas and the preview is proxied through Meowbert.
-
-## In-page Meowbert actions
-
-Canvas pages can include buttons that ask Meowbert to keep working. For example, a page might have a **Check my answer** button or an **Improve this view** action.
-
-Those actions do not receive backend credentials. They ask the parent Meowbert app to create a normal project task attached to the current canvas, so task history, billing, permissions, and follow-up behavior stay the same as any other task.
+Canvases are static web pages, so there is no server side. Meowbert can still use frameworks and npm packages: it builds them to plain HTML and shows the built page.

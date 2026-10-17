@@ -55,7 +55,7 @@ Automates web browsers using Playwright. Useful for tasks that need to interact 
 
 **ID:** `html-canvas`
 
-Creates browser-based visuals and custom page compositions in HTML/CSS/JS, then renders them locally with Playwright for preview and final export. Use it for HTML or interactive output and layouts that benefit from browser features. For ordinary documents, prefer Word; for new PDF-only reports, prefer Typst.
+Builds web pages, interactive visuals, small apps, HTML decks, and project sites, and shows them inline in the reply or beside the chat. Meowbert checks each page in a browser before showing it. Use it for HTML or interactive output and layouts that benefit from browser features. For ordinary documents, prefer Word; for new PDF-only reports, prefer Typst. See [Canvas](/core-workflows/interactive-canvas).
 
 **Example use cases:**
 - "Make a polished 16:9 HTML deck and export preview PNGs plus a PDF."
@@ -63,6 +63,8 @@ Creates browser-based visuals and custom page compositions in HTML/CSS/JS, then 
 - "Create a visual handout with custom CSS, then render it to PDF from the same source file."
 
 **Available tools include:**
+- Show a page inline or beside the chat, with a browser check for errors and blank renders.
+- Keep a site in the project as a project canvas.
 - Scaffold bundled starter templates for slide decks and report pages.
 - Render HTML into per-page or per-slide PNG previews.
 - Generate a `preview-index.html` contact view for quick scanning.
@@ -88,9 +90,9 @@ Improves teaching and explanatory responses by organizing them around what the l
 
 By default, the skill teaches one connected chunk at a time. When you explicitly ask for a full explanation, it gives a complete sequence from prerequisites and intuition through worked examples, misconceptions, and independent practice.
 
-When Canvas or Interactive Canvas is also available, Guided Learning favors focused diagrams, step-through visualizations, and small interactive experiments when they make the concept easier to understand.
+When Canvas is also available, Guided Learning favors focused diagrams, step-through visualizations, and small interactive experiments when they make the concept easier to understand.
 
-**How to enable:** Select **Guided Learning** in the Skills selector in the Task Composer wrench menu. Enable **Canvas** or **Interactive Canvas** as well when you want the agent to build a visual or hands-on teaching artifact.
+**How to enable:** Select **Guided Learning** in the Skills selector in the Task Composer wrench menu. Enable **Canvas** as well when you want the agent to build a visual or hands-on teaching artifact.
 
 ---
 

@@ -1,7 +1,7 @@
 {
   "id": "html-canvas",
   "name": "Canvas",
-  "description": "Create interactive visuals, HTML slide decks, and custom page compositions in HTML/CSS. Prefer Word for general documents and Typst for new PDF-only reports; use Canvas when browser output or layout needs call for it.",
+  "description": "Build web pages, interactive visuals, small apps, HTML slide decks and project sites, shown inline or beside the conversation. Prefer Word for general documents and Typst for new PDF-only reports; use Canvas when browser output or layout needs call for it.",
   "catalogGroup": "visuals",
   "mcp": {
     "transport": "stdio",

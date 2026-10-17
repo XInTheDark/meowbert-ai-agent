@@ -75,7 +75,7 @@ describe("TaskDetailArtifactsPane", () => {
     expect(onDownloadArtifact).toHaveBeenCalledWith("reports/summary.txt");
   });
 
-  it("shows an associated Interactive Canvas as a previewable artifact", async () => {
+  it("shows an associated project canvas as a previewable artifact", async () => {
     const canvas: ProjectCanvasSummary = {
       id: "canvas-1",
       workspaceId: "workspace-1",
@@ -84,8 +84,6 @@ describe("TaskDetailArtifactsPane", () => {
       slug: "quadratics-lab",
       rootPath: "canvases/quadratics-lab",
       entryPath: "index.html",
-      runtimeMode: "static",
-      devServer: {},
       lastTaskId: "task-1",
       createdAt: "2026-08-04T00:00:00.000Z",
       updatedAt: "2026-08-04T00:00:00.000Z"
@@ -112,12 +110,12 @@ describe("TaskDetailArtifactsPane", () => {
     });
 
     expect(container.textContent).toContain("Quadratics Lab");
-    expect(container.textContent).toContain("Interactive canvas");
+    expect(container.textContent).toContain("Canvas · index.html");
     expect(container.querySelector<HTMLIFrameElement>('iframe[title="Quadratics Lab preview"]')?.src).toContain("/canvas-preview");
 
     await act(async () => {
       Array.from(container?.querySelectorAll("button") ?? [])
-        .find((button) => button.textContent?.includes("Open canvas"))
+        .find((button) => button.textContent?.includes("Open beside chat"))
         ?.click();
     });
     expect(onOpenCanvas).toHaveBeenCalledWith("canvas-1");

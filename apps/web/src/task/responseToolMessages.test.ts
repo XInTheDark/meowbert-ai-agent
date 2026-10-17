@@ -162,6 +162,8 @@ describe("getResponseToolMessages", () => {
           inline_artifact: {
             type: "html",
             relativePath: "reports/summary.html",
+            canvasId: null,
+            display: "inline",
             title: "Summary report",
             description: "Rendered inline.",
             width: 760,

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createApiClient } from "../../lib/api";
 import { TaskConversationMessages } from "../../components/taskConversation/TaskConversationMessages";
+import { CanvasHostContext, type CanvasHost } from "../../components/canvas/CanvasHostContext";
+import { getCanvasViewKey } from "../../components/canvas/canvasViews";
 import { buildPublicTaskInlineFileUrl } from "../../lib/taskInlineFiles";
 import { Project, TaskDetail, Workspace } from "../../lib/types";
 import { badgeClass, formatDateTime, formatRelative, formatTaskTypeLabel } from "../../lib/utils";
@@ -15,6 +17,14 @@ export function PublicTaskPage(props: { token: string | null }) {
   const navigate = useNavigate();
   const api = useMemo(() => createApiClient(null), []);
   const authedApi = useMemo(() => createApiClient(props.token), [props.token]);
+  // Shared tasks show their own files read-only; project canvases stay private to the project.
+  const canvasHost = useMemo<CanvasHost>(() => ({
+    taskId: null,
+    resolveSource: (view) => view.canvasId || !shareId
+      ? null
+      : { src: buildPublicTaskInlineFileUrl(shareId, view.relativePath), srcKey: getCanvasViewKey(view) },
+    reloadTokenFor: () => 0
+  }), [shareId]);
 
   const [taskDetail, setTaskDetail] = useState<TaskDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -187,12 +197,14 @@ export function PublicTaskPage(props: { token: string | null }) {
               {taskDetail.messages.length === 0 ? (
                 <p className="empty-hint">No messages yet.</p>
               ) : (
-                <TaskConversationMessages
-                  messages={taskDetail.messages}
-                  buildInlineArtifactUrl={(relativePath) => (
-                    shareId ? buildPublicTaskInlineFileUrl(shareId, relativePath) : null
-                  )}
-                />
+                <CanvasHostContext.Provider value={canvasHost}>
+                  <TaskConversationMessages
+                    messages={taskDetail.messages}
+                    buildInlineArtifactUrl={(relativePath) => (
+                      shareId ? buildPublicTaskInlineFileUrl(shareId, relativePath) : null
+                    )}
+                  />
+                </CanvasHostContext.Provider>
               )}
             </div>
           </section>

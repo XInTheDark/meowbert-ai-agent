@@ -18,6 +18,7 @@ on:
       - "package.json"
       - "skills/**"
       - "packages/shared/src/path-containment.mjs"
+      - "packages/shared/src/canvas-frame-runtime.mjs"
 
 permissions:
   contents: read

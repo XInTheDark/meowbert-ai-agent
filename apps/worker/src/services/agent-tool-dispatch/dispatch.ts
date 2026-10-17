@@ -26,7 +26,8 @@ import {
   CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,
   CREATE_CHANNEL_TOOL_NAME,
-  CREATE_INTERACTIVE_CANVAS_TOOL_NAME,
+  CREATE_PROJECT_CANVAS_TOOL_NAME,
+  SHOW_CANVAS_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   ENABLE_SKILL_TOOL_NAME,
@@ -81,7 +82,8 @@ import { handleContextManagementTool } from "./handlers/context-management.js";
 import { handleContextManagementV2Tool, isContextManagementV2Tool } from "./handlers/context-management-v2.js";
 import { handleViewImage, handleViewPdf } from "./handlers/files.js";
 import { handleQueryTasks, handleViewTaskHistory, handleMemorySearch } from "./handlers/history.js";
-import { handleCreateInteractiveCanvas } from "./handlers/interactive-canvas.js";
+import { handleCreateProjectCanvas } from "./handlers/create-project-canvas.js";
+import { handleShowCanvas } from "./handlers/show-canvas.js";
 import {
   handleGetLiveSyncStatus,
   handleListLiveSyncFiles,
@@ -223,8 +225,11 @@ async function dispatchFunctionToolCall(
     case MARK_ARTIFACT_TOOL_NAME:
       return handleMarkArtifact(outputItem, ctx, state);
 
-    case CREATE_INTERACTIVE_CANVAS_TOOL_NAME:
-      return handleCreateInteractiveCanvas(outputItem, ctx, state);
+    case CREATE_PROJECT_CANVAS_TOOL_NAME:
+      return handleCreateProjectCanvas(outputItem, ctx, state);
+
+    case SHOW_CANVAS_TOOL_NAME:
+      return handleShowCanvas(outputItem, ctx, state);
 
     case INIT_SANDBOX_TOOL_NAME: {
       const result = await ctx.initializeSandbox?.();

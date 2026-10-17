@@ -13,7 +13,7 @@ import { ContextCheckpointDialog } from "./ContextCheckpointDialog";
 import { SelectedTextQuoteCard } from "./SelectedTextQuoteCard";
 import type { MessageSelectedTextQuote } from "./selectedTextQuoteUtils";
 import { splitSelectedTextMessage } from "./selectedTextQuoteUtils";
-import { InlineArtifactBubble } from "./InlineArtifactBubble";
+import { CanvasArtifactCard } from "../canvas/CanvasArtifactCard";
 import { ManagedTaskCard } from "./ManagedTaskCard";
 import {
   formatTokenCount,
@@ -430,8 +430,11 @@ function renderEntryItem(props: HistoricalConversationItemsProps, item: Conversa
       group={entry} groupKey={key} isComplete={isComplete} part={item.activityPart} />;
   }
   if (entry.kind === "artifact") {
-    return <InlineArtifactBubble key={entry.key} messageId={entry.key} artifact={entry.artifact}
-      src={props.buildInlineArtifactUrl?.(entry.artifact.relativePath) ?? null} />;
+    return (
+      <div key={entry.key} className="chat-bubble assistant canvas-artifact-entry" data-message-id={entry.key}>
+        <CanvasArtifactCard artifact={entry.artifact} />
+      </div>
+    );
   }
   if (entry.kind === "managed-task") {
     return <ManagedTaskCard key={entry.key} messageId={entry.key} card={entry.card} />;

@@ -36,7 +36,6 @@ import { ensureListmonkTemplatesSynced } from "./services/connectors/email/templ
 import { storageBackendRegistry } from "./services/storage/backend-registry.js";
 import { startApiSandboxCleanupLoop } from "./services/runtime/sandbox-cleanup.js";
 import { apiSandboxManager } from "./services/runtime/sandbox.js";
-import { startCanvasDevServerCleanupLoop } from "./services/canvases/canvas-dev-server.js";
 import { startTaskSearchSyncLoop } from "./services/task-search/sync.js";
 import { recordAuthenticatedUserSeen } from "./services/auth/user-activity.js";
 import { detachStaleSourceFolderMounts } from "./services/source-file-links/service.js";
@@ -392,7 +391,6 @@ async function buildServer() {
   const stopTelegramPolling = startTelegramPollingLoop(app.log);
   const stopDiscordGateway = startDiscordGatewayLoop(app.log);
   const sandboxCleanupLoop = startApiSandboxCleanupLoop();
-  const canvasDevServerCleanupLoop = startCanvasDevServerCleanupLoop();
   const taskSearchSyncLoop = startTaskSearchSyncLoop(app.log);
 
   await registerCoreServerPlugins(app);
@@ -403,7 +401,6 @@ async function buildServer() {
     stopTelegramPolling();
     stopDiscordGateway();
     await sandboxCleanupLoop.stop();
-    canvasDevServerCleanupLoop.stop();
     taskSearchSyncLoop.stop();
     await closeQueue();
     await redis.quit();

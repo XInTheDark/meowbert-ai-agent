@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { CanvasFrame } from "../../../components/canvas/CanvasFrame";
+import { getCanvasStorageKey } from "../../../components/canvas/canvasViews";
 import type { ProjectCanvasSummary } from "../../../lib/types";
 import {
   buildProjectCanvasPreviewUrl,
@@ -30,32 +32,21 @@ export function TaskCanvasArtifactPreview(props: TaskCanvasArtifactPreviewProps)
     setError(null);
     void fetchProjectCanvasPreviewTicket(projectId, props.canvas.id, token)
       .then((ticket) => {
-        if (cancelled) {
-          return;
-        }
-        setPreviewUrl(buildProjectCanvasPreviewUrl(
-          projectId,
-          props.canvas.id,
-          ticket.ticket,
-          props.canvas.runtimeMode === "static" ? props.canvas.entryPath : null
-        ));
+        if (!cancelled) setPreviewUrl(buildProjectCanvasPreviewUrl(projectId, props.canvas.id, ticket.ticket, props.canvas.entryPath));
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [props.canvas.entryPath, props.canvas.id, props.canvas.runtimeMode, props.projectId, props.token]);
+  }, [props.canvas.entryPath, props.canvas.id, props.projectId, props.token]);
 
   if (error) {
     return (
       <div className="empty-hint task-artifact-preview-message">
         <p>{error}</p>
-        <p className="muted-text">Open the canvas to manage its preview.</p>
       </div>
     );
   }
@@ -70,11 +61,12 @@ export function TaskCanvasArtifactPreview(props: TaskCanvasArtifactPreviewProps)
   }
 
   return (
-    <iframe
-      className="task-canvas-artifact-frame"
-      title={`${props.canvas.name} preview`}
+    <CanvasFrame
       src={previewUrl}
-      sandbox="allow-scripts allow-forms allow-modals allow-downloads"
+      srcKey={`canvas:${props.canvas.id}:${props.canvas.entryPath}`}
+      title={`${props.canvas.name} preview`}
+      storageKey={getCanvasStorageKey({ canvasId: props.canvas.id, relativePath: props.canvas.entryPath }, null)}
+      sizing={{ mode: "fill" }}
     />
   );
 }

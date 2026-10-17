@@ -5,7 +5,8 @@ export const SHELL_SESSION_TOOL_NAME = "shell_session";
 export const REFRESH_GH_TOKEN_TOOL_NAME = "refresh_gh_token";
 export const FINAL_RESPONSE_TOOL_NAME = "final_response";
 export const MARK_ARTIFACT_TOOL_NAME = "mark_artifact";
-export const CREATE_INTERACTIVE_CANVAS_TOOL_NAME = "create_interactive_canvas";
+export const CREATE_PROJECT_CANVAS_TOOL_NAME = "create_project_canvas";
+export const SHOW_CANVAS_TOOL_NAME = "show_canvas";
 export const TASK_TITLE_TOOL_NAME = "set_task_title";
 export const VIEW_IMAGE_TOOL_NAME = "view_image";
 export const VIEW_PDF_FILE_TOOL_NAME = "view_pdf_file";
@@ -100,7 +101,7 @@ export interface ResponseToolAvailability {
   // When the Master's tasks run on a model router, create_task lets the Master pick its target.
   projectMasterTaskRouter?: PlatformModelRouter | null;
   allowLiveSyncTools?: boolean;
-  allowInteractiveCanvasTools?: boolean;
+  allowCanvasTools?: boolean;
   allowStopTask?: boolean;
   allowWaitTool?: boolean;
   allowSwarmPauseTool?: boolean;

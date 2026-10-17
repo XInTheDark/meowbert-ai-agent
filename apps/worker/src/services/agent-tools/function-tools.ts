@@ -21,7 +21,8 @@ import {
   HISTORY_LIST_WINDOWS_TOOL_NAME,
   HISTORY_READ_ITEM_TOOL_NAME,
   HISTORY_SEARCH_CONTENTS_TOOL_NAME,
-  CREATE_INTERACTIVE_CANVAS_TOOL_NAME,
+  CREATE_PROJECT_CANVAS_TOOL_NAME,
+  SHOW_CANVAS_TOOL_NAME,
   CREATE_CHANNEL_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
@@ -559,9 +560,42 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   },
   {
     type: "function",
-    name: CREATE_INTERACTIVE_CANVAS_TOOL_NAME,
+    name: SHOW_CANVAS_TOOL_NAME,
     description:
-      "Create a project-level Interactive Canvas only when the user requested an interactive website/canvas surface. This creates canvases/<slug>/ in the project root, attaches this task to it, and returns the canvas directory for subsequent file edits.",
+      "Show an HTML page (or an image or Mermaid file) to the user and check it. HTML is loaded in a browser under the same sandbox the user's view uses, and the result reports script errors, failed requests, blank renders and a screenshot path. Call it again after edits; open views reload.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Entry file: absolute, or relative to the task directory. It may be inside the task directory or the project canvas directory."
+        },
+        title: {
+          type: ["string", "null"],
+          description: "Short title for the view."
+        },
+        display: {
+          type: ["string", "null"],
+          enum: ["inline", "panel", null],
+          description: "inline: a small visual inside the reply. panel: a page, app, deck or anything wide, opened beside the conversation. Defaults to inline."
+        },
+        height: {
+          type: ["integer", "null"],
+          minimum: 120,
+          maximum: 1600,
+          description: "Fixed inline height in pixels. Leave null to fit the content."
+        }
+      },
+      required: ["path", "title", "display", "height"],
+      additionalProperties: false
+    }
+  },
+  {
+    type: "function",
+    name: CREATE_PROJECT_CANVAS_TOOL_NAME,
+    description:
+      "Create a project canvas: a site kept in the project (canvases/<slug>/) that later tasks keep editing. Use it only when the user wants something to keep in the project; one-off visuals live in the task directory. Attaches this task to the canvas and returns its directory.",
     strict: true,
     parameters: {
       type: "object",
@@ -572,29 +606,10 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
         },
         entry_path: {
           type: ["string", "null"],
-          description: "Entry file relative to the canvas directory. Use index.html for static canvases unless another entry is needed."
-        },
-        runtime_mode: {
-          type: ["string", "null"],
-          enum: ["static", "dev_server", null],
-          description: "Use static by default. Use dev_server only for a full local app that needs a dev server."
-        },
-        dev_command: {
-          type: ["string", "null"],
-          description: "Command to start the dev server from the canvas directory when runtime_mode is dev_server."
-        },
-        dev_port: {
-          type: ["number", "null"],
-          minimum: 1,
-          maximum: 65535,
-          description: "Canvas dev-server port when runtime_mode is dev_server."
-        },
-        description: {
-          type: ["string", "null"],
-          description: "Optional short description for canvas.json."
+          description: "Entry HTML relative to the canvas directory, such as index.html or dist/index.html. Defaults to index.html; show_canvas updates it."
         }
       },
-      required: ["name", "entry_path", "runtime_mode", "dev_command", "dev_port", "description"],
+      required: ["name", "entry_path"],
       additionalProperties: false
     }
   },

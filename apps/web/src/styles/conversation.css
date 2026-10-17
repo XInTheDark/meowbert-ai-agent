@@ -1505,22 +1505,6 @@
   border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
 }
 
-.chat-bubble.assistant.inline-artifact-bubble .bubble-content {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface) 92%, transparent),
-      color-mix(in srgb, var(--surface-soft) 96%, transparent)
-    ),
-    var(--surface);
-  color: var(--text);
-  padding: 1.15rem;
-  border-radius: 1.1rem;
-  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-  box-shadow:
-    0 18px 42px color-mix(in srgb, var(--bg) 10%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
-}
 .tool-group {
   width: 100%;
   margin: 0.28rem 0;

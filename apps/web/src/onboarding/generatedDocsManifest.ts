@@ -39,9 +39,9 @@ export const onboardingDocsManifest: Record<string, OnboardingDocsEntry> = {
   },
   "interactive-canvas": {
     id: "interactive-canvas",
-    title: "Interactive Canvas",
-    summary: "Build and refine persistent project websites with Meowbert.",
-    checklistLabel: "Interactive Canvas",
+    title: "Canvas",
+    summary: "See and use the pages, visuals, and sites Meowbert builds, inline or beside the chat.",
+    checklistLabel: "Canvas",
     docsPath: "/core-workflows/interactive-canvas"
   },
   "notifications": {

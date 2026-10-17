@@ -16,6 +16,7 @@ import "./styles/projects.css";
 import "./styles/project-master.css";
 import "./styles/secondary.css";
 import "./styles/conversation.css";
+import "./styles/canvas.css";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

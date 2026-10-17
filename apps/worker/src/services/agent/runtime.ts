@@ -74,7 +74,7 @@ import type { OpenAiProviderConfig } from "./openai-client.js";
 import { resolveChatGptProvider } from "./chatgpt-auth.js";
 import type { ToolDispatchState } from "../agent-tool-dispatch/index.js";
 import type { TaskMessageToolOptions } from "./types.js";
-import { isSkillEnabledByConfig } from "@meowbert/shared";
+import { isSkillEnabledByConfig, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
 import { startTaskCancellationMonitor, type TaskCancellationMonitor } from "./cancellation.js";
 import { ensureTaskWorkspace } from "../runtime/shell.js";
 import { resolveModelRouterSelection } from "../model-routing/router-resolution.js";
@@ -620,6 +620,11 @@ function resolveRunToolOptions(snapshot: TaskSnapshot, job: TaskExecutionJob, me
 
   if (job.mode === "scheduled_auto" || job.mode === "infinite_auto") {
     runToolOptions.scheduleTask = false;
+  }
+  // Canvas is one feature: the old Interactive Canvas option and an attached canvas both mean the Canvas skill.
+  const wantsCanvas = runToolOptions.interactiveCanvas === true || snapshot.interactive_canvas !== null;
+  if (wantsCanvas && !runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID)) {
+    runToolOptions.enabledSkills = [...runToolOptions.enabledSkills, CANVAS_SKILL_ID];
   }
 
   return runToolOptions;

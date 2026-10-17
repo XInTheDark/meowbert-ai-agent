@@ -32,7 +32,8 @@ import {
   HISTORY_READ_ITEM_TOOL_NAME,
   HISTORY_SEARCH_CONTENTS_TOOL_NAME,
   CREATE_CHANNEL_TOOL_NAME,
-  CREATE_INTERACTIVE_CANVAS_TOOL_NAME,
+  CREATE_PROJECT_CANVAS_TOOL_NAME,
+  SHOW_CANVAS_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
@@ -210,8 +211,8 @@ function isToolEnabled(
     return availability.allowLiveSyncTools === true;
   }
 
-  if (tool.name === CREATE_INTERACTIVE_CANVAS_TOOL_NAME) {
-    return availability.allowInteractiveCanvasTools === true;
+  if (tool.name === CREATE_PROJECT_CANVAS_TOOL_NAME || tool.name === SHOW_CANVAS_TOOL_NAME) {
+    return availability.allowCanvasTools === true;
   }
 
   if (tool.name === SCHEDULE_TASK_TOOL_NAME || tool.name === EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME) {

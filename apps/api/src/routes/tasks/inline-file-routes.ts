@@ -1,11 +1,9 @@
-import fs from "node:fs";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { issueScopedAccessTicket, verifyScopedAccessTicket } from "../../services/auth/scoped-access-tickets.js";
-import { getFileContentType } from "../../services/files/file-content-type.js";
 import { resolvePublicTaskInlineFile, resolveTaskInlineFile } from "../../services/tasks/task-inline-files.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
-import { applyUntrustedContentHeaders } from "../files/untrusted-content-headers.js";
+import { sendCanvasFile } from "../files/canvas-file-response.js";
 
 const taskIdParams = z.object({ taskId: z.string().uuid() });
 const publicTaskShareParams = z.object({ shareId: z.string().uuid() });
@@ -86,12 +84,8 @@ export async function registerTaskInlineFileRoutes(fastify: FastifyInstance): Pr
     async (request, reply) => {
       const params = parseTaskInlineFileRequestParams(request.params);
       const file = await resolveTaskInlineFile(params.taskId, params.requestedPath);
-
-      reply.header("Content-Type", getFileContentType(file.absolutePath));
-      reply.header("Content-Length", String(file.sizeBytes));
-      reply.header("Cache-Control", "private, max-age=60");
-      applyUntrustedContentHeaders(reply);
-      return reply.send(fs.createReadStream(file.absolutePath));
+      // Agents rewrite a canvas in place; a cached copy would hide the update from the live reload.
+      return sendCanvasFile(reply, file, "private, no-cache");
     }
   );
 
@@ -100,12 +94,7 @@ export async function registerTaskInlineFileRoutes(fastify: FastifyInstance): Pr
     async (request, reply) => {
       const params = publicTaskInlineFileParams.parse(request.params);
       const file = await resolvePublicTaskInlineFile(params.shareId, params["*"]);
-
-      reply.header("Content-Type", getFileContentType(file.absolutePath));
-      reply.header("Content-Length", String(file.sizeBytes));
-      reply.header("Cache-Control", "public, max-age=60");
-      applyUntrustedContentHeaders(reply);
-      return reply.send(fs.createReadStream(file.absolutePath));
+      return sendCanvasFile(reply, file, "public, max-age=60");
     }
   );
 }

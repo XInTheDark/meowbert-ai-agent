@@ -1,7 +1,7 @@
 import { appendSubagentInbox } from "../subagents/inbox.js";
 import { appendProjectMasterInbox } from "../project-master/inbox.js";
 import { getVisiblePlatformAgentPresets, parseModelResponseUsage, resolveCodeModeForModel } from "@meowbert/shared";
-import { getPersistentRuntimeEnabled, getSandboxNetworkEnabled } from "@meowbert/shared";
+import { getPersistentRuntimeEnabled, getSandboxNetworkEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
 import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
 import { emitTaskEvent } from "../runtime/events.js";
 import { appendMessage } from "../agent-db/index.js";
@@ -565,7 +565,8 @@ async function requestModelTurn(input: {
       allowProjectMasterTools: execution.prepared.isProjectMaster === true,
       projectMasterTaskRouter: execution.prepared.projectMasterTaskAgent?.router ?? null,
       allowLiveSyncTools: execution.prepared.liveSyncFiles.length > 0,
-      allowInteractiveCanvasTools: execution.prepared.snapshot.task.is_thread !== true,
+      allowCanvasTools: execution.prepared.snapshot.task.is_thread !== true
+        && execution.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),
       allowComputerLocalShell: input.allowComputerLocalShell,
       allowComputerVisualTools: input.allowComputerVisualTools,
       allowRefreshGitHubToken: execution.prepared.hasGitHubAppConnection,

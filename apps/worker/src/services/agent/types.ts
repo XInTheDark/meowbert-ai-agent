@@ -84,7 +84,6 @@ export interface TaskInteractiveCanvas {
   slug: string;
   root_path: string;
   entry_path: string;
-  runtime_mode: "static" | "dev_server";
 }
 
 export interface TaskSnapshot {

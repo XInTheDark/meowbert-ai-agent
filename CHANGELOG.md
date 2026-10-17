@@ -1,5 +1,23 @@
 # Changelog
 
+## Oct 18, 2026
+
+### Canvas
+
+- **One Canvas** — Interactive Canvas and the Canvas skill are now one feature, turned on with **Canvas** in **Tools**. Tasks and workspace defaults that used Interactive Canvas switch over on their own. See **Canvas** in the docs.
+- **No more blank boxes** — Canvases that save progress, use forms, or load scripts as modules now work in the app instead of showing a white screen. When a page does fail, the canvas shows the error with **Retry** and a **Fix** button that sends the errors to Meowbert.
+- **Checked before you see it** — Meowbert opens every page it shows you in a browser under the same conditions as your view, and fixes errors, missing files, and blank pages before replying.
+- **Inline or beside the chat** — Small visuals sit inside the reply, sized to their content and matched to your light or dark theme. Pages, apps, and decks open in a resizable panel next to the conversation, with full, tablet, and phone widths. Open views reload when Meowbert changes them.
+- **Project canvases open with their task** — Opening a project canvas shows it beside its latest task, with the full conversation, instead of a separate page with its own chat. Tasks no longer jump away to the canvas while Meowbert is still building it.
+- **Safer page buttons** — When a canvas asks Meowbert for more work, it shows exactly what it wants to send, and nothing is sent until you click **Send**.
+- **Frameworks build to static pages** — Canvases no longer run dev servers. Meowbert builds framework projects to plain HTML and shows the built page.
+
+### Self-hosting
+
+- **Canvas migration** — Run `npm run migrate`. It removes the dev-server settings from project canvases, which are now always served as static files. A canvas that relied on a dev server needs a build: ask Meowbert to build it and show the result.
+- **Republish the sandbox image** — The sandbox runtime image now includes the canvas page runtime that Meowbert's page check uses. The **Publish Sandbox Runtime** workflow runs on `main` for this change; if you pin `MEOWBERT_SANDBOX_RUNTIME_IMAGE`, update it.
+- **Leftover dev-server containers are removed** — The API's sandbox cleanup now stops any canvas dev-server containers left from earlier versions.
+
 ## Oct 17, 2026
 
 ### AI and agents

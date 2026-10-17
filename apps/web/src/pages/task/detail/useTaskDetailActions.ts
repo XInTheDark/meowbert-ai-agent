@@ -169,6 +169,36 @@ function useTaskFollowUpAction(
 ) {
   const [isBusy, setIsBusy] = useState(false);
 
+  async function submitFollowUp(request: { message: string; attachments: UseTaskDetailActionsInput["attachments"]; editingMessageId: string | null }) {
+    if (!input.taskId || !input.taskDetail) throw new Error("Task is not loaded.");
+    if (["running", "starting", "queued"].includes(input.taskDetail.task.status)) {
+      await requestInterruptAndMarkTask();
+    }
+    const response = await sendTaskFollowUp({
+      api: input.api,
+      taskId: input.taskId,
+      followUp: request.message,
+      attachments: request.attachments,
+      editingMessageId: request.editingMessageId,
+      toolOptions: input.toolOptions,
+      workspaceMemoryEnabled: input.workspaceMemoryEnabled,
+      allowComputerUse: input.capabilities.isDesktop,
+      selectedAgentId: input.selectedAgentId,
+      masterTaskAgent: input.taskDetail.task.is_project_master ? { id: input.selectedMasterTaskAgentId } : null,
+      interactiveCanvasId: input.taskDetail.task.interactive_canvas_id ?? input.selectedFollowUpCanvas?.id ?? null,
+      interactiveCanvasIntent: input.taskDetail.task.interactive_canvas_id || input.selectedFollowUpCanvas ? "update" : null
+    });
+    input.invalidateCurrentTaskCache();
+    if (typeof response.activeLeafMessageId === "string") input.setActiveLeafMessageId(response.activeLeafMessageId);
+    if (response.mode === "interrupting") {
+      input.setTaskDetail((current) => current ? {
+        ...current,
+        task: { ...current.task, cancellation_requested: true, resume_after_interrupt: true }
+      } : current);
+    }
+    return response;
+  }
+
   async function handleSendFollowUp(): Promise<void> {
     const message = input.quotedFollowUpSelections.length > 0
       ? buildSelectedTextMessage(input.quotedFollowUpSelections, input.followUp)
@@ -187,24 +217,7 @@ function useTaskFollowUpAction(
       input.setQuotedFollowUpSelections([]);
     }
     try {
-      if (["running", "starting", "queued"].includes(input.taskDetail.task.status)) {
-        await requestInterruptAndMarkTask();
-      }
-      const response = await sendTaskFollowUp({
-        api: input.api,
-        taskId: input.taskId,
-        followUp: message,
-        attachments: input.attachments,
-        editingMessageId: input.editingMessageId,
-        toolOptions: input.toolOptions,
-        workspaceMemoryEnabled: input.workspaceMemoryEnabled,
-        allowComputerUse: input.capabilities.isDesktop,
-        selectedAgentId: input.selectedAgentId,
-        masterTaskAgent: input.taskDetail.task.is_project_master ? { id: input.selectedMasterTaskAgentId } : null,
-        interactiveCanvasId: input.taskDetail.task.interactive_canvas_id ?? input.selectedFollowUpCanvas?.id ?? null,
-        interactiveCanvasIntent: input.taskDetail.task.interactive_canvas_id || input.selectedFollowUpCanvas ? "update" : null
-      });
-      input.invalidateCurrentTaskCache();
+      const response = await submitFollowUp({ message, attachments: input.attachments, editingMessageId: input.editingMessageId });
       if (sendsOptimistically) {
         input.pendingFollowUp.confirm(response.messageId ?? null);
       } else {
@@ -217,13 +230,6 @@ function useTaskFollowUpAction(
       input.setSelectedFollowUpCanvas(null);
       input.clearCurrentConversationDraft();
       input.setEditingMessageId(null);
-      if (typeof response.activeLeafMessageId === "string") input.setActiveLeafMessageId(response.activeLeafMessageId);
-      if (response.mode === "interrupting") {
-        input.setTaskDetail((current) => current ? {
-          ...current,
-          task: { ...current.task, cancellation_requested: true, resume_after_interrupt: true }
-        } : current);
-      }
       await input.loadTask();
     } catch (error) {
       if (sendsOptimistically) {
@@ -237,7 +243,25 @@ function useTaskFollowUpAction(
     }
   }
 
-  return { isBusy, handleSendFollowUp };
+  // Sends a message the user confirmed from a canvas, leaving their composer draft alone.
+  async function handleSendPrompt(message: string): Promise<void> {
+    if (!message.trim() || !input.taskId || !input.taskDetail || isBusy) return;
+    setIsBusy(true);
+    input.setError(null);
+    input.pendingFollowUp.begin(message);
+    try {
+      const response = await submitFollowUp({ message, attachments: [], editingMessageId: null });
+      input.pendingFollowUp.confirm(response.messageId ?? null);
+      await input.loadTask();
+    } catch (error) {
+      input.pendingFollowUp.clear();
+      input.setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  return { isBusy, handleSendFollowUp, handleSendPrompt };
 }
 
 function useTaskParameterAction(input: UseTaskDetailActionsInput) {

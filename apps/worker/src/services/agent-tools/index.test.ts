@@ -9,7 +9,8 @@ import {
   CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,
   CREATE_CHANNEL_TOOL_NAME,
-  CREATE_INTERACTIVE_CANVAS_TOOL_NAME,
+  CREATE_PROJECT_CANVAS_TOOL_NAME,
+  SHOW_CANVAS_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
@@ -511,7 +512,7 @@ describe("buildResponseTools", () => {
     expect(enabled.filter((tool) => tool.type === "function" && taskHistoryToolNames.includes(tool.name))).toHaveLength(2);
   });
 
-  it("exposes create_interactive_canvas whenever project canvas tools are available", () => {
+  it("exposes the canvas tools only when canvas tools are allowed", () => {
     const tools = buildResponseTools(
       {
         webSearch: false,
@@ -524,10 +525,16 @@ describe("buildResponseTools", () => {
         enabledSources: []
       },
       [],
-      { allowInteractiveCanvasTools: true }
+      { allowCanvasTools: true }
     );
+    const canvasToolNames = [SHOW_CANVAS_TOOL_NAME, CREATE_PROJECT_CANVAS_TOOL_NAME];
 
-    expect(tools.some((tool) => tool.type === "function" && tool.name === CREATE_INTERACTIVE_CANVAS_TOOL_NAME)).toBe(true);
+    expect(tools.filter((tool) => tool.type === "function" && canvasToolNames.includes(tool.name))).toHaveLength(2);
+    const withoutCanvas = buildResponseTools({
+      webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false, computerUse: false,
+      interactiveCanvas: false, enabledSkills: [], enabledSources: []
+    }, [], {});
+    expect(withoutCanvas.some((tool) => tool.type === "function" && canvasToolNames.includes(tool.name))).toBe(false);
   });
 
   it("only exposes live sync tools when availability enables them", () => {

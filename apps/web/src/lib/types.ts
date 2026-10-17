@@ -13,7 +13,6 @@ export type ShellConnectionState = "disconnected" | "connecting" | "connected" |
 export type TaskType = "standard" | "scheduled" | "infinite" | "timed" | "long_horizon" | "agent_swarm";
 export type TaskWorkflowType = "long_horizon" | "agent_swarm";
 export type TaskWorkflowComposerType = "standard" | TaskWorkflowType | "deep_research" | "quality_control";
-export type ProjectCanvasRuntimeMode = "static" | "dev_server";
 export type ProjectCanvasIntent = "create" | "update" | "view";
 
 export interface FlashMessage {
@@ -278,8 +277,6 @@ export interface ProjectCanvasSummary {
   slug: string;
   rootPath: string;
   entryPath: string;
-  runtimeMode: ProjectCanvasRuntimeMode;
-  devServer: Record<string, unknown>;
   lastTaskId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -296,15 +293,6 @@ export interface ProjectCanvasResponse {
 export interface ProjectCanvasPreviewTicketResponse {
   ticket: string;
   expiresAt: string;
-}
-
-export interface ProjectCanvasDevServerStatus {
-  status: "stopped" | "running";
-  canvasId: string;
-  command: string | null;
-  port: number | null;
-  startedAt: string | null;
-  lastActiveAt: string | null;
 }
 
 export interface PersistentShellSessionSummary {

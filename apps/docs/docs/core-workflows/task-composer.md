@@ -98,7 +98,7 @@ Incognito chats behave like normal standard tasks while they are open, but they 
 - They are automatically deleted after 24 hours.
 - You can delete them permanently from the Task Detail toolbar.
 
-Incognito chat is available for standard tasks. It is not used for scheduled tasks, Long Horizon, Deep Research, Quality control, Agent Swarm, or Interactive Canvas tasks.
+Incognito chat is available for standard tasks. It is not used for scheduled tasks, Long Horizon, Deep Research, Quality control, Agent Swarm, or tasks attached to a project canvas.
 
 ## Attaching files
 
@@ -162,15 +162,11 @@ Workspace owners connect sources from **Connectors → Sources**. Server admins 
 
 See [Tool Options Reference](/reference/tool-options) for details on each option and [Skills](/reference/skills) for the available skill packs.
 
-## Interactive Canvas tool
+## Canvas
 
-Turn on **Interactive Canvas** when the task should create or update a live project website instead of only replying in chat.
+Turn on **Canvas** in **Tools** when you want Meowbert to show you pages and visuals, inline in its reply or beside the chat. To keep working on a project canvas, attach it from the attachment menu; those tasks do not run in Quick mode.
 
-When enabled, Meowbert gets the Interactive Canvas tool and canvas-specific instructions. A new canvas is created only if Meowbert explicitly uses that tool during the task. Existing canvases can still be selected from the attachment menu when you want to continue one directly.
-
-Interactive Canvas tasks use the project filesystem and do not run in Quick mode.
-
-See [Interactive Canvas](/core-workflows/interactive-canvas) for how to open, continue, and interact with canvases.
+See [Canvas](/core-workflows/interactive-canvas) for how canvases appear and how to keep one in the project.
 
 ## Submitting the task
 

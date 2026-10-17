@@ -1,6 +1,5 @@
 import type { ManagedSandboxContainerSummary } from "@meowbert/shared/docker-sandbox";
 import { apiSandboxManager } from "./sandbox.js";
-import { listActiveCanvasSandboxSessionIds } from "../canvases/canvas-dev-server.js";
 
 const SANDBOX_CLEANUP_INTERVAL_MS = 60_000;
 
@@ -16,29 +15,14 @@ function isSessionOnlyShellContainer(container: ManagedSandboxContainerSummary):
     && !container.runId;
 }
 
-function shouldRemoveApiSandbox(input: {
-  container: ManagedSandboxContainerSummary;
-  currentParentContainerId: string | null;
-  activeCanvasSessionIds: Set<string>;
-}): boolean {
-  const { container, currentParentContainerId, activeCanvasSessionIds } = input;
-  if (!currentParentContainerId || container.parentContainerId !== currentParentContainerId) {
+// The API no longer keeps session-only shells alive (retired terminals and canvas dev servers),
+// so any it still owns are orphans.
+function shouldRemoveApiSandbox(container: ManagedSandboxContainerSummary, currentParentContainerId: string): boolean {
+  if (container.parentContainerId !== currentParentContainerId) {
     return false;
   }
 
-  if (container.state !== "running") {
-    return true;
-  }
-
-  if (!isSessionOnlyShellContainer(container)) {
-    return false;
-  }
-
-  if (!container.sessionId) {
-    return true;
-  }
-
-  return !activeCanvasSessionIds.has(container.sessionId);
+  return container.state !== "running" || isSessionOnlyShellContainer(container);
 }
 
 export async function cleanupApiSandboxOrphansOnce(
@@ -50,12 +34,7 @@ export async function cleanupApiSandboxOrphansOnce(
   }
 
   const containers = await manager.listManagedContainers();
-  const activeCanvasSessionIds = new Set(listActiveCanvasSandboxSessionIds());
-  const containersToRemove = containers.filter((container) => shouldRemoveApiSandbox({
-    container,
-    currentParentContainerId,
-    activeCanvasSessionIds
-  }));
+  const containersToRemove = containers.filter((container) => shouldRemoveApiSandbox(container, currentParentContainerId));
 
   for (const container of containersToRemove) {
     await manager.stopAndRemoveContainer(container.containerId);

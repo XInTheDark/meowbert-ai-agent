@@ -93,7 +93,7 @@ export function CanvasPickerModal(props: CanvasPickerModalProps) {
               </div>
               <div className="canvas-picker-main">
                 <strong>{canvas.name}</strong>
-                <span className="muted-text">{canvas.runtimeMode === "dev_server" ? "Dev server" : "Static"} · updated {formatRelative(canvas.updatedAt)}</span>
+                <span className="muted-text">Updated {formatRelative(canvas.updatedAt)}</span>
               </div>
               <div className="row-actions">
                 <button

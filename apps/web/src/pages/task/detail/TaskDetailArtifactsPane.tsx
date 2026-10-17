@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, ExternalLink, File, Loader2, Palette } from "lucide-react";
+import { Download, File, Loader2, Palette, PanelRight } from "lucide-react";
 import { FilePreviewBody } from "../../../components/files/FilePreviewBody";
 import type { ApiClient } from "../../../lib/api";
 import type { EnvironmentFileEntry, ProjectCanvasSummary, TaskArtifact } from "../../../lib/types";
@@ -50,7 +50,7 @@ function TaskArtifactList(props: {
         const isCanvas = entry.kind === "canvas";
         const title = isCanvas ? entry.canvas.name : getArtifactName(entry.artifact.relative_path);
         const detail = isCanvas
-          ? `Interactive canvas · ${entry.canvas.runtimeMode === "dev_server" ? "Dev server" : "Static"}`
+          ? `Canvas · ${entry.canvas.entryPath}`
           : entry.artifact.relative_path;
         return (
           <button
@@ -134,7 +134,7 @@ export function TaskDetailArtifactsPane(props: TaskDetailArtifactsPaneProps) {
           <div className="task-artifact-preview-title">
             <strong>{selectedCanvas?.name ?? selectedEntry?.name}</strong>
             <span className="muted-text">
-              {selectedCanvas ? "Interactive canvas" : selectedArtifact?.relative_path}
+              {selectedCanvas ? `Canvas · ${selectedCanvas.entryPath}` : selectedArtifact?.relative_path}
             </span>
           </div>
           {selectedCanvas ? (
@@ -143,8 +143,8 @@ export function TaskDetailArtifactsPane(props: TaskDetailArtifactsPaneProps) {
               className="btn ghost"
               onClick={() => props.onOpenCanvas(selectedCanvas.id)}
             >
-              <ExternalLink size={15} />
-              Open canvas
+              <PanelRight size={15} />
+              Open beside chat
             </button>
           ) : selectedArtifact ? (
             <button

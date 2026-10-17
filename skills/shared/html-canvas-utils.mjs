@@ -1,11 +1,10 @@
-import { isWithinPath } from "../../packages/shared/src/path-containment.mjs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 import { PDFDocument } from "pdf-lib";
 import { ensurePlaywrightBrowserInstalled } from "./playwright-browser-utils.mjs";
-import { resolveTaskPathBaseDir, resolveTaskScopedUserPath } from "./task-path-utils.mjs";
+import { resolveTaskScopedUserPath } from "./task-path-utils.mjs";
 
 export const HTML_CANVAS_PAGE_SELECTOR = "[data-meowbert-page]";
 
@@ -640,76 +639,6 @@ export async function scaffoldHtmlCanvasTemplate({
     template,
     output_path: absoluteOutputPath,
     companion_paths: companionPaths
-  };
-}
-
-export async function createInlineHtmlArtifact({
-  html,
-  outputPath,
-  title = null,
-  description = null,
-  width = null,
-  height = null
-}) {
-  const absoluteOutputPath = resolveUserPath(outputPath);
-  const taskRootPath = resolveTaskPathBaseDir();
-  const relativePath = path.relative(taskRootPath, absoluteOutputPath);
-  if (!isWithinPath(taskRootPath, absoluteOutputPath)) {
-    throw new Error("Inline artifact output_path must stay inside the current task directory.");
-  }
-
-  await fs.mkdir(path.dirname(absoluteOutputPath), { recursive: true });
-  await fs.writeFile(absoluteOutputPath, html, "utf-8");
-
-  return {
-    ok: true,
-    output_path: absoluteOutputPath,
-    inline_artifact: {
-      type: "html",
-      relative_path: relativePath.split(path.sep).join("/"),
-      title,
-      description,
-      width,
-      height
-    }
-  };
-}
-
-export async function createInlineFileArtifact({
-  inputPath,
-  type,
-  title = null,
-  description = null,
-  width = null,
-  height = null
-}) {
-  if (!["html", "image", "mermaid"].includes(type)) {
-    throw new Error("Inline file artifact type must be html, image, or mermaid.");
-  }
-
-  const absoluteInputPath = resolveUserPath(inputPath);
-  const taskRootPath = resolveTaskPathBaseDir();
-  const relativePath = path.relative(taskRootPath, absoluteInputPath);
-  if (!isWithinPath(taskRootPath, absoluteInputPath)) {
-    throw new Error("Inline artifact input_path must stay inside the current task directory.");
-  }
-
-  const stat = await fs.stat(absoluteInputPath);
-  if (!stat.isFile()) {
-    throw new Error("Inline artifact input_path must point to a file.");
-  }
-
-  return {
-    ok: true,
-    input_path: absoluteInputPath,
-    inline_artifact: {
-      type,
-      relative_path: relativePath.split(path.sep).join("/"),
-      title,
-      description,
-      width,
-      height
-    }
   };
 }
 

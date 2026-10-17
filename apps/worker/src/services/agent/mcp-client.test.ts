@@ -232,9 +232,7 @@ describe("skill MCP servers", () => {
     }
   });
 
-
-
-  it("resolves HTML canvas inline artifact paths from the task directory runtime env", async () => {
+  it("resolves HTML canvas output paths from the task directory runtime env", async () => {
     const { manifest, skillDir } = await readSkillManifest("html-canvas");
     const sandbox = createLocalProcessSandbox();
     const taskDir = await fs.mkdtemp(path.join(os.tmpdir(), "meowbert-html-canvas-task-"));
@@ -246,28 +244,14 @@ describe("skill MCP servers", () => {
     });
 
     try {
-      const output = JSON.parse(await callMcpTool(connection, "html_canvas_inline_artifact", {
-        html: "<!doctype html><html><body><h1>Inline test</h1></body></html>",
-        output_path: "inline-test.html",
-        title: "Inline test",
-        width: 760,
-        height: 480
-      })) as {
-        ok: boolean;
-        output_path: string;
-        inline_artifact: {
-          relative_path: string;
-          width?: number;
-          height?: number;
-        };
-      };
+      const output = JSON.parse(await callMcpTool(connection, "html_canvas_scaffold", {
+        template: "slide-deck",
+        output_path: "deck/pitch.html",
+        title: "Pitch"
+      })) as { output_path: string };
 
-      expect(output.ok).toBe(true);
-      expect(output.output_path).toBe(path.join(taskDir, "inline-test.html"));
-      expect(output.inline_artifact.relative_path).toBe("inline-test.html");
-      expect(output.inline_artifact.width).toBe(760);
-      expect(output.inline_artifact.height).toBe(480);
-      await expect(fs.readFile(output.output_path, "utf8")).resolves.toContain("Inline test");
+      expect(output.output_path).toBe(path.join(taskDir, "deck", "pitch.html"));
+      await expect(fs.readFile(output.output_path, "utf8")).resolves.toContain("Pitch");
     } finally {
       await stopMcpServer(connection);
       await fs.rm(taskDir, { recursive: true, force: true });

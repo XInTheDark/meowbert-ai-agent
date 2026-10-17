@@ -9,7 +9,6 @@ vi.mock("../../lib/db.js", () => ({
 
 import { query } from "../../lib/db.js";
 import {
-  ensureProjectCanvasFiles,
   listTaskCanvases,
   resolveCanvasFile,
   type ProjectCanvasSummary
@@ -34,8 +33,6 @@ function buildCanvas(input: Partial<ProjectCanvasSummary> = {}): ProjectCanvasSu
     slug: "quadratics-lab",
     rootPath: "canvases/quadratics-lab",
     entryPath: "index.html",
-    runtimeMode: "static",
-    devServer: {},
     lastTaskId: null,
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
@@ -44,22 +41,6 @@ function buildCanvas(input: Partial<ProjectCanvasSummary> = {}): ProjectCanvasSu
 }
 
 describe("project canvas files", () => {
-  it("creates the canvas directory and manifest without a placeholder page", async () => {
-    await ensureProjectCanvasFiles({
-      environmentRootPath: tempRoot,
-      name: "Quadratics Lab",
-      rootPath: "canvases/quadratics-lab",
-      entryPath: "index.html",
-      runtimeMode: "static",
-      devServer: {}
-    });
-
-    await expect(fs.stat(path.join(tempRoot, "canvases/quadratics-lab/index.html")))
-      .rejects.toMatchObject({ code: "ENOENT" });
-    await expect(fs.readFile(path.join(tempRoot, "canvases/quadratics-lab/canvas.json"), "utf8"))
-      .resolves.toContain("\"entry\": \"index.html\"");
-  });
-
   it("serves nested files but rejects path traversal", async () => {
     await fs.mkdir(path.join(tempRoot, "canvases/quadratics-lab/assets"), { recursive: true });
     await fs.writeFile(path.join(tempRoot, "canvases/quadratics-lab/assets/app.css"), "body {}", "utf8");
@@ -90,8 +71,6 @@ describe("project canvas files", () => {
         slug: "quadratics-lab",
         root_path: "canvases/quadratics-lab",
         entry_path: "index.html",
-        runtime_mode: "static",
-        dev_server_json: {},
         created_by: "user-1",
         last_task_id: "task-1",
         created_at: new Date(0).toISOString(),

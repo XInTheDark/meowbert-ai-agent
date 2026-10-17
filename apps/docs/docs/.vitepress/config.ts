@@ -83,7 +83,7 @@ export default defineConfig({
         items: [
           { text: "Project Overview", link: "/core-workflows/project-overview" },
           { text: "Files Browser", link: "/core-workflows/files-browser" },
-          { text: "Interactive Canvas", link: "/core-workflows/interactive-canvas" },
+          { text: "Canvas", link: "/core-workflows/interactive-canvas" },
           { text: "Agent Shell Sessions", link: "/core-workflows/agent-shells" }
         ]
       },

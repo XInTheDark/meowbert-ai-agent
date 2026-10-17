@@ -20,7 +20,7 @@ import { joinTaskMessage } from "../../lib/utils";
 import {
   TaskInputDraft,
   getTaskInputDraftForEnvironment,
-  normalizeInteractiveCanvasToolOptions,
+  normalizeCanvasToolOptions,
   normalizeToolOptions,
   readTaskInputDrafts,
   shouldRotateRestoredComposerTaskId,
@@ -192,7 +192,8 @@ export function TaskComposerPage() {
   }, [availableAgents, currentDraft.agentId, defaultAgentId, user]);
   const taskParameters = currentDraft.taskParameters;
   const workflow = currentDraft.workflow;
-  const isInteractiveCanvasEnabled = currentDraft.toolOptions.interactiveCanvas === true || selectedInteractiveCanvas !== null;
+  // Work on an attached project canvas needs the full sandbox, so Quick mode and Incognito are off.
+  const isInteractiveCanvasEnabled = selectedInteractiveCanvas !== null;
   const quickMode = currentDraft.quickMode && workflow.type === "standard";
   const effectiveQuickMode = quickMode && !isInteractiveCanvasEnabled;
   const effectiveIncognitoMode = incognitoMode && workflow.type === "standard" && !isInteractiveCanvasEnabled;
@@ -212,18 +213,10 @@ export function TaskComposerPage() {
       return;
     }
 
-    updateDraft((current) => (
-      current.toolOptions.interactiveCanvas === true
-        ? current
-        : {
-          ...current,
-          quickMode: false,
-          toolOptions: {
-            ...current.toolOptions,
-            interactiveCanvas: true
-          }
-        }
-    ));
+    updateDraft((current) => ({
+      ...current,
+      toolOptions: normalizeCanvasToolOptions({ ...current.toolOptions, interactiveCanvas: true })
+    }));
   }, [initialCanvasMode, queryCanvasId, updateDraft]);
 
   useEffect(() => {
@@ -239,10 +232,7 @@ export function TaskComposerPage() {
           updateDraft((current) => ({
             ...current,
             quickMode: false,
-            toolOptions: {
-              ...current.toolOptions,
-              interactiveCanvas: true
-            }
+            toolOptions: normalizeCanvasToolOptions({ ...current.toolOptions, interactiveCanvas: true })
           }));
         }
       })
@@ -297,7 +287,6 @@ export function TaskComposerPage() {
       if (toolOptions.scheduleTask) toolsPayload.scheduleTask = true;
       if (toolOptions.subtasks) toolsPayload.subtasks = true;
       if (capabilities.isDesktop && toolOptions.computerUse) toolsPayload.computerUse = true;
-      if (isInteractiveCanvasEnabled) toolsPayload.interactiveCanvas = true;
       if (toolOptions.enabledSkills.length > 0) toolsPayload.enabledSkills = toolOptions.enabledSkills;
       if (toolOptions.enabledSources.length > 0) toolsPayload.enabledSources = toolOptions.enabledSources;
       const hasTools = Object.keys(toolsPayload).length > 0;
@@ -322,7 +311,7 @@ export function TaskComposerPage() {
         ...(canvasForTask
           ? {
               interactiveCanvasId: canvasForTask.id,
-              interactiveCanvasIntent: selectedInteractiveCanvas ? "update" : "create"
+              interactiveCanvasIntent: "update"
             }
           : {}),
         ...(typeof clientTimezone === "string" && clientTimezone.length > 0 ? { clientTimezone } : {}),
@@ -362,9 +351,7 @@ export function TaskComposerPage() {
           ...draft,
           prompt: "",
           attachments: [],
-          toolOptions: currentDraft.toolOptions.interactiveCanvas === true
-            ? normalizeInteractiveCanvasToolOptions(currentDraft.toolOptions)
-            : normalizeToolOptions(undefined, draftDefaults),
+          toolOptions: normalizeToolOptions(undefined, draftDefaults),
           composerTaskId: createPendingTaskId(),
           quickMode: false
         }),
@@ -378,9 +365,7 @@ export function TaskComposerPage() {
       api.invalidateGet?.({ pathPrefix: `/api/projects/${activeEnvironmentId}/canvases` });
       await refreshTasks();
       navigate(
-        selectedInteractiveCanvas
-          ? `/app/${activeWorkspaceId}/projects/${activeEnvironmentId}/canvases/${selectedInteractiveCanvas.id}`
-          : `/app/${activeWorkspaceId}/projects/${activeEnvironmentId}/tasks/${created.taskId}`
+        `/app/${activeWorkspaceId}/projects/${activeEnvironmentId}/tasks/${created.taskId}${selectedInteractiveCanvas ? `?canvas=${selectedInteractiveCanvas.id}` : ""}`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -543,10 +528,7 @@ export function TaskComposerPage() {
           updateDraft((current) => ({
             ...current,
             quickMode: false,
-            toolOptions: {
-              ...current.toolOptions,
-              interactiveCanvas: true
-            }
+            toolOptions: normalizeCanvasToolOptions({ ...current.toolOptions, interactiveCanvas: true })
           }));
         }}
       />

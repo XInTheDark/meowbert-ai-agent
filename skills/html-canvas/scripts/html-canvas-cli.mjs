@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { checkCanvasDocument } from "../../shared/canvas-check-utils.mjs";
 import { renderHtmlCanvasDocument, scaffoldHtmlCanvasTemplate } from "../../shared/html-canvas-utils.mjs";
 
 function parseArgs(argv) {
@@ -75,10 +76,23 @@ async function runRender(options) {
   });
 }
 
+async function runCheck(options) {
+  return checkCanvasDocument({
+    inputPath: requireString(options, "input"),
+    rootDir: requireString(options, "root"),
+    display: optionalString(options, "display") === "panel" ? "panel" : "inline",
+    theme: optionalString(options, "theme") === "dark" ? "dark" : "light",
+    screenshotPath: requireString(options, "screenshot"),
+    viewportWidth: optionalInteger(options, "viewport-width"),
+    timeoutMs: optionalInteger(options, "timeout-ms") ?? 15_000
+  });
+}
+
 function printHelp() {
   console.log(`Usage:
   node scripts/html-canvas-cli.mjs scaffold --template slide-deck --output ./canvas/deck.html [--title "..."] [--subtitle "..."]
   node scripts/html-canvas-cli.mjs render --input ./canvas/deck.html --output-dir ./canvas/output [--layout slides|pages|single] [--orientation portrait|landscape] [--create-pdf]
+  node scripts/html-canvas-cli.mjs check --input ./canvas/index.html --root ./canvas --screenshot ./canvas/check.png [--display inline|panel] [--theme light|dark]
   node scripts/html-canvas-cli.mjs render --input ./canvas/slides --output-dir ./canvas/output [--layout slides|pages|single] [--orientation portrait|landscape] [--create-pdf]
 `);
 }
@@ -96,6 +110,8 @@ async function main() {
     result = await runScaffold(options);
   } else if (command === "render") {
     result = await runRender(options);
+  } else if (command === "check") {
+    result = await runCheck(options);
   } else {
     throw new Error(`Unsupported command "${command}".`);
   }

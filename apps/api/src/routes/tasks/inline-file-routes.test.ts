@@ -67,6 +67,7 @@ describe("registerTaskInlineFileRoutes", () => {
     expect(response.headers["content-security-policy"]).toMatch(/^sandbox /);
     expect(response.headers["content-security-policy"]).not.toContain("allow-same-origin");
     expect(response.body).toContain("inline ok");
+    expect(response.body.indexOf("data-meowbert-canvas-runtime")).toBeLessThan(response.body.indexOf("inline ok"));
     expect(mockedResolveTaskInlineFile).toHaveBeenCalledWith(
       "326522d1-67cc-4475-92ce-a85b18556261",
       "html-canvas-test/inline-preview-third-retry.html"

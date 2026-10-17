@@ -1,9 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  PROJECT_CANVASES_DIR,
+  listCanvasSlugCandidates,
+  normalizeCanvasEntryPath
+} from "@meowbert/shared";
 import { resolveRealPathWithinRoot } from "@meowbert/shared/server-security";
 import { query } from "../../lib/db.js";
 
-export type ProjectCanvasRuntimeMode = "static" | "dev_server";
 export type ProjectCanvasIntent = "create" | "update" | "view";
 
 export interface ProjectCanvasRow {
@@ -14,8 +18,6 @@ export interface ProjectCanvasRow {
   slug: string;
   root_path: string;
   entry_path: string;
-  runtime_mode: ProjectCanvasRuntimeMode;
-  dev_server_json: Record<string, unknown>;
   created_by: string | null;
   last_task_id: string | null;
   created_at: string;
@@ -30,51 +32,22 @@ export interface ProjectCanvasSummary {
   slug: string;
   rootPath: string;
   entryPath: string;
-  runtimeMode: ProjectCanvasRuntimeMode;
-  devServer: Record<string, unknown>;
   lastTaskId: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-interface ProjectCanvasManifest {
-  title: string;
-  entry: string;
-  runtimeMode: ProjectCanvasRuntimeMode;
-  devCommand: string | null;
-  devPort: number | null;
-  description: string | null;
-}
-
-function slugifyCanvasName(name: string): string {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
-
-  return slug || "canvas";
-}
-
-function normalizeEntryPath(value: string | null | undefined): string {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed || trimmed.startsWith("/") || trimmed.includes("..")) {
-    return "index.html";
-  }
-
-  return trimmed.split(path.sep).join("/");
-}
-
-function normalizeRuntimeMode(value: unknown): ProjectCanvasRuntimeMode {
-  return value === "dev_server" ? "dev_server" : "static";
-}
-
-function normalizeDevServerConfig(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-}
+const CANVAS_COLUMNS = `id,
+            workspace_id,
+            environment_id,
+            name,
+            slug,
+            root_path,
+            entry_path,
+            created_by,
+            last_task_id,
+            created_at,
+            updated_at`;
 
 function toSummary(row: ProjectCanvasRow): ProjectCanvasSummary {
   return {
@@ -85,8 +58,6 @@ function toSummary(row: ProjectCanvasRow): ProjectCanvasSummary {
     slug: row.slug,
     rootPath: row.root_path,
     entryPath: row.entry_path,
-    runtimeMode: row.runtime_mode,
-    devServer: row.dev_server_json ?? {},
     lastTaskId: row.last_task_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -102,9 +73,7 @@ async function slugExists(environmentId: string, slug: string): Promise<boolean>
 }
 
 export async function createAvailableCanvasSlug(environmentId: string, name: string): Promise<string> {
-  const baseSlug = slugifyCanvasName(name);
-  for (let index = 0; index < 100; index += 1) {
-    const slug = index === 0 ? baseSlug : `${baseSlug}-${index + 1}`;
+  for (const slug of listCanvasSlugCandidates(name)) {
     if (!(await slugExists(environmentId, slug))) {
       return slug;
     }
@@ -113,71 +82,9 @@ export async function createAvailableCanvasSlug(environmentId: string, name: str
   throw new Error("Too many canvases with similar names");
 }
 
-function buildManifest(input: {
-  name: string;
-  entryPath: string;
-  runtimeMode: ProjectCanvasRuntimeMode;
-  devServer: Record<string, unknown>;
-}): ProjectCanvasManifest {
-  const devCommand = typeof input.devServer.command === "string" ? input.devServer.command : null;
-  const devPort = typeof input.devServer.port === "number" && Number.isInteger(input.devServer.port)
-    ? input.devServer.port
-    : null;
-
-  return {
-    title: input.name,
-    entry: input.entryPath,
-    runtimeMode: input.runtimeMode,
-    devCommand,
-    devPort,
-    description: null
-  };
-}
-
-export async function ensureProjectCanvasFiles(input: {
-  environmentRootPath: string;
-  name: string;
-  rootPath: string;
-  entryPath: string;
-  runtimeMode: ProjectCanvasRuntimeMode;
-  devServer: Record<string, unknown>;
-}): Promise<void> {
-  const canvasDir = path.resolve(input.environmentRootPath, input.rootPath);
-  await fs.mkdir(canvasDir, { recursive: true });
-  const canvasDirRealPath = await fs.realpath(canvasDir);
-  const entryPath = path.resolve(canvasDirRealPath, input.entryPath);
-  const relativeEntryPath = path.relative(canvasDirRealPath, entryPath);
-  if (relativeEntryPath.startsWith("..") || path.isAbsolute(relativeEntryPath)) {
-    throw new Error("Invalid canvas entry path");
-  }
-
-  const manifestPath = path.resolve(canvasDir, "canvas.json");
-  try {
-    await fs.access(manifestPath);
-  } catch {
-    await fs.writeFile(
-      manifestPath,
-      `${JSON.stringify(buildManifest(input), null, 2)}\n`,
-      "utf8"
-    );
-  }
-}
-
 export async function listProjectCanvases(environmentId: string): Promise<ProjectCanvasSummary[]> {
   const result = await query<ProjectCanvasRow>(
-    `SELECT id,
-            workspace_id,
-            environment_id,
-            name,
-            slug,
-            root_path,
-            entry_path,
-            runtime_mode,
-            dev_server_json,
-            created_by,
-            last_task_id,
-            created_at,
-            updated_at
+    `SELECT ${CANVAS_COLUMNS}
        FROM project_canvases
       WHERE environment_id = $1
       ORDER BY updated_at DESC, id DESC`,
@@ -196,8 +103,6 @@ export async function listTaskCanvases(taskId: string): Promise<ProjectCanvasSum
             pc.slug,
             pc.root_path,
             pc.entry_path,
-            pc.runtime_mode,
-            pc.dev_server_json,
             pc.created_by,
             pc.last_task_id,
             pc.created_at,
@@ -217,19 +122,7 @@ export async function listTaskCanvases(taskId: string): Promise<ProjectCanvasSum
 
 export async function getProjectCanvas(canvasId: string): Promise<ProjectCanvasSummary | null> {
   const result = await query<ProjectCanvasRow>(
-    `SELECT id,
-            workspace_id,
-            environment_id,
-            name,
-            slug,
-            root_path,
-            entry_path,
-            runtime_mode,
-            dev_server_json,
-            created_by,
-            last_task_id,
-            created_at,
-            updated_at
+    `SELECT ${CANVAS_COLUMNS}
        FROM project_canvases
       WHERE id = $1
       LIMIT 1`,
@@ -245,25 +138,12 @@ export async function createProjectCanvas(input: {
   environmentRootPath: string;
   name: string;
   createdByUserId: string;
-  runtimeMode?: ProjectCanvasRuntimeMode;
   entryPath?: string | null;
-  devServer?: Record<string, unknown> | null;
 }): Promise<ProjectCanvasSummary> {
-  const name = input.name.trim() || "Interactive Canvas";
+  const name = input.name.trim() || "Canvas";
   const slug = await createAvailableCanvasSlug(input.environmentId, name);
-  const rootPath = `canvases/${slug}`;
-  const entryPath = normalizeEntryPath(input.entryPath);
-  const runtimeMode = normalizeRuntimeMode(input.runtimeMode);
-  const devServer = normalizeDevServerConfig(input.devServer);
-
-  await ensureProjectCanvasFiles({
-    environmentRootPath: input.environmentRootPath,
-    name,
-    rootPath,
-    entryPath,
-    runtimeMode,
-    devServer
-  });
+  const rootPath = `${PROJECT_CANVASES_DIR}/${slug}`;
+  await fs.mkdir(path.resolve(input.environmentRootPath, rootPath), { recursive: true });
 
   const result = await query<ProjectCanvasRow>(
     `INSERT INTO project_canvases (
@@ -273,33 +153,17 @@ export async function createProjectCanvas(input: {
        slug,
        root_path,
        entry_path,
-       runtime_mode,
-       dev_server_json,
        created_by
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
-     RETURNING id,
-               workspace_id,
-               environment_id,
-               name,
-               slug,
-               root_path,
-               entry_path,
-               runtime_mode,
-               dev_server_json,
-               created_by,
-               last_task_id,
-               created_at,
-               updated_at`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING ${CANVAS_COLUMNS}`,
     [
       input.workspaceId,
       input.environmentId,
       name,
       slug,
       rootPath,
-      entryPath,
-      runtimeMode,
-      JSON.stringify(devServer),
+      normalizeCanvasEntryPath(input.entryPath),
       input.createdByUserId
     ]
   );
@@ -311,46 +175,23 @@ export async function updateProjectCanvas(input: {
   canvasId: string;
   name?: string;
   entryPath?: string | null;
-  runtimeMode?: ProjectCanvasRuntimeMode;
-  devServer?: Record<string, unknown> | null;
 }): Promise<ProjectCanvasSummary> {
   const current = await getProjectCanvas(input.canvasId);
   if (!current) {
     throw new Error("Canvas not found");
   }
 
-  const nextName = input.name?.trim() || current.name;
-  const nextEntryPath = input.entryPath !== undefined ? normalizeEntryPath(input.entryPath) : current.entryPath;
-  const nextRuntimeMode = input.runtimeMode ? normalizeRuntimeMode(input.runtimeMode) : current.runtimeMode;
-  const nextDevServer = input.devServer !== undefined ? normalizeDevServerConfig(input.devServer) : current.devServer;
-
   const result = await query<ProjectCanvasRow>(
     `UPDATE project_canvases
         SET name = $2,
             entry_path = $3,
-            runtime_mode = $4,
-            dev_server_json = $5::jsonb,
             updated_at = now()
       WHERE id = $1
-      RETURNING id,
-                workspace_id,
-                environment_id,
-                name,
-                slug,
-                root_path,
-                entry_path,
-                runtime_mode,
-                dev_server_json,
-                created_by,
-                last_task_id,
-                created_at,
-                updated_at`,
+      RETURNING ${CANVAS_COLUMNS}`,
     [
       input.canvasId,
-      nextName,
-      nextEntryPath,
-      nextRuntimeMode,
-      JSON.stringify(nextDevServer)
+      input.name?.trim() || current.name,
+      input.entryPath !== undefined ? normalizeCanvasEntryPath(input.entryPath) : current.entryPath
     ]
   );
 

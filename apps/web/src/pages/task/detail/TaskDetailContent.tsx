@@ -4,6 +4,9 @@ import type { CSSProperties } from "react";
 import { RenderErrorBoundary } from "../../../components/RenderErrorBoundary";
 import { ToolActivityInspectorPanel } from "../../../components/taskConversation/ToolActivityInspectorPanel";
 import { CanvasPickerModal } from "../../../components/modals/CanvasPickerModal";
+import { CanvasHostContext } from "../../../components/canvas/CanvasHostContext";
+import { CanvasPanel } from "../../../components/canvas/CanvasPanel";
+import type { ProjectCanvasSummary } from "../../../lib/types";
 import { ProjectFilePickerModal } from "../../../components/modals/ProjectFilePickerModal";
 import { SourceFilePickerModal } from "../../../components/modals/SourceFilePickerModal";
 import { buildTaskRoutePath } from "../../../task/taskRouteContext";
@@ -24,6 +27,8 @@ import { TaskDetailTopbar } from "./TaskDetailTopbar";
 import { TaskDetailWorkflowStrip } from "./TaskDetailWorkflowStrip";
 import { TaskWorkflowSidebar } from "./TaskWorkflowSidebar";
 import type { TaskDetailLoadedController } from "./useTaskDetailLoadedController";
+import { useCanvasPanelWidth } from "./useCanvasPanelWidth";
+import { projectCanvasView } from "./useTaskCanvas";
 
 type ModelProps = { model: TaskDetailLoadedController };
 
@@ -371,18 +376,46 @@ function TaskWorkflowRightSidebar({ model }: ModelProps) {
   );
 }
 
+function TaskCanvasSidebar({ model }: ModelProps) {
+  const { host, panel } = model.canvas;
+  if (!panel.activeView || model.controllers.inspectorSelection) return null;
+  const projectCanvas = panel.activeView.canvasId
+    ? model.context.data.artifactCanvases.find((canvas) => canvas.id === panel.activeView?.canvasId) ?? null
+    : null;
+  return (
+    <CanvasPanel
+      host={host}
+      views={panel.views}
+      activeView={panel.activeView}
+      onSelect={panel.open}
+      onClose={panel.close}
+      onOpenFiles={projectCanvas && model.context.taskWorkspaceId && model.context.taskProjectId ? () => {
+        model.context.navigate(`/app/${model.context.taskWorkspaceId}/projects/${model.context.taskProjectId}/files?path=${encodeURIComponent(projectCanvas.rootPath)}`);
+      } : undefined}
+    />
+  );
+}
+
+function openProjectCanvas(model: TaskDetailLoadedController, canvas: ProjectCanvasSummary): void {
+  model.controllers.switchTab("conversation");
+  model.canvas.panel.open(projectCanvasView(canvas));
+}
+
 function TaskConversationLayout({ model }: ModelProps) {
   if (model.view.tab !== "conversation") return null;
   const showOutline = !model.organization.enabled && model.view.layout.isMessageOutlineOpen;
   const showSearch = model.controllers.search.isSearchOpen;
+  const canvasWidth = useCanvasPanelWidth();
   const hasActivity = model.controllers.inspectorSelection !== null;
-  const hasWorkflow = Boolean(model.context.data.taskDetail?.workflow && model.view.workflowSidebar.isWorkflowSidebarOpen);
-  const hasThreads = model.controllers.threads.threadSidebarStack.length > 0;
-  const hasRightSidebar = hasActivity || hasWorkflow || hasThreads;
+  const hasCanvas = !hasActivity && model.canvas.panel.activeView !== null;
+  const hasWorkflow = !hasCanvas && Boolean(model.context.data.taskDetail?.workflow && model.view.workflowSidebar.isWorkflowSidebarOpen);
+  const hasThreads = !hasCanvas && model.controllers.threads.threadSidebarStack.length > 0;
+  const hasRightSidebar = hasActivity || hasCanvas || hasWorkflow || hasThreads;
+  const rightSidebarWidth = hasCanvas ? canvasWidth.width : model.view.layout.threadSidebarWidth;
   const mobile = model.view.layout.isMobileViewport;
   const navigation = model.organization;
   const showNavigation = navigation.enabled && navigation.isOpen && !showSearch;
-  const overlay = navigation.expanded || mobile || navigation.containerWidth < navigation.width + 640 + (hasRightSidebar ? model.view.layout.threadSidebarWidth + 10 : 0);
+  const overlay = navigation.expanded || mobile || navigation.containerWidth < navigation.width + 640 + (hasRightSidebar ? rightSidebarWidth + 10 : 0);
   const className = [
     "task-detail-conversation-shell",
     showNavigation && !overlay ? "has-conversation-navigation" : "",
@@ -392,11 +425,12 @@ function TaskConversationLayout({ model }: ModelProps) {
     hasWorkflow && !hasActivity ? "has-workflow-sidebar" : "",
     hasThreads && !hasActivity && !hasWorkflow ? "has-thread-sidebar" : "",
     hasActivity ? "has-activity-sidebar" : "",
+    hasCanvas ? "has-canvas-panel" : "",
     showOutline && mobile ? "message-outline-mobile-open" : "",
     showSearch && mobile ? "search-panel-mobile-open" : ""
   ].filter(Boolean).join(" ");
   return (
-    <div ref={navigation.containerRef} className={className} style={{ "--thread-sidebar-width": `${model.view.layout.threadSidebarWidth}px`, "--conversation-navigation-width": `${navigation.width}px` } as CSSProperties}>
+    <div ref={navigation.containerRef} className={className} style={{ "--thread-sidebar-width": `${rightSidebarWidth}px`, "--conversation-navigation-width": `${navigation.width}px` } as CSSProperties}>
       {navigation.enabled ? <ConversationNavigationPane key={model.context.taskId} controller={{ ...navigation, isOpen: showNavigation }} overlay={overlay}
         summaries={model.actions.messageDisplayPreferences.showMessageSummaries !== false}
         chatFeedRef={model.controllers.conversation.chatFeedRef} onJump={model.controllers.conversation.jumpToMessage} /> : null}
@@ -405,15 +439,16 @@ function TaskConversationLayout({ model }: ModelProps) {
       {hasRightSidebar && !mobile ? (
         <div
           className="thread-sidebar-resize-handle"
-          onMouseDown={model.view.layout.beginThreadSidebarResize}
+          onMouseDown={hasCanvas ? canvasWidth.beginResize : model.view.layout.beginThreadSidebarResize}
           role="separator"
           aria-orientation="vertical"
-          aria-label={hasActivity ? "Resize activity panel" : hasWorkflow ? "Resize workflow sidebar" : "Resize thread sidebar"}
+          aria-label={hasActivity ? "Resize activity panel" : hasCanvas ? "Resize canvas" : hasWorkflow ? "Resize workflow sidebar" : "Resize thread sidebar"}
         />
       ) : null}
       <TaskActivitySidebar model={model} />
-      <TaskWorkflowRightSidebar model={model} />
-      {!hasWorkflow ? <TaskThreadsSidebar model={model} /> : null}
+      <TaskCanvasSidebar model={model} />
+      {!hasCanvas ? <TaskWorkflowRightSidebar model={model} /> : null}
+      {!hasCanvas && !hasWorkflow ? <TaskThreadsSidebar model={model} /> : null}
     </div>
   );
 }
@@ -462,9 +497,8 @@ function TaskSecondaryTabs({ model }: ModelProps) {
         canvases={model.context.data.artifactCanvases}
         isDownloadingArtifact={model.actions.isDownloadingArtifact}
         onOpenCanvas={(canvasId) => {
-          if (model.context.taskWorkspaceId && model.context.taskProjectId) {
-            model.context.navigate(`/app/${model.context.taskWorkspaceId}/projects/${model.context.taskProjectId}/canvases/${canvasId}`);
-          }
+          const canvas = model.context.data.artifactCanvases.find((item) => item.id === canvasId);
+          if (canvas) openProjectCanvas(model, canvas);
         }}
         onDownloadArtifact={(relativePath) => void model.actions.handleDownloadArtifact(relativePath)}
       />
@@ -508,9 +542,7 @@ function TaskDetailModals({ model }: ModelProps) {
             content: `Canvas: ${canvas.name}`,
             relativePath: canvas.rootPath
           }]);
-          if (model.context.taskWorkspaceId && model.context.taskProjectId) {
-            model.context.navigate(`/app/${model.context.taskWorkspaceId}/projects/${model.context.taskProjectId}/canvases/${canvas.id}`);
-          }
+          openProjectCanvas(model, canvas);
         }}
       />
       <SourceFilePickerModal
@@ -534,25 +566,27 @@ function TaskDetailModals({ model }: ModelProps) {
 export function TaskDetailContent({ model }: ModelProps) {
   return (
     <div className="chat-layout task-detail-chat-layout">
-      <RenderErrorBoundary
-        resetKey={model.context.taskId}
-        fallback={(error) => (
-          <section className="page-content">
-            <article className="section-card empty-card" style={{ maxWidth: "40rem", margin: "0 auto" }}>
-              <h3>Couldn&apos;t render task</h3>
-              <p className="error-text" style={{ marginTop: "0.35rem" }}>
-                {error.message || "The task view crashed while rendering."}
-              </p>
-            </article>
-          </section>
-        )}
-      >
-        {model.context.data.taskLoadError ? <div className="error-banner">{model.context.data.taskLoadError}</div> : null}
-        <TaskTopbar model={model} />
-        <TaskConversationLayout model={model} />
-        <TaskSecondaryTabs model={model} />
-        <TaskDetailModals model={model} />
-      </RenderErrorBoundary>
+      <CanvasHostContext.Provider value={model.canvas.host}>
+        <RenderErrorBoundary
+          resetKey={model.context.taskId}
+          fallback={(error) => (
+            <section className="page-content">
+              <article className="section-card empty-card" style={{ maxWidth: "40rem", margin: "0 auto" }}>
+                <h3>Couldn&apos;t render task</h3>
+                <p className="error-text" style={{ marginTop: "0.35rem" }}>
+                  {error.message || "The task view crashed while rendering."}
+                </p>
+              </article>
+            </section>
+          )}
+        >
+          {model.context.data.taskLoadError ? <div className="error-banner">{model.context.data.taskLoadError}</div> : null}
+          <TaskTopbar model={model} />
+          <TaskConversationLayout model={model} />
+          <TaskSecondaryTabs model={model} />
+          <TaskDetailModals model={model} />
+        </RenderErrorBoundary>
+      </CanvasHostContext.Provider>
     </div>
   );
 }

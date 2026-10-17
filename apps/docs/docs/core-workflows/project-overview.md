@@ -63,11 +63,11 @@ This is particularly useful when a batch of queued tasks needs to be cleared bef
 
 ## Canvases
 
-The **Canvases** section lists persistent Interactive Canvases for the current project.
+The **Canvases** section lists the project canvases for the current project.
 
-Each canvas is a project-level website that Meowbert can keep editing across tasks. Use **Open** to inspect the live preview, or **Continue** to start a new canvas-backed task.
+Each one is a site kept in the project that Meowbert can keep editing across tasks. Use **Open** to see it beside its latest task, or **Continue** to start a new task for it.
 
-See [Interactive Canvas](/core-workflows/interactive-canvas) for the full workflow.
+See [Canvas](/core-workflows/interactive-canvas) for the full workflow.
 
 ## Starting a new task
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import type { TaskMessage } from "../../../lib/types";
 import { buildTaskInlineFileUrl } from "../../../lib/taskInlineFiles";
 import { getMessageText } from "../../../lib/utils";
+import { useTaskCanvas } from "./useTaskCanvas";
 import { useTaskDetailActions } from "./useTaskDetailActions";
 import { useTaskDetailComposer } from "./useTaskDetailComposer";
 import { useTaskDetailConversationControllers } from "./useTaskDetailConversationControllers";
@@ -70,30 +71,11 @@ function useTaskDetailArtifactEffects(
   controllers: ReturnType<typeof useTaskDetailConversationControllers>
 ) {
   useEffect(() => {
-    const latestArtifactEvent = [...controllers.events.events].reverse().find((event) => (
-      event.type === "artifact"
-      || (event.payload.interactiveCanvas !== null && typeof event.payload.interactiveCanvas === "object")
-    ));
+    const latestArtifactEvent = [...controllers.events.events].reverse().find((event) => event.type === "artifact");
     if (!latestArtifactEvent || view.latestArtifactEventIdRef.current === latestArtifactEvent.id) return;
     view.latestArtifactEventIdRef.current = latestArtifactEvent.id;
     void context.data.loadArtifacts();
   }, [context.data.loadArtifacts, controllers.events.events, view.latestArtifactEventIdRef]);
-
-  useEffect(() => {
-    const canvasId = context.data.taskDetail?.task.interactive_canvas_id;
-    const stayInTask = new URLSearchParams(context.location.search).get("taskView") === "1";
-    if (!canvasId || !context.taskWorkspaceId || !context.taskProjectId || stayInTask) return;
-    if (view.autoOpenedCanvasIdRef.current === canvasId) return;
-    view.autoOpenedCanvasIdRef.current = canvasId;
-    context.navigate(`/app/${context.taskWorkspaceId}/projects/${context.taskProjectId}/canvases/${canvasId}`, { replace: true });
-  }, [
-    context.data.taskDetail?.task.interactive_canvas_id,
-    context.location.search,
-    context.navigate,
-    context.taskProjectId,
-    context.taskWorkspaceId,
-    view.autoOpenedCanvasIdRef
-  ]);
 }
 
 export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
@@ -151,6 +133,18 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
       : null
   ), [context.data.inlineFileTicket, context.taskId]);
 
+  const sendCanvasPrompt = useCallback((prompt: string) => void actions.handleSendPrompt(prompt), [actions.handleSendPrompt]);
+  const canvas = useTaskCanvas({
+    taskId: context.taskId,
+    projectId: context.taskProjectId,
+    token: context.workspace.token,
+    inlineFileTicket: context.data.inlineFileTicket,
+    projectCanvases: context.data.artifactCanvases,
+    events: controllers.events.events,
+    requestedCanvasId: new URLSearchParams(context.location.search).get("canvas"),
+    sendPrompt: sendCanvasPrompt
+  });
+
   useTaskDetailArtifactEffects(context, view, controllers);
   return {
     context,
@@ -165,7 +159,8 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
     showMessageAuthors,
     beginEditMessage,
     cancelEditMessage,
-    buildInlineArtifactUrl
+    buildInlineArtifactUrl,
+    canvas
   };
 }
 

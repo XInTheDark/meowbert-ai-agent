@@ -1,26 +1,15 @@
-import fs from "node:fs";
-import { Readable } from "node:stream";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { issueScopedAccessTicket, verifyScopedAccessTicket } from "../../services/auth/scoped-access-tickets.js";
-import { getFileContentType } from "../../services/files/file-content-type.js";
 import {
   assertCanvasBelongsToProject,
   createProjectCanvas,
-  getProjectCanvas,
   listProjectCanvases,
   resolveCanvasFile,
-  updateProjectCanvas,
-  type ProjectCanvasRuntimeMode
+  updateProjectCanvas
 } from "../../services/canvases/project-canvases.js";
-import {
-  getCanvasDevServerStatus,
-  proxyCanvasDevServer,
-  startCanvasDevServer,
-  stopCanvasDevServer
-} from "../../services/canvases/canvas-dev-server.js";
 import { getEnvironmentForUser } from "../../services/environments/environment-for-user.js";
-import { applyUntrustedContentHeaders } from "../files/untrusted-content-headers.js";
+import { sendCanvasFile } from "../files/canvas-file-response.js";
 import { environmentParams } from "./shared.js";
 
 const canvasParams = environmentParams.extend({
@@ -29,29 +18,8 @@ const canvasParams = environmentParams.extend({
 
 const canvasBody = z.object({
   name: z.string().trim().min(1).max(120).optional(),
-  entryPath: z.string().trim().min(1).max(600).optional(),
-  runtimeMode: z.enum(["static", "dev_server"]).optional(),
-  devServer: z.record(z.string(), z.unknown()).optional()
+  entryPath: z.string().trim().min(1).max(600).optional()
 }).strict();
-
-function buildBridgeScript(canvasId: string): string {
-  return [
-    "(function () {",
-    "  function run(input) {",
-    "    var payload = input && typeof input === 'object' ? input : {};",
-    "    var userGesture = typeof navigator.userActivation === 'undefined' ? true : navigator.userActivation.isActive === true;",
-    "    window.parent.postMessage({",
-    "      type: 'meowbert-canvas-run',",
-    `      canvasId: ${JSON.stringify(canvasId)},`,
-    "      prompt: typeof payload.prompt === 'string' ? payload.prompt : '',",
-    "      title: typeof payload.title === 'string' ? payload.title : null,",
-    "      userGesture: userGesture",
-    "    }, '*');",
-    "  }",
-    "  window.meowbert = Object.freeze({ run: run });",
-    "}());"
-  ].join("\n");
-}
 
 function parseCanvasPreviewParams(params: unknown): {
   envId: string;
@@ -133,11 +101,9 @@ export async function registerEnvironmentCanvasRoutes(fastify: FastifyInstance):
       workspaceId: environment.workspace_id,
       environmentId: environment.id,
       environmentRootPath: environment.root_path,
-      name: body.name ?? "Interactive Canvas",
+      name: body.name ?? "Canvas",
       createdByUserId: request.user.id,
-      runtimeMode: body.runtimeMode as ProjectCanvasRuntimeMode | undefined,
-      entryPath: body.entryPath,
-      devServer: body.devServer
+      entryPath: body.entryPath
     });
 
     return reply.status(201).send({ canvas });
@@ -170,9 +136,7 @@ export async function registerEnvironmentCanvasRoutes(fastify: FastifyInstance):
       canvas: await updateProjectCanvas({
         canvasId: params.canvasId,
         name: body.name,
-        entryPath: body.entryPath,
-        runtimeMode: body.runtimeMode as ProjectCanvasRuntimeMode | undefined,
-        devServer: body.devServer
+        entryPath: body.entryPath
       })
     };
   });
@@ -193,43 +157,7 @@ export async function registerEnvironmentCanvasRoutes(fastify: FastifyInstance):
     });
   });
 
-  fastify.get("/api/projects/:envId/canvases/:canvasId/dev-server/status", { preHandler: fastify.authenticate }, async (request) => {
-    const params = canvasParams.parse(request.params);
-    await loadCanvasForRequest({
-      envId: params.envId,
-      canvasId: params.canvasId,
-      userId: request.user.id
-    });
-    return getCanvasDevServerStatus(params.canvasId);
-  });
-
-  fastify.post("/api/projects/:envId/canvases/:canvasId/dev-server/start", { preHandler: fastify.authenticate }, async (request) => {
-    const params = canvasParams.parse(request.params);
-    const { environment, canvas } = await loadCanvasForRequest({
-      envId: params.envId,
-      canvasId: params.canvasId,
-      userId: request.user.id
-    });
-    return startCanvasDevServer({
-      canvas,
-      ownerUserId: request.user.id,
-      environmentRootPath: environment.root_path,
-      workspaceRootPath: environment.workspace_root_path,
-      runAsRoot: environment.workspace_run_as_root
-    });
-  });
-
-  fastify.post("/api/projects/:envId/canvases/:canvasId/dev-server/stop", { preHandler: fastify.authenticate }, async (request) => {
-    const params = canvasParams.parse(request.params);
-    await loadCanvasForRequest({
-      envId: params.envId,
-      canvasId: params.canvasId,
-      userId: request.user.id
-    });
-    return stopCanvasDevServer(params.canvasId);
-  });
-
-  fastify.all(
+  fastify.get(
     "/api/projects/:envId/canvases/:canvasId/preview/*",
     { preHandler: authenticateCanvasPreviewRequest },
     async (request, reply) => {
@@ -240,66 +168,13 @@ export async function registerEnvironmentCanvasRoutes(fastify: FastifyInstance):
         userId: request.user.id
       });
 
-      if (params.requestedPath === "meowbert-canvas.js") {
-        reply.header("Content-Type", "application/javascript; charset=utf-8");
-        reply.header("Cache-Control", "private, max-age=60");
-        return reply.send(buildBridgeScript(params.canvasId));
-      }
-
-      if (canvas.runtimeMode === "dev_server") {
-        const proxied = await proxyCanvasDevServer({
-          canvasId: params.canvasId,
-          requestedPath: params.requestedPath || "/",
-          method: request.method,
-          headers: request.headers
-        });
-        reply.status(proxied.status);
-        proxied.headers.forEach((value, key) => {
-          if (!["content-encoding", "content-length", "connection"].includes(key.toLowerCase())) {
-            reply.header(key, value);
-          }
-        });
-        applyUntrustedContentHeaders(reply);
-        return proxied.body
-          ? reply.send(Readable.fromWeb(proxied.body as never))
-          : reply.send();
-      }
-
       const file = await resolveCanvasFile({
         environmentRootPath: environment.root_path,
         canvas,
         requestedPath: params.requestedPath
       });
-      reply.header("Content-Type", getFileContentType(file.absolutePath));
-      reply.header("Content-Length", String(file.sizeBytes));
-      reply.header("Cache-Control", "private, max-age=60");
-      applyUntrustedContentHeaders(reply);
-      return reply.send(fs.createReadStream(file.absolutePath));
+      // Agents rewrite canvases in place; a cached copy would hide the update from the live reload.
+      return sendCanvasFile(reply, file, "private, no-cache");
     }
   );
-
-  fastify.get("/api/projects/:envId/canvases/:canvasId/bridge.js", { preHandler: fastify.authenticate }, async (request, reply) => {
-    const params = canvasParams.parse(request.params);
-    await loadCanvasForRequest({
-      envId: params.envId,
-      canvasId: params.canvasId,
-      userId: request.user.id
-    });
-    reply.header("Content-Type", "application/javascript; charset=utf-8");
-    return reply.send(buildBridgeScript(params.canvasId));
-  });
-
-  fastify.get("/api/projects/:envId/canvases/:canvasId/raw", { preHandler: fastify.authenticate }, async (request, reply) => {
-    const params = canvasParams.parse(request.params);
-    const { canvas } = await loadCanvasForRequest({
-      envId: params.envId,
-      canvasId: params.canvasId,
-      userId: request.user.id
-    });
-    const freshCanvas = await getProjectCanvas(canvas.id);
-    if (!freshCanvas) {
-      return reply.status(404).send({ error: "Canvas not found" });
-    }
-    return { canvas: freshCanvas };
-  });
 }

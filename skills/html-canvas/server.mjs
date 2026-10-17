@@ -2,8 +2,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
-  createInlineFileArtifact,
-  createInlineHtmlArtifact,
   HTML_CANVAS_PAGE_SELECTOR,
   listHtmlCanvasTemplates,
   renderHtmlCanvasDocument,
@@ -117,71 +115,6 @@ server.tool(
       createPdf: create_pdf ?? false,
       pdfFileName: pdf_file_name ?? "document.pdf",
       timeoutMs: timeout_ms ?? 30_000
-    });
-    return asToolResult(result);
-  }
-);
-
-server.tool(
-  "html_canvas_inline_artifact",
-  "Write an HTML artifact into the current task directory and display it inline in the task conversation before the assistant message.",
-  {
-    html: z.string().min(1).describe("Full HTML document source to write and display inline."),
-    output_path: z
-      .string()
-      .min(1)
-      .describe("Destination HTML file path inside the current task directory. Relative paths resolve from the agent's current working directory."),
-    title: z.string().min(1).nullable().optional().describe("Optional title shown above the inline artifact."),
-    description: z.string().min(1).nullable().optional().describe("Optional short caption shown above the inline artifact."),
-    width: z
-      .number()
-      .int()
-      .min(320)
-      .max(2000)
-      .nullable()
-      .optional()
-      .describe("Optional default inline preview width in pixels. This sets the base card width before the user resizes it with the +/- controls."),
-    height: z
-      .number()
-      .int()
-      .min(240)
-      .max(1600)
-      .nullable()
-      .optional()
-      .describe("Optional iframe height in pixels for the inline preview.")
-  },
-  async ({ html, output_path, title, description, width, height }) => {
-    const result = await createInlineHtmlArtifact({
-      html,
-      outputPath: output_path,
-      title: title ?? null,
-      description: description ?? null,
-      width: width ?? null,
-      height: height ?? null
-    });
-    return asToolResult(result);
-  }
-);
-
-server.tool(
-  "html_canvas_inline_file_artifact",
-  "Display an existing task-local HTML, image, or Mermaid file inline in the task conversation. For HTML, relative links and assets beside the file load too, so multi-page sites and decks work.",
-  {
-    input_path: z.string().min(1).describe("Existing HTML, image, or Mermaid file inside the current task directory."),
-    type: z.enum(["html", "image", "mermaid"]).describe("Inline artifact renderer to use."),
-    title: z.string().min(1).nullable().optional().describe("Optional title shown above the inline artifact."),
-    description: z.string().min(1).nullable().optional().describe("Optional short caption shown above the inline artifact."),
-    width: z.number().int().min(320).max(2000).nullable().optional().describe("Optional default inline preview width in pixels."),
-    height: z.number().int().min(240).max(1600).nullable().optional().describe("Optional preview height in pixels.")
-  },
-  async ({ input_path, type, title, description, width, height }) => {
-    const result = await createInlineFileArtifact({
-      inputPath: input_path,
-      type,
-      title: title ?? null,
-      description: description ?? null,
-      width: width ?? null,
-      height: height ?? null
     });
     return asToolResult(result);
   }

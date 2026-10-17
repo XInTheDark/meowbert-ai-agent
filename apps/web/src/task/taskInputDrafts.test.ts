@@ -90,7 +90,7 @@ describe("normalizeTaskInputDraft", () => {
     });
   });
 
-  it("does not normalize Interactive Canvas into the legacy Canvas skill", () => {
+  it("folds the old Interactive Canvas option into the Canvas skill", () => {
     const defaults = {
       defaultToolset: {
         webSearch: true,
@@ -99,22 +99,22 @@ describe("normalizeTaskInputDraft", () => {
         subtasks: false,
         computerUse: false,
         interactiveCanvas: false,
-        enabledSkills: ["html-canvas"],
+        enabledSkills: [],
         enabledSources: []
       }
     };
 
     expect(normalizeToolOptions({
       interactiveCanvas: true,
-      enabledSkills: ["html-canvas", "deep-ai-search"]
+      enabledSkills: ["deep-ai-search"]
     }, defaults)).toEqual({
       webSearch: true,
       memorySearch: false,
       scheduleTask: true,
       subtasks: false,
       computerUse: false,
-      interactiveCanvas: true,
-      enabledSkills: ["deep-ai-search"],
+      interactiveCanvas: false,
+      enabledSkills: ["deep-ai-search", "html-canvas"],
       enabledSources: []
     });
   });

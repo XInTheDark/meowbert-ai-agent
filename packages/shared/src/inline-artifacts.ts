@@ -1,6 +1,11 @@
+export type InlineArtifactDisplay = "inline" | "panel";
+
 export interface InlineArtifact {
   type: "html" | "image" | "mermaid";
+  // Relative to the task directory, or to the project canvas directory when canvasId is set.
   relativePath: string;
+  canvasId: string | null;
+  display: InlineArtifactDisplay;
   title: string | null;
   description: string | null;
   width: number | null;
@@ -63,6 +68,7 @@ export function parseInlineArtifact(value: unknown): InlineArtifact | null {
     return null;
   }
 
+  const canvasId = asString(artifact.canvas_id) ?? asString(artifact.canvasId);
   const title = asString(artifact.title)?.trim() ?? null;
   const description = asString(artifact.description)?.trim() ?? null;
   const rawWidth = asNumber(artifact.width) ?? asNumber(artifact.width_px);
@@ -71,10 +77,12 @@ export function parseInlineArtifact(value: unknown): InlineArtifact | null {
   return {
     type,
     relativePath: relativePath.trim().replace(/^\/+/, ""),
+    canvasId: canvasId && canvasId.trim().length > 0 ? canvasId.trim() : null,
+    display: artifact.display === "panel" ? "panel" : "inline",
     title: title && title.length > 0 ? title : null,
     description: description && description.length > 0 ? description : null,
     width: rawWidth !== null ? Math.max(320, Math.min(2000, Math.round(rawWidth))) : null,
-    height: rawHeight !== null ? Math.max(240, Math.min(1600, Math.round(rawHeight))) : null
+    height: rawHeight !== null ? Math.max(120, Math.min(1600, Math.round(rawHeight))) : null
   };
 }
 
@@ -86,6 +94,8 @@ export function serializeInlineArtifact(artifact: InlineArtifact): Record<string
   return {
     type: artifact.type,
     relative_path: artifact.relativePath,
+    ...(artifact.canvasId !== null ? { canvas_id: artifact.canvasId } : {}),
+    ...(artifact.display === "panel" ? { display: "panel" } : {}),
     ...(artifact.title !== null ? { title: artifact.title } : {}),
     ...(artifact.description !== null ? { description: artifact.description } : {}),
     ...(artifact.width !== null ? { width: artifact.width } : {}),

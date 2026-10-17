@@ -2,9 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { ManagedSandboxContainerSummary } from "@meowbert/shared/docker-sandbox";
 
 vi.mock("./sandbox.js", () => ({ apiSandboxManager: {} }));
-vi.mock("../canvases/canvas-dev-server.js", () => ({
-  listActiveCanvasSandboxSessionIds: vi.fn(() => ["canvas-active"])
-}));
 
 import { cleanupApiSandboxOrphansOnce } from "./sandbox-cleanup.js";
 
@@ -17,14 +14,13 @@ function container(id: string, overrides: Partial<ManagedSandboxContainerSummary
 }
 
 describe("API sandbox cleanup after manual terminal removal", () => {
-  it("removes retired terminals and orphan previews while preserving live canvases and task containers", async () => {
+  it("removes retired terminals and old canvas dev servers while preserving task containers", async () => {
     const stopAndRemoveContainer = vi.fn(async () => {});
     const removed = await cleanupApiSandboxOrphansOnce({
       getCurrentContainerId: () => "api-parent",
       listManagedContainers: async () => [
         container("manual-terminal"),
         container("canvas-orphan"),
-        container("canvas-active"),
         container("task-shell", { taskId: "task" }),
         container("task-run", { purpose: "task-run", taskId: "task", runId: "run" }),
         container("other-api", { parentContainerId: "another-parent" }),

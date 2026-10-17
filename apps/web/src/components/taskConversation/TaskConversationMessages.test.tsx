@@ -12,6 +12,15 @@ import { HistoricalConversationItems } from "./HistoricalConversationItems";
 import { toDisplayTaskMessage } from "@meowbert/shared/task-message-display";
 import type { TaskMessage } from "../../lib/types";
 
+// Inline canvases resolve their files through the page's canvas host.
+vi.mock("../canvas/CanvasHostContext", () => ({
+  useCanvasHost: () => ({
+    taskId: "task-1",
+    resolveSource: (view: { relativePath: string }) => ({ src: `https://example.test/${view.relativePath}`, srcKey: view.relativePath }),
+    reloadTokenFor: () => 0
+  })
+}));
+
 vi.mock("../../contexts/WorkspaceContext", () => ({
   useWorkspaceApp: () => ({
     api: {
@@ -460,11 +469,10 @@ describe("TaskConversationMessages", () => {
 
     expect(html).toContain("Summary");
     expect(html).toContain("reports/summary.html");
-    expect(html).toContain("inline-artifact-frame");
-    expect(html).toContain("--inline-artifact-base-width:760px");
+    expect(html).toContain("canvas-frame-iframe");
     expect(html).toContain("Here is the visual summary.");
     expect(html).not.toContain("1 calls");
-    expect(html.indexOf("inline-artifact-frame")).toBeLessThan(html.indexOf("Here is the visual summary."));
+    expect(html.indexOf("canvas-frame-iframe")).toBeLessThan(html.indexOf("Here is the visual summary."));
   });
 
   it("does not duplicate inline artifacts already represented by ordered assistant response items", () => {
@@ -536,7 +544,7 @@ describe("TaskConversationMessages", () => {
       />
     );
 
-    expect(html.match(/inline-artifact-frame/g)).toHaveLength(1);
+    expect(html.match(/canvas-frame-iframe/g)).toHaveLength(1);
     expect(html).toContain("reports/summary.html");
     expect(html).not.toContain("1 calls");
   });
@@ -598,8 +606,8 @@ describe("TaskConversationMessages", () => {
       />
     );
 
-    expect(html.indexOf("Intro text.")).toBeLessThan(html.indexOf("inline-artifact-frame"));
-    expect(html.indexOf("inline-artifact-frame")).toBeLessThan(html.indexOf("After text."));
+    expect(html.indexOf("Intro text.")).toBeLessThan(html.indexOf("canvas-frame-iframe"));
+    expect(html.indexOf("canvas-frame-iframe")).toBeLessThan(html.indexOf("After text."));
   });
 
   it("renders only the latest final_response group from persisted response items", () => {
@@ -773,11 +781,10 @@ describe("TaskConversationMessages", () => {
 
     expect(html).toContain("Function summary");
     expect(html).toContain("reports/function-summary.html");
-    expect(html).toContain("inline-artifact-frame");
-    expect(html).toContain("--inline-artifact-base-width:780px");
+    expect(html).toContain("canvas-frame-iframe");
     expect(html).toContain("Function tool artifact rendered.");
     expect(html).not.toContain("1 calls");
-    expect(html.indexOf("inline-artifact-frame")).toBeLessThan(html.indexOf("Function tool artifact rendered."));
+    expect(html.indexOf("canvas-frame-iframe")).toBeLessThan(html.indexOf("Function tool artifact rendered."));
   });
 
   it("renders inline HTML artifacts from tool metadata without manual hydration", () => {
@@ -852,13 +859,11 @@ describe("TaskConversationMessages", () => {
     );
 
     expect(html).toContain("Metadata summary");
-    expect(html).toContain("inline-artifact-frame");
-    expect(html).toContain("--inline-artifact-base-width:720px");
-    expect(html).toContain("Canvas zoom");
-    expect(html).toContain("type=\"range\"");
+    expect(html).toContain("canvas-frame-iframe");
+    expect(html).toContain("Open in a new tab");
     expect(html).toContain("Metadata-backed artifact rendered.");
     expect(html).not.toContain("Activity");
-    expect(html.indexOf("inline-artifact-frame")).toBeLessThan(html.indexOf("Metadata-backed artifact rendered."));
+    expect(html.indexOf("canvas-frame-iframe")).toBeLessThan(html.indexOf("Metadata-backed artifact rendered."));
   });
 
   it("groups assistant thoughts inside the preceding worked-for tool section", () => {

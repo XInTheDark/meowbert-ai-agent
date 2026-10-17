@@ -45,6 +45,14 @@
       "types": "./dist/token-usage-stats.d.ts",
       "default": "./dist/token-usage-stats.js"
     },
+    "./canvas-frame": {
+      "types": "./dist/canvas-frame.d.ts",
+      "default": "./dist/canvas-frame.js"
+    },
+    "./canvas-frame-runtime": {
+      "types": "./dist/canvas-frame-runtime.d.mts",
+      "default": "./dist/canvas-frame-runtime.mjs"
+    },
     "./inline-artifacts": {
       "types": "./dist/inline-artifacts.d.ts",
       "default": "./dist/inline-artifacts.js"

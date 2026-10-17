@@ -36,13 +36,15 @@ export async function fetchProjectCanvasPreviewTicket(
   };
 }
 
+// Always names the file: relative URLs in the page resolve against it, so a bare ticket URL would
+// make "style.css" lose the ticket segment.
 export function buildProjectCanvasPreviewUrl(
   projectId: string,
   canvasId: string,
   ticket: string,
-  relativePath?: string | null
+  relativePath: string
 ): string {
   const encodedSegments = normalizePreviewPath(relativePath).map((segment) => encodeURIComponent(segment));
   const baseUrl = `${apiBaseUrl()}/api/projects/${encodeURIComponent(projectId)}/canvases/${encodeURIComponent(canvasId)}/preview/${encodeURIComponent(ticket)}`;
-  return encodedSegments.length > 0 ? `${baseUrl}/${encodedSegments.join("/")}` : baseUrl;
+  return `${baseUrl}/${encodedSegments.length > 0 ? encodedSegments.join("/") : "index.html"}`;
 }

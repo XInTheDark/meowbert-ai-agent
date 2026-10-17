@@ -25,8 +25,6 @@ import {
 } from "./useChatToolsDropdownPlacement";
 import type { TaskToolOptions } from "../../lib/types";
 
-const HTML_CANVAS_SKILL_ID = "html-canvas";
-
 export interface SkillSummary {
   id: string;
   name: string;
@@ -40,7 +38,6 @@ interface ToolOptionsDropdownProps {
   availableSkills?: SkillSummary[];
   showMemorySearch?: boolean;
   showComputerUse?: boolean;
-  showInteractiveCanvas?: boolean;
   allowScheduleTaskOption?: boolean;
   allowSubtasksOption?: boolean;
   disabled?: boolean;
@@ -171,7 +168,6 @@ interface ToolsPopoverContentProps {
   scheduleTaskMatchesQuery: boolean;
   subtasksMatchQuery: boolean;
   showComputerUseTool: boolean;
-  showInteractiveCanvasTool: boolean;
   coreSkills: SkillSummary[];
   visualSkills: SkillSummary[];
   documentSkills: SkillSummary[];
@@ -189,7 +185,7 @@ function ToolsPopoverContent(props: ToolsPopoverContentProps) {
     || props.showComputerUseTool
     || props.coreSkills.length > 0;
 
-  const hasVisualMatches = props.showInteractiveCanvasTool || props.visualSkills.length > 0;
+  const hasVisualMatches = props.visualSkills.length > 0;
   const hasDocumentMatches = props.documentSkills.length > 0;
   const hasWebMatches = props.webSkills.length > 0;
   const hasCustomMatches = props.customSkills.length > 0;
@@ -264,24 +260,6 @@ function ToolsPopoverContent(props: ToolsPopoverContentProps) {
     sections.push(
       <div key="visuals" className="chat-tools-group">
         <div className="chat-tools-section-label">Design &amp; Visuals</div>
-        {props.showInteractiveCanvasTool ? (
-          <ToolOptionItem
-            active={props.resolvedToolOptions.interactiveCanvas === true}
-            onClick={() => {
-              const nextInteractiveCanvas = props.resolvedToolOptions.interactiveCanvas !== true;
-              props.onUpdateToolOptions({
-                interactiveCanvas: nextInteractiveCanvas,
-                ...(nextInteractiveCanvas
-                  ? {
-                      enabledSkills: props.resolvedToolOptions.enabledSkills.filter((id) => id !== HTML_CANVAS_SKILL_ID)
-                    }
-                  : {})
-              });
-            }}
-            icon={<Palette size={14} />}
-            label="Interactive Canvas"
-          />
-        ) : null}
         {props.visualSkills.map((skill) => (
           <ToolOptionItem
             key={skill.id}
@@ -404,7 +382,6 @@ export function ToolOptionsDropdown(props: ToolOptionsDropdownProps) {
     availableSkills,
     showMemorySearch = false,
     showComputerUse = false,
-    showInteractiveCanvas = true,
     allowScheduleTaskOption = true,
     allowSubtasksOption = true,
     disabled = false,
@@ -428,10 +405,8 @@ export function ToolOptionsDropdown(props: ToolOptionsDropdownProps) {
     scheduleTask: toolOptions.scheduleTask === true,
     subtasks: toolOptions.subtasks === true,
     computerUse: showComputerUse && toolOptions.computerUse === true,
-    interactiveCanvas: toolOptions.interactiveCanvas === true,
-    enabledSkills: toolOptions.interactiveCanvas === true
-      ? (toolOptions.enabledSkills ?? []).filter((skillId) => skillId !== HTML_CANVAS_SKILL_ID)
-      : toolOptions.enabledSkills ?? [],
+    interactiveCanvas: false,
+    enabledSkills: toolOptions.enabledSkills ?? [],
     enabledSources: toolOptions.enabledSources ?? []
   };
 
@@ -453,11 +428,9 @@ export function ToolOptionsDropdown(props: ToolOptionsDropdownProps) {
     && matchesToolsMenuQuery(toolsSearchQuery, "subtasks", "subtask", "delegate", "parallel work");
   const showComputerUseTool = showComputerUse
     && matchesToolsMenuQuery(toolsSearchQuery, "computer use", "desktop control", "mouse", "keyboard", "screenshot");
-  const showInteractiveCanvasTool = showInteractiveCanvas
-    && matchesToolsMenuQuery(toolsSearchQuery, "interactive canvas", "canvas website", "project canvas", "live website");
 
   const hasCoreMatches = showWebSearch || showMemorySearchTool || scheduleTaskMatchesQuery || subtasksMatchQuery || showComputerUseTool || coreSkills.length > 0;
-  const hasVisualMatches = showInteractiveCanvasTool || visualSkills.length > 0;
+  const hasVisualMatches = visualSkills.length > 0;
   const hasDocumentMatches = documentSkills.length > 0;
   const hasWebMatches = webSkills.length > 0;
   const hasCustomMatches = customSkills.length > 0;
@@ -469,8 +442,7 @@ export function ToolOptionsDropdown(props: ToolOptionsDropdownProps) {
     + Number(resolvedToolOptions.memorySearch)
     + Number(resolvedToolOptions.scheduleTask)
     + Number(resolvedToolOptions.subtasks)
-    + Number(resolvedToolOptions.computerUse)
-    + Number(resolvedToolOptions.interactiveCanvas === true);
+    + Number(resolvedToolOptions.computerUse);
 
   useEffect(() => {
     if (!isOpen && toolsSearchQuery) {
@@ -525,10 +497,7 @@ export function ToolOptionsDropdown(props: ToolOptionsDropdownProps) {
       ? current.filter((id) => id !== skillId)
       : [...current, skillId];
 
-    updateToolOptions({
-      enabledSkills: next,
-      ...(skillId === HTML_CANVAS_SKILL_ID && !current.includes(skillId) ? { interactiveCanvas: false } : {})
-    });
+    updateToolOptions({ enabledSkills: next });
   }
 
   useEffect(() => {
@@ -606,7 +575,6 @@ export function ToolOptionsDropdown(props: ToolOptionsDropdownProps) {
           scheduleTaskMatchesQuery={scheduleTaskMatchesQuery}
           subtasksMatchQuery={subtasksMatchQuery}
           showComputerUseTool={showComputerUseTool}
-          showInteractiveCanvasTool={showInteractiveCanvasTool}
           coreSkills={coreSkills}
           visualSkills={visualSkills}
           documentSkills={documentSkills}

@@ -92,8 +92,6 @@ vi.mock("./playwright-browser-utils.mjs", () => ({
 
 const {
   renderHtmlCanvasDocument,
-  createInlineHtmlArtifact,
-  createInlineFileArtifact,
   scaffoldHtmlCanvasTemplate
 } = await import("./html-canvas-utils.mjs");
 
@@ -229,23 +227,6 @@ describe("renderHtmlCanvasDocument", () => {
   });
 });
 
-describe("inline artifact paths", () => {
-  it("accepts filenames beginning with two dots and rejects sibling directories", async () => {
-    const taskDir = await createTempDir("meowbert-inline-paths-");
-    vi.stubEnv("MEOWBERT_TASK_DIR", taskDir);
-    const outputPath = path.join(taskDir, "..preview.html");
-    const result = await createInlineHtmlArtifact({ html: "<p>Preview</p>", outputPath });
-    expect(result.inline_artifact.relative_path).toBe("..preview.html");
-    const inputPath = path.join(taskDir, "..preview.png");
-    await fs.writeFile(inputPath, "image bytes");
-    const image = await createInlineFileArtifact({ inputPath, type: "image" });
-    expect(image.inline_artifact.relative_path).toBe("..preview.png");
-    await expect(createInlineHtmlArtifact({
-      html: "<p>Outside</p>", outputPath: `${taskDir}-other/preview.html`
-    })).rejects.toThrow("must stay inside the current task directory");
-  });
-});
-
 describe("scaffoldHtmlCanvasTemplate", () => {
   it("copies the deck component beside a scaffolded slide deck", async () => {
     const taskDir = await createTempDir("meowbert-deck-scaffold-");
@@ -256,16 +237,5 @@ describe("scaffoldHtmlCanvasTemplate", () => {
     const scriptSource = /<script src="\.\/([^"]+)"/.exec(html)?.[1];
     expect(scriptSource).toBeTruthy();
     await expect(fs.stat(path.join(taskDir, "deck", scriptSource))).resolves.toBeTruthy();
-  });
-
-  it("lets an existing multi-page HTML entry be shown inline", async () => {
-    const taskDir = await createTempDir("meowbert-inline-html-");
-    vi.stubEnv("MEOWBERT_TASK_DIR", taskDir);
-    const inputPath = path.join(taskDir, "site", "index.html");
-    await fs.mkdir(path.dirname(inputPath), { recursive: true });
-    await fs.writeFile(inputPath, "<a href=\"about.html\">About</a>");
-
-    const result = await createInlineFileArtifact({ inputPath, type: "html" });
-    expect(result.inline_artifact).toMatchObject({ type: "html", relative_path: "site/index.html" });
   });
 });
