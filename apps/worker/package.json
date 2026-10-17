@@ -14,7 +14,7 @@
     "@jitl/quickjs-ng-wasmfile-release-sync": "0.32.0",
     "@lancedb/lancedb": "0.40.0",
     "@meowbert/shared": "0.1.0",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "bullmq": "5.76.8",
     "chokidar": "5.0.0",
     "cron-parser": "5.5.0",

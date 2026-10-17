@@ -35,6 +35,7 @@
     "@lancedb/lancedb": {
       "@huggingface/transformers": "file:../../../stubs/unused-optional-dependency",
       "openai": "file:../../../stubs/unused-optional-dependency"
-    }
+    },
+    "katex": "0.18.11"
   }
 }
