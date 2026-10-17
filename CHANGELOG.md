@@ -1,5 +1,16 @@
 # Changelog
 
+## Oct 17, 2026
+
+### AI and agents
+
+- **Fast scratch space for repos and builds** — Each task now has a local scratch folder for work that creates lots of small files, such as cloning git repositories, installing dependencies, and building code. Clones that used to time out on network-mounted storage now finish in seconds. Normal files still go in the task's folder. Scratch isn't shown in the Files browser and is cleared when the task is deleted or archived. See **Files Browser** in the docs.
+
+### Self-hosting
+
+- **Task scratch storage** — Scratch folders live under `runtime.taskScratch.root`, which defaults to `task-scratch` next to `tasksRoot` (`/srv/meowbert/runtime/task-scratch` on the host). Keep it on local disk. Add `runtime.taskScratch.xfsProjectQuota` to cap each workspace's scratch at its storage limit on an XFS mount. See **Configuration** in the docs.
+- **XFS quotas work inside containers** — Meowbert now creates the XFS device node a container needs for `xfs_quota`, so XFS project quotas no longer fail with "No such device or address" when only the mount is passed in.
+
 ## Oct 16, 2026
 
 ### AI and agents

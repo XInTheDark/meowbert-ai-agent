@@ -75,3 +75,5 @@ Use the context menu (right-click or the `⋮` menu) for per-file actions:
 ## Relationship to tasks
 
 Every task gets its own working subdirectory (under the project root) where it writes output files. Files written by a task are visible here after the task completes. The project root directory is also accessible — you can pre-populate it with shared reference files that any task can read.
+
+Each task also has a separate scratch space for work that creates lots of small files, such as cloning a git repository, installing dependencies, or building code. It's much faster for that kind of work, so Meowbert uses it automatically. Scratch isn't shown in the Files browser and is cleared when the task is archived. Anything you want to keep, such as a report or a patch, goes in the task's folder; ask Meowbert to copy it there if it hasn't.
