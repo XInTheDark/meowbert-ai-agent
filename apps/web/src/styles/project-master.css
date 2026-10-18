@@ -68,6 +68,12 @@
   }
 }
 
+/* While typing, the keyboard leaves too little height for the page chrome; give it all to the conversation. */
+:root[data-keyboard-open="true"] .main-column:has(> .project-master-landing) > .project-navigation,
+:root[data-keyboard-open="true"] .project-master-landing:not(.is-split) :is(.project-master-header, .chat-task-topbar) {
+  display: none;
+}
+
 /* Split layout: a resizable task list on the left, the Master conversation on the right. */
 .project-master-landing.is-split {
   flex-direction: row;
