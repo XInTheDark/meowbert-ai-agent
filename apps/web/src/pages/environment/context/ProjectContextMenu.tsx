@@ -61,7 +61,7 @@ export function ProjectContextMenu(props: ProjectContextMenuProps) {
     && props.selectedPathSet.has(targetPath);
 
   return (
-    <FileContextMenu x={props.contextMenu.x} y={props.contextMenu.y}>
+    <FileContextMenu x={props.contextMenu.x} y={props.contextMenu.y} onClose={props.onClose}>
       {targetPath ? (
         <>
           {isMultiSelection ? (

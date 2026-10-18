@@ -1,0 +1,246 @@
+/*
+ * Touch-first app shell (≤1120px): an edge-to-edge app bar, a slide-in drawer and a bottom tab bar,
+ * all inset for the notch and home indicator. Page content scrolls between the bars.
+ */
+
+@media (max-width: 1120px) {
+  :root {
+    --mobile-gutter: 1rem;
+    --mobile-inset-left: max(var(--mobile-gutter), env(safe-area-inset-left));
+    --mobile-inset-right: max(var(--mobile-gutter), env(safe-area-inset-right));
+    --mobile-app-bar-height: 3.25rem;
+    --mobile-bottom-nav-height: calc(3.6rem + env(safe-area-inset-bottom));
+    --onboarding-prompt-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
+  :root:has(.mobile-bottom-nav) {
+    --onboarding-prompt-bottom: calc(var(--mobile-bottom-nav-height) + 0.75rem);
+  }
+
+  html {
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* iOS zooms the page when a focused form control renders below 16px. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  /* Thumb-sized controls: 40px is the smallest comfortable touch target. */
+  .btn:not(.compact) {
+    min-height: 2.5rem;
+  }
+
+  .btn.icon-btn,
+  .icon-btn {
+    width: auto;
+    min-width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  /* Removes the 300ms double-tap-to-zoom wait on controls. */
+  :is(button, a, summary, label, [role="button"], [role="tab"]) {
+    touch-action: manipulation;
+  }
+
+  /* Pin the shell to the same box the fixed bottom nav uses; vh/dvh/svh disagree with it on iOS. */
+  .product-shell {
+    grid-template-columns: 1fr;
+    position: fixed;
+    inset: 0;
+    height: auto;
+  }
+
+  :root[data-keyboard-open="true"] .product-shell {
+    top: var(--visual-viewport-top, 0px);
+    bottom: auto;
+    height: var(--visual-viewport-height, 100%);
+  }
+
+  .main-column {
+    gap: var(--space-sm);
+    padding: 0 var(--mobile-inset-right) 1rem var(--mobile-inset-left);
+  }
+
+  .main-column.has-mobile-bottom-nav {
+    padding-bottom: calc(var(--mobile-bottom-nav-height) + 1rem);
+  }
+
+  :root[data-keyboard-open="true"] .main-column.has-mobile-bottom-nav {
+    padding-bottom: 1rem;
+  }
+
+  /* App bar */
+
+  .mobile-shell-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: calc(var(--mobile-app-bar-height) + env(safe-area-inset-top));
+    margin: 0 calc(-1 * var(--mobile-inset-right)) 0 calc(-1 * var(--mobile-inset-left));
+    padding: env(safe-area-inset-top) var(--mobile-inset-right) 0 max(0.35rem, env(safe-area-inset-left));
+    border-bottom: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: saturate(140%) blur(16px);
+    -webkit-backdrop-filter: saturate(140%) blur(16px);
+  }
+
+  .mobile-nav-toggle {
+    flex: 0 0 auto;
+    width: 2.75rem;
+    height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 0.75rem;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .mobile-nav-toggle:active {
+    background: var(--surface-muted);
+  }
+
+  .mobile-shell-title {
+    display: grid;
+    min-width: 0;
+    line-height: 1.2;
+  }
+
+  .mobile-shell-title strong {
+    font-size: 1.06rem;
+    font-weight: 650;
+  }
+
+  .mobile-shell-title span {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  /* A conversation is a pushed screen: its own top bar has the back button and title. */
+  .main-column.task-detail-route > .mobile-shell-header {
+    display: none;
+  }
+
+  /* Drawer */
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 320px);
+    height: auto;
+    max-height: none;
+    padding-top: calc(1rem + env(safe-area-inset-top));
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    padding-left: calc(0.75rem + env(safe-area-inset-left));
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 260ms var(--ease-standard);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop.visible {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgb(0 0 0 / 0.42);
+    animation: mobile-sheet-fade 200ms ease-out;
+  }
+
+  /* Bottom tab bar */
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: var(--mobile-bottom-nav-height);
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-top: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: saturate(140%) blur(16px);
+    -webkit-backdrop-filter: saturate(140%) blur(16px);
+  }
+
+  .mobile-bottom-nav > a,
+  .mobile-bottom-nav > button {
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    font: inherit;
+    font-size: 0.68rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .mobile-bottom-nav > :is(a, button).active {
+    color: var(--brand-strong);
+  }
+
+  .mobile-bottom-nav > :is(a, button):active {
+    opacity: 0.6;
+  }
+
+  .mobile-bottom-nav > :is(a, button):focus-visible {
+    outline: none;
+    box-shadow: inset var(--focus-ring);
+  }
+
+  /* Every tab gets the same icon slot so the labels share a baseline. */
+  .mobile-bottom-nav > :is(a, button) > svg {
+    height: 1.6rem;
+  }
+
+  .mobile-bottom-nav-create-icon {
+    width: 2.4rem;
+    height: 1.6rem;
+    border-radius: 999px;
+    background: var(--brand);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  :root[data-keyboard-open="true"] .mobile-bottom-nav {
+    display: none;
+  }
+
+  :root[data-keyboard-open="true"] {
+    --onboarding-prompt-bottom: 0.75rem;
+  }
+}

@@ -1,0 +1,126 @@
+/*
+ * Task conversation on touch-first viewports: a full-bleed chat screen with a compact top bar
+ * (back, title, actions), a segmented tab row, thumb-sized controls and a composer that clears
+ * the home indicator.
+ */
+
+@media (max-width: 1120px) {
+  .main-column.task-detail-route .task-detail-conversation-shell {
+    border-radius: 0;
+  }
+
+  /* Top bar */
+
+  .main-column.task-detail-route .chat-task-topbar {
+    padding: calc(env(safe-area-inset-top) + 0.2rem) max(0.5rem, env(safe-area-inset-right)) 0.35rem max(0.25rem, env(safe-area-inset-left));
+    border: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    border-radius: 0;
+    background: var(--bg);
+  }
+
+  .chat-task-topbar :is(.task-topbar-mobile-nav-btn, .task-topbar-icon-btn, .task-topbar-controls .icon-btn-subtle) {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    border-color: transparent;
+    background: transparent;
+    color: var(--text);
+  }
+
+  .task-topbar-title-row {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .task-topbar-title-row > * {
+    flex-shrink: 0;
+  }
+
+  .chat-task-topbar .task-topbar-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 1.02rem;
+    font-weight: 650;
+  }
+
+  .task-topbar-controls {
+    gap: 0;
+  }
+
+  /* Segmented tabs */
+
+  .chat-task-topbar .task-tab-row {
+    width: 100%;
+    border-bottom: 0;
+    padding: 0.15rem 0 0;
+  }
+
+  .chat-task-topbar .task-tab-row-main {
+    flex: 1 1 auto;
+    gap: 0.25rem;
+  }
+
+  .chat-task-topbar .task-tab-row .tab-btn {
+    flex: 1 1 0;
+    min-height: 2.5rem;
+    justify-content: center;
+    border-radius: 0.65rem;
+  }
+
+  /* Messages */
+
+  .msg-action-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  /* Composer */
+
+  .main-column.task-detail-route .task-detail-chat-layout .chat-input-container {
+    padding: 0.45rem max(0.6rem, env(safe-area-inset-right)) calc(0.45rem + env(safe-area-inset-bottom)) max(0.6rem, env(safe-area-inset-left));
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg);
+  }
+
+  :root[data-keyboard-open="true"] .main-column.task-detail-route .task-detail-chat-layout .chat-input-container {
+    padding-bottom: 0.45rem;
+  }
+
+  .task-detail-chat-layout .chat-input-mobile-strip {
+    min-height: 2.75rem;
+    padding: 0.3rem 0.3rem 0.3rem 1rem;
+    box-shadow: none;
+  }
+
+  .chat-input-mobile-strip-main span {
+    color: var(--text-muted);
+    font-size: 1rem;
+  }
+
+  .chat-input-mobile-strip-hint {
+    margin-left: auto;
+  }
+
+  .chat-input-mobile-strip-send {
+    flex: 0 0 auto;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-soft);
+    color: var(--text-muted);
+  }
+
+  .chat-input-mobile-collapse-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+}

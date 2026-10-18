@@ -1,3 +1,4 @@
+import { Menu } from "lucide-react";
 import { ProjectNavigation } from "../../components/navigation/ProjectNavigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { LoadingIndicator } from "../../components/LoadingIndicator";
@@ -269,7 +270,6 @@ export function WorkspaceLayout(props: {
     createEnvironment: controller.createEnvironment,
     patchProject: controller.patchEnvironment,
     patchEnvironment: controller.patchEnvironment,
-    openMobileNavigation: () => setIsMobileNavOpen(true),
     replaceSessionToken: controller.replaceSessionToken
   };
 
@@ -305,20 +305,20 @@ export function WorkspaceLayout(props: {
             aria-label="Close navigation"
           />
           <div className={`main-column${isTaskDetailRoute ? " task-detail-route" : ""}${hasMobileBottomNavigation ? " has-mobile-bottom-nav" : ""}`}>
-            <div className="mobile-shell-header">
+            <header className="mobile-shell-header">
               <button
                 type="button"
-                className="btn ghost mobile-nav-toggle"
+                className="mobile-nav-toggle"
                 onClick={() => setIsMobileNavOpen(true)}
                 aria-label="Open navigation"
               >
-                ☰
+                <Menu size={22} />
               </button>
               <div className="mobile-shell-title">
-                <strong>{controller.activeWorkspace?.name ?? "Workspace"}</strong>
-                {controller.activeEnvironment ? <span>{controller.activeEnvironment.name}</span> : null}
+                <strong>{routeTitleParts[0]}</strong>
+                {routeTitleParts[1] ? <span>{routeTitleParts[1]}</span> : null}
               </div>
-            </div>
+            </header>
             {controller.navError && <div className="error-banner">{controller.navError}</div>}
             <ProjectNavigation />
             {/* Pages load on demand; keep the shell while one arrives. */}

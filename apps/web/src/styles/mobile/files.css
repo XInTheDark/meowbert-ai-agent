@@ -1,0 +1,48 @@
+/* Project files toolbar on touch-first viewports: the path on one row, every action on the next. */
+
+@media (max-width: 1120px) {
+  /* Align with the page gutter now that the card is flattened. */
+  .files-layout-card > * {
+    padding-inline: 0;
+  }
+
+  .files-toolbar {
+    gap: var(--space-xs);
+  }
+
+  .files-toolbar-left {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .files-path-form {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .files-path-input {
+    min-width: 0;
+  }
+
+  .files-toolbar-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 0.35rem;
+  }
+
+  .project-files-selection-count {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The upload icon carries the meaning; the label would push the row past the screen edge. */
+  .files-toolbar-actions .topbar-dropdown .btn.primary:first-child {
+    font-size: 0;
+    gap: 0;
+  }
+}

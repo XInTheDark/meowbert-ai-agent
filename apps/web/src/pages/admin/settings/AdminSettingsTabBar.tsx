@@ -21,6 +21,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import type { AdminSettingsTabKey } from "./shared";
+import { MenuSheet } from "../../../components/mobile/MenuSheet";
 
 interface AdminTabDefinition {
   key: AdminSettingsTabKey;
@@ -129,23 +130,25 @@ function AdminTabGroupMenu(props: {
         <ChevronDown size={14} className="admin-nav__chevron" />
       </button>
       {open ? (
-        <div id={menuId} className="admin-nav__menu" role="group" aria-label={group.label}>
-          {group.tabs.map((tab) => {
-            const Icon = tab.Icon;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                className={`admin-nav__item ${activeTab === tab.key ? "active" : ""}`}
-                aria-current={activeTab === tab.key ? "page" : undefined}
-                onClick={() => props.onSelect(tab.key)}
-              >
-                <Icon size={16} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <MenuSheet label={group.label} onClose={props.onToggle}>
+          <div id={menuId} className="admin-nav__menu" role="group" aria-label={group.label}>
+            {group.tabs.map((tab) => {
+              const Icon = tab.Icon;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`admin-nav__item ${activeTab === tab.key ? "active" : ""}`}
+                  aria-current={activeTab === tab.key ? "page" : undefined}
+                  onClick={() => props.onSelect(tab.key)}
+                >
+                  <Icon size={16} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </MenuSheet>
       ) : null}
     </div>
   );

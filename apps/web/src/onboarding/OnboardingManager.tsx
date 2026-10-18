@@ -24,6 +24,8 @@ import { Environment, FlashMessage, UserProfile } from "../lib/types";
 import {
   OnboardingProgressStatus,
   createOnboardingProgressRecord,
+  isResumePromptDismissed,
+  markResumePromptDismissed,
   readOnboardingProgress,
   writeOnboardingProgress
 } from "./storage";
@@ -74,6 +76,13 @@ export function OnboardingManager(props: OnboardingManagerProps) {
   const [resumeStepIndex, setResumeStepIndex] = useState(0);
   const [hasInProgressTutorial, setHasInProgressTutorial] = useState(false);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const userId = props.user?.id ?? null;
+  const dismissResumePrompt = useCallback(() => {
+    if (userId) {
+      markResumePromptDismissed(userId);
+    }
+    setShowResumePrompt(false);
+  }, [userId]);
   const [joyrideMountNonce, setJoyrideMountNonce] = useState(0);
   const lastTargetNotFoundKeyRef = useRef<string | null>(null);
   const routedStepIndexRef = useRef<number | null>(null);
@@ -227,7 +236,7 @@ export function OnboardingManager(props: OnboardingManagerProps) {
     setStepIndex(decision.initialStepIndex);
     setResumeStepIndex(decision.initialStepIndex);
     setHasInProgressTutorial(decision.shouldOfferResume);
-    setShowResumePrompt(decision.shouldOfferResume);
+    setShowResumePrompt(decision.shouldOfferResume && !isResumePromptDismissed(props.user.id));
 
     if (decision.shouldAutoStart && !props.deferAutoStart) {
       setRun(true);
@@ -407,10 +416,11 @@ export function OnboardingManager(props: OnboardingManagerProps) {
 
       {showResumePrompt && !run ? (
         <aside
+          className="onboarding-resume-prompt"
           style={{
             position: "fixed",
             right: "1rem",
-            bottom: "1rem",
+            bottom: "var(--onboarding-prompt-bottom, 1rem)",
             width: "min(360px, calc(100vw - 2rem))",
             borderRadius: "0.85rem",
             border: "1px solid var(--border)",
@@ -436,7 +446,7 @@ export function OnboardingManager(props: OnboardingManagerProps) {
             <button className="btn ghost" type="button" onClick={startTutorial}>
               Restart
             </button>
-            <button className="btn ghost" type="button" onClick={() => setShowResumePrompt(false)}>
+            <button className="btn ghost" type="button" onClick={dismissResumePrompt}>
               Dismiss
             </button>
           </div>

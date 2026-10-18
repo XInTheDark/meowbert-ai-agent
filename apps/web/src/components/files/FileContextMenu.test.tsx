@@ -17,7 +17,7 @@ it("portals outside clipping ancestors and keeps the menu within the viewport on
   } as DOMRect);
   const onClick = vi.fn();
   try {
-    act(() => root.render(<FileContextMenu x={window.innerWidth} y={window.innerHeight}><button onClick={onClick}>Remove</button></FileContextMenu>));
+    act(() => root.render(<FileContextMenu x={window.innerWidth} y={window.innerHeight} onClose={vi.fn()}><button onClick={onClick}>Remove</button></FileContextMenu>));
     const menu = document.querySelector<HTMLElement>(".file-context-menu")!;
     expect(menu.parentElement).toBe(document.body);
     expect(menu.style.left).toBe(`${window.innerWidth - 198}px`);

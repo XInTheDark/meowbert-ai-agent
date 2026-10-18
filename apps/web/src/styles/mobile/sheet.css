@@ -1,0 +1,130 @@
+/* Bottom sheet used for every menu and popover on touch-first viewports (see MobileSheet). */
+
+.mobile-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+:root[data-keyboard-open="true"] .mobile-sheet-root {
+  top: var(--visual-viewport-top, 0px);
+  bottom: auto;
+  height: var(--visual-viewport-height, 100%);
+}
+
+.mobile-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.42);
+  touch-action: none;
+  animation: mobile-sheet-fade 180ms ease-out;
+}
+
+.mobile-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - max(2.5rem, env(safe-area-inset-top) + 1rem));
+  border-radius: 1.1rem 1.1rem 0 0;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  background: var(--surface);
+  box-shadow: 0 -10px 40px rgb(0 0 0 / 0.28);
+  padding-bottom: env(safe-area-inset-bottom);
+  transition: transform 220ms var(--ease-standard);
+  animation: mobile-sheet-rise 260ms var(--ease-standard);
+}
+
+.mobile-sheet-handle {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  padding: 0.55rem 0 0.4rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.mobile-sheet-handle > span {
+  width: 2.25rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 45%, transparent);
+}
+
+.mobile-sheet-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0.5rem 0.6rem;
+}
+
+/*
+ * Menus keep their own markup and item styles, but drop the floating-popover geometry they carry
+ * (fixed coordinates, inline max-heights, borders and shadows) so the sheet owns layout and scroll.
+ */
+.mobile-sheet-content > * {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  animation: none !important;
+}
+
+.mobile-sheet-content > *::before {
+  content: none !important;
+}
+
+.mobile-sheet-content :is(.chat-tools-popover-scroll, .task-filter-dropdown-options) {
+  max-height: none;
+  overflow: visible;
+}
+
+.mobile-sheet-content :is(
+  .topbar-dropdown-menu > button,
+  .topbar-dropdown-menu summary,
+  .topbar-dropdown-submenu-panel > button,
+  .task-actions-dropdown > button,
+  .sidebar-menu-panel button,
+  .file-context-menu button,
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="option"]
+) {
+  min-height: 2.9rem;
+  font-size: 0.98rem;
+  border-radius: 0.7rem;
+}
+
+@keyframes mobile-sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes mobile-sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-sheet,
+  .mobile-sheet-backdrop {
+    animation: none;
+  }
+}

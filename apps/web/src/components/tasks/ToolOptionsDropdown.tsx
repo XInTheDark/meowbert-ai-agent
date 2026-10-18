@@ -24,6 +24,8 @@ import {
   type ChatToolsPopoverPlacement
 } from "./useChatToolsDropdownPlacement";
 import type { TaskToolOptions } from "../../lib/types";
+import { MenuSheet } from "../mobile/MenuSheet";
+import { useCompactViewport } from "../../hooks/useCompactViewport";
 
 export interface SkillSummary {
   id: string;
@@ -177,6 +179,8 @@ interface ToolsPopoverContentProps {
 }
 
 function ToolsPopoverContent(props: ToolsPopoverContentProps) {
+  // A focused search field would raise the phone keyboard over the sheet the moment it opens.
+  const compactViewport = useCompactViewport();
   const hasCoreMatches =
     props.showWebSearch
     || props.showMemorySearchTool
@@ -345,7 +349,7 @@ function ToolsPopoverContent(props: ToolsPopoverContentProps) {
           value={props.searchQuery}
           onChange={(event) => props.onSearchChange(event.target.value)}
           aria-label="Search tools and skills"
-          autoFocus
+          autoFocus={!compactViewport}
         />
         {props.searchQuery ? (
           <button
@@ -554,34 +558,36 @@ export function ToolOptionsDropdown(props: ToolOptionsDropdownProps) {
         </button>
       )}
       {isOpen ? (
-        <ToolsPopoverContent
-          popoverRef={popoverRef}
-          popoverStyle={popoverStyle}
-          popoverClassName={popoverClassName}
-          label={label}
-          variant={variant}
-          searchQuery={toolsSearchQuery}
-          onSearchChange={setToolsSearchQuery}
-          resolvedToolOptions={resolvedToolOptions}
-          onUpdateToolOptions={updateToolOptions}
-          onOpenComputerUseModal={() => {
-            setIsOpen(false);
-            setIsComputerUseModalOpen(true);
-            setComputerActionMessage(null);
-          }}
-          onToggleSkill={toggleSkill}
-          showWebSearch={showWebSearch}
-          showMemorySearchTool={showMemorySearchTool}
-          scheduleTaskMatchesQuery={scheduleTaskMatchesQuery}
-          subtasksMatchQuery={subtasksMatchQuery}
-          showComputerUseTool={showComputerUseTool}
-          coreSkills={coreSkills}
-          visualSkills={visualSkills}
-          documentSkills={documentSkills}
-          webSkills={webSkills}
-          customSkills={customSkills}
-          hasAnyToolMatches={hasAnyToolMatches}
-        />
+        <MenuSheet label={label} onClose={() => setIsOpen(false)}>
+          <ToolsPopoverContent
+            popoverRef={popoverRef}
+            popoverStyle={popoverStyle}
+            popoverClassName={popoverClassName}
+            label={label}
+            variant={variant}
+            searchQuery={toolsSearchQuery}
+            onSearchChange={setToolsSearchQuery}
+            resolvedToolOptions={resolvedToolOptions}
+            onUpdateToolOptions={updateToolOptions}
+            onOpenComputerUseModal={() => {
+              setIsOpen(false);
+              setIsComputerUseModalOpen(true);
+              setComputerActionMessage(null);
+            }}
+            onToggleSkill={toggleSkill}
+            showWebSearch={showWebSearch}
+            showMemorySearchTool={showMemorySearchTool}
+            scheduleTaskMatchesQuery={scheduleTaskMatchesQuery}
+            subtasksMatchQuery={subtasksMatchQuery}
+            showComputerUseTool={showComputerUseTool}
+            coreSkills={coreSkills}
+            visualSkills={visualSkills}
+            documentSkills={documentSkills}
+            webSkills={webSkills}
+            customSkills={customSkills}
+            hasAnyToolMatches={hasAnyToolMatches}
+          />
+        </MenuSheet>
       ) : null}
       {isComputerUseModalOpen ? (
         <ComputerUseEnableModal

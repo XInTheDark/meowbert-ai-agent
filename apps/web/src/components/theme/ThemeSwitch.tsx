@@ -1,6 +1,8 @@
 import { Check, ChevronDown, Moon, Sun } from "lucide-react";
 import { type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useCompactViewport } from "../../hooks/useCompactViewport";
+import { MobileSheet } from "../mobile/MobileSheet";
 import { ThemeMode } from "../../lib/types";
 import { THEME_OPTIONS, type ThemeOption } from "../../lib/theme";
 
@@ -25,6 +27,7 @@ export function ThemeSwitch(props: { themeMode: ThemeMode; setThemeMode: (mode: 
   const rootRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const compact = useCompactViewport();
   const selectedTheme = THEME_OPTIONS.find((option) => option.id === props.themeMode) ?? THEME_OPTIONS.find((option) => option.id === "dark")!;
   const themeFamilies = useMemo(() => buildThemeFamilies(THEME_OPTIONS), []);
   const selectedFamily = themeFamilies.find((family) => family.options.some((option) => option.id === selectedTheme.id)) ?? themeFamilies[0];
@@ -60,6 +63,19 @@ export function ThemeSwitch(props: { themeMode: ThemeMode; setThemeMode: (mode: 
     };
   }, [open]);
 
+  const popover = (
+    <ThemePopover
+      labelId={`${switchId}-label`}
+      popoverRef={popoverRef}
+      groupedFamilies={groupedFamilies}
+      themeMode={props.themeMode}
+      setThemeMode={(mode) => {
+        props.setThemeMode(mode);
+        setOpen(false);
+      }}
+    />
+  );
+
   return (
     <div className="theme-switch" ref={rootRef}>
       <span className="theme-switch-label" id={`${switchId}-label`}>Theme</span>
@@ -76,19 +92,8 @@ export function ThemeSwitch(props: { themeMode: ThemeMode; setThemeMode: (mode: 
         <ChevronDown size={15} aria-hidden="true" />
       </button>
 
-      {open ? createPortal(
-        <ThemePopover
-          labelId={`${switchId}-label`}
-          popoverRef={popoverRef}
-          groupedFamilies={groupedFamilies}
-          themeMode={props.themeMode}
-          setThemeMode={(mode) => {
-            props.setThemeMode(mode);
-            setOpen(false);
-          }}
-        />,
-        document.body
-      ) : null}
+      {open && compact ? <MobileSheet label="Theme" onClose={() => setOpen(false)}>{popover}</MobileSheet> : null}
+      {open && !compact ? createPortal(popover, document.body) : null}
     </div>
   );
 }

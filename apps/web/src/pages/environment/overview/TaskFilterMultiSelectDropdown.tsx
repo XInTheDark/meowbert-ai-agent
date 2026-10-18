@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { MenuSheet } from "../../../components/mobile/MenuSheet";
 
 export interface TaskFilterMultiSelectOption {
   value: string;
@@ -79,33 +80,35 @@ export function TaskFilterMultiSelectDropdown(props: TaskFilterMultiSelectDropdo
         </button>
 
         {isOpen ? (
-          <div className="task-filter-dropdown-menu" role="menu">
-            <div className="task-filter-dropdown-actions">
-              <button
-                type="button"
-                className="task-filter-dropdown-action"
-                onClick={isAllSelected ? clearAll : selectAll}
-              >
-                {isAllSelected ? "Clear" : "Select all"}
-              </button>
+          <MenuSheet label={props.label} onClose={() => setIsOpen(false)}>
+            <div className="task-filter-dropdown-menu" role="menu">
+              <div className="task-filter-dropdown-actions">
+                <button
+                  type="button"
+                  className="task-filter-dropdown-action"
+                  onClick={isAllSelected ? clearAll : selectAll}
+                >
+                  {isAllSelected ? "Clear" : "Select all"}
+                </button>
+              </div>
+              <div className="task-filter-dropdown-options">
+                {props.options.map((option) => {
+                  const isSelected = selectedValueSet.has(option.value);
+                  return (
+                    <label key={option.value} className={`task-filter-dropdown-option ${isSelected ? "is-selected" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(event) => toggleValue(option.value, event.target.checked)}
+                      />
+                      <span className="task-filter-dropdown-option-label">{option.label}</span>
+                      {isSelected ? <Check size={14} className="task-filter-dropdown-option-check" /> : null}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
-            <div className="task-filter-dropdown-options">
-              {props.options.map((option) => {
-                const isSelected = selectedValueSet.has(option.value);
-                return (
-                  <label key={option.value} className={`task-filter-dropdown-option ${isSelected ? "is-selected" : ""}`}>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={(event) => toggleValue(option.value, event.target.checked)}
-                    />
-                    <span className="task-filter-dropdown-option-label">{option.label}</span>
-                    {isSelected ? <Check size={14} className="task-filter-dropdown-option-check" /> : null}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+          </MenuSheet>
         ) : null}
       </div>
     </div>

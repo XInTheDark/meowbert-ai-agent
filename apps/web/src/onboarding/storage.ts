@@ -113,3 +113,22 @@ export function createOnboardingProgressRecord(
     lastWorkspaceId: input.lastWorkspaceId ?? null
   };
 }
+
+const RESUME_PROMPT_DISMISSED_KEY_PREFIX = "meowbert_onboarding_resume_dismissed:";
+
+/** A dismissed "Resume onboarding?" prompt stays hidden for the rest of the browser session. */
+export function isResumePromptDismissed(userId: string): boolean {
+  try {
+    return window.sessionStorage.getItem(`${RESUME_PROMPT_DISMISSED_KEY_PREFIX}${userId}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markResumePromptDismissed(userId: string): void {
+  try {
+    window.sessionStorage.setItem(`${RESUME_PROMPT_DISMISSED_KEY_PREFIX}${userId}`, "1");
+  } catch {
+    // Storage can be unavailable (private mode); the prompt then simply returns on the next load.
+  }
+}

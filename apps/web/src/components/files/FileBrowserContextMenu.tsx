@@ -17,7 +17,7 @@ export function FileBrowserContextMenu(props: FileBrowserContextMenuProps) {
   }
 
   return (
-    <FileContextMenu x={props.contextMenu.x} y={props.contextMenu.y}>
+    <FileContextMenu x={props.contextMenu.x} y={props.contextMenu.y} onClose={props.onClose}>
       {props.contextMenu.path ? (
         <>
           {props.selectedRelativePaths.length > 1 && props.selectedPathSet.has(props.contextMenu.path) ? (

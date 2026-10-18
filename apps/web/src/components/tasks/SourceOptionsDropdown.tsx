@@ -17,6 +17,8 @@ import {
   useChatToolsDropdownPlacement,
   type ChatToolsPopoverPlacement
 } from "./useChatToolsDropdownPlacement";
+import { MenuSheet } from "../mobile/MenuSheet";
+import { useCompactViewport } from "../../hooks/useCompactViewport";
 
 interface SourceOptionsDropdownProps {
   toolOptions: TaskToolOptions;
@@ -60,6 +62,8 @@ function filterSourceMenuSources(sources: WorkspaceSourceSummary[] | undefined, 
 }
 
 export function SourceOptionsDropdown(props: SourceOptionsDropdownProps) {
+  // A focused search field would raise the phone keyboard over the sheet the moment it opens.
+  const compactViewport = useCompactViewport();
   const {
     toolOptions,
     onChange,
@@ -184,83 +188,85 @@ export function SourceOptionsDropdown(props: SourceOptionsDropdownProps) {
       )}
 
       {isOpen ? (
-        <div
-          ref={popoverRef}
-          className={`chat-tools-popover ${popoverClassName}`}
-          role="menu"
-          aria-label={label}
-          style={popoverStyle}
-        >
-          <div className="chat-tools-search" role="search">
-            <Search size={14} />
-            <input
-              type="text"
-              className="chat-tools-search-input"
-              placeholder="Search sources"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              aria-label="Search sources"
-              autoFocus
-            />
-            {searchQuery ? (
-              <button
-                type="button"
-                className="chat-tools-search-clear"
-                onClick={() => setSearchQuery("")}
-                aria-label="Clear sources search"
-              >
-                <X size={13} />
-              </button>
-            ) : null}
-          </div>
-
-          <div className="chat-tools-popover-scroll">
-            <div className="chat-tools-section-label">Sources</div>
-            {filteredSources.map((source) => {
-              const isReady = isWorkspaceSourceReady(source);
-              const isEnabled = resolvedToolOptions.enabledSources.includes(source.id);
-
-              return (
+        <MenuSheet label={label} onClose={() => setIsOpen(false)}>
+          <div
+            ref={popoverRef}
+            className={`chat-tools-popover ${popoverClassName}`}
+            role="menu"
+            aria-label={label}
+            style={popoverStyle}
+          >
+            <div className="chat-tools-search" role="search">
+              <Search size={14} />
+              <input
+                type="text"
+                className="chat-tools-search-input"
+                placeholder="Search sources"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                aria-label="Search sources"
+                autoFocus={!compactViewport}
+              />
+              {searchQuery ? (
                 <button
-                  key={source.id}
                   type="button"
-                  className={`chat-tools-item ${isEnabled ? "active" : ""}`}
-                  onClick={() => toggleSource(source)}
-                  role={isReady ? "menuitemcheckbox" : "menuitem"}
-                  aria-checked={isReady ? isEnabled : undefined}
-                  title={source.description}
-                  style={{ alignItems: "flex-start" }}
+                  className="chat-tools-search-clear"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear sources search"
                 >
-                  <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.2rem", minWidth: 0 }}>
-                    <span className="chat-tools-item-label">
-                      <Link2 size={14} />
-                      {source.name}
-                    </span>
-                    <span className="muted-text" style={{ fontSize: "0.76rem", textAlign: "left", paddingLeft: "1.2rem" }}>
-                      {getWorkspaceSourceSetupLabel(source)}
-                    </span>
-                  </span>
-                  {isReady ? (
-                    isEnabled ? <Check size={14} /> : null
-                  ) : (
-                    <span className="muted-text" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.76rem" }}>
-                      <Wrench size={12} />
-                      Set up
-                    </span>
-                  )}
+                  <X size={13} />
                 </button>
-              );
-            })}
+              ) : null}
+            </div>
 
-            {filteredSources.length === 0 ? (
-              <div className="chat-tools-empty">
-                {searchQuery.trim().length > 0
-                  ? `No sources match "${searchQuery.trim()}".`
-                  : "No sources available yet."}
-              </div>
-            ) : null}
+            <div className="chat-tools-popover-scroll">
+              <div className="chat-tools-section-label">Sources</div>
+              {filteredSources.map((source) => {
+                const isReady = isWorkspaceSourceReady(source);
+                const isEnabled = resolvedToolOptions.enabledSources.includes(source.id);
+
+                return (
+                  <button
+                    key={source.id}
+                    type="button"
+                    className={`chat-tools-item ${isEnabled ? "active" : ""}`}
+                    onClick={() => toggleSource(source)}
+                    role={isReady ? "menuitemcheckbox" : "menuitem"}
+                    aria-checked={isReady ? isEnabled : undefined}
+                    title={source.description}
+                    style={{ alignItems: "flex-start" }}
+                  >
+                    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.2rem", minWidth: 0 }}>
+                      <span className="chat-tools-item-label">
+                        <Link2 size={14} />
+                        {source.name}
+                      </span>
+                      <span className="muted-text" style={{ fontSize: "0.76rem", textAlign: "left", paddingLeft: "1.2rem" }}>
+                        {getWorkspaceSourceSetupLabel(source)}
+                      </span>
+                    </span>
+                    {isReady ? (
+                      isEnabled ? <Check size={14} /> : null
+                    ) : (
+                      <span className="muted-text" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.76rem" }}>
+                        <Wrench size={12} />
+                        Set up
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
+              {filteredSources.length === 0 ? (
+                <div className="chat-tools-empty">
+                  {searchQuery.trim().length > 0
+                    ? `No sources match "${searchQuery.trim()}".`
+                    : "No sources available yet."}
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
+        </MenuSheet>
       ) : null}
     </div>
   );

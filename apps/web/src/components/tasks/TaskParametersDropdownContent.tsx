@@ -30,6 +30,7 @@ import {
 import { AGENT_SWARM_DEFAULT_TOKEN_BUDGET } from "@meowbert/shared/agent-swarm-quota";
 import { TaskTypeChangeConfirmModal } from "./TaskTypeChangeConfirmModal";
 import { useChatToolsDropdownPlacement } from "./useChatToolsDropdownPlacement";
+import { MenuSheet } from "../mobile/MenuSheet";
 
 type ControllerProps = { controller: TaskParametersDropdownController };
 
@@ -554,15 +555,17 @@ export function TaskParametersDropdownContent({ controller }: ControllerProps) {
         <SlidersHorizontal size={18} />
       </button>
       {controller.isOpen ? (
-        <div
-          ref={popoverRef}
-          className={`chat-tools-popover ${popoverClassName}`}
-          role="menu"
-          aria-label="Task parameters"
-          style={popoverStyle}
-        >
-          <div className="chat-tools-popover-scroll"><ActivePanel controller={controller} /></div>
-        </div>
+        <MenuSheet label="Task parameters" onClose={() => controller.setIsOpen(false)}>
+          <div
+            ref={popoverRef}
+            className={`chat-tools-popover ${popoverClassName}`}
+            role="menu"
+            aria-label="Task parameters"
+            style={popoverStyle}
+          >
+            <div className="chat-tools-popover-scroll"><ActivePanel controller={controller} /></div>
+          </div>
+        </MenuSheet>
       ) : null}
       {controller.pendingTypeChange ? (
         <TaskTypeChangeConfirmModal

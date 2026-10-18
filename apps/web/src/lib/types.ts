@@ -814,7 +814,6 @@ export interface WorkspaceContextValue {
     status?: "active" | "archived" | "error";
     jsonPayload?: Record<string, unknown>;
   }) => Promise<void>;
-  openMobileNavigation?: () => void;
   replaceSessionToken: (token: string) => void;
 }
 

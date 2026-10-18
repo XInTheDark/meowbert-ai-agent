@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { isMobileBottomNavigationVisible } from "./MobileBottomNavigation";
 
 describe("isMobileBottomNavigationVisible", () => {
-  it("keeps primary navigation available on task pages", () => {
+  it("keeps primary navigation on task lists and the composer but not inside a conversation", () => {
+    expect(isMobileBottomNavigationVisible("/app/workspace/projects/project/tasks")).toBe(true);
     expect(isMobileBottomNavigationVisible("/app/workspace/projects/project/tasks/new")).toBe(true);
-    expect(isMobileBottomNavigationVisible("/app/workspace/projects/project/tasks/task")).toBe(true);
+    expect(isMobileBottomNavigationVisible("/app/workspace/projects/project/tasks/task")).toBe(false);
   });
 
   it("preserves full-screen routes and other project navigation", () => {

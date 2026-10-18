@@ -1,8 +1,11 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useCompactViewport } from "../../hooks/useCompactViewport";
+import { MobileSheet } from "../mobile/MobileSheet";
 
-export function FileContextMenu(props: { x: number; y: number; children: ReactNode }) {
+export function FileContextMenu(props: { x: number; y: number; onClose: () => void; children: ReactNode }) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const compact = useCompactViewport();
 
   useLayoutEffect(() => {
     const reposition = () => {
@@ -17,7 +20,15 @@ export function FileContextMenu(props: { x: number; y: number; children: ReactNo
     reposition();
     window.addEventListener("resize", reposition);
     return () => window.removeEventListener("resize", reposition);
-  }, [props.x, props.y, props.children]);
+  }, [props.x, props.y, props.children, compact]);
+
+  if (compact) {
+    return (
+      <MobileSheet label="File actions" onClose={props.onClose}>
+        <div className="context-menu file-context-menu">{props.children}</div>
+      </MobileSheet>
+    );
+  }
 
   return createPortal(
     <div

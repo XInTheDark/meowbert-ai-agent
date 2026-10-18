@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Workspace } from "../../lib/types";
 import { WorkspaceIcon } from "../workspaceIcon/WorkspaceIcon";
 import { filterWorkspaces, sortWorkspaceOptions } from "./workspaceSearch";
+import { useCompactViewport } from "../../hooks/useCompactViewport";
+import { MenuSheet } from "../mobile/MenuSheet";
 
 interface WorkspaceSwitcherProps {
   activeWorkspaceId: string;
@@ -17,6 +19,7 @@ export function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const compact = useCompactViewport();
   const activeWorkspace = props.workspaces.find((workspace) => workspace.id === props.activeWorkspaceId);
   const orderedWorkspaces = useMemo(
     () => sortWorkspaceOptions(props.workspaces, props.activeWorkspaceId),
@@ -33,8 +36,11 @@ export function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
       return;
     }
 
-    queueMicrotask(() => inputRef.current?.focus());
-  }, [open]);
+    // On phones this would raise the keyboard over the list the user opened the switcher to see.
+    if (!compact) {
+      queueMicrotask(() => inputRef.current?.focus());
+    }
+  }, [compact, open]);
 
   useEffect(() => {
     if (!open) {
@@ -86,55 +92,57 @@ export function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
       </button>
 
       {open ? (
-        <div className="workspace-switcher-popover" role="dialog" aria-label="Switch workspace">
-          <label className="workspace-switcher-search">
-            <Search size={15} aria-hidden="true" />
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search workspaces"
-            />
-          </label>
+        <MenuSheet label="Switch workspace" onClose={() => setOpen(false)}>
+          <div className="workspace-switcher-popover" role="dialog" aria-label="Switch workspace">
+            <label className="workspace-switcher-search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search workspaces"
+              />
+            </label>
 
-          <div className="workspace-switcher-list">
-            {visibleWorkspaces.map((workspace) => {
-              const selected = workspace.id === props.activeWorkspaceId;
-              return (
-                <button
-                  key={workspace.id}
-                  type="button"
-                  className={`workspace-switcher-option${selected ? " selected" : ""}`}
-                  onClick={() => closeAfter(() => props.onSelectWorkspace(workspace.id))}
-                >
-                  <span className="workspace-switcher-option-mark" aria-hidden="true">
-                    <WorkspaceIcon iconKey={workspace.iconKey} size={15} />
-                  </span>
-                  <span>
-                    <strong>{workspace.name}</strong>
-                    <span>{workspace.role}</span>
-                  </span>
-                  {selected ? <Check size={16} aria-hidden="true" /> : null}
-                </button>
-              );
-            })}
+            <div className="workspace-switcher-list">
+              {visibleWorkspaces.map((workspace) => {
+                const selected = workspace.id === props.activeWorkspaceId;
+                return (
+                  <button
+                    key={workspace.id}
+                    type="button"
+                    className={`workspace-switcher-option${selected ? " selected" : ""}`}
+                    onClick={() => closeAfter(() => props.onSelectWorkspace(workspace.id))}
+                  >
+                    <span className="workspace-switcher-option-mark" aria-hidden="true">
+                      <WorkspaceIcon iconKey={workspace.iconKey} size={15} />
+                    </span>
+                    <span>
+                      <strong>{workspace.name}</strong>
+                      <span>{workspace.role}</span>
+                    </span>
+                    {selected ? <Check size={16} aria-hidden="true" /> : null}
+                  </button>
+                );
+              })}
 
-            {visibleWorkspaces.length === 0 ? (
-              <div className="workspace-switcher-empty">No matching workspaces.</div>
-            ) : null}
+              {visibleWorkspaces.length === 0 ? (
+                <div className="workspace-switcher-empty">No matching workspaces.</div>
+              ) : null}
+            </div>
+
+            <div className="workspace-switcher-actions">
+              <button type="button" onClick={() => closeAfter(props.onCreateWorkspace)} title="New workspace">
+                <Plus size={15} />
+                <span>New</span>
+              </button>
+              <button type="button" onClick={() => closeAfter(props.onManageWorkspaces)} title="Manage workspaces">
+                <Settings size={15} />
+                <span>Manage</span>
+              </button>
+            </div>
           </div>
-
-          <div className="workspace-switcher-actions">
-            <button type="button" onClick={() => closeAfter(props.onCreateWorkspace)} title="New workspace">
-              <Plus size={15} />
-              <span>New</span>
-            </button>
-            <button type="button" onClick={() => closeAfter(props.onManageWorkspaces)} title="Manage workspaces">
-              <Settings size={15} />
-              <span>Manage</span>
-            </button>
-          </div>
-        </div>
+        </MenuSheet>
       ) : null}
     </div>
   );

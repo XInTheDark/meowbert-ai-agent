@@ -202,14 +202,17 @@ describe("TaskDetailTopbar", () => {
     });
   });
 
-  it("renders the mobile navigation button next to the task title", () => {
-    const html = renderToStaticMarkup(
-      <TaskDetailTopbar {...buildProps({ isMobileViewport: true, onOpenMobileNavigation: vi.fn() })} />
-    );
+  it("offers a back button on phones that leaves the conversation", () => {
+    const onNavigateBack = vi.fn();
+    const container = renderTopbar(buildProps({ isMobileViewport: true, onNavigateBack }));
+    const backButtons = container.querySelectorAll<HTMLButtonElement>('button[aria-label="Back"]');
+    expect(backButtons.length).toBeGreaterThan(0);
 
-    expect(html).toContain("Open navigation");
-    expect(html).toContain("task-topbar-mobile-nav-btn");
-    expect(html).toContain("lucide-panel-left-open");
+    click(backButtons[backButtons.length - 1] ?? null);
+    expect(onNavigateBack).toHaveBeenCalledOnce();
+
+    const desktop = renderTopbar(buildProps({ isMobileViewport: false, onNavigateBack }));
+    expect(desktop.querySelector('button[aria-label="Back"]')).toBeNull();
   });
 
   it("shows a timed-task start action instead of generic recurring controls", () => {

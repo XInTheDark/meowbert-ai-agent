@@ -5,6 +5,7 @@ import {
   useChatToolsDropdownPlacement,
   type ChatToolsPopoverPlacement
 } from "./useChatToolsDropdownPlacement";
+import { MenuSheet } from "../mobile/MenuSheet";
 
 export type AgentSummaryMode = "standard" | "agent_swarm" | "quality_control_reviewer";
 
@@ -399,38 +400,40 @@ export function AgentDropdown(props: AgentDropdownProps) {
         }}
       />
       {isOpen ? (
-        <AgentDropdownMenu
-          popoverRef={popoverRef}
-          popoverStyle={popoverStyle}
-          popoverClassName={popoverClassName}
-          agents={agents}
-          variant={variant}
-          multiSelect={multiSelect}
-          allowNoSelection={allowNoSelection}
-          selectedAgentId={selectedAgentId}
-          selectedAgentIds={selectedAgentIdSet}
-          defaultAgent={defaultAgent}
-          resolvedAgent={resolvedAgent}
-          noSelectionLabel={noSelectionLabel}
-          onSelect={(agentId) => {
-            if (multiSelect) {
-              toggleMultiAgent(agentId);
-              return;
-            }
-            onChange?.(agentId);
-            if (!modelSliderAgentIds || showFullList) {
+        <MenuSheet label="Agents" onClose={() => setIsOpen(false)}>
+          <AgentDropdownMenu
+            popoverRef={popoverRef}
+            popoverStyle={popoverStyle}
+            popoverClassName={popoverClassName}
+            agents={agents}
+            variant={variant}
+            multiSelect={multiSelect}
+            allowNoSelection={allowNoSelection}
+            selectedAgentId={selectedAgentId}
+            selectedAgentIds={selectedAgentIdSet}
+            defaultAgent={defaultAgent}
+            resolvedAgent={resolvedAgent}
+            noSelectionLabel={noSelectionLabel}
+            onSelect={(agentId) => {
+              if (multiSelect) {
+                toggleMultiAgent(agentId);
+                return;
+              }
+              onChange?.(agentId);
+              if (!modelSliderAgentIds || showFullList) {
+                setIsOpen(false);
+              }
+            }}
+            onClearSingle={() => {
+              onChange?.(null);
               setIsOpen(false);
-            }
-          }}
-          onClearSingle={() => {
-            onChange?.(null);
-            setIsOpen(false);
-          }}
-          onClearMulti={() => onMultiChange?.([])}
-          modelSliderAgentIds={modelSliderAgentIds}
-          showFullList={showFullList}
-          onShowFullList={() => setShowFullList((current) => !current)}
-        />
+            }}
+            onClearMulti={() => onMultiChange?.([])}
+            modelSliderAgentIds={modelSliderAgentIds}
+            showFullList={showFullList}
+            onShowFullList={() => setShowFullList((current) => !current)}
+          />
+        </MenuSheet>
       ) : null}
     </div>
   );

@@ -7,7 +7,7 @@ import { AttachFilesMenu } from "./AttachFilesMenu";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("portals the compact menu, accepts its actions, and dismisses outside clicks", () => {
+it("shows the compact menu as a sheet, accepts its actions, and dismisses outside taps", () => {
   vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -18,7 +18,7 @@ it("portals the compact menu, accepts its actions, and dismisses outside clicks"
     const trigger = container.querySelector("button")!;
     act(() => trigger.click());
     const menu = document.querySelector('[role="menu"]')!;
-    expect(menu.parentElement).toBe(document.body);
+    expect(menu.closest("#mobile-sheet-layer")).not.toBeNull();
     const action = menu.querySelector("button")!;
     act(() => action.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
     expect(document.body.contains(action)).toBe(true);
@@ -27,6 +27,9 @@ it("portals the compact menu, accepts its actions, and dismisses outside clicks"
     expect(document.querySelector('[role="menu"]')).toBeNull();
     act(() => trigger.click());
     act(() => document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    act(() => trigger.click());
+    act(() => (document.querySelector(".mobile-sheet-backdrop") as HTMLElement).click());
     expect(document.querySelector('[role="menu"]')).toBeNull();
   } finally {
     act(() => root.unmount());

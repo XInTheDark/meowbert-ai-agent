@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ChevronDown, FileText, FolderOpen, Link2, Loader2, Palette, Paperclip, Upload } from "lucide-react";
-import { CompactMenuPortal } from "../CompactMenuPortal";
+import { MenuSheet } from "../mobile/MenuSheet";
 import {
   useChatToolsDropdownPlacement,
   type ChatToolsPopoverPlacement
@@ -157,7 +157,7 @@ export function AttachFilesMenu(props: AttachFilesMenuProps) {
       )}
 
       {isOpen ? (
-        <CompactMenuPortal>
+        <MenuSheet label={triggerLabel} onClose={closeMenu}>
           <div ref={popoverRef} className={`chat-tools-popover ${popoverClassName}`} role="menu" aria-label={triggerLabel} style={popoverStyle}>
             <div className="chat-tools-popover-scroll">
               {canUploadFiles ? (
@@ -245,7 +245,7 @@ export function AttachFilesMenu(props: AttachFilesMenuProps) {
               ))}
             </div>
           </div>
-        </CompactMenuPortal>
+        </MenuSheet>
       ) : null}
     </div>
   );

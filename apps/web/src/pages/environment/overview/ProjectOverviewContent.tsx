@@ -2,6 +2,7 @@ import { useEffect, useRef, type Ref } from "react";
 import { RotateCw, Terminal } from "lucide-react";
 import { badgeClass } from "../../../lib/utils";
 import { DropdownDivider, DropdownItem } from "./ProjectOverviewDropdown";
+import { MenuSheet } from "../../../components/mobile/MenuSheet";
 import {
   ProjectTaskDialogs,
   ProjectTaskPagination,
@@ -160,7 +161,11 @@ function ProjectTaskBulkBar(props: ProjectOverviewContentProps & {
           >
             Actions
           </button>
-          {menuOpen ? <BulkActionsMenu {...props} /> : null}
+          {menuOpen ? (
+            <MenuSheet label="Task actions" onClose={() => actions.setOpenMenuId(null)}>
+              <BulkActionsMenu {...props} />
+            </MenuSheet>
+          ) : null}
         </div>
       </div>
     </div>

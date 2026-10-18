@@ -124,7 +124,9 @@ function TaskTopbar({ model }: ModelProps) {
         if (!current) model.controllers.search.setIsSearchOpen(false);
         return !current;
       })}
-      onOpenMobileNavigation={model.context.workspace.openMobileNavigation}
+      onNavigateBack={task.is_project_master ? undefined : () => {
+        model.context.navigate(`/app/${model.context.taskWorkspaceId}/projects/${model.context.taskProjectId}/tasks`);
+      }}
       onOpenSearch={undefined}
       onDeletePermanently={() => void model.actions.handleDeletePermanently()}
       isDeletingPermanently={model.actions.isDeletingPermanently}

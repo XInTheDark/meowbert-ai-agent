@@ -1,5 +1,6 @@
-import type { ReactNode, RefObject } from "react";
-import { ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
+import { useRef, type ReactNode, type RefObject } from "react";
+import { flushSync } from "react-dom";
+import { ArrowUp, ChevronDown, MessageSquare } from "lucide-react";
 import type { AgentSummary } from "../../../components/tasks/AgentDropdown";
 import type { MasterTaskAgentPicker } from "../../../components/taskConversation/masterTaskAgentPicker";
 import { ChatInput } from "../../../components/taskConversation/ChatInput";
@@ -132,18 +133,25 @@ function getCollapsedInputLabel(editingMessageId: string | null, followUp: strin
   return trimmed.length > 0 ? trimmed : "Reply to the agent...";
 }
 
-function getCollapsedInputHint(attachmentCount: number): string {
+function getCollapsedInputHint(attachmentCount: number): string | null {
   if (attachmentCount > 0) {
-    return `${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"} attached`;
+    return `${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`;
   }
 
-  return "Tap to expand";
+  return null;
 }
 
 export function TaskDetailConversationPane(props: TaskDetailConversationPaneProps) {
   const isMobileInputCollapsed = props.isMobileViewport && !props.isMobileInputExpanded;
   const collapsedInputLabel = getCollapsedInputLabel(props.editingMessageId, props.followUp);
   const collapsedInputHint = getCollapsedInputHint(props.attachments.length + props.pendingUploads.length);
+  const composerRef = useRef<HTMLDivElement>(null);
+
+  // Focus inside the same tap so the phone raises its keyboard straight away instead of needing a second tap.
+  function expandMobileComposer(): void {
+    flushSync(() => props.onMobileInputExpandedChange(true));
+    composerRef.current?.querySelector("textarea")?.focus();
+  }
   const showMessageActions = props.showMessageActions ?? true;
   const hideComposer = props.hideComposer === true;
   const showScrollToBottomButton =
@@ -231,22 +239,21 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
       </div>
 
       {hideComposer ? null : (
-        <div className={`chat-input-container${isMobileInputCollapsed ? " mobile-collapsed" : ""}`}>
+        <div ref={composerRef} className={`chat-input-container${isMobileInputCollapsed ? " mobile-collapsed" : ""}`}>
           {isMobileInputCollapsed ? (
             <button
               type="button"
               className="chat-input-mobile-strip"
-              onClick={() => props.onMobileInputExpandedChange(true)}
+              onClick={expandMobileComposer}
               aria-expanded={false}
               aria-label="Expand message input"
             >
               <span className="chat-input-mobile-strip-main">
-                <MessageSquare size={15} />
                 <span>{collapsedInputLabel}</span>
               </span>
-              <span className="chat-input-mobile-strip-hint">
-                <span>{collapsedInputHint}</span>
-                <ChevronUp size={16} />
+              {collapsedInputHint ? <span className="chat-input-mobile-strip-hint">{collapsedInputHint}</span> : null}
+              <span className="chat-input-mobile-strip-send" aria-hidden="true">
+                <ArrowUp size={16} />
               </span>
             </button>
           ) : (

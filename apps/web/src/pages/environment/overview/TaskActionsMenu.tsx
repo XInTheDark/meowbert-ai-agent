@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ExplorerRowActionButton } from "../../../components/explorer/ExplorerTable";
+import { MobileSheet } from "../../../components/mobile/MobileSheet";
+import { useCompactViewport } from "../../../hooks/useCompactViewport";
 
 interface TaskActionsMenuProps {
   children: ReactNode;
@@ -27,6 +29,7 @@ export function TaskActionsMenu(props: TaskActionsMenuProps) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<MenuPosition | null>(null);
+  const compact = useCompactViewport();
 
   useLayoutEffect(() => {
     if (!props.open) {
@@ -76,7 +79,14 @@ export function TaskActionsMenu(props: TaskActionsMenuProps) {
         disabled={props.disabled}
         title={props.title}
       />
-      {props.open
+      {props.open && compact ? (
+        <MobileSheet label={props.title} onClose={props.onToggle}>
+          <div className="task-actions-dropdown" role="menu" aria-label={props.title} data-task-actions-menu>
+            {props.children}
+          </div>
+        </MobileSheet>
+      ) : null}
+      {props.open && !compact
         ? createPortal(
             <div
               className="task-actions-dropdown task-actions-dropdown-portal"

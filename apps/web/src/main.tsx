@@ -18,6 +18,12 @@ import "./styles/secondary.css";
 import "./styles/conversation.css";
 import "./styles/canvas.css";
 import "./styles.css";
+import "./styles/mobile/shell.css";
+import "./styles/mobile/conversation.css";
+import "./styles/mobile/lists.css";
+import "./styles/mobile/pages.css";
+import "./styles/mobile/files.css";
+import "./styles/mobile/sheet.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

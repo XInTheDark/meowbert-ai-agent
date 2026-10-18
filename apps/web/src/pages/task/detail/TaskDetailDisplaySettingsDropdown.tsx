@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Settings2 } from "lucide-react";
 import { hasCustomTaskAssistantMessageDisplayPreferences } from "../../../task/taskPagePreferences";
 import type { TaskAssistantMessageDisplayPreferences } from "../../../lib/types";
+import { MenuSheet } from "../../../components/mobile/MenuSheet";
 
 interface TaskDetailDisplaySettingsDropdownProps {
   newMessageOrganizationEnabled?: boolean;
@@ -94,35 +95,37 @@ export function TaskDetailDisplaySettingsDropdown(props: TaskDetailDisplaySettin
         <Settings2 size={18} />
       </button>
       {isOpen ? (
-        <div
-          className="chat-tools-popover task-detail-display-settings-popover"
-          role="menu"
-          aria-label="Message display settings"
-          style={{ top: "calc(100% + 0.35rem)", bottom: "auto", left: "auto", right: 0 }}
-        >
-          <div className="chat-tools-popover-scroll">
-            {getDisplaySettingsSections(value, props.newMessageOrganizationEnabled === true).map((section) => (
-              <div className="task-detail-display-settings-section" key={section.title}>
-                <div className="chat-tools-section-label">{section.title}</div>
-                {section.settings.map((setting) => (
-                  <button
-                    key={setting.key}
-                    type="button"
-                    className={`chat-tools-item${setting.nested ? " chat-tools-item-nested" : ""}${value[setting.key] ? " active" : ""}`}
-                    onClick={() => togglePreference(setting.key)}
-                    role="menuitemcheckbox"
-                    aria-checked={value[setting.key]}
-                    disabled={disabled || isSaving}
-                  >
-                    <span className="chat-tools-item-label">{setting.label}</span>
-                    {value[setting.key] ? <Check size={14} /> : null}
-                  </button>
-                ))}
-              </div>
-            ))}
+        <MenuSheet label="Message display settings" onClose={() => setIsOpen(false)}>
+          <div
+            className="chat-tools-popover task-detail-display-settings-popover"
+            role="menu"
+            aria-label="Message display settings"
+            style={{ top: "calc(100% + 0.35rem)", bottom: "auto", left: "auto", right: 0 }}
+          >
+            <div className="chat-tools-popover-scroll">
+              {getDisplaySettingsSections(value, props.newMessageOrganizationEnabled === true).map((section) => (
+                <div className="task-detail-display-settings-section" key={section.title}>
+                  <div className="chat-tools-section-label">{section.title}</div>
+                  {section.settings.map((setting) => (
+                    <button
+                      key={setting.key}
+                      type="button"
+                      className={`chat-tools-item${setting.nested ? " chat-tools-item-nested" : ""}${value[setting.key] ? " active" : ""}`}
+                      onClick={() => togglePreference(setting.key)}
+                      role="menuitemcheckbox"
+                      aria-checked={value[setting.key]}
+                      disabled={disabled || isSaving}
+                    >
+                      <span className="chat-tools-item-label">{setting.label}</span>
+                      {value[setting.key] ? <Check size={14} /> : null}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {isSaving ? <p className="task-detail-display-settings-status">Saving…</p> : null}
           </div>
-          {isSaving ? <p className="task-detail-display-settings-status">Saving…</p> : null}
-        </div>
+        </MenuSheet>
       ) : null}
     </div>
   );

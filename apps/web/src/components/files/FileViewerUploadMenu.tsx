@@ -1,4 +1,5 @@
 import { ChevronDown, Loader2, Upload } from "lucide-react";
+import { MenuSheet } from "../mobile/MenuSheet";
 
 interface FileViewerUploadMenuProps {
   isOpen: boolean;
@@ -46,11 +47,13 @@ export function FileViewerUploadMenu(props: FileViewerUploadMenuProps) {
       </div>
 
       {props.isOpen ? (
-        <div className="topbar-dropdown-menu">
-          <button type="button" onClick={props.onUploadFolder} disabled={props.isUploading}>
-            Upload folder
-          </button>
-        </div>
+        <MenuSheet label="Upload options" onClose={props.onToggle}>
+          <div className="topbar-dropdown-menu">
+            <button type="button" onClick={props.onUploadFolder} disabled={props.isUploading}>
+              Upload folder
+            </button>
+          </div>
+        </MenuSheet>
       ) : null}
     </div>
   );

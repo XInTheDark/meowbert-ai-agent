@@ -1,0 +1,52 @@
+/*
+ * Task list on touch-first viewports: a two-line, full-width list with whole-row taps instead of
+ * the desktop explorer table.
+ */
+
+@media (max-width: 1120px) {
+  /* The task list is a two-line list on phones (see .task-item), not a wide table. */
+  .task-tree-container .explorer-body {
+    min-width: 0;
+  }
+
+  /* The whole row opens the task, like a native list; the checkbox and menu stay tappable above it. */
+  .task-item {
+    position: relative;
+  }
+
+  .task-item .task-title::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .task-item :is(.task-select-cell, .task-actions-cell) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .explorer-row .explorer-row-action-button {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  /* Selection tools fit on one quiet row above the list. */
+  .task-bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 0.2rem 0.25rem 0.2rem 0.75rem;
+  }
+
+  .task-bulk-bar .task-bulk-actions {
+    width: auto;
+    margin-left: auto;
+  }
+
+  .explorer-checkbox {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+}

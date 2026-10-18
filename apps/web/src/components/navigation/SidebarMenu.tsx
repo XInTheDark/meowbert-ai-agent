@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useCompactViewport } from "../../hooks/useCompactViewport";
+import { MobileSheet } from "../mobile/MobileSheet";
 
 interface SidebarMenuProps {
   /** Accessible name for the trigger. */
@@ -33,6 +35,7 @@ export function SidebarMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<{ left: number; bottom: number } | null>(null);
+  const compact = useCompactViewport();
 
   const close = (): void => {
     setOpen(false);
@@ -118,7 +121,14 @@ export function SidebarMenu({
         {trigger}
         {hasUnread ? <span className="sidebar-menu-dot" aria-hidden="true" /> : null}
       </button>
-      {open
+      {open && compact ? (
+        <MobileSheet label={label} onClose={close}>
+          <div className="sidebar-menu-panel" role="menu" aria-label={label}>
+            {children(close)}
+          </div>
+        </MobileSheet>
+      ) : null}
+      {open && !compact
         ? createPortal(
             <div
               className="sidebar-menu-panel"

@@ -7,7 +7,11 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#171819" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Meowbert" />
     <script type="module" src="/src/theme-bootstrap.ts"></script>
     <title>Meowbert AI</title>
     <style>
@@ -21,6 +25,7 @@
 
       body {
         min-height: 100vh;
+        min-height: 100dvh;
       }
     </style>
   </head>

@@ -6,6 +6,7 @@ import {
   Bug,
   CalendarClock,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Download,
   Eraser,
@@ -14,7 +15,6 @@ import {
   Minimize2,
   MoreVertical,
   Package,
-  PanelLeftOpen,
   Search,
   Terminal,
   Trash2
@@ -26,6 +26,7 @@ import type { TaskDetailTab } from "./taskDetailConstants";
 import { TaskDetailDisplaySettingsDropdown } from "./TaskDetailDisplaySettingsDropdown";
 import { formatTokenCount } from "./taskDetailUtils";
 import { TaskUsageModal } from "./TaskUsageModal";
+import { MenuSheet } from "../../../components/mobile/MenuSheet";
 import { SubscriptionUsageWarningLink, type SubscriptionUsageWarning } from "../../../subscription/usageLimits";
 import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
 
@@ -68,7 +69,8 @@ interface TaskDetailTopbarProps {
   onConversationOutlineToggle?: () => void;
   isMessageOutlineOpen: boolean;
   onMessageOutlineToggle: () => void;
-  onOpenMobileNavigation?: () => void;
+  /** Leaves the conversation on phones, where the shell header and tab bar are hidden. */
+  onNavigateBack?: () => void;
   onOpenSearch?: () => void;
   onDeletePermanently?: () => void;
   isDeletingPermanently?: boolean;
@@ -292,48 +294,50 @@ function TaskDetailActionsMenu(props: {
         <MoreVertical size={16} />
       </button>
       {props.actionsMenuOpen ? (
-        <div className="topbar-dropdown-menu">
-          <button onClick={props.onMessageOutlineToggle} aria-pressed={props.isMessageOutlineOpen}>
-            <TaskMessageOutlineToggleIcon /> {props.isMessageOutlineOpen ? "Hide Messages" : "Show Messages"}
-          </button>
-          {props.newMessageOrganizationEnabled ? <button onClick={props.onConversationOutlineToggle} aria-pressed={props.isConversationOutlineOpen}>
-            <TaskMessageOutlineToggleIcon /> {props.isConversationOutlineOpen ? "Hide Outline" : "Show Outline"}
-          </button> : null}
-          {props.onOpenSearch ? (
-            <button onClick={() => { props.onOpenSearch?.(); }}>
-              <Search size={14} /> Search
+        <MenuSheet label="Task actions" onClose={props.onToggle}>
+          <div className="topbar-dropdown-menu">
+            <button onClick={props.onMessageOutlineToggle} aria-pressed={props.isMessageOutlineOpen}>
+              <TaskMessageOutlineToggleIcon /> {props.isMessageOutlineOpen ? "Hide Messages" : "Show Messages"}
             </button>
-          ) : null}
-          <button onClick={props.onViewFiles}>
-            <FolderOpen size={14} /> View Files
-          </button>
-          {props.canOpenTaskFolder ? (
-            <button onClick={props.onOpenTaskFolder}>
-              <FolderOpen size={14} /> Open Task Folder
+            {props.newMessageOrganizationEnabled ? <button onClick={props.onConversationOutlineToggle} aria-pressed={props.isConversationOutlineOpen}>
+              <TaskMessageOutlineToggleIcon /> {props.isConversationOutlineOpen ? "Hide Outline" : "Show Outline"}
+            </button> : null}
+            {props.onOpenSearch ? (
+              <button onClick={() => { props.onOpenSearch?.(); }}>
+                <Search size={14} /> Search
+              </button>
+            ) : null}
+            <button onClick={props.onViewFiles}>
+              <FolderOpen size={14} /> View Files
             </button>
-          ) : null}
-          <details className="topbar-dropdown-submenu">
-            <summary>
-              <Download size={14} />
-              {props.isExportingChat ? "Exporting..." : "Export"}
-              <ChevronRight size={13} className="topbar-dropdown-submenu-chevron" aria-hidden="true" />
-            </summary>
-            <div className="topbar-dropdown-submenu-panel">
-              <button type="button" onClick={props.onExportJson} disabled={props.isExportingChat}>
-                JSON
+            {props.canOpenTaskFolder ? (
+              <button onClick={props.onOpenTaskFolder}>
+                <FolderOpen size={14} /> Open Task Folder
               </button>
-              <button type="button" onClick={props.onExportMarkdown} disabled={props.isExportingChat}>
-                Markdown
-              </button>
-            </div>
-          </details>
-          <button onClick={props.onCompactContext} disabled={props.isTaskRunning || props.isCompacting || props.isClearingContext}>
-            <Minimize2 size={14} /> {props.isCompacting ? "Compacting..." : "Compact Context"}
-          </button>
-          <button onClick={props.onClearContext} disabled={props.isTaskRunning || props.isCompacting || props.isClearingContext}>
-            <Eraser size={14} /> {props.isClearingContext ? "Clearing..." : "Clear Context"}
-          </button>
-        </div>
+            ) : null}
+            <details className="topbar-dropdown-submenu">
+              <summary>
+                <Download size={14} />
+                {props.isExportingChat ? "Exporting..." : "Export"}
+                <ChevronRight size={13} className="topbar-dropdown-submenu-chevron" aria-hidden="true" />
+              </summary>
+              <div className="topbar-dropdown-submenu-panel">
+                <button type="button" onClick={props.onExportJson} disabled={props.isExportingChat}>
+                  JSON
+                </button>
+                <button type="button" onClick={props.onExportMarkdown} disabled={props.isExportingChat}>
+                  Markdown
+                </button>
+              </div>
+            </details>
+            <button onClick={props.onCompactContext} disabled={props.isTaskRunning || props.isCompacting || props.isClearingContext}>
+              <Minimize2 size={14} /> {props.isCompacting ? "Compacting..." : "Compact Context"}
+            </button>
+            <button onClick={props.onClearContext} disabled={props.isTaskRunning || props.isCompacting || props.isClearingContext}>
+              <Eraser size={14} /> {props.isClearingContext ? "Clearing..." : "Clear Context"}
+            </button>
+          </div>
+        </MenuSheet>
       ) : null}
     </div>
   );
@@ -418,91 +422,93 @@ function TaskDetailScheduleChip(props: {
       </button>
 
       {open ? (
-        <div className="task-schedule-popover" role="dialog" aria-label="Schedule">
-          <dl className="task-schedule-facts">
-            <div>
-              <dt>Timezone</dt>
-              <dd>{recurringSchedule.timezone ?? props.task.default_timezone ?? "UTC"}</dd>
-            </div>
-            {recurringSchedule.mode === "scheduled" && recurringSchedule.repeat ? (
+        <MenuSheet label="Schedule" onClose={() => setOpen(false)}>
+          <div className="task-schedule-popover" role="dialog" aria-label="Schedule">
+            <dl className="task-schedule-facts">
               <div>
-                <dt>Repeat</dt>
-                <dd><code>{recurringSchedule.repeat}</code></dd>
+                <dt>Timezone</dt>
+                <dd>{recurringSchedule.timezone ?? props.task.default_timezone ?? "UTC"}</dd>
               </div>
-            ) : isTimedTask ? (
+              {recurringSchedule.mode === "scheduled" && recurringSchedule.repeat ? (
+                <div>
+                  <dt>Repeat</dt>
+                  <dd><code>{recurringSchedule.repeat}</code></dd>
+                </div>
+              ) : isTimedTask ? (
+                <div>
+                  <dt>Timed run limit</dt>
+                  <dd>{timedMinutes ? `${timedMinutes} min` : "set"}</dd>
+                </div>
+              ) : (
+                <div>
+                  <dt>Cadence</dt>
+                  <dd>
+                    wait-driven loop
+                    {recurringSchedule.run_timeout_seconds
+                      ? ` (${Math.ceil(recurringSchedule.run_timeout_seconds / 60)} min limit)`
+                      : ""}
+                  </dd>
+                </div>
+              )}
               <div>
-                <dt>Timed run limit</dt>
-                <dd>{timedMinutes ? `${timedMinutes} min` : "set"}</dd>
+                <dt>{isTimedTask ? "Next wake-up" : "Next run"}</dt>
+                <dd>{recurringSchedule.next_run_at ? formatDateTime(recurringSchedule.next_run_at) : "not scheduled"}</dd>
               </div>
-            ) : (
-              <div>
-                <dt>Cadence</dt>
-                <dd>
-                  wait-driven loop
-                  {recurringSchedule.run_timeout_seconds
-                    ? ` (${Math.ceil(recurringSchedule.run_timeout_seconds / 60)} min limit)`
-                    : ""}
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt>{isTimedTask ? "Next wake-up" : "Next run"}</dt>
-              <dd>{recurringSchedule.next_run_at ? formatDateTime(recurringSchedule.next_run_at) : "not scheduled"}</dd>
-            </div>
-            {recurringSchedule.run_deadline_at ? (
-              <div>
-                <dt>Deadline</dt>
-                <dd>{formatDateTime(recurringSchedule.run_deadline_at)}</dd>
-              </div>
-            ) : null}
-            {recurringSchedule.pending_run ? (
-              <div>
-                <dt>Status</dt>
-                <dd><span className="badge warning task-recurring-pill">pending run</span></dd>
-              </div>
-            ) : null}
-          </dl>
+              {recurringSchedule.run_deadline_at ? (
+                <div>
+                  <dt>Deadline</dt>
+                  <dd>{formatDateTime(recurringSchedule.run_deadline_at)}</dd>
+                </div>
+              ) : null}
+              {recurringSchedule.pending_run ? (
+                <div>
+                  <dt>Status</dt>
+                  <dd><span className="badge warning task-recurring-pill">pending run</span></dd>
+                </div>
+              ) : null}
+            </dl>
 
-          <div className="task-schedule-actions">
-            {isTimedTask ? (
-              <button
-                type="button"
-                className="btn ghost compact"
-                onClick={recurringSchedule.state === "active" ? props.onPauseSchedule : props.onResumeSchedule}
-                disabled={props.isScheduleActionBusy}
-              >
-                {recurringSchedule.state === "active" ? "Stop timed run" : "Start timed run"}
-              </button>
-            ) : (
-              <>
+            <div className="task-schedule-actions">
+              {isTimedTask ? (
                 <button
                   type="button"
                   className="btn ghost compact"
-                  onClick={props.onPauseSchedule}
-                  disabled={props.isScheduleActionBusy || recurringSchedule.state !== "active"}
+                  onClick={recurringSchedule.state === "active" ? props.onPauseSchedule : props.onResumeSchedule}
+                  disabled={props.isScheduleActionBusy}
                 >
-                  Pause
+                  {recurringSchedule.state === "active" ? "Stop timed run" : "Start timed run"}
                 </button>
-                <button
-                  type="button"
-                  className="btn ghost compact"
-                  onClick={props.onResumeSchedule}
-                  disabled={props.isScheduleActionBusy || recurringSchedule.state === "active"}
-                >
-                  Resume
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost compact"
-                  onClick={props.onRunNowSchedule}
-                  disabled={props.isScheduleActionBusy || recurringSchedule.state !== "active"}
-                >
-                  Run now
-                </button>
-              </>
-            )}
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn ghost compact"
+                    onClick={props.onPauseSchedule}
+                    disabled={props.isScheduleActionBusy || recurringSchedule.state !== "active"}
+                  >
+                    Pause
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost compact"
+                    onClick={props.onResumeSchedule}
+                    disabled={props.isScheduleActionBusy || recurringSchedule.state === "active"}
+                  >
+                    Resume
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost compact"
+                    onClick={props.onRunNowSchedule}
+                    disabled={props.isScheduleActionBusy || recurringSchedule.state !== "active"}
+                  >
+                    Run now
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        </MenuSheet>
       ) : null}
     </div>
   );
@@ -638,11 +644,11 @@ function TaskDetailTabBar(props: {
   );
 }
 
-function TaskDetailMobileNavButton(props: {
+function TaskDetailMobileBackButton(props: {
   isMobileViewport: boolean;
-  onOpenMobileNavigation?: () => void;
+  onNavigateBack?: () => void;
 }) {
-  if (!props.isMobileViewport || !props.onOpenMobileNavigation) {
+  if (!props.isMobileViewport || !props.onNavigateBack) {
     return null;
   }
 
@@ -650,11 +656,11 @@ function TaskDetailMobileNavButton(props: {
     <button
       type="button"
       className="task-topbar-mobile-nav-btn"
-      onClick={props.onOpenMobileNavigation}
-      aria-label="Open navigation"
-      title="Open navigation"
+      onClick={props.onNavigateBack}
+      aria-label="Back"
+      title="Back"
     >
-      <PanelLeftOpen size={16} />
+      <ChevronLeft size={22} />
     </button>
   );
 }
@@ -669,9 +675,9 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
     <div className={`topbar chat-task-topbar${isCollapsed ? " collapsed" : ""}${props.workflowStrip || props.workflowPanel ? " has-workflow-panel" : ""}`}>
       <div className="chat-task-topbar-collapsed-bar">
         <div className="chat-task-topbar-collapsed-bar-main">
-          <TaskDetailMobileNavButton
+          <TaskDetailMobileBackButton
             isMobileViewport={props.isMobileViewport}
-            onOpenMobileNavigation={props.onOpenMobileNavigation}
+            onNavigateBack={props.onNavigateBack}
           />
           <button
             type="button"
@@ -691,9 +697,9 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
         <div className="topbar-actions task-topbar-primary-row">
           <div className="task-topbar-summary">
             <div className="task-topbar-title-row">
-              <TaskDetailMobileNavButton
+              <TaskDetailMobileBackButton
                 isMobileViewport={props.isMobileViewport}
-                onOpenMobileNavigation={props.onOpenMobileNavigation}
+                onNavigateBack={props.onNavigateBack}
               />
               <h3 className="task-topbar-title">{props.task.title || "Untitled Task"}</h3>
               <TaskStatusBadge status={displayStatus} className="task-topbar-status" />

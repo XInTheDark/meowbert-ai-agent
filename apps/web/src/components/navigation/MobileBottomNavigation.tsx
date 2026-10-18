@@ -9,6 +9,8 @@ export function isMobileBottomNavigationVisible(pathname: string): boolean {
 
   if (section !== "projects") return true;
   if (projectSection === "shell") return false;
+  // An open conversation is a pushed screen with its own back button, like a chat thread in a native app.
+  if (projectSection === "tasks") return detailSegment === null || detailSegment === "new";
   return projectSection !== "canvases" || detailSegment === null;
 }
 
@@ -42,7 +44,7 @@ export function MobileBottomNavigation(props: {
         onClick={() => newTaskPath ? navigate(newTaskPath) : props.onNewTaskWithoutProject()}
         aria-label="New Task"
       >
-        <span className="mobile-bottom-nav-create-icon"><Plus size={22} /></span><span>New Task</span>
+        <span className="mobile-bottom-nav-create-icon"><Plus size={20} /></span><span>New Task</span>
       </button>
       <NavLink to={`${root}/notifications`} className={section === "notifications" ? "active" : ""}>
         <Bell size={20} /><span>Updates</span>

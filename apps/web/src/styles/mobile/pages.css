@@ -1,0 +1,43 @@
+/*
+ * Page chrome on touch-first viewports: headings defer to the app bar, pages sit on the background
+ * instead of inside an inset card, and tab strips scroll sideways without a visible scrollbar.
+ */
+
+@media (max-width: 1120px) {
+  /* The app bar and tab strip already name the page. */
+  .workbench-title-block,
+  .task-command-panel .project-command-title {
+    display: none;
+  }
+
+  /* Pages sit directly on the background instead of inside an inset card. */
+  .task-command-panel.workbench-panel.padded {
+    padding: 0;
+  }
+
+  .page-content > .section-card:not(.empty-card) {
+    padding: 0.25rem 0 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .page-content > .section-card:not(.empty-card) > .section-head:first-child h3 {
+    display: none;
+  }
+
+  /* Tab strips: swipe sideways, no scrollbar, full-height touch targets. */
+  :is(.project-tabs, .tab-row) {
+    scrollbar-width: none;
+  }
+
+  :is(.project-tabs, .tab-row)::-webkit-scrollbar {
+    display: none;
+  }
+
+  .project-tab {
+    font-size: 0.9375rem;
+    padding: 0.55rem 0 0.65rem;
+  }
+}
