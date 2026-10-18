@@ -46,3 +46,102 @@
     gap: 0;
   }
 }
+
+/*
+ * File list: the desktop columns become a two-line row (name, then size and modified date) so nothing
+ * scrolls sideways. Created and Kind stay available on desktop only.
+ */
+@media (max-width: 1120px) {
+  .file-list-table :is(.explorer-body, .explorer-header) {
+    min-width: 0;
+  }
+
+  /* The desktop file table pins its columns with !important, so the compact layout swaps the variable. */
+  .file-list-table {
+    --file-browser-columns: 2.5rem 1.5rem auto minmax(0, 1fr);
+    border-radius: var(--radius-sm);
+  }
+
+  .file-list-table :is(.file-list-header, .file-list-row) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .file-list-table .file-list-row {
+    min-height: 3.25rem;
+    border-radius: 0;
+    grid-template-areas:
+      "check icon name name"
+      "check icon size modified";
+    column-gap: 0.5rem;
+    row-gap: 0.1rem;
+    align-items: center;
+    padding: 0.35rem 0.6rem 0.35rem 0.1rem;
+  }
+
+  .file-list-table .file-list-row > .file-list-checkbox-cell {
+    grid-area: check;
+  }
+
+  .file-list-table .file-list-row > .file-list-icon-cell {
+    grid-area: icon;
+  }
+
+  .file-list-table .file-list-row > .file-entry-name {
+    grid-area: name;
+  }
+
+  .file-list-table .file-list-row > .file-entry-name .file-entry-name-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-list-table .file-list-row > :is(:nth-child(5), :nth-child(6)) {
+    display: none;
+  }
+
+  .file-list-table .file-list-row > :is(:nth-child(4), :nth-child(7)) {
+    display: block;
+    font-size: 0.75rem;
+  }
+
+  .file-list-table .file-list-row > :nth-child(4) {
+    grid-area: size;
+  }
+
+  .file-list-table .file-list-row > :nth-child(7) {
+    grid-area: modified;
+  }
+
+  /* Header keeps select-all and the two sorts people use most. */
+  .file-list-table .file-list-header {
+    --file-browser-columns: 2.5rem 1.5rem minmax(0, 1fr) auto auto;
+    column-gap: 0.5rem;
+    padding: 0 0.6rem 0 0.1rem;
+  }
+
+  .file-list-table .file-list-header > :is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(7)) {
+    display: flex;
+  }
+
+  .file-list-table .file-list-header > :nth-child(1) {
+    grid-column: 1;
+  }
+
+  .file-list-table .file-list-header > :nth-child(3) {
+    grid-column: 3;
+  }
+
+  .file-list-table .file-list-header > :nth-child(4) {
+    grid-column: 4;
+  }
+
+  .file-list-table .file-list-header > :nth-child(7) {
+    grid-column: 5;
+  }
+
+  .explorer-sort-button {
+    min-height: 2.5rem;
+    padding-inline: 0.25rem;
+  }
+}

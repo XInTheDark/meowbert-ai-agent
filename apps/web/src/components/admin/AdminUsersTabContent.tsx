@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { LoadingIndicator } from "../LoadingIndicator";
+import { MenuSheet } from "../mobile/MenuSheet";
 import { AdminTable, AdminTableCell, AdminTableRow } from "./AdminTable";
 import { RuntimeResourceFields } from "./RuntimeResourceFields";
 import type { AdminUser, ResourceDraft } from "./adminUsersTypes";
@@ -107,8 +108,8 @@ function UsageSummary({ user }: { user: AdminUser }) {
 
 function DropdownItem(props: { children: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
   return (
-    <button onClick={props.onClick} disabled={props.disabled} style={{
-      display: "block", width: "100%", textAlign: "left", padding: "6px 14px", background: "none",
+    <button role="menuitem" onClick={props.onClick} disabled={props.disabled} style={{
+      display: "flex", alignItems: "center", width: "100%", textAlign: "left", padding: "6px 14px", background: "none",
       border: "none", cursor: props.disabled ? "default" : "pointer", fontSize: "0.875rem",
       color: props.disabled ? "#a0aec0" : props.danger ? "#c53030" : "inherit", opacity: props.disabled ? 0.6 : 1
     }}>{props.children}</button>
@@ -122,7 +123,8 @@ function DropdownDivider() {
 function UserActionsMenu({ controller, user }: ControllerProps & { user: AdminUser }) {
   const isSelf = user.id === controller.data.currentUserId;
   return (
-    <div style={{
+    <MenuSheet label="User actions" onClose={() => controller.data.setOpenMenuId(null)}>
+    <div role="menu" onClick={() => controller.data.setOpenMenuId(null)} style={{
       position: "absolute", right: 0, top: "100%", zIndex: 100, background: "var(--surface, #fff)",
       border: "1px solid var(--border, #e2e8f0)", borderRadius: "6px", boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
       minWidth: "220px", padding: "4px 0"
@@ -150,6 +152,7 @@ function UserActionsMenu({ controller, user }: ControllerProps & { user: AdminUs
       <DropdownItem onClick={() => void controller.accountActions.impersonate(user)} disabled={isSelf} danger>Log in as user</DropdownItem>
       <DropdownItem onClick={() => void controller.accountActions.deleteUser(user)} disabled={isSelf} danger>Delete user</DropdownItem>
     </div>
+    </MenuSheet>
   );
 }
 
@@ -203,7 +206,7 @@ function AdminUserRow({ controller, user }: ControllerProps & { user: AdminUser 
       <UserDetailsCells user={user} />
       <AdminTableCell align="right" verticalAlign="top">
         <div style={{ position: "relative", display: "inline-block" }} ref={menuOpen ? controller.data.menuRef : null}>
-          <button className="btn ghost" style={{ padding: "0.25rem 0.6rem", fontSize: "0.9rem", minHeight: "unset" }}
+          <button className="btn ghost admin-user-actions-trigger" style={{ padding: "0.25rem 0.6rem", fontSize: "0.9rem", minHeight: "unset" }}
             onClick={() => controller.data.setOpenMenuId(menuOpen ? null : user.id)} title="Actions">⋯</button>
           {menuOpen ? <UserActionsMenu controller={controller} user={user} /> : null}
         </div>

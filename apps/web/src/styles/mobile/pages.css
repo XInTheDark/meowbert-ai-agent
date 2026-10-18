@@ -39,5 +39,12 @@
   .project-tab {
     font-size: 0.9375rem;
     padding: 0.55rem 0 0.65rem;
+    min-width: 2.75rem;
+    text-align: center;
+  }
+
+  /* The way back from a pushed screen (task, canvas) is a full-size touch target. */
+  .project-navigation.focused .project-breadcrumb {
+    min-height: 2.5rem;
   }
 }

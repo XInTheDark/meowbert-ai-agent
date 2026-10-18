@@ -1,0 +1,87 @@
+/*
+ * Admin panel on touch-first viewports: wide data tables become stacked rows (one card-less row per
+ * record, each value labelled by its column) instead of scrolling sideways, and controls are touch-sized.
+ */
+
+@media (max-width: 1120px) {
+  .table-container {
+    overflow-x: visible;
+  }
+
+  /* Inline min-widths on the table set the desktop column budget; stacked rows have no columns. */
+  .admin-table {
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .admin-table :is(thead, tbody, tr, td) {
+    display: block;
+    width: auto !important;
+  }
+
+  .admin-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .admin-table tbody > .admin-table__row {
+    position: relative;
+    padding: 0.55rem 0;
+  }
+
+  .admin-table .admin-table__cell {
+    padding: 0.3rem 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-table .admin-table__cell[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.15rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  /* Row-level actions sit in a full-width, unlabelled strip at the end of each record. */
+  .admin-table .admin-table__cell--right[data-label] {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .admin-table .admin-table__cell--right[data-label]::before {
+    content: none;
+  }
+
+  .admin-table :is(.btn, button, select, input:not([type="checkbox"], [type="radio"])) {
+    min-height: 2.5rem;
+  }
+
+  .admin-user-role-stack :is(.admin-user-role-pill, .admin-user-status-pill) {
+    width: fit-content;
+  }
+
+  .admin-user-actions-trigger {
+    min-width: 2.5rem;
+    min-height: 2.5rem !important;
+  }
+
+  .admin-nav__trigger {
+    min-height: 2.75rem;
+  }
+
+  .admin-stat-toolbar :is(button, select, input),
+  .admin-segmented-control button,
+  .admin-date-range :is(button, input) {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+
+  .users-pagination {
+    justify-content: space-between;
+  }
+}

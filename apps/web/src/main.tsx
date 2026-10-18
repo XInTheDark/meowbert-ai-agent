@@ -23,6 +23,9 @@ import "./styles/mobile/conversation.css";
 import "./styles/mobile/lists.css";
 import "./styles/mobile/pages.css";
 import "./styles/mobile/files.css";
+import "./styles/mobile/admin.css";
+import "./styles/mobile/canvas.css";
+import "./styles/mobile/forms.css";
 import "./styles/mobile/sheet.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

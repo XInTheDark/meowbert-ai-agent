@@ -1,0 +1,59 @@
+/*
+ * Canvases on touch-first viewports: list cards stack their actions under the name, and a standalone
+ * canvas fills the screen below the app bar with its prompt box pinned to the bottom edge.
+ */
+
+@media (max-width: 1120px) {
+  .project-canvas-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .project-canvas-card .row-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
+  }
+
+  .project-canvas-card .row-actions .btn {
+    min-height: 2.5rem;
+  }
+
+  /* A grid track cannot resolve the page's percentage height, so lay the screen out as a column. */
+  .main-column:has(> .canvas-page) {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;
+  }
+
+  .main-column:has(> .canvas-page) > :not(.canvas-page) {
+    flex: 0 0 auto;
+  }
+
+  .main-column > .canvas-page {
+    flex: 1 1 auto;
+    height: auto;
+    margin: 0 calc(-1 * var(--mobile-inset-right)) 0 calc(-1 * var(--mobile-inset-left));
+  }
+
+  .canvas-page-header {
+    padding: 0.25rem 0.5rem 0.25rem var(--mobile-inset-left);
+  }
+
+  .canvas-page-header .icon-btn,
+  .canvas-page-starter .icon-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    flex: 0 0 auto;
+  }
+
+  .canvas-page-starter {
+    padding: 0.5rem var(--mobile-inset-right) calc(0.5rem + env(safe-area-inset-bottom)) var(--mobile-inset-left);
+  }
+
+  .canvas-page-starter input {
+    min-width: 0;
+    min-height: 2.5rem;
+  }
+}

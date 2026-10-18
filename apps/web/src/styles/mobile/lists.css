@@ -45,8 +45,14 @@
     margin-left: auto;
   }
 
-  .explorer-checkbox {
-    width: 1.15rem;
-    height: 1.15rem;
+  /* Row checkboxes are 2.5rem touch targets (see forms.css); the select column is widened to match. */
+  .task-item {
+    grid-template-columns: 2.5rem auto minmax(0, 1fr) 2.75rem;
+    padding-left: 0.1rem;
+  }
+
+  .task-select-cell {
+    padding-top: 0;
+    align-self: center;
   }
 }
