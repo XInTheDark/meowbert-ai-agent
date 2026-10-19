@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   Bell,
+  Bug,
   Binary,
   ChartNoAxesCombined,
   ChevronDown,
@@ -74,7 +75,16 @@ const tabGroups: AdminTabGroup[] = [
 
 interface AdminSettingsTabBarProps {
   activeTab: AdminSettingsTabKey;
+  showDebugTool: boolean;
   onTabChange: (tab: AdminSettingsTabKey) => void;
+}
+
+const debugToolTab: AdminTabDefinition = { key: "debug-tool", label: "Debug tool", Icon: Bug };
+
+// The debug tool reads diagnostics that only exist while debug mode is on.
+function visibleTabGroups(showDebugTool: boolean): AdminTabGroup[] {
+  if (!showDebugTool) return tabGroups;
+  return tabGroups.map((group) => group.label === "Operations" ? { ...group, tabs: [...group.tabs, debugToolTab] } : group);
 }
 
 function useCloseOnOutsideInteraction(open: boolean, close: () => void) {
@@ -154,7 +164,7 @@ function AdminTabGroupMenu(props: {
   );
 }
 
-export function AdminSettingsTabBar({ activeTab, onTabChange }: AdminSettingsTabBarProps) {
+export function AdminSettingsTabBar({ activeTab, showDebugTool, onTabChange }: AdminSettingsTabBarProps) {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const close = useRef(() => setOpenGroup(null)).current;
   const navRef = useCloseOnOutsideInteraction(openGroup !== null, close);
@@ -162,7 +172,7 @@ export function AdminSettingsTabBar({ activeTab, onTabChange }: AdminSettingsTab
   return (
     <div ref={navRef}>
       <nav className="admin-nav" aria-label="Admin sections">
-        {tabGroups.map((group) => (
+        {visibleTabGroups(showDebugTool).map((group) => (
           <AdminTabGroupMenu
             key={group.label}
             group={group}

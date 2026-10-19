@@ -20,6 +20,7 @@ export * from "./project-canvas-paths.js";
 export * from "./task-message-metadata.js";
 export * from "./usage-cost.js";
 export * from "./token-usage-stats.js";
+export * from "./wasted-turns.js";
 export * from "./model-usage-counts.js";
 export * from "./platform-usage-recording.js";
 export * from "./agent-presets.js";

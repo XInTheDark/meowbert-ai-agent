@@ -461,6 +461,7 @@ export type AdminSettingsTabKey =
   | "statistics"
   | "processes"
   | "utilities"
+  | "debug-tool"
   | "storage"
   | "host-storage"
   | "migrations"

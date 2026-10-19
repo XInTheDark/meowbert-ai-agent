@@ -1,6 +1,7 @@
 import { UsersTab } from "../../../components/admin/UsersTab";
 import { AnnouncementsTab } from "./AnnouncementsTab";
 import { AiProvidersTab } from "./AiProvidersTab";
+import { DebugToolTab } from "./DebugToolTab";
 import { EmbeddingsTab } from "./EmbeddingsTab";
 import { UtilitiesTab } from "./UtilitiesTab";
 import { ConnectorSettingsTab } from "./ConnectorSettingsTab";
@@ -108,6 +109,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
   if (activeTab === "statistics") return <StatisticsSettingsTab />;
   if (activeTab === "ai-providers") return <AiProvidersTab />;
   if (activeTab === "embeddings") return <EmbeddingsTab />;
+  if (activeTab === "debug-tool") return platform.settings?.debugMode ? <DebugToolTab /> : null;
   if (activeTab === "utilities") return <UtilitiesTab models={Object.keys(platform.settings?.modelMetadata ?? {})} />;
   if (activeTab === "model") {
     return (

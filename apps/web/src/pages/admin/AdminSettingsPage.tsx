@@ -82,7 +82,11 @@ export function AdminSettingsPage() {
           </div>
         </div>
 
-        <AdminSettingsTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <AdminSettingsTabBar
+          activeTab={activeTab}
+          showDebugTool={platformSettings.settings?.debugMode === true}
+          onTabChange={setActiveTab}
+        />
 
         <AdminSettingsTabContent
           activeTab={activeTab}
