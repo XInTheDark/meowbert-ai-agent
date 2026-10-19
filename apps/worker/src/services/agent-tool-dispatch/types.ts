@@ -180,6 +180,7 @@ export interface ToolDispatchContext {
         senderSlotIndex: number | null;
         contentMarkdown: string;
       }>;
+      hasMore: boolean;
     }>;
     createSwarmChannel?: (input: {
       targetSwarm?: SwarmTarget;
