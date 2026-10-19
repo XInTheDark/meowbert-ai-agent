@@ -39,6 +39,17 @@ describe("conversation activity consolidation", () => {
     ]);
   });
 
+  it("shows a file once per turn when the same canvas is shown again", () => {
+    const shown = (id: string, callId: string): TaskMessage => message(id, "tool", {
+      callId, inline_artifact: { type: "html", relative_path: "diagram.html" }
+    });
+    const entries = buildConversationDisplayEntries([
+      message("u1", "user", { text: "draw" }), shown("a", "c1"), tool("fix"), shown("b", "c2"),
+      message("u2", "user", { text: "again" }), shown("c", "c3")
+    ]);
+    expect(entries.filter((entry) => entry.kind === "artifact").map((entry) => entry.key)).toEqual(["b", "c"]);
+  });
+
   it("keeps multiple reasoning summaries in one activity group", () => {
     const thought = (id: string, text: string) => message(id, "assistant", { text: "", response_items: [
       { type: "reasoning", summary: [{ type: "summary_text", text }] }

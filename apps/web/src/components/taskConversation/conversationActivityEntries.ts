@@ -4,7 +4,7 @@ import { getResponseToolMessages } from "../../task/responseToolMessages";
 import { getModelRetryMessageDetails } from "../../task/taskConversationDisplay";
 import { getTaskInlineArtifact, type TaskInlineArtifact } from "../../task/taskInlineArtifacts";
 import { getManagedTaskCard, getRunInboxReportCards, type ManagedTaskCardData } from "../../task/managedTaskCards";
-import { getInlineResponseArtifactIdentities, getInlineResponseSegments, getTaskInlineArtifactMessageIdentity } from "../../task/inlineResponseSegments";
+import { getInlineArtifactIdentity, getInlineResponseArtifactIdentities, getInlineResponseSegments, getTaskInlineArtifactMessageIdentity } from "../../task/inlineResponseSegments";
 import { collectHistoricalToolCallIds, getThoughtSummaryLabel, getToolMessageCallId, isResponseToolRepresentedInHistory } from "./shared";
 
 export interface ActivityThought {
@@ -173,7 +173,26 @@ export function buildConversationDisplayEntries(messages: TaskMessage[]): Conver
     }
   }
   flush();
-  return entries;
+  return withoutSupersededArtifacts(entries);
+}
+
+// Showing the same file again in one turn (after fixing it) renders the live file, so the earlier
+// card is a duplicate of the later one.
+function withoutSupersededArtifacts(entries: ConversationDisplayEntry[]): ConversationDisplayEntry[] {
+  const seen = new Set<string>();
+  const kept: ConversationDisplayEntry[] = [];
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry.kind === "message" && entry.message.role === "user") {
+      seen.clear();
+    } else if (entry.kind === "artifact") {
+      const identity = `${entry.artifact.display ?? ""}:${getInlineArtifactIdentity(entry.artifact)}`;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+    }
+    kept.push(entry);
+  }
+  return kept.reverse();
 }
 
 export function getConversationActivityGroups(messages: TaskMessage[]): ConversationActivityGroup[] {
