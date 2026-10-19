@@ -1123,6 +1123,14 @@ async function processModelTurnResult(
   }
 
   if (response.output_text.trim()) {
+    if (!dispatchResult.sawFunctionToolCall) {
+      await execution.debugLogger.log("Model turn answered in plain text without a tool call.", {
+        stage: "run.turn.plain_text",
+        phase: "warn",
+        step,
+        outputTextLength: response.output_text.trim().length
+      });
+    }
     handlePlainTextWithoutToolCall(
       execution,
       availability,
