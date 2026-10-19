@@ -1144,7 +1144,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   {
     type: "function",
     name: READ_CHANNEL_TOOL_NAME,
-    description: "Read raw swarm channel messages, optionally from a specific message number onward.",
+    description: "Read raw swarm channel messages: the latest ones, or those after a specific message number.",
     strict: true,
     parameters: {
       type: "object",

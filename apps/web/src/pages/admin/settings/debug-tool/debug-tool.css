@@ -1,0 +1,8 @@
+.debug-tool { display: grid; gap: 0.8rem; min-width: 0; }
+.debug-tool h2, .debug-tool p { margin: 0; }
+.debug-tool__form { display: flex; gap: 0.5rem; min-width: 0; }
+.debug-tool__form input { flex: 1; min-width: 0; }
+.debug-tool__report { display: grid; gap: 0.8rem; min-width: 0; }
+.debug-tool__table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.debug-tool__table th, .debug-tool__table td { padding: 0.4rem 0.5rem; text-align: right; border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.2)); }
+.debug-tool__table th:first-child, .debug-tool__table td:first-child { text-align: left; overflow-wrap: anywhere; }

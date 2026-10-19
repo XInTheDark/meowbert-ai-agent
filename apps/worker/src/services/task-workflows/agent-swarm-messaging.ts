@@ -315,11 +315,14 @@ export async function readSwarmChannel(context: LoadedWorkflowRunContext, input:
     senderSlotIndex: number | null;
     contentMarkdown: string;
   }>;
+  hasMore: boolean;
 }> {
   if (context.workflowType !== "agent_swarm" || !context.currentAgent) {
     throw new Error("Channel reading is only available for swarm agents.");
   }
   const resolvedChannel = await resolveSwarmChannelForAgent(context, input.channelId, input.targetSwarm);
+  // Without a lower bound, read the latest messages so recent reports are never cut off.
+  const fromStart = input.sinceMessageNo != null;
 
   const rowsRes = await query<{
     id: string;
@@ -343,14 +346,18 @@ export async function readSwarmChannel(context: LoadedWorkflowRunContext, input:
       WHERE m.workflow_task_id = $1
         AND m.channel_id = $2
         AND ($3::bigint IS NULL OR m.message_no > $3)
-      ORDER BY m.message_no ASC
-      LIMIT ${SWARM_READ_CHANNEL_MESSAGE_LIMIT}`,
+      ORDER BY m.message_no ${fromStart ? "ASC" : "DESC"}
+      LIMIT ${SWARM_READ_CHANNEL_MESSAGE_LIMIT + 1}`,
     [context.workflowTaskId, resolvedChannel.id, input.sinceMessageNo ?? null]
   );
+  const hasMore = rowsRes.rows.length > SWARM_READ_CHANNEL_MESSAGE_LIMIT;
+  const rows = rowsRes.rows.slice(0, SWARM_READ_CHANNEL_MESSAGE_LIMIT);
+  if (!fromStart) rows.reverse();
 
   return {
     channelId: resolvedChannel.id,
-    messages: rowsRes.rows.map((row) => ({
+    hasMore,
+    messages: rows.map((row) => ({
       id: row.id,
       messageNo: row.message_no,
       createdAt: row.created_at,

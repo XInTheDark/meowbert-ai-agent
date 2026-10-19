@@ -601,7 +601,14 @@ export async function handleReadChannel(
     });
     return await finishBuiltinToolSuccess(ctx, execution, {
       channel_id: result.channelId,
-      messages: result.messages
+      messages: result.messages,
+      ...(result.hasMore
+        ? {
+          note: parsed.value.since_message_no != null
+            ? "More messages follow. Read again with since_message_no set to the last message number shown."
+            : "Older messages exist. Read with since_message_no to page through them."
+        }
+        : {})
     });
   } catch (error) {
     rethrowIfTaskCancelled(error);

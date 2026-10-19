@@ -45,6 +45,10 @@
       "types": "./dist/token-usage-stats.d.ts",
       "default": "./dist/token-usage-stats.js"
     },
+    "./wasted-turns": {
+      "types": "./dist/wasted-turns.d.ts",
+      "default": "./dist/wasted-turns.js"
+    },
     "./canvas-frame": {
       "types": "./dist/canvas-frame.d.ts",
       "default": "./dist/canvas-frame.js"
