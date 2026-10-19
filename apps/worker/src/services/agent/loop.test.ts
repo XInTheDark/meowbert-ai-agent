@@ -389,6 +389,66 @@ describe("runAgentStepLoop", () => {
     expect(execution.state.workflowPauseRequest).toEqual({ kind: "agent_swarm_paused" });
   });
 
+  it("does not cap Swarm turns to the reserved output, so reasoning cannot starve the action", async () => {
+    const execution = createExecutionContext();
+    execution.workflow.workflowContext = {
+      workflowTaskId: "task-1",
+      workflowType: "agent_swarm",
+      phase: "active",
+      config: { tokenBudget: 10_000 },
+      taskId: "task-1",
+      taskDir: "/tmp/task-1",
+      workspaceId: "workspace-1",
+      environmentId: "environment-1",
+      currentAgent: null,
+      agents: [],
+      planContent: null
+    };
+    execution.workflow.allowSwarmTools = true;
+    vi.mocked(reserveSwarmInference).mockResolvedValue({
+      reservationId: "reservation-1",
+      requestedTokens: 512,
+      nodeId: "node-1",
+      workflowAgentId: "agent-1",
+      recovery: false,
+      runId: "run-1"
+    });
+    vi.mocked(settleSwarmInference).mockResolvedValue(true);
+    mockedCreateModelResponseWithRetry
+      .mockResolvedValueOnce({
+        output: [{ type: "reasoning" }],
+        output_text: "",
+        incomplete_details: { reason: "max_output_tokens" }
+      } as never)
+      .mockResolvedValueOnce({ output: [], output_text: "" } as never);
+    mockedDispatchResponseOutput
+      .mockResolvedValueOnce({
+        sawToolCall: false,
+        sawFunctionToolCall: false,
+        finalResponse: null,
+        waitRequest: null,
+        stopRequest: null,
+        workflowPause: null
+      })
+      .mockResolvedValueOnce({
+        sawToolCall: true,
+        sawFunctionToolCall: true,
+        finalResponse: null,
+        waitRequest: null,
+        stopRequest: null,
+        workflowPause: { kind: "agent_swarm_paused" }
+      });
+
+    await runAgentStepLoop(execution as never);
+
+    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(2);
+    expect(mockedCreateModelResponseWithRetry.mock.calls[0][1]).not.toHaveProperty("maxOutputTokens");
+    expect(execution.state.dispatchState.conversationItems).toContainEqual({
+      role: "user",
+      content: expect.stringContaining("hit the output token limit")
+    });
+  });
+
   it("finishes with the timeout message if the wrap-up turn fails", async () => {
     const execution = createExpiredTimedExecutionContext();
     mockedCreateModelResponseWithRetry.mockRejectedValueOnce(new Error("Provider unavailable"));

@@ -595,6 +595,8 @@ async function requestModelTurn(input: {
   sealPromptEnvelope(execution.promptEnvelope);
   const toolChoice = resolveModelToolChoice(execution, availability);
 
+  // The reservation only estimates output; the turn is not capped to it, since a reasoning model can
+  // spend a small cap entirely on thinking and never act. Settlement charges any overrun.
   let swarmReservation = null;
   if (execution.workflow.workflowContext?.workflowType === "agent_swarm") {
     try {
@@ -649,7 +651,6 @@ async function requestModelTurn(input: {
       prefixItems: turnRequest.promptPrefixItems,
       conversationItems: execution.state.dispatchState.conversationItems,
       modelPayload: execution.prepared.runtimeModelPayload,
-      ...(swarmReservation ? { maxOutputTokens: 4_096 } : {}),
       tools: turnRequest.responseTools,
       toolChoice,
       onNetworkRequest: execution.prepared.emitNetworkRequestLog,
@@ -1145,8 +1146,16 @@ async function processModelTurnResult(
     allowFinalResponseTool: availability.allowFinalResponseTool,
     allowWaitTool: availability.allowWaitTool,
     allowSwarmPauseTool: availability.allowSwarmPauseTool,
-    requireWorkflowToolAction
+    requireWorkflowToolAction,
+    incompleteReason: response.incomplete_details?.reason ?? null
   });
+  if (response.incomplete_details?.reason === "max_output_tokens") {
+    execution.state.dispatchState.conversationItems.push({
+      role: "user",
+      content: "[System: Your previous turn hit the output token limit while reasoning, before it produced any text or tool call. Think briefly and act now.]"
+    });
+    return "continue";
+  }
   return handleNoToolCallFallback(execution, availability);
 }
 
