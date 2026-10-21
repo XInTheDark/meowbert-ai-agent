@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # --- build stage ---
-FROM node:22-alpine AS builder
+FROM node:22.23.4-alpine AS builder
 WORKDIR /app
 # Leave VITE_API_URL empty to call the API through this container's /api proxy on the web origin.
 ARG VITE_API_URL=""

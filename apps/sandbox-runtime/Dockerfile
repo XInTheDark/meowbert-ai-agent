@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node:22-trixie-slim
+FROM node:22.23.4-trixie-slim
 WORKDIR /app
 ARG MEOWBERT_BROWSER_USE_ENABLED
 ARG MEOWBERT_HTML_CANVAS_ENABLED
