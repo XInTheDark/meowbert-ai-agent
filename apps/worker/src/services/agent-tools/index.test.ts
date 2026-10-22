@@ -34,6 +34,7 @@ import {
   shellSessionArgumentsSchema,
   QUERY_TASKS_TOOL_NAME,
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
+  SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   START_LONG_HORIZON_TASK_TOOL_NAME,
   STOP_TASK_TOOL_NAME,
@@ -578,6 +579,23 @@ describe("buildResponseTools", () => {
     expect(enabled.some((tool) => tool.type === "function" && tool.name === GET_LIVE_SYNC_STATUS_TOOL_NAME)).toBe(true);
     expect(enabled.some((tool) => tool.type === "function" && tool.name === PULL_LIVE_SYNC_FILE_TOOL_NAME)).toBe(true);
     expect(enabled.some((tool) => tool.type === "function" && tool.name === PUSH_LIVE_SYNC_FILE_TOOL_NAME)).toBe(true);
+  });
+
+  it("only exposes folder search when a Google Drive folder is linked", () => {
+    const options = {
+      webSearch: false,
+      memorySearch: false,
+      scheduleTask: false,
+      subtasks: false,
+      computerUse: false,
+      enabledSkills: [],
+      enabledSources: []
+    };
+    const hasSearch = (tools: ReturnType<typeof buildResponseTools>) =>
+      tools.some((tool) => tool.type === "function" && tool.name === SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME);
+
+    expect(hasSearch(buildResponseTools(options, [], { allowLiveSyncTools: true }))).toBe(false);
+    expect(hasSearch(buildResponseTools(options, [], { allowLiveSyncTools: true, allowLiveSyncFolderSearch: true }))).toBe(true);
   });
 
   it("keeps scheduling tools out of the request until their group is loaded", () => {

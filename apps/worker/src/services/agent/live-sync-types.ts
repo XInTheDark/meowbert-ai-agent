@@ -1,3 +1,9 @@
+import type {
+  LiveSyncFolderSearchFileType,
+  LiveSyncFolderSearchMatch,
+  LiveSyncFolderSearchOrder
+} from "@meowbert/shared/live-sync-folder-search";
+
 export type TaskLiveSyncProvider = "onedrive" | "google-drive" | "pcloud" | "rclone";
 
 export interface TaskLiveSyncFileSummary {
@@ -75,4 +81,34 @@ export interface TaskLiveSyncStatus {
   supportsForcePull: boolean;
   supportsForcePush: boolean;
   message: string | null;
+}
+
+export interface TaskLiveSyncFolderSearchFilters {
+  query: string | null;
+  match: LiveSyncFolderSearchMatch;
+  fileTypes: LiveSyncFolderSearchFileType[];
+  modifiedAfter: string | null;
+  modifiedBefore: string | null;
+  extraQuery: string | null;
+  orderBy: LiveSyncFolderSearchOrder;
+  limit: number;
+}
+
+export interface TaskLiveSyncFolderSearchResult {
+  folder: string;
+  items: Array<{
+    id: string;
+    name: string;
+    path: string;
+    kind: "file" | "folder";
+    mimeType: string | null;
+    sizeBytes: number | null;
+    modifiedAt: string | null;
+    createdAt: string | null;
+    webUrl: string | null;
+  }>;
+  hasMore: boolean;
+  searchedFolderCount: number;
+  folderLimitReached: boolean;
+  incompleteSearch: boolean;
 }

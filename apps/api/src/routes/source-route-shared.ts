@@ -1,6 +1,12 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
+  LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES,
+  LIVE_SYNC_FOLDER_SEARCH_MATCHES,
+  LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
+  LIVE_SYNC_FOLDER_SEARCH_ORDERS
+} from "@meowbert/shared/live-sync-folder-search";
+import {
   ScopedAccessTicketError,
   verifyScopedAccessTicket
 } from "../services/auth/scoped-access-tickets.js";
@@ -42,6 +48,22 @@ export const internalLiveSyncStatusQuery = z.object({
 export const internalLiveSyncMutationBody = z.object({
   path: z.string().trim().min(1).max(1200),
   force: z.boolean().optional()
+}).strict();
+
+const isoTimestamp = z.string().trim().max(64).refine((value) => Number.isFinite(Date.parse(value)), "Expected an ISO 8601 timestamp.")
+  .transform((value) => new Date(value).toISOString());
+
+export const internalLiveSyncSearchBody = z.object({
+  path: z.string().trim().min(1).max(1200),
+  subfolder: z.string().max(1200).nullable().default(null),
+  query: z.string().trim().max(500).nullable().default(null).transform((value) => value || null),
+  match: z.enum(LIVE_SYNC_FOLDER_SEARCH_MATCHES).default("full_text"),
+  fileTypes: z.array(z.enum(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES)).max(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES.length).default([]),
+  modifiedAfter: isoTimestamp.nullable().default(null),
+  modifiedBefore: isoTimestamp.nullable().default(null),
+  extraQuery: z.string().trim().max(1000).nullable().default(null).transform((value) => value || null),
+  orderBy: z.enum(LIVE_SYNC_FOLDER_SEARCH_ORDERS).default("relevance"),
+  limit: z.number().int().min(1).max(LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT).default(25)
 }).strict();
 
 export function extractBearerToken(value: string | string[] | undefined): string {

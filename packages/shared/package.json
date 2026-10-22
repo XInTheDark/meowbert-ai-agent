@@ -93,6 +93,10 @@
       "types": "./dist/storage-backend-runtime.d.ts",
       "default": "./dist/storage-backend-runtime.js"
     },
+    "./live-sync-folder-search": {
+      "types": "./dist/live-sync-folder-search.d.ts",
+      "default": "./dist/live-sync-folder-search.js"
+    },
     "./task-history-search": {
       "types": "./dist/task-history-search.d.ts",
       "default": "./dist/task-history-search.js"

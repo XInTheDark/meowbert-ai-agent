@@ -565,6 +565,7 @@ async function requestModelTurn(input: {
       allowProjectMasterTools: execution.prepared.isProjectMaster === true,
       projectMasterTaskRouter: execution.prepared.projectMasterTaskAgent?.router ?? null,
       allowLiveSyncTools: execution.prepared.liveSyncFiles.length > 0,
+      allowLiveSyncFolderSearch: execution.prepared.liveSyncFiles.some((file) => file.provider === "google-drive" && file.linkKind === "folder"),
       allowCanvasTools: execution.prepared.snapshot.task.is_thread !== true
         && execution.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),
       allowComputerLocalShell: input.allowComputerLocalShell,

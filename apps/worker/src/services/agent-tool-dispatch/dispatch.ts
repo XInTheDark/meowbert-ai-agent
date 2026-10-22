@@ -42,6 +42,7 @@ import {
   SEARCH_WEB_TOOL_NAME,
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
+  SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   READ_CHANNEL_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
@@ -90,6 +91,7 @@ import {
   handlePullLiveSyncFile,
   handlePushLiveSyncFile
 } from "./handlers/live-sync.js";
+import { handleSearchLiveSyncFolder } from "./handlers/live-sync-folder-search.js";
 import {
   handleFinalResponse,
   handleRefreshGitHubToken,
@@ -310,6 +312,9 @@ async function dispatchFunctionToolCall(
 
     case PUSH_LIVE_SYNC_FILE_TOOL_NAME:
       return handlePushLiveSyncFile(outputItem, ctx, state);
+
+    case SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME:
+      return handleSearchLiveSyncFolder(outputItem, ctx, state);
 
     case LIST_SKILLS_TOOL_NAME:
       return handleListSkills(outputItem, ctx, state);

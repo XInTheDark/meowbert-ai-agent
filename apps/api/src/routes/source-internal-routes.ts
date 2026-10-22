@@ -11,6 +11,7 @@ import {
   ensureTaskSourceFolderMounts,
   releaseTaskSourceFolderMounts
 } from "../services/source-file-links/service.js";
+import { searchTaskLiveSyncFolderByTaskPath } from "../services/source-file-links/task-live-sync-folder-search.js";
 import {
   browseWorkspaceSource,
   downloadWorkspaceSourceFile,
@@ -20,6 +21,7 @@ import {
 import {
   extractBearerToken,
   internalLiveSyncMutationBody,
+  internalLiveSyncSearchBody,
   internalLiveSyncStatusQuery,
   internalLiveSyncTaskParams,
   requireLiveSyncProxyAccess,
@@ -145,6 +147,20 @@ function registerInternalLiveSyncRoutes(fastify: Parameters<FastifyPluginAsync>[
     return getTaskLiveSyncStatusByTaskPath({
       taskId: params.taskId,
       taskRelativePath: queryInput.path
+    });
+  });
+
+  fastify.post("/api/internal/live-sync/tasks/:taskId/search", async (request) => {
+    const params = internalLiveSyncTaskParams.parse(request.params);
+    const { path, subfolder, ...filters } = internalLiveSyncSearchBody.parse(request.body ?? {});
+    const ticket = extractBearerToken(request.headers.authorization);
+    await requireLiveSyncProxyAccess({ fastify, ticket, taskId: params.taskId });
+
+    return searchTaskLiveSyncFolderByTaskPath({
+      taskId: params.taskId,
+      taskRelativePath: path,
+      subfolder,
+      filters
     });
   });
 

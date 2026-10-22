@@ -368,6 +368,7 @@ function buildLiveSyncSection(options: SystemPromptRuntimeOptions): string {
     "",
     "- These links are limited to the files listed below. Do **not** assume you have general provider write access beyond them unless the matching source is explicitly enabled for this run.",
     "- Google Drive folders stream files on demand and upload local file changes automatically. List and read the local folder directly; manual status, pull, and push tools do not apply to these folders. Native Google Docs, Sheets, and Slides appear as `.url` links: pass the link path to Google Workspace tools to read or edit the original, or export an Office copy. Use the connected tools, not a browser sign-in.",
+    "- To find files in a Google Drive folder by name or contents, use `search_live_sync_folder` rather than grepping or walking the folder, which downloads every file.",
     "- For other linked items, call `get_live_sync_status` before editing if you need to check remote changes. Pull first if the remote changed, unless the user explicitly wants to overwrite it.",
     "- After editing those manually synced items, call `push_live_sync_file` for the same listed path. For manually synced folders this also creates, updates, and removes remote children to match the local folder.",
     "- Use `force` only when you intentionally want to discard local changes on pull or overwrite newer remote changes on push.",

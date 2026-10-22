@@ -1,5 +1,5 @@
 import { resolveInternalApiBaseUrl, signInternalScopedAccessTicket } from "./internal-api-proxy.js";
-import type { TaskLiveSyncStatus } from "./live-sync-types.js";
+import type { TaskLiveSyncFolderSearchFilters, TaskLiveSyncFolderSearchResult, TaskLiveSyncStatus } from "./live-sync-types.js";
 
 function buildLiveSyncHeaders(input: {
   userId: string | null;
@@ -57,6 +57,29 @@ export async function fetchTaskLiveSyncStatus(input: {
     headers: buildLiveSyncHeaders(input)
   });
   return parseLiveSyncResponse<TaskLiveSyncStatus>(response, "Failed to fetch live sync status");
+}
+
+export async function searchTaskLiveSyncFolder(input: {
+  userId: string | null;
+  taskId: string;
+  workspaceId: string;
+  taskRelativePath: string;
+  subfolder: string | null;
+  filters: TaskLiveSyncFolderSearchFilters;
+}): Promise<TaskLiveSyncFolderSearchResult> {
+  const response = await fetch(`${resolveInternalApiBaseUrl()}/api/internal/live-sync/tasks/${encodeURIComponent(input.taskId)}/search`, {
+    method: "POST",
+    headers: {
+      ...buildLiveSyncHeaders(input),
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      path: input.taskRelativePath,
+      subfolder: input.subfolder,
+      ...input.filters
+    })
+  });
+  return parseLiveSyncResponse<TaskLiveSyncFolderSearchResult>(response, "Failed to search live sync folder");
 }
 
 export async function ensureTaskSourceMounts(input: {

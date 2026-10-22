@@ -973,19 +973,26 @@ export async function listTaskLiveSyncFileSummaries(input: {
   );
 }
 
-export async function getTaskLiveSyncStatusByTaskPath(input: {
+export async function getTaskLiveSyncLinkByTaskPath(input: {
   taskId: string;
   taskRelativePath: string;
-}): Promise<SourceFileLinkStatusDetails> {
+}): Promise<{ link: SourceFileLink; environmentRootPath: string }> {
   const { task, localRelativePath } = await resolveTaskLiveSyncLocalPath(input);
   const link = await getSourceFileLinkByEnvironmentPath(task.environmentId, localRelativePath);
   if (!link) {
     throw new Error("Live sync file not found for this task.");
   }
+  return { link, environmentRootPath: task.environmentRootPath };
+}
 
+export async function getTaskLiveSyncStatusByTaskPath(input: {
+  taskId: string;
+  taskRelativePath: string;
+}): Promise<SourceFileLinkStatusDetails> {
+  const { link, environmentRootPath } = await getTaskLiveSyncLinkByTaskPath(input);
   return resolveLinkStatus({
     link,
-    environmentRootPath: task.environmentRootPath
+    environmentRootPath
   });
 }
 

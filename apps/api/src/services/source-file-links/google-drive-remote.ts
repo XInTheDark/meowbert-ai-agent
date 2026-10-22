@@ -51,7 +51,7 @@ interface GoogleDriveUploadSession {
   uploadUrl: string;
 }
 
-function decodeGoogleDriveItemReference(value: string): { itemId: string; resourceKey: string | null } {
+export function decodeGoogleDriveItemReference(value: string): { itemId: string; resourceKey: string | null } {
   const [itemId, resourceKey] = value.split(GOOGLE_DRIVE_RESOURCE_KEY_SEPARATOR, 2);
   return {
     itemId: itemId ?? value,
@@ -59,7 +59,7 @@ function decodeGoogleDriveItemReference(value: string): { itemId: string; resour
   };
 }
 
-function buildGoogleDriveResourceKeyHeader(input: { itemId: string; resourceKey: string | null }): Record<string, string> {
+export function buildGoogleDriveResourceKeyHeader(input: { itemId: string; resourceKey: string | null }): Record<string, string> {
   if (!input.resourceKey) {
     return {};
   }
@@ -73,7 +73,7 @@ function isRetryableGoogleDriveStatus(status: number): boolean {
   return GOOGLE_DRIVE_RETRYABLE_STATUS_CODES.has(status);
 }
 
-async function fetchGoogleDriveWithRetry(input: {
+export async function fetchGoogleDriveWithRetry(input: {
   execute: () => Promise<Response>;
   maxAttempts?: number;
 }): Promise<RemoteFetchResult> {
@@ -86,7 +86,7 @@ async function fetchGoogleDriveWithRetry(input: {
   });
 }
 
-function throwGoogleDriveHttpError(prefix: string, payload: unknown, status: number): never {
+export function throwGoogleDriveHttpError(prefix: string, payload: unknown, status: number): never {
   const message = readSourceErrorMessage(payload, status);
 
   if (status === 404) {

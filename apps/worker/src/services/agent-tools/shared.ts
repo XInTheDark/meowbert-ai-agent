@@ -16,6 +16,7 @@ export const LIST_LIVE_SYNC_FILES_TOOL_NAME = "list_live_sync_files";
 export const GET_LIVE_SYNC_STATUS_TOOL_NAME = "get_live_sync_status";
 export const PULL_LIVE_SYNC_FILE_TOOL_NAME = "pull_live_sync_file";
 export const PUSH_LIVE_SYNC_FILE_TOOL_NAME = "push_live_sync_file";
+export const SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME = "search_live_sync_folder";
 export const QUERY_TASKS_TOOL_NAME = "query_tasks";
 // Earlier runs recorded calls under this name; dispatch still accepts it for replay.
 export const LEGACY_SEARCH_TASK_HISTORY_TOOL_NAME = "search_task_history";
@@ -101,6 +102,7 @@ export interface ResponseToolAvailability {
   // When the Master's tasks run on a model router, create_task lets the Master pick its target.
   projectMasterTaskRouter?: PlatformModelRouter | null;
   allowLiveSyncTools?: boolean;
+  allowLiveSyncFolderSearch?: boolean;
   allowCanvasTools?: boolean;
   allowStopTask?: boolean;
   allowWaitTool?: boolean;

@@ -12,6 +12,12 @@ import {
   taskHistoryTaskTypeSchema
 } from "@meowbert/shared/task-history-search";
 import {
+  LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES,
+  LIVE_SYNC_FOLDER_SEARCH_MATCHES,
+  LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
+  LIVE_SYNC_FOLDER_SEARCH_ORDERS
+} from "@meowbert/shared/live-sync-folder-search";
+import {
   RUN_SHELL_MAX_TIMEOUT_SECONDS,
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS,
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS,
@@ -227,6 +233,20 @@ export const liveSyncStatusArgumentsSchema = z.object({
 export const liveSyncMutationArgumentsSchema = z.object({
   path: z.string().min(1),
   force: z.boolean().nullable().optional()
+});
+
+const liveSyncSearchTimestampSchema = z.string().refine((value) => Number.isFinite(Date.parse(value)), "Expected an ISO 8601 timestamp.");
+
+export const searchLiveSyncFolderArgumentsSchema = z.object({
+  path: z.string().min(1),
+  query: z.string().max(500).nullable().optional(),
+  match: z.enum(LIVE_SYNC_FOLDER_SEARCH_MATCHES).nullable().optional(),
+  file_types: z.array(z.enum(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES)).max(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES.length).nullable().optional(),
+  modified_after: liveSyncSearchTimestampSchema.nullable().optional(),
+  modified_before: liveSyncSearchTimestampSchema.nullable().optional(),
+  extra_query: z.string().max(1000).nullable().optional(),
+  order_by: z.enum(LIVE_SYNC_FOLDER_SEARCH_ORDERS).nullable().optional(),
+  limit: z.number().int().min(1).max(LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT).nullable().optional()
 });
 
 // query and limit are legacy aliases kept so replayed search_task_history calls still parse.

@@ -1,6 +1,12 @@
 import { PROJECT_MASTER_FUNCTION_TOOLS } from "./project-master.js";
 import { SUBAGENT_FUNCTION_TOOLS } from "./subagents.js";
 import type { CustomTool, FunctionTool, Tool } from "openai/resources/responses/responses";
+import {
+  LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES,
+  LIVE_SYNC_FOLDER_SEARCH_MATCHES,
+  LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
+  LIVE_SYNC_FOLDER_SEARCH_ORDERS
+} from "@meowbert/shared/live-sync-folder-search";
 import { applyPatchCustomToolDefinition } from "../agent/apply-patch.js";
 import {
   SEARCH_WEB_TOOL_NAME,
@@ -43,6 +49,7 @@ import {
   MEMORY_SEARCH_TOOL_NAME,
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
+  SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   READ_CHANNEL_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
@@ -773,6 +780,59 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
         }
       },
       required: ["path", "force"],
+      additionalProperties: false
+    }
+  },
+  {
+    type: "function",
+    name: SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
+    description:
+      "Search a linked Google Drive folder and everything under it with Google Drive search, including the text inside files. Faster than reading the folder, since files stream on demand. Returns matching items with their local paths.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "A listed Google Drive folder path, or a folder inside it, such as `inputs/research` or `inputs/research/2024`."
+        },
+        query: {
+          type: ["string", "null"],
+          description: "Text to look for, or null to list by the other filters only."
+        },
+        match: {
+          type: ["string", "null"],
+          enum: [...LIVE_SYNC_FOLDER_SEARCH_MATCHES, null],
+          description: "full_text (default) matches names, descriptions, and file contents; name matches names containing the text; exact_name matches the whole name."
+        },
+        file_types: {
+          type: ["array", "null"],
+          items: { type: "string", enum: [...LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES] },
+          description: "Only return these kinds of items, or null for all."
+        },
+        modified_after: {
+          type: ["string", "null"],
+          description: "ISO 8601 timestamp; only items modified after it."
+        },
+        modified_before: {
+          type: ["string", "null"],
+          description: "ISO 8601 timestamp; only items modified before it."
+        },
+        extra_query: {
+          type: ["string", "null"],
+          description: "Extra Google Drive query clause ANDed onto the search, such as `starred = true` or `'someone@example.com' in owners`."
+        },
+        order_by: {
+          type: ["string", "null"],
+          enum: [...LIVE_SYNC_FOLDER_SEARCH_ORDERS, null],
+          description: "Result order. Full-text searches only support relevance (the default)."
+        },
+        limit: {
+          type: ["integer", "null"],
+          description: `Maximum results, 1-${LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT}. Defaults to 25.`
+        }
+      },
+      required: ["path", "query", "match", "file_types", "modified_after", "modified_before", "extra_query", "order_by", "limit"],
       additionalProperties: false
     }
   },
