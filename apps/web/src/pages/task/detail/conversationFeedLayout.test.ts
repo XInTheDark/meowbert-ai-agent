@@ -75,6 +75,24 @@ describe("watchConversationFeedLayout", () => {
     stop();
   });
 
+  it("keeps the paragraph being read in place when a long message reflows taller", () => {
+    installResizeObserver();
+    const { feed, message } = buildFeed();
+    // The message starts above the screen; the reader is looking at a paragraph further down it.
+    defineDynamicRect(message, () => 300 - feed.scrollTop, 1200);
+    const paragraph = document.createElement("p");
+    message.appendChild(paragraph);
+    let paragraphShift = 0;
+    defineDynamicRect(paragraph, () => 600 + paragraphShift - feed.scrollTop);
+    const stop = watchConversationFeedLayout({ feed, shouldStickToBottom: () => false });
+
+    paragraphShift = 300;
+    resizeCallback?.([{ target: feed }]);
+
+    expect(feed.scrollTop).toBe(800);
+    stop();
+  });
+
   it("pins a feed that follows the bottom as its content grows", () => {
     installResizeObserver();
     const { feed, message } = buildFeed();

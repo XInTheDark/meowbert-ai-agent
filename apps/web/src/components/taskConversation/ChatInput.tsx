@@ -230,7 +230,8 @@ export function ChatInput({
     if (!autoFocus || !textareaRef.current) {
       return;
     }
-    textareaRef.current.focus();
+    // Focusing scrolls every scrollable ancestor to the input, which can move the conversation beside it.
+    textareaRef.current.focus({ preventScroll: true });
   }, [autoFocus, focusToken]);
 
   useEffect(() => {
@@ -362,7 +363,6 @@ export function ChatInput({
       <textarea
         ref={textareaRef}
         className="chat-textarea"
-        autoFocus={autoFocus}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}

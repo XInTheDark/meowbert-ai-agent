@@ -35,6 +35,37 @@ function findAnchorElement(feed: HTMLElement, messageId: string): HTMLElement | 
   return null;
 }
 
+const READING_BLOCK_SELECTOR = "p, li, pre, blockquote, h1, h2, h3, h4, h5, h6, tr, img, hr";
+
+interface ReadingAnchor {
+  element: HTMLElement;
+  messageId: string | null;
+  offsetTop: number;
+}
+
+/**
+ * The block the reader is looking at: the first paragraph, list item or similar starting at or below
+ * the top of the feed. Anchoring on a whole message instead pins its top, which for a long message is
+ * far above the screen, so the text being read slides away when the message reflows taller.
+ */
+function findReadingAnchor(feed: HTMLElement): ReadingAnchor | null {
+  const feedTop = feed.getBoundingClientRect().top;
+  const { anchorMessageId } = findFirstVisibleMessageAnchor(feed, null);
+  const messageEl = anchorMessageId ? findAnchorElement(feed, anchorMessageId) : null;
+  if (!messageEl) {
+    return null;
+  }
+  let element: HTMLElement = messageEl;
+  for (const block of messageEl.querySelectorAll<HTMLElement>(READING_BLOCK_SELECTOR)) {
+    const rect = block.getBoundingClientRect();
+    if (rect.height > 0 && rect.top >= feedTop) {
+      element = block;
+      break;
+    }
+  }
+  return { element, messageId: anchorMessageId, offsetTop: element.getBoundingClientRect().top - feedTop };
+}
+
 /**
  * Keeps what the reader is looking at in place while the feed or its content
  * changes size, e.g. when a side panel opens and the feed reflows narrower.
@@ -50,12 +81,12 @@ export function watchConversationFeedLayout(input: {
     return () => undefined;
   }
 
-  let anchor: ConversationFeedAnchor | null = null;
+  let anchor: ReadingAnchor | null = null;
   let wasAtBottom = false;
   let captureFrameId: number | null = null;
 
   function capture(): void {
-    anchor = findFirstVisibleMessageAnchor(feed, null);
+    anchor = findReadingAnchor(feed);
     wasAtBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight <= AT_BOTTOM_TOLERANCE_PX;
   }
 
@@ -80,9 +111,11 @@ export function watchConversationFeedLayout(input: {
       capture();
       return;
     }
-    const anchorEl = anchor?.anchorMessageId ? findAnchorElement(feed, anchor.anchorMessageId) : null;
+    const anchorEl = anchor?.element.isConnected
+      ? anchor.element
+      : anchor?.messageId ? findAnchorElement(feed, anchor.messageId) : null;
     if (anchor && anchorEl) {
-      const delta = anchorEl.getBoundingClientRect().top - feed.getBoundingClientRect().top - anchor.anchorOffsetTop;
+      const delta = anchorEl.getBoundingClientRect().top - feed.getBoundingClientRect().top - anchor.offsetTop;
       if (Math.abs(delta) > 0.5) {
         feed.scrollTop = Math.max(0, feed.scrollTop + delta);
       }
