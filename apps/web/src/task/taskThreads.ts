@@ -40,6 +40,7 @@ export interface CreateTaskThreadInput {
   workspaceMemoryEnabled: boolean;
   allowComputerUse: boolean;
   selectedAgentId: string | null;
+  includeFullHistory?: boolean;
 }
 
 export interface CreateTaskThreadResponse {
@@ -78,6 +79,7 @@ export async function createTaskThread(input: CreateTaskThreadInput): Promise<Cr
         }
       : {}),
     ...(hasTools ? { tools: toolsPayload } : {}),
-    ...(input.selectedAgentId ? { agent: { id: input.selectedAgentId } } : {})
+    ...(input.selectedAgentId ? { agent: { id: input.selectedAgentId } } : {}),
+    ...(input.includeFullHistory ? { includeFullHistory: true } : {})
   });
 }

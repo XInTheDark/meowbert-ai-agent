@@ -129,7 +129,8 @@ export const createTaskThreadBody = z.object({
   selectedText: z.string().min(1).optional(),
   selectedTextLocation: z.string().min(1).optional(),
   tools: taskToolOptionsSchema,
-  agent: taskAgentSelectionSchema
+  agent: taskAgentSelectionSchema,
+  includeFullHistory: z.boolean().optional()
 });
 
 export const taskScheduleCreateSchema = z

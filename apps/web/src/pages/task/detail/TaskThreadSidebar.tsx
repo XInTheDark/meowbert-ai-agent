@@ -335,6 +335,7 @@ function ThreadComposerPanel(props: {
   const [selectedTexts, setSelectedTexts] = useState<SelectedTextQuote[]>(() => (
     props.panel.selectedText ? [props.panel.selectedText] : []
   ));
+  const [includeFullHistory, setIncludeFullHistory] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const subscriptionUsageWarning = useSubscriptionUsageWarning();
@@ -407,6 +408,7 @@ function ThreadComposerPanel(props: {
     setToolOptions(props.initialToolOptions);
     setSelectedAgentId(props.selectedAgentId);
     setSelectedTexts(props.panel.selectedText ? [props.panel.selectedText] : []);
+    setIncludeFullHistory(false);
     setError(null);
   }, [props.panel.pendingThreadTaskId, props.panel.selectedText, props.selectedAgentId]);
 
@@ -431,7 +433,8 @@ function ThreadComposerPanel(props: {
         toolOptions,
         workspaceMemoryEnabled: props.workspaceMemoryEnabled,
         allowComputerUse: props.allowComputerUse,
-        selectedAgentId
+        selectedAgentId,
+        includeFullHistory
       });
       setFollowUp("");
       setDraftsByConversation(clearStoredTaskConversationDraft(conversationDraftKey));
@@ -501,6 +504,15 @@ function ThreadComposerPanel(props: {
           submitWithShiftEnter={props.submitWithShiftEnter}
           subscriptionUsageWarning={subscriptionUsageWarning}
         />
+        <label className="thread-composer-history-option" title="Include tool calls and results from the task, not just its messages">
+          <input
+            type="checkbox"
+            checked={includeFullHistory}
+            onChange={(event) => setIncludeFullHistory(event.target.checked)}
+            disabled={isSubmitting}
+          />
+          <span>Include full task history</span>
+        </label>
         {error || uploadError ? <p className="error-text">{error || uploadError}</p> : null}
         <SourceFilePickerModal
           api={props.api}

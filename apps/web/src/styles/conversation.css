@@ -3469,6 +3469,15 @@
   overflow-y: auto;
 }
 
+.thread-composer-history-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
 .thread-sidebar-toolbar {
   display: flex;
   justify-content: flex-end;

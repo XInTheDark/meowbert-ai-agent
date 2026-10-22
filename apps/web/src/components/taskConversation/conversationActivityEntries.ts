@@ -59,6 +59,10 @@ export function isActivityNotice(message: TaskMessage): boolean {
 }
 
 function getMessageDisplayEntries(message: TaskMessage): ConversationDisplayEntry[] {
+  // A thread's note to the model about what context it was given; not part of the conversation.
+  if (message.role === "system" && message.content_json.kind === "thread_context") {
+    return [];
+  }
   const reportCards = getRunInboxReportCards(message);
   if (reportCards) {
     return reportCards.map((card, index) => ({ kind: "managed-task" as const, key: `managed-task-report:${message.id}:${index}`, card }));

@@ -13,6 +13,7 @@ import {
   type TaskMessageToolOptions
 } from "./task-service/index.js";
 import type { ProjectCanvasIntent } from "../canvases/project-canvases.js";
+import { buildThreadContextMessageContent, loadParentOutline, selectConversationOnlyMessages } from "./thread-context.js";
 
 interface ParentTaskRow {
   id: string;
@@ -229,6 +230,27 @@ async function cloneLineageMessages(client: PoolClient, input: {
   return idMap;
 }
 
+async function insertThreadContextMessage(client: PoolClient, input: {
+  taskId: string;
+  parentMessageId: string;
+  content: Record<string, unknown>;
+  createdAt: string;
+}): Promise<string> {
+  const inserted = await client.query<{ id: string }>(
+    `INSERT INTO task_messages (task_id, role, content_json, message_metadata_json, parent_message_id, created_at)
+     VALUES ($1, 'system', $2::jsonb, $3::jsonb, $4, $5)
+     RETURNING id`,
+    [
+      input.taskId,
+      JSON.stringify(input.content),
+      JSON.stringify(createTaskMessageMetadata(input.createdAt)),
+      input.parentMessageId,
+      input.createdAt
+    ]
+  );
+  return inserted.rows[0].id;
+}
+
 export async function listTaskThreadCounts(parentTaskId: string): Promise<TaskThreadCount[]> {
   const countsRes = await query<ThreadCountRow>(
     `SELECT parent_message_id, COUNT(*)::int AS count
@@ -292,6 +314,7 @@ export async function createThreadTask(input: {
   agent?: TaskMessageAgentSelection;
   interactiveCanvasId?: string | null;
   interactiveCanvasIntent?: ProjectCanvasIntent | null;
+  includeFullHistory?: boolean;
 }): Promise<{
   taskId: string;
   messageId: string;
@@ -326,7 +349,10 @@ export async function createThreadTask(input: {
     }
 
     const parentTask = await loadParentTaskOrThrow(client, input.parentTaskId);
-    const sourceMessages = await loadOrderedSourceMessages(client, input.parentTaskId, lineageMessageIds);
+    const lineageMessages = await loadOrderedSourceMessages(client, input.parentTaskId, lineageMessageIds);
+    const sourceMessages = input.includeFullHistory
+      ? lineageMessages
+      : selectConversationOnlyMessages(lineageMessages, input.parentMessageId);
     const createdAtBase = Date.now();
     const taskRootPath = buildThreadRootPath(parentTask.task_root_path, taskId);
 
@@ -393,6 +419,17 @@ export async function createThreadTask(input: {
     if (!clonedAnchorMessageId) {
       throw new Error("Failed to clone thread anchor message");
     }
+    const userMessageParentId = input.includeFullHistory
+      ? clonedAnchorMessageId
+      : await insertThreadContextMessage(client, {
+        taskId,
+        parentMessageId: clonedAnchorMessageId,
+        content: buildThreadContextMessageContent(
+          await loadParentOutline(client, input.parentTaskId, input.parentMessageId, idMap)
+        ),
+        createdAt: new Date(createdAtBase + sourceMessages.length).toISOString()
+      });
+    const userMessageCreatedAt = new Date(createdAtBase + sourceMessages.length + 1).toISOString();
 
     const insertedMessage = await client.query<{ id: string }>(
       `INSERT INTO task_messages (
@@ -416,10 +453,10 @@ export async function createThreadTask(input: {
             agent: input.agent
           })
         ),
-        JSON.stringify(createTaskMessageMetadata(new Date(createdAtBase + sourceMessages.length).toISOString())),
+        JSON.stringify(createTaskMessageMetadata(userMessageCreatedAt)),
         input.userId,
-        clonedAnchorMessageId,
-        new Date(createdAtBase + sourceMessages.length).toISOString()
+        userMessageParentId,
+        userMessageCreatedAt
       ]
     );
     const messageId = insertedMessage.rows[0].id;

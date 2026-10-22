@@ -55,6 +55,7 @@ async function handleCreateTaskThread(request: FastifyRequest, reply: FastifyRep
     selectedTextLocation: body.selectedTextLocation,
     tools: body.tools,
     agent: selectedAgent,
+    includeFullHistory: body.includeFullHistory,
     interactiveCanvasId: body.interactiveCanvasId ?? undefined,
     interactiveCanvasIntent: body.interactiveCanvasIntent ?? (body.interactiveCanvasId ? "update" : undefined)
   });
