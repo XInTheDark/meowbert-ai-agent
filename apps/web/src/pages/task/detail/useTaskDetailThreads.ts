@@ -15,7 +15,7 @@ interface UseTaskDetailThreadsInput {
   taskRootPath: string | null;
   taskDetail: TaskDetail | null;
   switchToConversation: () => void;
-  jumpToMessage: (messageId: string, selectedText?: SelectedTextQuote | null) => void;
+  revealMessage: (messageId: string, selectedText?: SelectedTextQuote | null) => void;
   invalidateCurrentTaskCache: () => void;
   loadTask: () => Promise<void>;
   toolOptions: TaskToolOptions;
@@ -110,12 +110,14 @@ function useTaskThreadNavigation(
 
   function openThreadConversation(threadTaskId: string, options?: {
     replaceTop?: boolean;
+    parentTaskId?: string;
     parentMessageId?: string | null;
     selectedText?: SelectedTextQuote | null;
   }): void {
     input.switchToConversation();
-    if (options?.parentMessageId) {
-      input.jumpToMessage(options.parentMessageId, options.selectedText);
+    // A nested thread's parent message lives in another thread, not in the main feed.
+    if (options?.parentMessageId && options.parentTaskId === input.taskId) {
+      input.revealMessage(options.parentMessageId, options.selectedText);
     }
     state.setThreadSidebarStack((current) => {
       const panel: TaskThreadSidebarPanel = { kind: "conversation", taskId: threadTaskId };
@@ -186,10 +188,7 @@ function useTaskSelectionThreadActions(
     input.invalidateCurrentTaskCache();
     state.setSelectedTextDraft(null);
     await input.loadTask();
-    navigation.openThreadConversation(created.taskId, {
-      parentMessageId: selection.messageId,
-      selectedText: selection
-    });
+    navigation.openThreadConversation(created.taskId);
   }, [
     input.api,
     input.capabilities.isDesktop,

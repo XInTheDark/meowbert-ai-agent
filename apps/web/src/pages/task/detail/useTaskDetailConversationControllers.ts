@@ -79,18 +79,20 @@ export function useTaskDetailConversationControllers(
 ) {
   const navigation = useConversationNavigation(context, view);
   const activity = useTaskActivity(context, view, navigation.conversation);
+  // Only a real tab change re-pins the feed; re-selecting the open tab must leave its scroll alone.
   const switchTab = useCallback((nextTab: TaskDetailTab) => {
+    if (nextTab === view.tab) return;
     if (nextTab === "conversation") navigation.conversation.activateConversationTab();
     if (nextTab === "events" || nextTab === "debug") activity.events.activateEventsTab();
     view.setTab(nextTab);
-  }, [activity.events.activateEventsTab, navigation.conversation.activateConversationTab, view.setTab]);
+  }, [activity.events.activateEventsTab, navigation.conversation.activateConversationTab, view.setTab, view.tab]);
   const threads = useTaskDetailThreads({
     api: context.workspace.api,
     taskId: context.taskId,
     taskRootPath: context.taskRootPath,
     taskDetail: context.data.taskDetail,
     switchToConversation: () => switchTab("conversation"),
-    jumpToMessage: navigation.conversation.jumpToMessage,
+    revealMessage: navigation.conversation.revealMessage,
     invalidateCurrentTaskCache: activity.invalidateCurrentTaskCache,
     loadTask: context.data.loadTask,
     toolOptions: composer.toolOptions,

@@ -39,6 +39,7 @@ import type {
 import { formatDateTime, formatRelative, getEffectiveTaskStatus, getMessageText, joinTaskMessage } from "../../../lib/utils";
 import { requestTaskInterrupt, sendTaskFollowUp, switchTaskBranch } from "./taskDetailMutations";
 import { distanceFromBottom } from "./taskDetailUtils";
+import { watchConversationFeedLayout } from "./conversationFeedLayout";
 import type { WorkspaceSourceSummary } from "../../../sources/sourceTypes";
 import { useSubscriptionUsageWarning } from "../../../subscription/usageLimits";
 
@@ -174,6 +175,7 @@ function ThreadListPanel(props: {
   onBack: () => void;
   onClose: () => void;
   onOpenConversation: (taskId: string, options?: {
+    parentTaskId?: string;
     parentMessageId?: string | null;
     selectedText?: SelectedTextQuote | null;
   }) => void;
@@ -262,6 +264,7 @@ function ThreadListPanel(props: {
               type="button"
               className="thread-list-item"
               onClick={() => props.onOpenConversation(item.task_id, {
+                parentTaskId: props.panel.taskId,
                 parentMessageId: item.parent_message_id,
                 ...(item.selected_text
                   ? {
@@ -316,6 +319,7 @@ function ThreadComposerPanel(props: {
   onClose: () => void;
   onOpenConversation: (taskId: string, options?: {
     replaceTop?: boolean;
+    parentTaskId?: string;
     parentMessageId?: string | null;
     selectedText?: SelectedTextQuote | null;
   }) => void;
@@ -432,11 +436,7 @@ function ThreadComposerPanel(props: {
       setFollowUp("");
       setDraftsByConversation(clearStoredTaskConversationDraft(conversationDraftKey));
       props.onCreated();
-      props.onOpenConversation(created.taskId, {
-        replaceTop: true,
-        parentMessageId: props.panel.parentMessageId,
-        selectedText
-      });
+      props.onOpenConversation(created.taskId, { replaceTop: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -744,6 +744,21 @@ function ThreadConversationPanel(props: {
     threadConversationNearBottomRef.current = true;
   }, [messageTree.activeMessages.length, taskDetail?.active_leaf_message_id, taskDetail?.task.updated_at]);
 
+  // Messages keep growing after the first paint (markdown, hydrated tool output, streaming), so follow
+  // the bottom until the reader scrolls away instead of aligning once.
+  const hasThreadFeed = taskDetail !== null;
+  useEffect(() => {
+    const feed = threadConversationFeedRef.current;
+    if (!hasThreadFeed || !feed) {
+      return;
+    }
+
+    return watchConversationFeedLayout({
+      feed,
+      shouldStickToBottom: () => threadConversationNearBottomRef.current
+    });
+  }, [hasThreadFeed, props.panel.taskId]);
+
   function beginEditMessage(message: TaskMessage): void {
     setEditingAgentId(getTaskMessageAgentId(message));
     setEditingMessageId(message.id);
@@ -840,6 +855,7 @@ function ThreadConversationPanel(props: {
 
     setIsBusy(true);
     setError(null);
+    threadConversationNearBottomRef.current = true;
     try {
       if (isThreadActive) {
         await requestInterruptAndMarkThread();
@@ -1060,6 +1076,7 @@ export function TaskThreadSidebar(props: {
   ) => void;
   onOpenConversation: (taskId: string, options?: {
     replaceTop?: boolean;
+    parentTaskId?: string;
     parentMessageId?: string | null;
     selectedText?: SelectedTextQuote | null;
   }) => void;

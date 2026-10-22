@@ -292,6 +292,7 @@ describe("TaskThreadSidebar", () => {
       container.querySelector<HTMLButtonElement>(".thread-list-item")?.click();
     });
     expect(onOpenConversation).toHaveBeenCalledWith("thread-task", {
+      parentTaskId: "parent-task",
       parentMessageId: "message-1",
       selectedText: {
         text: "parse this",
@@ -396,6 +397,7 @@ describe("TaskThreadSidebar", () => {
     });
 
     expect(onOpenConversation).toHaveBeenCalledWith("thread-task", {
+      parentTaskId: "parent-task",
       parentMessageId: "message-1"
     });
     act(() => {

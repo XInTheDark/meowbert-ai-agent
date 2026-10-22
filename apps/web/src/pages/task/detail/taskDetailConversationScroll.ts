@@ -64,6 +64,21 @@ export function findMessageElement(
   return firstMatch;
 }
 
+export function isConversationMessageInView(
+  feed: HTMLDivElement,
+  targetMessageId: string,
+  targetTextAnchor?: ConversationTextAnchor | null
+): boolean {
+  const targetMessage = findMessageElement(feed, targetMessageId, targetTextAnchor);
+  if (!targetMessage) {
+    return false;
+  }
+
+  const feedRect = feed.getBoundingClientRect();
+  const targetRect = targetMessage.getBoundingClientRect();
+  return targetRect.bottom > feedRect.top && targetRect.top < feedRect.bottom;
+}
+
 function requestScrollFrame(callback: () => void): number {
   if (typeof window.requestAnimationFrame === "function") {
     return window.requestAnimationFrame(callback);

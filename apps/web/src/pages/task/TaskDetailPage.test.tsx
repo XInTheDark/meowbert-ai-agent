@@ -66,7 +66,8 @@ const {
     handleConversationWheel: vi.fn(),
     handleToolGroupExpandRequested: vi.fn(),
     jumpToMessage: vi.fn(),
-    jumpToMessageIndex: vi.fn(async () => undefined)
+    jumpToMessageIndex: vi.fn(async () => undefined),
+    revealMessage: vi.fn()
   })),
   useTaskDetailEventsMock: vi.fn(() => ({
     events: [],
@@ -326,6 +327,7 @@ function createConversationHookResult(
     handleToolGroupExpandRequested: vi.fn(),
     jumpToMessage: vi.fn(),
     jumpToMessageIndex: vi.fn(async () => undefined),
+    revealMessage: vi.fn(),
     ...overrides
   };
 }

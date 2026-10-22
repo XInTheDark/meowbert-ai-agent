@@ -17,10 +17,12 @@ import {
 import { getNextTopbarCollapsedState } from "./taskDetailTopbarState";
 import {
   findMessageElement,
+  isConversationMessageInView,
   watchPendingConversationScroll,
   type ConversationTextAnchor
 } from "./taskDetailConversationScroll";
 import { distanceFromBottom } from "./taskDetailUtils";
+import { findFirstVisibleMessageAnchor, watchConversationFeedLayout } from "./conversationFeedLayout";
 import type {
   UseTaskDetailConversationOptions,
   UseTaskDetailConversationResult
@@ -185,27 +187,6 @@ function getVisibleMessagePage(input: {
   }
 
   return input.responsePage;
-}
-
-function findFirstVisibleMessageAnchor(
-  feed: HTMLElement,
-  fallbackMessageId: string | null
-): { anchorMessageId: string | null; anchorOffsetTop: number } {
-  const feedRect = feed.getBoundingClientRect();
-  const messageElements = feed.querySelectorAll<HTMLElement>("[data-message-id]");
-  for (const el of messageElements) {
-    const rect = el.getBoundingClientRect();
-    if (rect.bottom > feedRect.top + 10) {
-      return {
-        anchorMessageId: el.dataset.messageId ?? fallbackMessageId,
-        anchorOffsetTop: rect.top - feedRect.top
-      };
-    }
-  }
-  return {
-    anchorMessageId: fallbackMessageId,
-    anchorOffsetTop: 0
-  };
 }
 
 function buildConversationSearchParams(input?: {
@@ -679,6 +660,19 @@ export function useTaskDetailConversation(
     });
   }, [messages.length, options.activeTab, pendingConversationScrollVersion]);
 
+  useEffect(() => {
+    const feed = chatFeedRef.current;
+    if (options.activeTab !== "conversation" || isConversationBootstrapping || !feed) {
+      return;
+    }
+
+    return watchConversationFeedLayout({
+      feed,
+      shouldStickToBottom: ({ wasAtBottom, feedResized }) => wasAtBottom && feedResized,
+      isScrollPending: () => pendingConversationScrollMessageIdRef.current !== null
+    });
+  }, [isConversationBootstrapping, options.activeTab, options.taskId]);
+
   useLayoutEffect(() => {
     const pending = pendingConversationScrollAdjustmentRef.current;
     if (!pending) {
@@ -941,6 +935,14 @@ export function useTaskDetailConversation(
     });
   }, [loadConversationPage, requestJumpToLoadedMessage]);
 
+  const revealMessage = useCallback((messageId: string, textAnchor?: ConversationTextAnchor | null) => {
+    const feed = chatFeedRef.current;
+    if (feed && isConversationMessageInView(feed, messageId, textAnchor)) {
+      return;
+    }
+    jumpToMessage(messageId, textAnchor);
+  }, [jumpToMessage]);
+
   const jumpToMessageIndex = useCallback(async (messageId: string, messageIndex: number) => {
     const isLoaded = messageLookup.has(messageId);
     if (isLoaded) {
@@ -999,6 +1001,7 @@ export function useTaskDetailConversation(
     handleConversationWheel,
     handleToolGroupExpandRequested,
     jumpToMessage,
-    jumpToMessageIndex
+    jumpToMessageIndex,
+    revealMessage
   };
 }
