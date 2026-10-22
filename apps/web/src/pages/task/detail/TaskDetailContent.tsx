@@ -435,7 +435,9 @@ function TaskConversationLayout({ model }: ModelProps) {
     <div ref={navigation.containerRef} className={className} style={{ "--thread-sidebar-width": `${rightSidebarWidth}px`, "--conversation-navigation-width": `${navigation.width}px` } as CSSProperties}>
       {navigation.enabled ? <ConversationNavigationPane key={model.context.taskId} controller={{ ...navigation, isOpen: showNavigation }} overlay={overlay}
         summaries={model.actions.messageDisplayPreferences.showMessageSummaries !== false}
-        chatFeedRef={model.controllers.conversation.chatFeedRef} onJump={model.controllers.conversation.jumpToMessage} /> : null}
+        chatFeedRef={model.controllers.conversation.chatFeedRef} onJump={model.controllers.conversation.jumpToMessage}
+        onGenerateOutline={(prompt) => void model.actions.handleSendPrompt(prompt)}
+        generateOutlineDisabled={model.actions.isBusy || ["running", "starting", "queued"].includes(model.context.data.taskDetail?.task.status ?? "")} /> : null}
       <TaskConversationNavigation model={model} />
       <TaskConversationMain model={model} />
       {hasRightSidebar && !mobile ? (

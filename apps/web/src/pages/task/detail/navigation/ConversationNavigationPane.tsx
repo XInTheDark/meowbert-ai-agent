@@ -11,6 +11,7 @@ const views: NavigationView[] = ["map", "outline", "list"];
 export function ConversationNavigationPane(props: {
   controller: ConversationNavigationController; overlay: boolean; summaries: boolean;
   chatFeedRef: RefObject<HTMLDivElement>; onJump: (id: string) => void;
+  onGenerateOutline?: (prompt: string) => void; generateOutlineDisabled?: boolean;
 }) {
   const { controller: navigation } = props;
   const panel = useRef<HTMLElement>(null);
@@ -56,7 +57,8 @@ export function ConversationNavigationPane(props: {
           <ConversationMap data={navigation.data} activeId={activeId} onJump={jump} />
         </section>
         <section id="navigation-outline" role="tabpanel" aria-labelledby="navigation-outline-tab" hidden={navigation.view !== "outline"}>
-          <ConversationOutline markdown={navigation.data.outline?.markdown ?? null} onJump={jump} />
+          <ConversationOutline markdown={navigation.data.outline?.markdown ?? null} onJump={jump}
+            onGenerate={props.onGenerateOutline} generateDisabled={props.generateOutlineDisabled} />
         </section>
         <section id="navigation-list" role="tabpanel" aria-labelledby="navigation-list-tab" hidden={navigation.view !== "list"}>
           <ConversationTurnList data={navigation.data} activeId={activeId} summaries={props.summaries} onJump={jump} />

@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, ListTree } from "lucide-react";
 import { ConversationMessageContent } from "../../../../components/taskConversation/ConversationMessageContent";
 import { buildDefaultTaskAssistantMessageDisplayPreferences } from "../../../../task/taskPagePreferences";
 
 const preferences = { ...buildDefaultTaskAssistantMessageDisplayPreferences(), renderMarkdown: true, collapseLongMessages: false };
 
-export function ConversationOutline(props: { markdown: string | null; onJump: (id: string) => void }) {
+const GENERATE_OUTLINE_PROMPT = "Please create an outline for this conversation.";
+
+export function ConversationOutline(props: {
+  markdown: string | null; onJump: (id: string) => void;
+  onGenerate?: (prompt: string) => void; generateDisabled?: boolean;
+}) {
   const feed = useRef<HTMLDivElement>(null);
   const [hasMore, setHasMore] = useState(false);
   function measure() {
@@ -26,7 +31,11 @@ export function ConversationOutline(props: { markdown: string | null; onJump: (i
       if (match) { event.preventDefault(); event.stopPropagation(); props.onJump(match[1]); }
     }}>
       {props.markdown ? <ConversationMessageContent content={props.markdown} displayPreferences={preferences} forceExpanded />
-        : <p className="muted-text">An outline will appear when the assistant organizes this conversation.</p>}
+        : <div className="conversation-outline-empty">
+          <p className="muted-text">An outline will appear when the assistant organizes this conversation.</p>
+          {props.onGenerate ? <button className="btn ghost" disabled={props.generateDisabled}
+            onClick={() => props.onGenerate?.(GENERATE_OUTLINE_PROMPT)}><ListTree size={15} /> Generate outline</button> : null}
+        </div>}
     </div>
     {hasMore ? <button className="conversation-outline-bottom icon-btn-subtle" aria-label="Jump to bottom of outline"
       onClick={() => feed.current?.scrollTo({ top: feed.current.scrollHeight, behavior: "smooth" })}><ArrowDown size={18} /></button> : null}
