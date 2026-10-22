@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { buildAgentTurnRequest, buildPromptCacheKey } from "./turn-request.js";
-import { createPromptEnvelope } from "./prompt-envelope.js";
+import { createPromptEnvelope, sealPromptEnvelope } from "./prompt-envelope.js";
 import {
   CREATE_CHANNEL_TOOL_NAME,
   LIST_CHANNELS_TOOL_NAME,
@@ -105,6 +105,28 @@ describe("buildAgentTurnRequest", () => {
     expect(after.responseTools).toEqual(before.responseTools);
     expect(after.promptCacheKey).toBe(before.promptCacheKey);
     expect(after.codeModeTools.map((tool) => tool.name)).toEqual(expect.arrayContaining([skillTool.name, "schedule_task"]));
+  });
+
+  it("puts warm code mode tool signatures in the prompt prefix once and keeps the prefix stable across turns", () => {
+    const promptEnvelope = createPromptEnvelope("Base prompt.");
+    const request = () => buildAgentTurnRequest({
+      taskId: "task-1",
+      runToolOptions: createBaseToolOptions(),
+      activeSkillTools: [],
+      promptEnvelope,
+      availability: {},
+      codeMode: true
+    });
+
+    const first = request();
+    sealPromptEnvelope(promptEnvelope);
+    const second = request();
+    const prefixText = JSON.stringify(first.promptPrefixItems);
+
+    expect(prefixText).toContain("tools.view_image(args:");
+    expect(prefixText).toContain("file_path: string;");
+    expect(second.promptPrefixHash).toBe(first.promptPrefixHash);
+    expect(promptEnvelope.conversationDeltas).toEqual([]);
   });
 
   it("passes agent swarm tools through to the model request when enabled", () => {

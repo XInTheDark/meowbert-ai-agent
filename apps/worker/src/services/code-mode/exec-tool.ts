@@ -1,8 +1,7 @@
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { z } from "zod";
 import { SEARCH_TOOLS_TOOL_NAME } from "./search-tools-tool.js";
-import { groupColdTools, isLoadedOnDemand, isWarmTool, type ToolCatalogGroup } from "./tool-catalog.js";
-import { renderToolSignature } from "./tool-signatures.js";
+import { groupColdTools, isLoadedOnDemand, type ToolCatalogGroup } from "./tool-catalog.js";
 
 export const EXEC_TOOL_NAME = "exec";
 
@@ -26,16 +25,16 @@ function renderGroupLine(group: ToolCatalogGroup): string {
 }
 
 const LOOKUP_GUIDANCE = [
+  "The tools you use most are documented in the system prompt.",
   `Look up any other tool with ${SEARCH_TOOLS_TOOL_NAME} before its first use: pass a group to see what its tools do, then names for their arguments.`,
   "Tools that enable_skill loads join `tools` under the names it lists."
 ].join(" ");
 
+// Warm tools' signatures live in the system prompt (see code-mode-prompt.ts), not here.
 function describeTools(nestedTools: FunctionTool[]): string {
-  const warmTools = nestedTools.filter(isWarmTool);
   const listedGroups = groupColdTools(nestedTools.filter((tool) => !isLoadedOnDemand(tool)));
   return [
     EXEC_DESCRIPTION,
-    ...(warmTools.length > 0 ? [`Tools:\n\n${warmTools.map(renderToolSignature).join("\n\n")}`] : []),
     [LOOKUP_GUIDANCE, ...(listedGroups.length > 0 ? ["More tools, by group:", ...listedGroups.map(renderGroupLine)] : [])].join("\n")
   ].join("\n\n");
 }

@@ -1,9 +1,11 @@
 import type { FunctionTool, ResponseInputItem, Tool } from "openai/resources/responses/responses";
 import { createHash } from "node:crypto";
 import { buildResponseTools, RUN_SHELL_MAX_TIMEOUT_SECONDS, type ResponseToolAvailability } from "../agent-tools/index.js";
+import { buildCodeModeToolsPrompt, CODE_MODE_TOOLS_PROMPT_REASON } from "../code-mode/code-mode-prompt.js";
 import { buildCodeModeToolSet } from "../code-mode/code-mode-tools.js";
 import type { TaskMessageToolOptions } from "./types.js";
 import {
+  appendPromptEnvelopeDelta,
   computePromptPrefixHash,
   getPromptEnvelopeRevision,
   promptEnvelopeToPrefixItems,
@@ -36,6 +38,14 @@ export function buildAgentTurnRequest(input: {
   const { responseTools, nestedTools } = input.codeMode === true
     ? buildCodeModeToolSet(tools, input.availability.runShellMaxTimeoutSeconds ?? RUN_SHELL_MAX_TIMEOUT_SECONDS)
     : { responseTools: tools, nestedTools: [] };
+  // Lands in the prefix before the envelope is sealed; later turns repeat the same content, which
+  // the envelope skips, so the cached prefix stays put.
+  if (nestedTools.length > 0) {
+    appendPromptEnvelopeDelta(input.promptEnvelope, {
+      reason: CODE_MODE_TOOLS_PROMPT_REASON,
+      content: buildCodeModeToolsPrompt(nestedTools)
+    });
+  }
   const promptPrefixItems = promptEnvelopeToPrefixItems(input.promptEnvelope);
   const promptPrefixHash = computePromptPrefixHash({
     envelope: input.promptEnvelope,

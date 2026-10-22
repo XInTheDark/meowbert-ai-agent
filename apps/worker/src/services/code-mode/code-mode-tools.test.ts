@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FunctionTool, Tool } from "openai/resources/responses/responses";
 import { buildResponseTools } from "../agent-tools/index.js";
+import { buildCodeModeToolsPrompt } from "./code-mode-prompt.js";
 import { buildCodeModeToolSet } from "./code-mode-tools.js";
 
 const options = { webSearch: true, memorySearch: true, scheduleTask: false, subtasks: true, computerUse: false, enabledSkills: [], enabledSources: [] };
@@ -34,7 +35,7 @@ describe("buildCodeModeToolSet", () => {
     }
   });
 
-  it("documents warm tools in full, lists other built-ins by group, and leaves skill tools to their prompt update", () => {
+  it("lists cold built-ins by group in exec, documents warm tools in the prompt, and leaves skill tools to their prompt update", () => {
     const skillTool: FunctionTool = {
       type: "function",
       name: "google_drive__upload_file",
@@ -47,7 +48,8 @@ describe("buildCodeModeToolSet", () => {
     const exec = responseTools.find((tool): tool is FunctionTool => tool.type === "function" && tool.name === "exec")!;
 
     expect(nestedTools.map((tool) => tool.name)).toEqual(expect.arrayContaining(["run_shell", "list_live_sync_files", skillTool.name]));
-    expect(exec.description).toContain("tools.run_shell(args:");
+    expect(exec.description).not.toContain("tools.run_shell(");
+    expect(buildCodeModeToolsPrompt(nestedTools)).toContain("tools.run_shell(args:");
     expect(exec.description).not.toContain("google_drive");
     expect(exec.description).toContain("- live_sync: list_live_sync_files, get_live_sync_status, pull_live_sync_file, push_live_sync_file");
     expect(exec.description).not.toContain("tools.list_live_sync_files(");
@@ -55,14 +57,15 @@ describe("buildCodeModeToolSet", () => {
     expect(exec.description).not.toContain("tools.spawn_subagent(");
   });
 
-  it("documents the media viewers in exec and leaves out the PDF viewer when the model can't take PDFs", () => {
-    const execDescription = (allowPdfFileTool: boolean) => buildCodeModeToolSet(buildResponseTools(options, [], { allowPdfFileTool }), 600)
-      .responseTools.find((tool): tool is FunctionTool => tool.type === "function" && tool.name === "exec")!.description;
+  it("documents the media viewers in the prompt and leaves out the PDF viewer when the model can't take PDFs", () => {
+    const toolsPrompt = (allowPdfFileTool: boolean) => buildCodeModeToolsPrompt(
+      buildCodeModeToolSet(buildResponseTools(options, [], { allowPdfFileTool }), 600).nestedTools
+    );
 
-    expect(execDescription(true)).toContain("tools.view_image(args:");
-    expect(execDescription(true)).toContain("tools.view_pdf_file(args:");
-    expect(execDescription(false)).toContain("tools.view_image(args:");
-    expect(execDescription(false)).not.toContain("view_pdf_file");
+    expect(toolsPrompt(true)).toContain("tools.view_image(args:");
+    expect(toolsPrompt(true)).toContain("tools.view_pdf_file(args:");
+    expect(toolsPrompt(false)).toContain("tools.view_image(args:");
+    expect(toolsPrompt(false)).not.toContain("view_pdf_file");
   });
 
   it("always offers search_tools alongside exec", () => {
