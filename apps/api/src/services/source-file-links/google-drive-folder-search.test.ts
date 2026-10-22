@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { searchGoogleDriveFolderSubtree, type GoogleDriveFolderSearchFilters } from "./google-drive-folder-search.js";
+import { clearGoogleDriveSubtreeFolderCache } from "./google-drive-subtree-folders.js";
 
 interface FakeDriveFile {
   id: string;
@@ -72,12 +73,13 @@ const tree: FakeDriveFile[] = [
 describe("searchGoogleDriveFolderSubtree", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    clearGoogleDriveSubtreeFolderCache();
   });
 
   it("finds files in nested folders and shortcut folders and maps them to mounted paths", async () => {
     installFakeDrive(tree);
 
-    const result = await searchGoogleDriveFolderSubtree({ accessToken: "token", rootItemId: "root-folder", subfolder: null, filters: filters() });
+    const result = await searchGoogleDriveFolderSubtree({ accessToken: "token", cacheScope: "link-1", depth: 0, rootItemId: "root-folder", subfolder: null, filters: filters() });
 
     expect(result.searchedFolderCount).toBe(4);
     expect(result.items.map((item) => item.path).sort()).toEqual([
@@ -92,6 +94,8 @@ describe("searchGoogleDriveFolderSubtree", () => {
 
     const result = await searchGoogleDriveFolderSubtree({
       accessToken: "token",
+      cacheScope: "link-1",
+      depth: 0,
       rootItemId: "root-folder",
       subfolder: null,
       filters: filters({ extraQuery: "x') or ('a' in parents" })
@@ -103,10 +107,40 @@ describe("searchGoogleDriveFolderSubtree", () => {
   it("starts from a subfolder and returns paths relative to it", async () => {
     const { queries } = installFakeDrive(tree);
 
-    const result = await searchGoogleDriveFolderSubtree({ accessToken: "token", rootItemId: "root-folder", subfolder: "2024", filters: filters() });
+    const result = await searchGoogleDriveFolderSubtree({ accessToken: "token", cacheScope: "link-1", depth: 0, rootItemId: "root-folder", subfolder: "2024", filters: filters() });
 
     expect(result.items.map((item) => item.path)).toEqual(["Q1/Budget plan.url"]);
     expect(queries.some((q) => q.includes("'root-folder' in parents") && q.includes("fullText"))).toBe(false);
+  });
+
+  it("limits the search to the requested number of folder levels", async () => {
+    installFakeDrive(tree);
+    const search = (depth: number) => searchGoogleDriveFolderSubtree({
+      accessToken: "token", cacheScope: "link-1", depth, rootItemId: "root-folder", subfolder: null, filters: filters()
+    });
+
+    expect((await search(1)).items.map((item) => item.path)).toEqual(["a\uFF0Fb report.pdf"]);
+    expect((await search(2)).items.map((item) => item.path).sort()).toEqual(["Linked/shared.pdf", "a\uFF0Fb report.pdf"]);
+    expect((await search(3)).items.map((item) => item.path).sort()).toEqual([
+      "2024/Q1/Budget plan.url",
+      "Linked/shared.pdf",
+      "a\uFF0Fb report.pdf"
+    ]);
+  });
+
+  it("reuses the folder walk for repeat searches of the same link", async () => {
+    const { queries } = installFakeDrive(tree);
+    const search = (cacheScope: string) => searchGoogleDriveFolderSubtree({
+      accessToken: "token", cacheScope, depth: 0, rootItemId: "root-folder", subfolder: null, filters: filters()
+    });
+    const folderListCount = () => queries.filter((q) => q.includes("mimeType = 'application/vnd.google-apps.shortcut'")).length;
+
+    await search("link-1");
+    const afterFirst = folderListCount();
+    await search("link-1");
+    expect(folderListCount()).toBe(afterFirst);
+    await search("link-2");
+    expect(folderListCount()).toBeGreaterThan(afterFirst);
   });
 
   it("rejects a missing subfolder", async () => {
@@ -114,6 +148,8 @@ describe("searchGoogleDriveFolderSubtree", () => {
 
     await expect(searchGoogleDriveFolderSubtree({
       accessToken: "token",
+      cacheScope: "link-1",
+      depth: 0,
       rootItemId: "root-folder",
       subfolder: "2023",
       filters: filters()
@@ -129,6 +165,8 @@ describe("searchGoogleDriveFolderSubtree", () => {
 
     const result = await searchGoogleDriveFolderSubtree({
       accessToken: "token",
+      cacheScope: "link-1",
+      depth: 0,
       rootItemId: "root-folder",
       subfolder: null,
       filters: filters({ query: null, orderBy: "modified_desc", limit: 1 })
@@ -143,6 +181,8 @@ describe("searchGoogleDriveFolderSubtree", () => {
 
     await expect(searchGoogleDriveFolderSubtree({
       accessToken: "token",
+      cacheScope: "link-1",
+      depth: 0,
       rootItemId: "root-folder",
       subfolder: null,
       filters: filters({ orderBy: "name" })

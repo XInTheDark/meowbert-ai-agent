@@ -152,7 +152,7 @@ function registerInternalLiveSyncRoutes(fastify: Parameters<FastifyPluginAsync>[
 
   fastify.post("/api/internal/live-sync/tasks/:taskId/search", async (request) => {
     const params = internalLiveSyncTaskParams.parse(request.params);
-    const { path, subfolder, ...filters } = internalLiveSyncSearchBody.parse(request.body ?? {});
+    const { path, subfolder, depth, ...filters } = internalLiveSyncSearchBody.parse(request.body ?? {});
     const ticket = extractBearerToken(request.headers.authorization);
     await requireLiveSyncProxyAccess({ fastify, ticket, taskId: params.taskId });
 
@@ -160,6 +160,7 @@ function registerInternalLiveSyncRoutes(fastify: Parameters<FastifyPluginAsync>[
       taskId: params.taskId,
       taskRelativePath: path,
       subfolder,
+      depth,
       filters
     });
   });

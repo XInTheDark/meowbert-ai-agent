@@ -65,6 +65,7 @@ export async function searchTaskLiveSyncFolder(input: {
   workspaceId: string;
   taskRelativePath: string;
   subfolder: string | null;
+  depth: number;
   filters: TaskLiveSyncFolderSearchFilters;
 }): Promise<TaskLiveSyncFolderSearchResult> {
   const response = await fetch(`${resolveInternalApiBaseUrl()}/api/internal/live-sync/tasks/${encodeURIComponent(input.taskId)}/search`, {
@@ -76,6 +77,7 @@ export async function searchTaskLiveSyncFolder(input: {
     body: JSON.stringify({
       path: input.taskRelativePath,
       subfolder: input.subfolder,
+      depth: input.depth,
       ...input.filters
     })
   });

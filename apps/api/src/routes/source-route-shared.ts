@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES,
   LIVE_SYNC_FOLDER_SEARCH_MATCHES,
+  LIVE_SYNC_FOLDER_SEARCH_MAX_DEPTH,
   LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
   LIVE_SYNC_FOLDER_SEARCH_ORDERS
 } from "@meowbert/shared/live-sync-folder-search";
@@ -56,6 +57,7 @@ const isoTimestamp = z.string().trim().max(64).refine((value) => Number.isFinite
 export const internalLiveSyncSearchBody = z.object({
   path: z.string().trim().min(1).max(1200),
   subfolder: z.string().max(1200).nullable().default(null),
+  depth: z.number().int().min(0).max(LIVE_SYNC_FOLDER_SEARCH_MAX_DEPTH).default(0),
   query: z.string().trim().max(500).nullable().default(null).transform((value) => value || null),
   match: z.enum(LIVE_SYNC_FOLDER_SEARCH_MATCHES).default("full_text"),
   fileTypes: z.array(z.enum(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES)).max(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES.length).default([]),

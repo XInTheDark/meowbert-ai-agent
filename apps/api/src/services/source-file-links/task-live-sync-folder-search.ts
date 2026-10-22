@@ -24,6 +24,7 @@ export async function searchTaskLiveSyncFolderByTaskPath(input: {
   taskId: string;
   taskRelativePath: string;
   subfolder: string | null;
+  depth: number;
   filters: GoogleDriveFolderSearchFilters;
 }): Promise<GoogleDriveFolderSearchResult & { folder: string }> {
   const { link } = await getTaskLiveSyncLinkByTaskPath(input);
@@ -38,8 +39,10 @@ export async function searchTaskLiveSyncFolderByTaskPath(input: {
   });
   const result = await searchGoogleDriveFolderSubtree({
     accessToken: access.accessToken,
+    cacheScope: link.id,
     rootItemId: link.remoteItemId,
     subfolder,
+    depth: input.depth,
     filters: input.filters
   });
   const folder = subfolder ? `${input.taskRelativePath}/${subfolder}` : input.taskRelativePath;

@@ -14,6 +14,7 @@ import {
 import {
   LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES,
   LIVE_SYNC_FOLDER_SEARCH_MATCHES,
+  LIVE_SYNC_FOLDER_SEARCH_MAX_DEPTH,
   LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
   LIVE_SYNC_FOLDER_SEARCH_ORDERS
 } from "@meowbert/shared/live-sync-folder-search";
@@ -239,6 +240,7 @@ const liveSyncSearchTimestampSchema = z.string().refine((value) => Number.isFini
 
 export const searchLiveSyncFolderArgumentsSchema = z.object({
   path: z.string().min(1),
+  depth: z.number().int().min(0).max(LIVE_SYNC_FOLDER_SEARCH_MAX_DEPTH).nullable().optional(),
   query: z.string().max(500).nullable().optional(),
   match: z.enum(LIVE_SYNC_FOLDER_SEARCH_MATCHES).nullable().optional(),
   file_types: z.array(z.enum(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES)).max(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES.length).nullable().optional(),

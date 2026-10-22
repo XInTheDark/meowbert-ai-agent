@@ -4,6 +4,7 @@ import type { CustomTool, FunctionTool, Tool } from "openai/resources/responses/
 import {
   LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES,
   LIVE_SYNC_FOLDER_SEARCH_MATCHES,
+  LIVE_SYNC_FOLDER_SEARCH_MAX_DEPTH,
   LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
   LIVE_SYNC_FOLDER_SEARCH_ORDERS
 } from "@meowbert/shared/live-sync-folder-search";
@@ -796,6 +797,10 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
           type: "string",
           description: "A listed Google Drive folder path, or a folder inside it, such as `inputs/research` or `inputs/research/2024`."
         },
+        depth: {
+          type: ["integer", "null"],
+          description: `How many folder levels to search: 1 is the folder alone, 2 adds its subfolders, and so on up to ${LIVE_SYNC_FOLDER_SEARCH_MAX_DEPTH}. 0 or null searches every level (up to 1000 folders).`
+        },
         query: {
           type: ["string", "null"],
           description: "Text to look for, or null to list by the other filters only."
@@ -832,7 +837,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
           description: `Maximum results, 1-${LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT}. Defaults to 25.`
         }
       },
-      required: ["path", "query", "match", "file_types", "modified_after", "modified_before", "extra_query", "order_by", "limit"],
+      required: ["path", "depth", "query", "match", "file_types", "modified_after", "modified_before", "extra_query", "order_by", "limit"],
       additionalProperties: false
     }
   },

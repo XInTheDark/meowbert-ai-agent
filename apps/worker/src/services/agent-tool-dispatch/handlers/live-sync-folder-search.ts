@@ -58,6 +58,7 @@ export async function handleSearchLiveSyncFolder(
       workspaceId: ctx.workspaceId,
       taskRelativePath: target.link.taskRelativePath,
       subfolder: target.subfolder,
+      depth: args.depth ?? 0,
       filters: {
         query,
         match: args.match ?? "full_text",
