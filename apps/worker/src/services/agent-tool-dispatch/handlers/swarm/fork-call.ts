@@ -3,6 +3,7 @@ import { createForkedLanes, type CreatedLane, type NewLane } from "../../../agen
 import { snapshotForkEnvelope, type ForkSeed } from "../../../agent-swarm/fork-seed.js";
 import { buildSplitStartedMessage } from "../../../agent-swarm/prompt.js";
 import { SwarmToolError } from "../../../agent-swarm/tool-error.js";
+import { emitSwarmEvent } from "../../../agent-swarm/events.js";
 import type { SwarmDispatchContext } from "../../../agent-swarm/dispatch-context.js";
 import { computePromptPrefixHash } from "../../../agent/prompt-envelope.js";
 import { serializeToolOutput } from "../../state.js";
@@ -100,6 +101,7 @@ export async function forkLanesFromCall(input: {
   }
   state.swarmPark = { reason: "lanes" };
   logForkPrefix(ctx, swarm, created);
+  await emitSwarmEvent(swarm.run.swarmTaskId, `Started ${created.length} ${input.kind} lane${created.length === 1 ? "" : "s"}.`);
   return {
     output: {
       lanes: created.map((lane) => ({ lane_id: lane.taskId, label: lane.label, title: lane.title })),

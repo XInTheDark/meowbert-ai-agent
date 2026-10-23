@@ -3,6 +3,8 @@ import { query, withTransaction } from "../../lib/db.js";
 import { enqueueSubagentRun } from "../subagents/dispatch.js";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
+import { buildUnsubmittedLaneResult } from "./forced-submit.js";
+import { dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
 
 const RECOVERY_BATCH_SIZE = 100;
 
@@ -95,7 +97,42 @@ async function startWaitingQueues(): Promise<void> {
   }
 }
 
+// Lanes stopped from the task page while they had no run (queued, or parked on lanes of their own)
+// carry only their cancellation flag; they end here, and their parent resumes as usual.
+async function endCancelledIdleLanes(): Promise<void> {
+  const lanes = await query<{ task_id: string; swarm_task_id: string; parent_task_id: string; status: string }>(
+    `SELECT lane.task_id, lane.swarm_task_id, lane.parent_task_id, lane.status
+       FROM task_swarm_lanes lane
+       JOIN tasks task ON task.id = lane.task_id
+      WHERE lane.status IN ('queued', 'waiting') AND task.cancellation_requested
+        AND NOT EXISTS (SELECT 1 FROM task_runs run WHERE run.task_id = lane.task_id AND run.ended_at IS NULL)
+      LIMIT $1`,
+    [RECOVERY_BATCH_SIZE]
+  );
+  for (const lane of lanes.rows) {
+    await withTransaction(async (client) => {
+      const swarm = await lockSwarmInTx(client, lane.swarm_task_id);
+      if (!swarm) return;
+      await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [lane.parent_task_id]);
+      const current = await loadLane(client, lane.task_id, { forUpdate: true });
+      if (!current || !["queued", "waiting"].includes(current.status)) return;
+      await client.query(
+        "UPDATE tasks SET status = 'cancelled', completed_at = now(), updated_at = now() WHERE id = $1",
+        [lane.task_id]
+      );
+      await client.query("DELETE FROM task_swarm_parks WHERE task_id = $1", [lane.task_id]);
+      await setLaneStatusInTx(client, lane.task_id, "stopped", {
+        result: buildUnsubmittedLaneResult(current.status === "queued" ? "Stopped before it started." : "Stopped and discarded.")
+      });
+      await dropDiscardedResultInTx(client, current);
+      await startQueuedLanesInTx(client, lane.swarm_task_id, normalizeAgentSwarmSettings(swarm.config_json).advanced.maxRunningLanes);
+      await wakeParentIfBarrierMetInTx(client, lane.parent_task_id);
+    });
+  }
+}
+
 export async function recoverSwarmsOnce(): Promise<void> {
+  await endCancelledIdleLanes();
   await wakeParkedParents();
   await wakeParentsWithUnmergedResults();
   await startWaitingQueues();

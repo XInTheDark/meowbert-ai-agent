@@ -5,6 +5,7 @@ import type { TaskMessage } from "../../../lib/types";
 import { buildTaskInlineFileUrl } from "../../../lib/taskInlineFiles";
 import { getMessageText } from "../../../lib/utils";
 import { useTaskCanvas } from "./useTaskCanvas";
+import { useTaskSwarmLanes } from "./useTaskSwarmLanes";
 import { useTaskDetailActions } from "./useTaskDetailActions";
 import { useTaskDetailComposer } from "./useTaskDetailComposer";
 import { useTaskDetailConversationControllers } from "./useTaskDetailConversationControllers";
@@ -145,6 +146,14 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
     sendPrompt: sendCanvasPrompt
   });
 
+  const loadedTask = context.data.taskDetail?.task;
+  const swarm = useTaskSwarmLanes({
+    api: context.workspace.api,
+    taskId: context.taskId,
+    enabled: loadedTask?.task_type === "agent_swarm" && loadedTask.is_legacy_swarm !== true,
+    events: controllers.events.events
+  });
+
   useTaskDetailArtifactEffects(context, view, controllers);
   return {
     context,
@@ -160,7 +169,8 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
     beginEditMessage,
     cancelEditMessage,
     buildInlineArtifactUrl,
-    canvas
+    canvas,
+    swarm
   };
 }
 

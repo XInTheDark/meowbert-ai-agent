@@ -7,6 +7,11 @@ import {
   normalizeAgentSwarmTokenBudget
 } from "@meowbert/shared/agent-swarm-config";
 import { buildDefaultTaskParameters, hasCustomTaskParameters, normalizeTaskParameters } from "../../task/taskParameters";
+import {
+  formatAgentSwarmAdvancedDraft,
+  parseAgentSwarmAdvancedDraft,
+  type AgentSwarmAdvancedDraft
+} from "../../task/agentSwarmAdvancedFields";
 import type { TaskParameters, TaskType, TaskWorkflowComposerConfig } from "../../lib/types";
 import type { AgentSummary } from "./AgentDropdown";
 import type { ChatToolsPopoverPlacement } from "./useChatToolsDropdownPlacement";
@@ -115,6 +120,14 @@ function buildWorkflowSummary(config: TaskWorkflowComposerConfig | undefined): s
   return `Agent Swarm · ${budgetParts.join(" · ")}`;
 }
 
+// The platform's model routers, which a swarm can pick lane models from. Every swarm preset carries
+// the same list, so any of them will do when the task's own preset is not in the picker.
+function resolveSwarmRouterOptions(props: TaskParametersDropdownProps): string[] {
+  const agents = props.availableAgents ?? [];
+  const selected = agents.find((agent) => agent.id === props.selectedAgentId)?.swarm;
+  return selected?.routerOptions ?? agents.find((agent) => agent.swarm)?.swarm?.routerOptions ?? [];
+}
+
 // Returns an error message for an invalid swarm budget, or null when the value can be applied.
 export function validateAgentSwarmBudget(key: "tokenBudget" | "timeBudgetMinutes", value: number): string | null {
   if (key === "timeBudgetMinutes") {
@@ -142,6 +155,7 @@ function useTaskParameterDraft(resolved: TaskParameters) {
   const [agentSwarmBudgetsEnabled, setAgentSwarmBudgetsEnabled] = useState(false);
   const [agentSwarmTokenBudget, setAgentSwarmTokenBudget] = useState("");
   const [agentSwarmTimeBudgetMinutes, setAgentSwarmTimeBudgetMinutes] = useState("");
+  const [agentSwarmAdvanced, setAgentSwarmAdvanced] = useState<AgentSwarmAdvancedDraft>(() => formatAgentSwarmAdvancedDraft());
   return {
     panel, setPanel, scheduledCron, setScheduledCron, scheduledTimezone, setScheduledTimezone,
     timedMinutes, setTimedMinutes, maxSteps, setMaxSteps, taskTimeLimitMinutes, setTaskTimeLimitMinutes,
@@ -152,6 +166,7 @@ function useTaskParameterDraft(resolved: TaskParameters) {
     agentSwarmBudgetsEnabled, setAgentSwarmBudgetsEnabled,
     agentSwarmTokenBudget, setAgentSwarmTokenBudget,
     agentSwarmTimeBudgetMinutes, setAgentSwarmTimeBudgetMinutes,
+    agentSwarmAdvanced, setAgentSwarmAdvanced,
     resolved
   };
 }
@@ -183,7 +198,10 @@ function useDraftSynchronization(
       ? props.workflowConfig.tokenBudget : AGENT_SWARM_DEFAULT_TOKEN_BUDGET));
     draft.setAgentSwarmTimeBudgetMinutes(props.workflowConfig?.type === "agent_swarm" && props.workflowConfig.timeBudgetMinutes
       ? String(props.workflowConfig.timeBudgetMinutes) : "");
+    draft.setAgentSwarmAdvanced(formatAgentSwarmAdvancedDraft(props.workflowConfig?.type === "agent_swarm" ? props.workflowConfig.advanced : undefined));
   }, [
+    // By value: a caller may rebuild the config object on every render.
+    JSON.stringify(props.workflowConfig?.advanced ?? null),
     draft.resolved,
     isOpen,
     props.workflowConfig?.budgetsEnabled,
@@ -388,13 +406,15 @@ export function useTaskParametersDropdown(props: TaskParametersDropdownProps) {
     setPendingTypeChange(null);
   };
 
-  // Router and advanced settings come from the selected swarm preset and are kept as they are.
+  // Router and advanced settings start from the selected swarm preset; a change here overrides them.
   const applySwarmUpdate = (overrides: Partial<TaskWorkflowComposerConfig>): void => {
     const current = props.workflowConfig?.type === "agent_swarm" ? props.workflowConfig : undefined;
+    const routerId = "routerId" in overrides ? overrides.routerId : current?.routerId;
+    const advanced = overrides.advanced ?? current?.advanced;
     void workflow.updateAgentSwarm({
       type: "agent_swarm",
-      ...(current?.routerId !== undefined ? { routerId: current.routerId } : {}),
-      ...(current?.advanced ? { advanced: current.advanced } : {}),
+      ...(routerId !== undefined ? { routerId } : {}),
+      ...(advanced ? { advanced } : {}),
       budgetsEnabled: overrides.budgetsEnabled ?? draft.agentSwarmBudgetsEnabled,
       tokenBudget: "tokenBudget" in overrides
         ? overrides.tokenBudget ?? null
@@ -414,6 +434,18 @@ export function useTaskParametersDropdown(props: TaskParametersDropdownProps) {
     canEditWorkflow: typeof props.onWorkflowChange === "function" && Boolean(props.workflowConfig),
     showScheduleControls: true,
     applySwarmUpdate,
+    swarmRouterOptions: resolveSwarmRouterOptions(props),
+    applySwarmAdvanced(next: AgentSwarmAdvancedDraft) {
+      const parsed = parseAgentSwarmAdvancedDraft(next);
+      if (parsed.error !== null) {
+        setApplyError(parsed.error);
+        return;
+      }
+      setApplyError(null);
+      const current = props.workflowConfig?.advanced;
+      if (current && JSON.stringify(current) === JSON.stringify(parsed.advanced)) return;
+      applySwarmUpdate({ advanced: parsed.advanced });
+    },
     applySwarmBudget(key: "tokenBudget" | "timeBudgetMinutes", rawValue: string) {
       const trimmed = rawValue.trim();
       const value = trimmed ? Number(trimmed) : null;

@@ -9,6 +9,7 @@ import { registerTaskLifecycleRoutes } from "./tasks/lifecycle-routes.js";
 import { registerTaskMessageRoutes } from "./tasks/message-routes.js";
 import { registerTaskScheduleRoutes } from "./tasks/schedule-routes.js";
 import { registerTaskSharingRoutes } from "./tasks/sharing-routes.js";
+import { registerTaskSwarmRoutes } from "./tasks/swarm-routes.js";
 import { registerTaskThreadRoutes } from "./tasks/thread-routes.js";
 import { registerTaskUsageRoutes } from "./tasks/usage-routes.js";
 
@@ -25,4 +26,5 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
   await registerTaskScheduleRoutes(fastify);
   await registerTaskEventRoutes(fastify);
   await registerTaskInlineFileRoutes(fastify);
+  await registerTaskSwarmRoutes(fastify);
 };

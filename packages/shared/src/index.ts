@@ -33,6 +33,7 @@ export * from "./model-routers.js";
 export * from "./chosen-model-route.js";
 export * from "./specialized-models.js";
 export * from "./agent-swarm-config.js";
+export * from "./agent-swarm-view.js";
 export * from "./model-slider.js";
 export * from "./personality-prompts.js";
 export * from "./listmonk.js";

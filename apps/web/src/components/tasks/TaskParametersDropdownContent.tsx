@@ -13,12 +13,10 @@ import {
 import {
   MAX_LONG_HORIZON_TOKEN_BUDGET,
   MAX_LONG_HORIZON_TIME_BUDGET_MINUTES,
-  MAX_AGENT_SWARM_TIME_BUDGET_MINUTES,
-  MAX_AGENT_SWARM_TOKEN_BUDGET,
   formatMinutes,
   type TaskParametersDropdownController
 } from "./taskParametersDropdownController";
-import { AGENT_SWARM_DEFAULT_TOKEN_BUDGET } from "@meowbert/shared/agent-swarm-config";
+import { AgentSwarmParametersForm } from "./AgentSwarmParametersForm";
 import { TaskTypeChangeConfirmModal } from "./TaskTypeChangeConfirmModal";
 import { useChatToolsDropdownPlacement } from "./useChatToolsDropdownPlacement";
 import { MenuSheet } from "../mobile/MenuSheet";
@@ -379,62 +377,6 @@ function LongHorizonForm({
   );
 }
 
-function SwarmBudgetFields({ controller }: ControllerProps) {
-  const budgetsEnabled = controller.draft.agentSwarmBudgetsEnabled;
-  return (
-    <>
-      <label className="task-parameters-toggle">
-        <input type="checkbox" checked={budgetsEnabled}
-          onChange={(event) => {
-            const nextBudgetsEnabled = event.target.checked;
-            controller.draft.setAgentSwarmBudgetsEnabled(nextBudgetsEnabled);
-            controller.applySwarmUpdate({ budgetsEnabled: nextBudgetsEnabled });
-          }}
-          disabled={controller.isApplying} />
-        <span><strong>Budgets</strong><small>Share one token and time budget across the leader and its lanes.</small></span>
-      </label>
-      {budgetsEnabled ? (
-        <>
-          <label className="task-parameters-field">
-            <span>Token budget</span>
-            <input type="number" min="1" max={MAX_AGENT_SWARM_TOKEN_BUDGET} step="1000"
-              value={controller.draft.agentSwarmTokenBudget}
-              onChange={(event) => controller.draft.setAgentSwarmTokenBudget(event.target.value)}
-              onBlur={() => controller.applySwarmBudget("tokenBudget", controller.draft.agentSwarmTokenBudget)}
-              placeholder={String(AGENT_SWARM_DEFAULT_TOKEN_BUDGET)} disabled={controller.isApplying} />
-          </label>
-          <label className="task-parameters-field">
-            <span>Time budget (minutes)</span>
-            <input type="number" min="1" max={MAX_AGENT_SWARM_TIME_BUDGET_MINUTES} step="1"
-              value={controller.draft.agentSwarmTimeBudgetMinutes}
-              onChange={(event) => controller.draft.setAgentSwarmTimeBudgetMinutes(event.target.value)}
-              onBlur={() => controller.applySwarmBudget("timeBudgetMinutes", controller.draft.agentSwarmTimeBudgetMinutes)}
-              placeholder="No deadline" disabled={controller.isApplying} />
-          </label>
-        </>
-      ) : null}
-    </>
-  );
-}
-
-function AgentSwarmForm({ controller }: ControllerProps) {
-  return (
-    <div className="task-parameters-form">
-      <FormHeader controller={controller} title="Agent Swarm" />
-      <SwarmBudgetFields controller={controller} />
-      {controller.applyError ? <p className="error-text task-parameters-error">{controller.applyError}</p> : null}
-      <div className="task-parameters-actions">
-        <button type="button" className="btn ghost" onClick={() => {
-          controller.draft.setAgentSwarmTokenBudget("");
-          controller.draft.setAgentSwarmTimeBudgetMinutes("");
-          void controller.workflow.clearWorkflow();
-        }}
-          disabled={controller.isApplying}>Clear</button>
-      </div>
-    </div>
-  );
-}
-
 function ActivePanel({ controller }: ControllerProps) {
   switch (controller.draft.panel) {
     case "scheduled": return <ScheduledTaskForm controller={controller} />;
@@ -443,7 +385,7 @@ function ActivePanel({ controller }: ControllerProps) {
     case "longHorizon": return <LongHorizonForm controller={controller} />;
     case "deepResearch": return <LongHorizonForm controller={controller} variant="deep_research" />;
     case "qualityControl": return <LongHorizonForm controller={controller} variant="quality_control" />;
-    case "agentSwarm": return <AgentSwarmForm controller={controller} />;
+    case "agentSwarm": return <AgentSwarmParametersForm controller={controller} header={<FormHeader controller={controller} title="Agent Swarm" />} />;
     default: return <TaskParametersMenu controller={controller} />;
   }
 }

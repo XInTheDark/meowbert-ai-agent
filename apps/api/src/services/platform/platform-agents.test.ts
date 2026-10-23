@@ -20,6 +20,7 @@ describe("platform agent visibility", () => {
     adminSettingsMock.isSuperAdmin.mockResolvedValue(false);
     subscriptionsMock.listActiveSubscriptionPlanAgentIdsForUser.mockResolvedValue([]);
     adminSettingsMock.getAdminSettings.mockResolvedValue({
+      modelRouters: [],
       agentPresets: [
         {
           id: "default",

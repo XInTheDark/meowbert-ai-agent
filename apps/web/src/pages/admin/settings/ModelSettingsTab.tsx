@@ -1,5 +1,7 @@
 import type { FormEvent } from "react";
 import { DraftNumberInput } from "../../../components/forms/DraftNumberInput";
+import { AgentSwarmOutcomesTable } from "./AgentSwarmOutcomesTable";
+import { AgentSwarmPresetEditor } from "./AgentSwarmPresetEditor";
 
 interface ModelSettingsTabProps {
   usageRateMultiplier: number;
@@ -104,6 +106,14 @@ export function ModelSettingsTab(props: ModelSettingsTabProps) {
           An Agent Swarm preset sets <code>mode</code> to <code>agent_swarm</code> and names a single-agent <code>leaderAgentId</code>. It can also set <code>routerId</code>, <code>budgetsEnabled</code>, <code>tokenBudget</code>, <code>timeBudgetMinutes</code> and an <code>advanced</code> object with lane limits.
         </p>
       </div>
+
+      <AgentSwarmPresetEditor
+        agentPresetsDraft={props.agentPresetsDraft}
+        modelRoutersDraft={props.modelRoutersDraft}
+        onAgentPresetsDraftChange={props.onAgentPresetsDraftChange}
+      />
+
+      <AgentSwarmOutcomesTable />
 
       {props.error ? <p className="error-text">{props.error}</p> : null}
 

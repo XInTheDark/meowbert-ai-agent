@@ -15,6 +15,7 @@ async function resolveVisiblePlatformAgentContext(userId: string): Promise<{
   actorIsSuperAdmin: boolean;
   presets: PlatformAgentPreset[];
   modelSliderAgentIds: string[];
+  modelRouterIds: string[];
 }> {
   const [settings, actorIsSuperAdmin, subscriptionAgentIds] = await Promise.all([
     getAdminSettings(),
@@ -22,12 +23,14 @@ async function resolveVisiblePlatformAgentContext(userId: string): Promise<{
     listActiveSubscriptionPlanAgentIdsForUser(userId)
   ]);
   const visiblePresets = getVisiblePlatformAgentPresets(settings.agentPresets, actorIsSuperAdmin);
+  const modelRouterIds = settings.modelRouters.map((router) => router.id);
 
   if (actorIsSuperAdmin || subscriptionAgentIds.length === 0) {
     return {
       actorIsSuperAdmin,
       presets: visiblePresets,
-      modelSliderAgentIds: settings.modelSliderAgentIds
+      modelSliderAgentIds: settings.modelSliderAgentIds,
+      modelRouterIds
     };
   }
 
@@ -39,7 +42,8 @@ async function resolveVisiblePlatformAgentContext(userId: string): Promise<{
   return {
     actorIsSuperAdmin,
     presets: [...visiblePresets, ...grantedPresets],
-    modelSliderAgentIds: settings.modelSliderAgentIds
+    modelSliderAgentIds: settings.modelSliderAgentIds,
+    modelRouterIds
   };
 }
 
@@ -57,14 +61,17 @@ export async function getVisiblePlatformAgentsForUser(userId: string): Promise<{
   presets: PlatformAgentPreset[];
   defaultAgentId: string | null;
   modelSliderAgentIds: string[];
+  // The platform's model routers, which Agent Swarm presets can pick lane models from.
+  modelRouterIds: string[];
 }> {
-  const { actorIsSuperAdmin, presets, modelSliderAgentIds } = await resolveVisiblePlatformAgentContext(userId);
+  const { actorIsSuperAdmin, presets, modelSliderAgentIds, modelRouterIds } = await resolveVisiblePlatformAgentContext(userId);
 
   return {
     actorIsSuperAdmin,
     presets,
     defaultAgentId: resolveDefaultPlatformAgentId(presets),
-    modelSliderAgentIds: actorIsSuperAdmin ? modelSliderAgentIds : []
+    modelSliderAgentIds: actorIsSuperAdmin ? modelSliderAgentIds : [],
+    modelRouterIds
   };
 }
 

@@ -1,5 +1,6 @@
 import { withTransaction } from "../../lib/db.js";
 import { emitTaskEvent } from "../runtime/events.js";
+import { emitSwarmEvent } from "./events.js";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { setLaneStatusInTx, type SwarmLaneResult, type SwarmLaneRow } from "./lane-store.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
@@ -42,9 +43,7 @@ export async function finishLaneRun(input: {
     return { taskStatus, parentWoken: await wakeParentIfBarrierMetInTx(client, lane.parent_task_id) };
   });
   await emitTaskEvent(lane.task_id, "status", { status: outcome.taskStatus });
-  await emitTaskEvent(lane.swarm_task_id, "log", {
-    message: `Lane ${input.status === "done" ? "submitted" : "failed"}.`,
-    phase: "swarm_lane",
+  await emitSwarmEvent(lane.swarm_task_id, `Lane ${input.status === "done" ? "submitted" : "failed"}.`, {
     laneId: lane.task_id,
     status: input.status
   });

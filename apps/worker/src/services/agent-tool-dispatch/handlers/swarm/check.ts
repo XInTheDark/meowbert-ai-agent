@@ -3,6 +3,7 @@ import type { ChosenModelRoute } from "@meowbert/shared";
 import { checkArgumentsSchema } from "../../../agent-tools/swarm.js";
 import { buildLaneModelRoute, pickCheckModelRoute } from "../../../agent-swarm/model-route.js";
 import { SwarmToolError } from "../../../agent-swarm/tool-error.js";
+import { emitSwarmEvent } from "../../../agent-swarm/events.js";
 import { loadAutoCheckFiles, startCheckLane } from "../../../agent-swarm/check.js";
 import { hasOwnLanes } from "../../../agent-swarm/lane-store.js";
 import { buildCheckStartedMessage } from "../../../agent-swarm/prompt.js";
@@ -26,6 +27,7 @@ async function startCheck(ctx: ToolDispatchContext, state: ToolDispatchState, in
     ...input
   });
   state.swarmPark = { reason: "check" };
+  await emitSwarmEvent(ctx.swarm!.run.swarmTaskId, "Started a Check lane.");
   return { output: { lane_id: lane.taskId, message: buildCheckStartedMessage() } };
 }
 

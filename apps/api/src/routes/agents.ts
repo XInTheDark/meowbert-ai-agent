@@ -13,11 +13,13 @@ import { assertWorkspaceMember } from "../services/workspaces/workspace-access.j
 import { loadWorkspaceDefaultAgentId } from "../services/workspaces/workspace-default-agent.js";
 
 // The swarm defaults the composer prefills when a swarm preset is selected. Budget figures are sent
-// even while budgets are off, so switching budgets on shows the preset's numbers.
-function buildSwarmAgentSummary(preset: PlatformAgentPreset) {
+// even while budgets are off, so switching budgets on shows the preset's numbers. The platform's
+// routers are listed so the composer can offer a router only when there is one.
+function buildSwarmAgentSummary(preset: PlatformAgentPreset, routerOptions: string[]) {
   return {
     leaderAgentId: preset.leaderAgentId ?? null,
     routerId: preset.routerId ?? null,
+    routerOptions,
     budgetsEnabled: preset.budgetsEnabled === true,
     tokenBudget: preset.tokenBudget ?? null,
     timeBudgetMinutes: preset.timeBudgetMinutes ?? null,
@@ -36,7 +38,7 @@ async function loadRequestedWorkspaceDefaultAgentId(userId: string, workspaceId:
 export const agentRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/api/agents", { preHandler: fastify.authenticate }, async (request, reply) => {
     const { workspaceId } = agentsQuery.parse(request.query ?? {});
-    const { presets, actorIsSuperAdmin, modelSliderAgentIds } = await getVisiblePlatformAgentsForUser(request.user.id);
+    const { presets, actorIsSuperAdmin, modelSliderAgentIds, modelRouterIds } = await getVisiblePlatformAgentsForUser(request.user.id);
     const workspaceDefaultAgentId = await loadRequestedWorkspaceDefaultAgentId(request.user.id, workspaceId);
     const pickerPresets = presets.filter(isPlatformAgentPresetPickerVisible);
     const agents = pickerPresets.map((preset) => {
@@ -46,7 +48,7 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
         name: preset.name,
         description: preset.description,
         mode,
-        ...(mode === "agent_swarm" ? { swarm: buildSwarmAgentSummary(preset) } : {})
+        ...(mode === "agent_swarm" ? { swarm: buildSwarmAgentSummary(preset, modelRouterIds ?? []) } : {})
       };
     });
 

@@ -1,4 +1,5 @@
 import { useRef, type ReactNode, type RefObject } from "react";
+import type { ConversationMessageAccessory } from "../../../components/taskConversation/conversationMessageAccessories";
 import { flushSync } from "react-dom";
 import { ArrowUp, ChevronDown, MessageSquare } from "lucide-react";
 import type { AgentSummary } from "../../../components/tasks/AgentDropdown";
@@ -45,6 +46,8 @@ interface TaskDetailConversationPaneProps {
   renderBranchSwitcher: (message: TaskMessage) => ReactNode;
   threadCountsByParentMessageId?: Record<string, number>;
   threadSummariesByParentMessageId?: Record<string, TaskThreadSummary[]>;
+  // Shown after the messages they anchor to, such as an Agent Swarm's lane tracks.
+  messageAccessories?: ConversationMessageAccessory[];
   onThreadComposerRequested?: (message: TaskMessage, selectedText?: MessageSelectedTextQuote | null) => void;
   quotedFollowUpSelections?: SelectedTextQuote[];
   onAssistantSelectionChange?: (selection: MessageSelectedTextQuote | null) => void;
@@ -186,6 +189,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
               showThinking={props.isThinking && props.isTaskRunning}
               isTaskRunning={props.isTaskRunning}
               foldFinishedTurns={props.taskType === "agent_swarm"}
+              messageAccessories={props.messageAccessories}
               onConversationChanged={props.onConversationChanged}
               onEditRequested={props.onEditRequested}
               renderBranchSwitcher={props.renderBranchSwitcher}

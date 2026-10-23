@@ -446,4 +446,21 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     });
     expect(await shares()).toEqual([700_000, 200_000]);
   });
+
+  it("ends a lane stopped from the task page while it had no run, and resumes its parent", async () => {
+    const swarm = await createSwarm({ maxRunningLanes: 1 });
+    const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    const [eu, national] = await split(swarm, swarm.swarmTaskId, ["EU", "National"]);
+    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes" });
+    await submit(eu.taskId);
+    expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["done", "running"]);
+    // The page's stop of a lane that has not started yet only flags it.
+    await pool.query("UPDATE task_swarm_lanes SET status = 'queued' WHERE task_id = $1", [national.taskId]);
+    await pool.query("UPDATE task_runs SET ended_at = now() WHERE task_id = $1", [national.taskId]);
+    await pool.query("UPDATE tasks SET cancellation_requested = true WHERE id = $1", [national.taskId]);
+
+    await recoverSwarmsOnce();
+    expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["done", "stopped"]);
+    expect(await pendingRuns(swarm.swarmTaskId)).toBe(1);
+  });
 });

@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import { loadAgentSwarmOutcomes } from "../services/agent-swarm/outcomes.js";
 import { z } from "zod";
 import {
   normalizeAgentSwarmAdvancedSettings,
@@ -138,6 +139,11 @@ export function registerAdminCoreRoutes(fastify: Parameters<FastifyPluginAsync>[
     return {
       processes: await listAdminProcesses()
     };
+  });
+
+  fastify.get("/api/admin/agent-swarm/outcomes", { preHandler: fastify.authenticate }, async (request) => {
+    await assertSuperAdmin(request.user.id);
+    return { outcomes: await loadAgentSwarmOutcomes() };
   });
 
   fastify.get("/api/admin/memory-refreshes", { preHandler: fastify.authenticate }, async (request) => {

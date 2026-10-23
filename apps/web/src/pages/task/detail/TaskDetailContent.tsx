@@ -1,6 +1,6 @@
 import { ConversationNavigationPane } from "./navigation/ConversationNavigationPane";
 import "./navigation/conversationNavigation.css";
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { RenderErrorBoundary } from "../../../components/RenderErrorBoundary";
 import { ToolActivityInspectorPanel } from "../../../components/taskConversation/ToolActivityInspectorPanel";
 import { CanvasPickerModal } from "../../../components/modals/CanvasPickerModal";
@@ -26,6 +26,10 @@ import { TaskThreadSidebar } from "./TaskThreadSidebar";
 import { TaskDetailTopbar } from "./TaskDetailTopbar";
 import { TaskDetailWorkflowStrip } from "./TaskDetailWorkflowStrip";
 import { TaskWorkflowSidebar } from "./TaskWorkflowSidebar";
+import { SwarmHeaderStrip } from "./SwarmHeaderStrip";
+import { SwarmLaneSidebar } from "./SwarmLaneSidebar";
+import { SwarmLaneTracks } from "./SwarmLaneTracks";
+import { buildSwarmLaneGroups } from "./swarmLaneGroups";
 import type { TaskDetailLoadedController } from "./useTaskDetailLoadedController";
 import { useCanvasPanelWidth } from "./useCanvasPanelWidth";
 import { projectCanvasView } from "./useTaskCanvas";
@@ -135,6 +139,8 @@ function TaskTopbar({ model }: ModelProps) {
           workflow={taskDetail.workflow}
           sidebar={model.view.workflowSidebar}
         />
+      ) : model.swarm.view ? (
+        <SwarmHeaderStrip view={model.swarm.view} rootTaskId={task.id} onOpenLane={model.swarm.setOpenLaneId} />
       ) : null}
       subscriptionUsageWarning={model.context.subscriptionUsageWarning}
       debugMode={model.debugModeEnabled}
@@ -183,8 +189,27 @@ function TaskConversationNavigation({ model }: ModelProps) {
   );
 }
 
+// An Agent Swarm's lanes, as tracks under the leader messages that started them.
+function useSwarmLaneAccessories(model: TaskDetailLoadedController) {
+  const { view, setOpenLaneId, stopLane } = model.swarm;
+  const messages = model.controllers.conversation.messages;
+  const taskId = model.context.taskId;
+  return useMemo(() => {
+    if (!view || !taskId) return undefined;
+    return buildSwarmLaneGroups(view.lanes, taskId, messages).map((group) => ({
+      key: `swarm-lanes:${group.key}`,
+      anchorMessageId: group.anchorMessageId,
+      node: (
+        <SwarmLaneTracks group={group} budgetsEnabled={view.budgetsEnabled}
+          onOpenLane={setOpenLaneId} onStopLane={(laneId) => void stopLane(laneId, false)} />
+      )
+    }));
+  }, [messages, setOpenLaneId, stopLane, taskId, view]);
+}
+
 function TaskConversationMain({ model }: ModelProps) {
   const task = model.context.data.taskDetail?.task;
+  const swarmLaneAccessories = useSwarmLaneAccessories(model);
   if (!task) return null;
   const conversation = model.controllers.conversation;
   const events = model.controllers.events;
@@ -210,6 +235,7 @@ function TaskConversationMain({ model }: ModelProps) {
         renderBranchSwitcher={model.controllers.branch.renderBranchSwitcher}
         threadCountsByParentMessageId={threads.threadCountsByParentMessageId}
         threadSummariesByParentMessageId={threads.threadSummariesByParentMessageId}
+        messageAccessories={swarmLaneAccessories}
         onThreadComposerRequested={threads.handleThreadComposerRequested}
         quotedFollowUpSelections={threads.quotedFollowUpSelections}
         onAssistantSelectionChange={threads.setSelectedTextDraft}
@@ -382,6 +408,12 @@ function TaskWorkflowRightSidebar({ model }: ModelProps) {
   );
 }
 
+function TaskSwarmLaneSidebar({ model }: ModelProps) {
+  const lane = model.swarm.openLane;
+  if (!lane || model.controllers.inspectorSelection) return null;
+  return <SwarmLaneSidebar api={model.context.workspace.api} lane={lane} onClose={() => model.swarm.setOpenLaneId(null)} />;
+}
+
 function TaskCanvasSidebar({ model }: ModelProps) {
   const { host, panel } = model.canvas;
   if (!panel.activeView || model.controllers.inspectorSelection) return null;
@@ -415,8 +447,9 @@ function TaskConversationLayout({ model }: ModelProps) {
   const hasActivity = model.controllers.inspectorSelection !== null;
   const hasCanvas = !hasActivity && model.canvas.panel.activeView !== null;
   const hasWorkflow = !hasCanvas && Boolean(model.context.data.taskDetail?.workflow && model.view.workflowSidebar.isWorkflowSidebarOpen);
-  const hasThreads = !hasCanvas && model.controllers.threads.threadSidebarStack.length > 0;
-  const hasRightSidebar = hasActivity || hasCanvas || hasWorkflow || hasThreads;
+  const hasLane = !hasActivity && !hasCanvas && !hasWorkflow && model.swarm.openLane !== null;
+  const hasThreads = !hasCanvas && !hasLane && model.controllers.threads.threadSidebarStack.length > 0;
+  const hasRightSidebar = hasActivity || hasCanvas || hasWorkflow || hasLane || hasThreads;
   const rightSidebarWidth = hasCanvas ? canvasWidth.width : model.view.layout.threadSidebarWidth;
   const mobile = model.view.layout.isMobileViewport;
   const navigation = model.organization;
@@ -428,7 +461,7 @@ function TaskConversationLayout({ model }: ModelProps) {
     showOutline ? "has-message-outline" : "",
     showSearch ? "has-search-panel" : "",
     hasRightSidebar ? "has-right-sidebar" : "",
-    hasWorkflow && !hasActivity ? "has-workflow-sidebar" : "",
+    (hasWorkflow || hasLane) && !hasActivity ? "has-workflow-sidebar" : "",
     hasThreads && !hasActivity && !hasWorkflow ? "has-thread-sidebar" : "",
     hasActivity ? "has-activity-sidebar" : "",
     hasCanvas ? "has-canvas-panel" : "",
@@ -456,7 +489,8 @@ function TaskConversationLayout({ model }: ModelProps) {
       <TaskActivitySidebar model={model} />
       <TaskCanvasSidebar model={model} />
       {!hasCanvas ? <TaskWorkflowRightSidebar model={model} /> : null}
-      {!hasCanvas && !hasWorkflow ? <TaskThreadsSidebar model={model} /> : null}
+      {hasLane ? <TaskSwarmLaneSidebar model={model} /> : null}
+      {!hasCanvas && !hasWorkflow && !hasLane ? <TaskThreadsSidebar model={model} /> : null}
     </div>
   );
 }

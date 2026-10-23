@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { withTransaction } from "../../lib/db.js";
 import type { SwarmLaneRow } from "./lane-store.js";
+import { emitSwarmEvent } from "./events.js";
 import { lockSwarmInTx } from "./scheduler.js";
 
 export type SwarmNoteKind = "shared" | "auto";
@@ -31,6 +32,7 @@ export async function insertSwarmNote(note: {
       [note.swarmTaskId, note.authorTaskId, note.scopeParentTaskId, note.kind, note.content]
     );
   });
+  await emitSwarmEvent(note.swarmTaskId, note.content, { laneId: note.authorTaskId, noteKind: note.kind });
 }
 
 interface ScopedNote extends SwarmNote {

@@ -128,7 +128,8 @@ describe("agentRoutes", () => {
           mode: "agent_swarm", leaderAgentId: "luna-xhigh", routerId: null, budgetsEnabled: false, tokenBudget: 20_000_000,
           advanced: { ...DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS, maxDepth: 1 } }
       ],
-      defaultAgentId: "luna-xhigh"
+      defaultAgentId: "luna-xhigh",
+      modelRouterIds: ["router-v1"]
     });
 
     const app = Fastify();
@@ -144,6 +145,7 @@ describe("agentRoutes", () => {
       swarm: {
         leaderAgentId: "luna-xhigh",
         routerId: null,
+        routerOptions: ["router-v1"],
         budgetsEnabled: false,
         tokenBudget: 20_000_000,
         timeBudgetMinutes: null,

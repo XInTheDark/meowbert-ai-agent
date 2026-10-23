@@ -4,6 +4,7 @@ import { buildDefaultTaskAssistantMessageDisplayPreferences, normalizeTaskAssist
 import type { LiveToolCall, TaskAssistantMessageDisplayPreferences, TaskConversationSearchMatch, TaskMessage, TaskThreadSummary } from "../../lib/types";
 import { ConversationSearchMatchMarker } from "./ConversationSearchMatchMarker";
 import { HistoricalConversationItems } from "./HistoricalConversationItems";
+import type { ConversationMessageAccessory } from "./conversationMessageAccessories";
 import { LiveToolCallsBubble } from "./LiveToolCallsBubble";
 import { MarkdownInlineFileContext } from "./MarkdownInlineFileContext";
 import { ToolActivityInspectorPanel, type ToolInspectorSelection } from "./ToolActivityInspectorPanel";
@@ -23,6 +24,7 @@ export interface TaskConversationMessagesProps {
   showThinking?: boolean;
   isTaskRunning?: boolean;
   foldFinishedTurns?: boolean;
+  messageAccessories?: ConversationMessageAccessory[];
   onConversationChanged?: () => void;
   onEditRequested?: (message: TaskMessage) => void;
   renderBranchSwitcher?: (message: TaskMessage) => ReactNode;

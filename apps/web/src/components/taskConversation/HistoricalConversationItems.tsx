@@ -27,6 +27,7 @@ import { buildConversationDisplayEntries, type ConversationDisplayEntry } from "
 import { HistoricalActivityGroup } from "./HistoricalActivityGroup";
 import { buildConversationRenderItems, type ConversationEntryItem } from "./conversationTurnFolds";
 import { TurnWorkFoldBubble } from "./TurnWorkFoldBubble";
+import { insertMessageAccessories, type ConversationMessageAccessory } from "./conversationMessageAccessories";
 
 export interface HistoricalConversationItemsProps {
   messages: TaskMessage[];
@@ -67,6 +68,7 @@ export interface HistoricalConversationItemsProps {
   isTaskRunning?: boolean;
   // Agent Swarm turns tuck the work before their final answer into one row.
   foldFinishedTurns?: boolean;
+  messageAccessories?: ConversationMessageAccessory[];
 }
 
 function CompactionMessageBubble(props: {
@@ -439,11 +441,14 @@ function renderEntryItem(props: HistoricalConversationItemsProps, item: Conversa
   if (entry.kind === "managed-task") {
     return <ManagedTaskCard key={entry.key} messageId={entry.key} card={entry.card} />;
   }
+  if (entry.kind === "accessory") {
+    return <div key={entry.key} className="conversation-accessory-entry">{entry.node}</div>;
+  }
   return <HistoricalMessageItem key={entry.key} {...props} entry={entry} />;
 }
 
 export function HistoricalConversationItems(props: HistoricalConversationItemsProps): JSX.Element[] {
-  const entries = buildConversationDisplayEntries(props.messages);
+  const entries = insertMessageAccessories(buildConversationDisplayEntries(props.messages), props.messageAccessories);
   const items = buildConversationRenderItems(entries, {
     foldFinishedTurns: props.foldFinishedTurns ?? false,
     isTaskRunning: props.isTaskRunning ?? false

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { TaskMessage } from "../../lib/types";
 import { getResponseThoughtSummaries } from "../../task/responseThoughtSummaries";
 import { getResponseToolMessages } from "../../task/responseToolMessages";
@@ -38,6 +39,11 @@ export type ConversationDisplayEntry = ConversationActivityGroup | {
   kind: "managed-task";
   key: string;
   card: ManagedTaskCardData;
+} | {
+  // Content the page places after a message, such as an Agent Swarm's lane tracks.
+  kind: "accessory";
+  key: string;
+  node: ReactNode;
 };
 
 function getManagedTaskEntries(tools: TaskMessage[]): ConversationDisplayEntry[] {

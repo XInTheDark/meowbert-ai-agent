@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS } from "@meowbert/shared/agent-swarm-config";
 import { buildDefaultTaskParameters } from "../../task/taskParameters";
 import { TaskParametersDropdown } from "./TaskParametersDropdown";
 
@@ -196,5 +197,50 @@ describe("TaskParametersDropdown", () => {
 
     expect(onWorkflowChange).toHaveBeenCalledWith(expect.objectContaining({ type: "agent_swarm", budgetsEnabled: false }));
     expect(container.textContent).not.toContain("Token budget");
+  });
+
+  it("offers the platform's routers and applies an advanced lane limit for an Agent Swarm", async () => {
+    const onWorkflowChange = vi.fn();
+    const swarm = {
+      leaderAgentId: "luna", routerId: null, routerOptions: ["router-v1"], budgetsEnabled: false,
+      tokenBudget: null, timeBudgetMinutes: null, advanced: DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS
+    };
+    await act(async () => {
+      root.render(
+        <TaskParametersDropdown
+          taskParameters={buildDefaultTaskParameters()}
+          onChange={vi.fn()}
+          mode="create"
+          workflowConfig={{ type: "agent_swarm", routerId: null, budgetsEnabled: false, tokenBudget: null,
+            advanced: DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS }}
+          onWorkflowChange={onWorkflowChange}
+          availableAgents={[{ id: "research", name: "Research", description: "", mode: "agent_swarm", swarm }]}
+          selectedAgentId="research"
+        />
+      );
+    });
+    await act(async () => click(container.querySelector('[title="Task parameters"]')));
+    const swarmButton = Array.from(container.querySelectorAll(".chat-tools-item"))
+      .find((element) => element.textContent?.includes("Agent Swarm"));
+    await act(async () => click(swarmButton ?? null));
+
+    const routerSelect = container.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      routerSelect.value = "router-v1";
+      routerSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onWorkflowChange).toHaveBeenLastCalledWith(expect.objectContaining({ routerId: "router-v1" }));
+
+    const fields = Array.from(container.querySelectorAll(".task-parameters-field"));
+    const depthInput = fields.find((field) => field.textContent?.includes("Lane depth"))?.querySelector("input") as HTMLInputElement;
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setValue.call(depthInput, "1");
+      depthInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => depthInput.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(onWorkflowChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      advanced: expect.objectContaining({ maxDepth: 1 })
+    }));
   });
 });

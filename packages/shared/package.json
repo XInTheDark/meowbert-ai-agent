@@ -73,6 +73,10 @@
       "types": "./dist/agent-swarm-config.d.ts",
       "default": "./dist/agent-swarm-config.js"
     },
+    "./agent-swarm-view": {
+      "types": "./dist/agent-swarm-view.d.ts",
+      "default": "./dist/agent-swarm-view.js"
+    },
     "./docker-sandbox": {
       "types": "./dist/docker-sandbox.d.ts",
       "default": "./dist/docker-sandbox.js"
