@@ -20,24 +20,42 @@ export interface AgentTurnRequest {
   promptPrefixHash: string;
   promptRevision: string;
   promptCacheKey: string;
+  // Sent as x-session-affinity. Equal to the cache key except for swarm lanes, which share their
+  // swarm's cache key but diverge from the leader's history, so session-resuming proxies keep them apart.
+  sessionAffinityKey: string;
 }
 
 export function buildPromptCacheKey(taskId: string, promptPrefixHash: string): string {
   return createHash("sha256").update(`task:${taskId}:prefix:${promptPrefixHash}`).digest("hex");
 }
 
+function resolveTurnTools(input: {
+  runToolOptions: TaskMessageToolOptions;
+  activeSkillTools: FunctionTool[];
+  availability: ResponseToolAvailability;
+  codeMode?: boolean;
+  fixedTools?: { response: Tool[]; codeMode: FunctionTool[] };
+}): { responseTools: Tool[]; nestedTools: FunctionTool[] } {
+  if (input.fixedTools) return { responseTools: input.fixedTools.response, nestedTools: input.fixedTools.codeMode };
+  const tools = buildResponseTools(input.runToolOptions, input.activeSkillTools, input.availability);
+  return input.codeMode === true
+    ? buildCodeModeToolSet(tools, input.availability.runShellMaxTimeoutSeconds ?? RUN_SHELL_MAX_TIMEOUT_SECONDS)
+    : { responseTools: tools, nestedTools: [] };
+}
+
 export function buildAgentTurnRequest(input: {
   taskId: string;
+  // Keys the provider cache; a swarm lane uses its swarm's root task so every fork shares one cache.
+  cacheTaskId?: string;
   runToolOptions: TaskMessageToolOptions;
   activeSkillTools: FunctionTool[];
   promptEnvelope: PromptEnvelope;
   availability: ResponseToolAvailability;
   codeMode?: boolean;
+  // A swarm lane offers exactly the tools it was forked with.
+  fixedTools?: { response: Tool[]; codeMode: FunctionTool[] };
 }): AgentTurnRequest {
-  const tools = buildResponseTools(input.runToolOptions, input.activeSkillTools, input.availability);
-  const { responseTools, nestedTools } = input.codeMode === true
-    ? buildCodeModeToolSet(tools, input.availability.runShellMaxTimeoutSeconds ?? RUN_SHELL_MAX_TIMEOUT_SECONDS)
-    : { responseTools: tools, nestedTools: [] };
+  const { responseTools, nestedTools } = resolveTurnTools(input);
   // Lands in the prefix before the envelope is sealed; later turns repeat the same content, which
   // the envelope skips, so the cached prefix stays put.
   if (nestedTools.length > 0) {
@@ -58,6 +76,7 @@ export function buildAgentTurnRequest(input: {
     promptPrefixItems,
     promptPrefixHash,
     promptRevision: getPromptEnvelopeRevision(input.promptEnvelope),
-    promptCacheKey: buildPromptCacheKey(input.taskId, promptPrefixHash)
+    promptCacheKey: buildPromptCacheKey(input.cacheTaskId ?? input.taskId, promptPrefixHash),
+    sessionAffinityKey: buildPromptCacheKey(input.taskId, promptPrefixHash)
   };
 }

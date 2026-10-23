@@ -8,6 +8,8 @@ import type { TaskDebugLogger } from "../runtime/debug-task-events.js";
 import type { SkillSummary } from "./skill-registry.js";
 import type { ContextManagementState } from "../context-management-v2/index.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
+import type { SwarmRunContext } from "../agent-swarm/config.js";
+import type { ForkSeed } from "../agent-swarm/fork-seed.js";
 
 export type PromptEnvelopeState = ReturnType<typeof createPromptEnvelope>;
 export type AgentScheduleInfo = Awaited<ReturnType<typeof getTaskScheduleInfo>>;
@@ -69,6 +71,8 @@ export interface AgentExecutionState {
   workflowAssistantPauseResponse: string | null;
   notificationRequested: boolean;
   quickModeActive: boolean;
+  // Model turns taken in this run.
+  stepCount: number;
 }
 
 export interface AgentExecutionContext {
@@ -89,6 +93,9 @@ export interface AgentExecutionContext {
   maxRunSteps: number;
   recurringStateFilePath: string | null;
   workflow: WorkflowCapabilityState;
+  // Set for every run of an Agent Swarm task; `laneSeed` for forked lanes, which run on their seed.
+  swarm: SwarmRunContext | null;
+  laneSeed: ForkSeed | null;
   systemPrompt: string;
   promptEnvelope: PromptEnvelopeState;
   runControl: AgentRunControlState;

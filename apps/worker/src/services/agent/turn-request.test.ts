@@ -2,12 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { buildAgentTurnRequest, buildPromptCacheKey } from "./turn-request.js";
 import { createPromptEnvelope, sealPromptEnvelope } from "./prompt-envelope.js";
-import {
-  CREATE_CHANNEL_TOOL_NAME,
-  LIST_CHANNELS_TOOL_NAME,
-  READ_CHANNEL_TOOL_NAME,
-  SEND_CHANNEL_MESSAGE_TOOL_NAME
-} from "../agent-tools/index.js";
 
 function createBaseToolOptions() {
   return {

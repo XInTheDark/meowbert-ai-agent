@@ -40,6 +40,14 @@ import {
 } from "../task-workflows/service.js";
 import { buildTimedRunFinalizationMessage } from "../tasks/recurring-run-utils.js";
 import type { AgentExecutionContext, AgentStepAvailability, WorkflowActions } from "./execution-types.js";
+import type { Tool } from "openai/resources/responses/responses";
+import { appendSwarmMergeMessage } from "../agent-swarm/merge-message.js";
+import { appendSwarmNotes } from "../agent-swarm/notes-delivery.js";
+import { flushAutoNotes } from "../agent-swarm/auto-notes.js";
+import { buildForkCompactor } from "../agent-swarm/fork-compaction.js";
+import { isLaneFinalStep, resolveLaneToolChoice } from "../agent-swarm/forced-submit.js";
+import { LANE_PLAIN_TEXT_NOTE, LANE_STEP_LIMIT_NOTE } from "../agent-swarm/prompt.js";
+import type { SwarmDispatchContext } from "../agent-swarm/dispatch-context.js";
 
 const STEPS_REMAIN_THRESHOLD = 2;
 const MAX_MODEL_REQUEST_RECOVERY_ITEMS = 6;
@@ -70,7 +78,23 @@ function shouldRequireWorkflowToolAction(execution: AgentExecutionContext): bool
   return execution.workflow.workflowContext !== null;
 }
 
+function isSwarmLane(execution: AgentExecutionContext): boolean {
+  return Boolean(execution.swarm?.lane);
+}
+
 function resolveStepAvailability(execution: AgentExecutionContext, step: number): AgentStepAvailability {
+  if (isSwarmLane(execution)) {
+    // Lanes finish only with submit; their tools are the ones they were forked with.
+    return {
+      allowFinalResponseTool: false,
+      allowWaitTool: false,
+      allowStopTaskTool: false,
+      requireWorkflowToolAction: true,
+      stepsRemaining: execution.maxRunSteps - step,
+      isWindingDown: isLaneFinalStep({ step, maxRunSteps: execution.maxRunSteps }),
+      quickModeActive: false
+    };
+  }
   return {
     allowFinalResponseTool: execution.workflow.workflowContext
       ? (execution.workflow.allowWorkflowFinalResponse && !execution.runControl.timedRunFinalizing)
@@ -88,8 +112,12 @@ function resolveStepAvailability(execution: AgentExecutionContext, step: number)
 
 function resolveModelToolChoice(
   execution: AgentExecutionContext,
-  availability: AgentStepAvailability
+  availability: AgentStepAvailability,
+  step: number
 ): ModelToolChoice {
+  if (isSwarmLane(execution)) {
+    return resolveLaneToolChoice({ step, maxRunSteps: execution.maxRunSteps });
+  }
   if (availability.requireWorkflowToolAction) {
     return "required";
   }
@@ -125,6 +153,10 @@ async function maybeApplySubscriptionQuota(execution: AgentExecutionContext): Pr
 
 function maybeAppendWindingDownNotice(execution: AgentExecutionContext, availability: AgentStepAvailability): void {
   if (!availability.isWindingDown && !execution.runControl.timedRunFinalizing) {
+    return;
+  }
+  if (isSwarmLane(execution)) {
+    execution.state.dispatchState.conversationItems.push({ role: "user", content: LANE_STEP_LIMIT_NOTE });
     return;
   }
 
@@ -355,6 +387,9 @@ interface ModelTurnResult {
   response: ModelTurnResponse;
   requireWorkflowToolAction: boolean;
   codeModeTools: FunctionTool[];
+  responseTools: Tool[];
+  // Conversation items sent with the request; a split forks from exactly this request.
+  requestItemCount: number;
 }
 
 // Code mode is a workspace experiment that each model can opt out of; the Master never uses it.
@@ -362,6 +397,13 @@ function isCodeModeEnabled(execution: AgentExecutionContext): boolean {
   return execution.prepared.snapshot.code_mode_enabled === true
     && execution.prepared.isProjectMaster !== true
     && resolveCodeModeForModel(execution.prepared.runtimeModel, execution.prepared.snapshot.platform_model_metadata);
+}
+
+// Development check that forks read the parent's cache: a same-model lane's first prefix hash must
+// equal the one its parent logged when it split.
+function logLaneForkPrefix(execution: AgentExecutionContext, promptPrefixHash: string): void {
+  if (process.env.NODE_ENV === "production" || !execution.laneSeed || execution.state.stepCount > 0) return;
+  console.info("[agent-swarm] lane prefix", JSON.stringify({ laneTaskId: execution.job.taskId, seedId: execution.laneSeed.id, promptPrefixHash }));
 }
 
 async function requestModelTurn(input: {
@@ -375,6 +417,8 @@ async function requestModelTurn(input: {
   await appendQueuedPromptDeltas(execution);
   const turnRequest = buildAgentTurnRequest({
     taskId: execution.job.taskId,
+    cacheTaskId: execution.swarm?.swarmTaskId,
+    fixedTools: execution.laneSeed?.tools,
     runToolOptions: execution.prepared.runToolOptions,
     activeSkillTools: execution.prepared.activeSkillTools,
     promptEnvelope: execution.promptEnvelope,
@@ -408,12 +452,15 @@ async function requestModelTurn(input: {
         ? execution.state.contextManagement.recoveryPhase
         : undefined,
       allowPersistentShellSessions: getPersistentRuntimeEnabled(execution.prepared.runtimeEnvironmentPayload),
-      useClaudeWebSearch: execution.prepared.runtimeModelType === "claude"
+      useClaudeWebSearch: execution.prepared.runtimeModelType === "claude",
+      allowSwarmTools: execution.swarm !== null
     },
     codeMode: isCodeModeEnabled(execution)
   });
   sealPromptEnvelope(execution.promptEnvelope);
-  const toolChoice = resolveModelToolChoice(execution, availability);
+  logLaneForkPrefix(execution, turnRequest.promptPrefixHash);
+  const toolChoice = resolveModelToolChoice(execution, availability, step);
+  const requestItemCount = execution.state.dispatchState.conversationItems.length;
 
   await emitTaskEvent(execution.job.taskId, "thinking_start", { step });
   let recoveredItemCount = 0;
@@ -430,6 +477,7 @@ async function requestModelTurn(input: {
         : execution.runControl.runAbortSignal,
       cacheUserId: execution.prepared.snapshot.task.initiator_user_id ?? execution.job.taskId,
       promptCacheKey: turnRequest.promptCacheKey,
+      sessionAffinityKey: turnRequest.sessionAffinityKey,
       ...(execution.prepared.snapshot.enable_prompt_caching !== false ? { promptCacheTtl: "30m" as const } : {}),
       ...(execution.prepared.runtimeModelType === "claude" && execution.prepared.snapshot.claude_cache_keepalive
         ? { cacheKeepaliveSeconds: CLAUDE_CACHE_KEEPALIVE_SECONDS }
@@ -486,7 +534,13 @@ async function requestModelTurn(input: {
   await recordSubscriptionUsage(execution, response);
   await assertStepNotAborted(execution);
 
-  return { response, requireWorkflowToolAction: availability.requireWorkflowToolAction, codeModeTools: turnRequest.codeModeTools };
+  return {
+    response,
+    requireWorkflowToolAction: availability.requireWorkflowToolAction,
+    codeModeTools: turnRequest.codeModeTools,
+    responseTools: turnRequest.responseTools,
+    requestItemCount
+  };
 }
 
 async function requestModelTurnWithRecovery(input: {
@@ -564,7 +618,29 @@ async function requestModelTurnWithRecovery(input: {
   }
 }
 
-function buildDispatchContext(execution: AgentExecutionContext, codeModeTools: FunctionTool[]): ToolDispatchContext {
+function buildSwarmDispatchContext(execution: AgentExecutionContext, turn: ModelTurnResult, step: number): SwarmDispatchContext | null {
+  if (!execution.swarm) return null;
+  return {
+    run: execution.swarm,
+    turn: {
+      envelope: execution.promptEnvelope,
+      responseTools: turn.responseTools,
+      codeModeTools: turn.codeModeTools,
+      requestItemCount: turn.requestItemCount
+    },
+    runtime: {
+      model: execution.prepared.runtimeModel,
+      payload: execution.prepared.runtimeModelPayload,
+      provider: { kind: execution.prepared.runtimeProviderKind ?? "platform", baseUrl: execution.prepared.runtimeProvider.baseUrl }
+    },
+    runToolOptions: execution.prepared.runToolOptions,
+    loadedToolGroups: [...execution.loadedToolGroups],
+    compactForFork: buildForkCompactor(execution, () => step)
+  };
+}
+
+function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnResult, step: number): ToolDispatchContext {
+  const codeModeTools = turn.codeModeTools;
   const specializedModels = execution.prepared.snapshot.platform_specialized_models ?? {
     internalModel: null,
     fastModel: null,
@@ -634,6 +710,7 @@ function buildDispatchContext(execution: AgentExecutionContext, codeModeTools: F
     },
     refreshGitHubToken: execution.prepared.refreshGitHubToken,
     workflowContext: execution.workflow.workflowContext,
+    swarm: buildSwarmDispatchContext(execution, turn, step),
     workflowActions: buildWorkflowActions(execution),
     getCurrentLeafMessageId: () => execution.state.currentLeafMessageId,
     setCurrentLeafMessageId: (messageId: string) => {
@@ -654,6 +731,11 @@ function handlePlainTextWithoutToolCall(
   sawFunctionToolCall: boolean
 ): void {
   if (sawFunctionToolCall) {
+    return;
+  }
+
+  if (isSwarmLane(execution)) {
+    execution.state.dispatchState.conversationItems.push({ role: "user", content: LANE_PLAIN_TEXT_NOTE });
     return;
   }
 
@@ -684,6 +766,10 @@ function handlePlainTextWithoutToolCall(
 }
 
 function handleNoToolCallFallback(execution: AgentExecutionContext, availability: AgentStepAvailability): "continue" | "break" {
+  if (isSwarmLane(execution)) {
+    execution.state.dispatchState.conversationItems.push({ role: "user", content: LANE_PLAIN_TEXT_NOTE });
+    return "continue";
+  }
   if (!availability.allowFinalResponseTool && !availability.allowWaitTool) {
     execution.state.dispatchState.conversationItems.push({
       role: "user",
@@ -807,17 +893,19 @@ async function updateBudgetTelemetry(execution: AgentExecutionContext): Promise<
 async function processModelTurnResult(
   execution: AgentExecutionContext,
   step: number,
-  response: ModelTurnResponse,
-  availability: AgentStepAvailability,
-  requireWorkflowToolAction: boolean,
-  codeModeTools: FunctionTool[]
+  turn: ModelTurnResult,
+  availability: AgentStepAvailability
 ): Promise<"continue" | "break"> {
+  const { response, requireWorkflowToolAction } = turn;
   await updateBudgetTelemetry(execution);
   const dispatchResult = await dispatchResponseOutput(
     response.output,
-    buildDispatchContext(execution, codeModeTools),
+    buildDispatchContext(execution, turn, step),
     execution.state.dispatchState
   );
+  const lane = execution.swarm?.lane;
+  if (lane) await flushAutoNotes(lane, execution.swarm!.activity);
+  if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
   if (execution.state.dispatchState.pendingContextV2Reset) {
     await resetV2ContextWindow(execution, "manual");
     return "continue";
@@ -907,18 +995,21 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
   const availability = resolveStepAvailability(execution, step);
   await appendSubagentInbox(execution);
   await appendProjectMasterInbox(execution);
+  await appendSwarmMergeMessage(execution, execution.swarm);
+  await appendSwarmNotes(execution, execution.swarm);
   maybeAppendWindingDownNotice(execution, availability);
   await maybeRunAutoCompaction(execution, step);
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);
-  const { response, requireWorkflowToolAction, codeModeTools } = await requestModelTurnWithRecovery({
+  const turn = await requestModelTurnWithRecovery({
     execution,
     step,
     availability,
     allowComputerLocalShell: computerAvailability.allowComputerLocalShell,
     allowComputerVisualTools: computerAvailability.allowComputerVisualTools
   });
+  execution.state.stepCount += 1;
 
-  return processModelTurnResult(execution, step, response, availability, requireWorkflowToolAction, codeModeTools);
+  return processModelTurnResult(execution, step, turn, availability);
 }
 
 function handleStepError(execution: AgentExecutionContext, error: unknown): "continue" | "break" | "throw" {

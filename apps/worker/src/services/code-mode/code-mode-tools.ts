@@ -17,6 +17,7 @@ import {
   SUBMIT_REVIEW_TOOL_NAME,
   WAIT_TOOL_NAME
 } from "../agent-tools/index.js";
+import { SWARM_TOOL_NAMES } from "../agent-tools/swarm.js";
 import { buildExecTool } from "./exec-tool.js";
 import { SEARCH_TOOLS_TOOL } from "./search-tools-tool.js";
 
@@ -39,7 +40,8 @@ const DIRECT_TOOL_NAMES = new Set<string>([
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,
   ...CONTEXT_V2_FUNCTION_TOOLS.map((tool) => tool.name),
   ...COMPUTER_RESPONSE_FUNCTION_TOOLS.map((tool) => tool.name),
-  ...ORGANIZATION_TOOL_NAMES
+  ...ORGANIZATION_TOOL_NAMES,
+  ...SWARM_TOOL_NAMES
 ]);
 
 function isNestedTool(tool: Tool): tool is FunctionTool {

@@ -1,4 +1,5 @@
 import { startSubagentWakeLoop } from "./services/subagents/wait.js";
+import { startSwarmRecoveryLoop } from "./services/agent-swarm/recovery.js";
 import { startProjectMasterWakeLoop } from "./services/project-master/wake-loop.js";
 import { Worker } from "bullmq";
 import type { EmailDeliveryJob, TaskExecutionJob } from "@meowbert/shared";
@@ -94,6 +95,7 @@ async function start(): Promise<void> {
   const runDeliveryLoop = startRunDeliveryLoop();
   const usageActivationLoop = startUsageActivationLoop();
   const subagentWakeLoop = startSubagentWakeLoop();
+  const swarmRecoveryLoop = startSwarmRecoveryLoop();
   const projectMasterWakeLoop = startProjectMasterWakeLoop();
   const taskRunRecoveryLoop = startTaskRunRecoveryLoop();
   const taskScheduleLoop = startTaskScheduleLoop();
@@ -159,6 +161,7 @@ async function start(): Promise<void> {
     await taskCleanupLoop.stop();
     await taskScheduleLoop.stop();
     await subagentWakeLoop.stop();
+    await swarmRecoveryLoop.stop();
     await projectMasterWakeLoop.stop();
     await taskRunRecoveryLoop.stop();
     await taskTimeLimitLoop.stop();

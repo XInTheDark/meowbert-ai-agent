@@ -385,6 +385,23 @@ export async function compactContextNow(input: Omit<CompactContextInput, "trigge
   });
 }
 
+// Compacts a copy of the items without touching the task's conversation or history, for callers that
+// keep the result elsewhere (a swarm's shared compacted fork).
+export async function prepareCompactedItems(input: CompactContextInput): Promise<CompactContextInput["conversationItems"]> {
+  const usageBefore = buildUsageSnapshot({
+    usedTokens: estimateContextTokens(input.systemPrompt, input.conversationItems, input.model),
+    maxContextTokens: input.maxContextTokens,
+    source: "estimate",
+    stage: "pre_model_call",
+    step: input.step
+  });
+  const { requestedBackend, backend, fallbackReason } = resolveEffectiveCompactionBackend(input);
+  const prepared = backend === "native"
+    ? await compactWithNativeBackend({ compactInput: input, usageBefore, requestedBackend })
+    : await compactWithSummaryBackend({ compactInput: input, usageBefore, requestedBackend, fallbackReason });
+  return prepared.nextItems;
+}
+
 export async function recoverContextAfterContextWindowError(
   input: Omit<CompactContextInput, "trigger"> & {
     reason?: string;

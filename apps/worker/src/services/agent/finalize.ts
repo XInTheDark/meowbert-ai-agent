@@ -1,5 +1,6 @@
 import type { ConversationSnapshot } from "@meowbert/shared";
 import { parkForSubagentMail } from "../subagents/wait.js";
+import { finalizeSwarmRun, parkLeaderIfLanesActive } from "../agent-swarm/run-finalize.js";
 import {
   appendMessage,
   recordRunCompletion,
@@ -384,6 +385,12 @@ async function finalizeSucceededRun(execution: AgentExecutionContext, finalRespo
 }
 
 export async function finalizeAgentRun(execution: AgentExecutionContext): Promise<void> {
+  if (execution.swarm && !execution.state.dispatchState.subagentWaitDeadline
+    && (execution.state.dispatchState.swarmPark || execution.swarm.lane)) {
+    await assertRunCanFinalize(execution);
+    await finalizeSwarmRun(execution, (text) => appendAssistantRunMessage(execution, text, ""));
+    return;
+  }
   if (execution.state.dispatchState.subagentWaitDeadline) {
     await assertRunCanFinalize(execution);
     await appendAssistantRunMessage(execution, "", "");
@@ -438,6 +445,9 @@ export async function finalizeAgentRun(execution: AgentExecutionContext): Promis
   }
 
   if (await maybeFinalizeWorkflowRun(execution, { hasFinalResponse, hasAssistantPauseText })) {
+    return;
+  }
+  if (await parkLeaderIfLanesActive(execution)) {
     return;
   }
 

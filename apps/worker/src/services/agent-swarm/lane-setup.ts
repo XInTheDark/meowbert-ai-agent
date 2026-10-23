@@ -1,0 +1,61 @@
+import type { ResponseInputItem } from "openai/resources/responses/responses";
+import {
+  recordContextItems,
+  resolveContextManagementState,
+  type ContextManagementV2State
+} from "../context-management-v2/index.js";
+import type { PromptEnvelope } from "../agent/prompt-envelope.js";
+import type { TaskMessageRow } from "../agent/types.js";
+import { loadForkSeed, restoreForkEnvelope, type ForkSeed } from "./fork-seed.js";
+import type { SwarmLaneRow } from "./lane-store.js";
+
+export interface LaneRunSetup {
+  seed: ForkSeed;
+  promptEnvelope: PromptEnvelope;
+  contextManagement: ContextManagementV2State;
+  conversationItems: ResponseInputItem[];
+}
+
+// The lane's own result for the split call, written with its first message when it was forked.
+export function findLaneForkOutput(messages: TaskMessageRow[]): ResponseInputItem | null {
+  for (const message of messages) {
+    const content = message.content_json as { swarm_fork_output?: ResponseInputItem } | null;
+    if (message.role === "user" && content?.swarm_fork_output) return content.swarm_fork_output;
+  }
+  return null;
+}
+
+// Forked lanes never go through normal run setup: every run, resumes included, uses the seed's
+// envelope and its window items exactly as stored, with no window notes prepended and no live state
+// appended, so the prefix stays identical across the lane's runs and to its parent's up to the fork.
+export async function prepareLaneRun(input: {
+  taskId: string;
+  lane: Pick<SwarmLaneRow, "fork_seed_id">;
+  messages: TaskMessageRow[];
+  branchLeafMessageId: string | null;
+  runtimeModel: string;
+}): Promise<LaneRunSetup> {
+  const seed = input.lane.fork_seed_id ? await loadForkSeed(input.lane.fork_seed_id) : null;
+  if (!seed) throw new Error("This lane's fork is no longer available.");
+  const resolved = await resolveContextManagementState({
+    taskId: input.taskId,
+    requestedVersion: "v2",
+    runtimeModel: input.runtimeModel,
+    branchLeafMessageId: input.branchLeafMessageId,
+    seedItems: []
+  });
+  if (resolved.state.version !== "v2") throw new Error("Agent Swarm lanes need context management v2.");
+  let conversationItems = resolved.conversationItems;
+  if (conversationItems.length === 0) {
+    const forkOutput = findLaneForkOutput(input.messages);
+    if (!forkOutput) throw new Error("This lane has no fork result to start from.");
+    conversationItems = [...structuredClone(seed.items), forkOutput];
+    await recordContextItems(resolved.state, conversationItems, { preserveItems: true });
+  }
+  return {
+    seed,
+    promptEnvelope: restoreForkEnvelope(seed.envelope),
+    contextManagement: resolved.state,
+    conversationItems
+  };
+}

@@ -1,5 +1,6 @@
 import { conversationSnapshotArchiveSchema, loadConversationSnapshotArchive, stubConversationSnapshotArchive, restoreConversationSnapshotArchive, type ConversationSnapshotArchive } from "./conversation-organization-archive.js";
 import { loadTaskSubagentArchive, stubTaskSubagentArchive, restoreTaskSubagentArchive, taskSubagentArchiveSchema, type TaskSubagentArchive } from "./task-subagent-archive.js";
+import { loadTaskSwarmArchive, stubTaskSwarmArchive, restoreTaskSwarmArchive, taskSwarmArchiveSchema, type TaskSwarmArchive } from "./task-swarm-archive.js";
 import { loadTaskMediaArchive, stubTaskMediaArchive, restoreTaskMediaArchive, taskMediaArchiveSchema, type TaskMediaArchive } from "./task-media-archive.js";
 import { loadTaskContextArchive, stubTaskContextArchive, restoreTaskContextArchive, type TaskContextArchive } from "./task-context-archive.js";
 import fsPromises from "node:fs/promises";
@@ -80,6 +81,7 @@ export interface TaskHistoryArchiveDocument {
   conversation_snapshots?: ConversationSnapshotArchive;
   context?: TaskContextArchive;
   subagents?: TaskSubagentArchive;
+  swarm?: TaskSwarmArchive;
   media?: TaskMediaArchive;
   version: number;
   task: {
@@ -184,6 +186,7 @@ export interface EnsureTaskHistoryWarmResult {
 const taskHistoryArchiveDocumentSchema = z.object({
   conversation_snapshots: conversationSnapshotArchiveSchema.optional(),
   subagents: taskSubagentArchiveSchema.optional(),
+  swarm: taskSwarmArchiveSchema.optional(),
   media: taskMediaArchiveSchema.optional(),
   context: z.object({
     history: z.array(z.object({ id: z.string().uuid(), payload_json: z.record(z.string(), z.unknown()) })),
@@ -702,6 +705,7 @@ async function prepareTaskArchive(
   const payload = await loadArchivePayload(client, snapshot.id);
   const context = await loadTaskContextArchive(client, snapshot.id);
   const subagents = await loadTaskSubagentArchive(client, snapshot.id);
+  const swarm = await loadTaskSwarmArchive(client, snapshot.id);
   const media = await loadTaskMediaArchive(client, snapshot.id);
   const conversationSnapshots = await loadConversationSnapshotArchive(client, snapshot.id);
 
@@ -729,6 +733,7 @@ async function prepareTaskArchive(
       version: TASK_HISTORY_ARCHIVE_VERSION,
       context,
       subagents,
+      swarm,
       media,
       conversation_snapshots: conversationSnapshots,
       task: {
@@ -778,6 +783,7 @@ async function finishTaskArchive(
     await applyArchiveStubs(client, preparedArchive.taskId);
     await stubTaskContextArchive(client, preparedArchive.taskId);
     await stubTaskSubagentArchive(client, preparedArchive.taskId);
+    await stubTaskSwarmArchive(client, preparedArchive.taskId);
     await stubTaskMediaArchive(client, preparedArchive.taskId);
     await stubConversationSnapshotArchive(client, preparedArchive.taskId);
     await client.query(
@@ -902,6 +908,7 @@ export async function ensureTaskHistoryWarm(
     await restoreArchivedPayload(client, document);
     await restoreTaskContextArchive(client, document.context);
     await restoreTaskSubagentArchive(client, document.subagents);
+    await restoreTaskSwarmArchive(client, document.swarm);
     await restoreTaskMediaArchive(client, taskId, document.media);
     await restoreConversationSnapshotArchive(client, document.conversation_snapshots);
     await client.query(

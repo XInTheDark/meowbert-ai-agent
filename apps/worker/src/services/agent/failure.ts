@@ -11,6 +11,7 @@ import { pauseInfiniteScheduleAfterCheckin } from "../task-schedules/service.js"
 import { handleCancelledRun } from "./cancellation.js";
 import type { AgentFailureContext } from "./execution-types.js";
 import { countPreservedReasoningContentItems } from "./reasoning-content-count.js";
+import { finishFailedLaneRun } from "../agent-swarm/run-finalize.js";
 
 async function appendPersistedAssistantItems(execution: AgentFailureContext): Promise<void> {
   if (execution.prepared.runPersistedItems.length === 0) {
@@ -61,6 +62,7 @@ export async function handleAgentRunFailure(execution: AgentFailureContext, erro
   if (error instanceof Error && error.message === "TASK_CANCELLED") {
     await appendPersistedAssistantItems(execution);
     await handleCancelledRun(execution.job);
+    await finishFailedLaneRun(execution.job, "cancelled", true);
     return;
   }
 
@@ -85,6 +87,7 @@ export async function handleAgentRunFailure(execution: AgentFailureContext, erro
   }
   const updatedStatus = await setTaskStatusForRun(execution.job.taskId, execution.job.runId, "failed");
   await recordRunCompletion(execution.job.runId, "error", message);
+  await finishFailedLaneRun(execution.job, message, false);
   if (!updatedStatus) {
     return;
   }

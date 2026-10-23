@@ -243,7 +243,13 @@ export async function loadWindowItems(windowId: string): Promise<ResponseInputIt
   return result.rows.map((row) => row.payload_json);
 }
 
-export async function recordContextItems(state: ContextManagementV2State, items: ResponseInputItem[]): Promise<void> {
+// `preserveItems` stores items exactly as given, without history id markers; a swarm lane's inherited
+// history must stay byte-identical to its parent's request so it reads the parent's cached prefix.
+export async function recordContextItems(
+  state: ContextManagementV2State,
+  items: ResponseInputItem[],
+  options: { preserveItems?: boolean } = {}
+): Promise<void> {
   if (items.length === 0) return;
   await withTransaction(async (client) => {
     await client.query<{ id: string }>(
@@ -271,7 +277,7 @@ export async function recordContextItems(state: ContextManagementV2State, items:
     for (const item of items) {
       ordinal += 1;
       const id = randomUUID();
-      addOpaqueItemMarker(item, id);
+      if (!options.preserveItems) addOpaqueItemMarker(item, id);
       const metadata = getHistoryMetadata(item);
       const row = JSON.stringify({
         id,

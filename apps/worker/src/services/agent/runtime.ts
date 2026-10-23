@@ -1,4 +1,5 @@
 import { loadSubagentRuntime, loadSubagentPlatformProvider } from "../subagents/runtime.js";
+import { loadLaneRuntime } from "../agent-swarm/fork-seed.js";
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import path from "node:path";
 import {
@@ -420,7 +421,10 @@ async function resolveRuntimeConfig(
     snapshot.platform_agent_presets,
     resolvedRunActorIsSuperAdmin
   );
-  const inheritedRuntime = snapshot.task.parent_task_id ? await loadSubagentRuntime(job.taskId) : null;
+  // Subagents and swarm lanes run on the model and provider they were started with.
+  const inheritedRuntime = snapshot.task.parent_task_id
+    ? await loadSubagentRuntime(job.taskId)
+    : snapshot.task.workflow_internal_role === "lane" ? await loadLaneRuntime(job.taskId) : null;
   const selectedAgentPreset = inheritedRuntime ? null : await resolveEffectiveAgentPreset({ snapshot, visibleAgentPresets });
   const isMemorySynthesis = job.mode === "memory_synthesis";
   const isQualityControlReviewer = job.mode === "quality_control_reviewer";

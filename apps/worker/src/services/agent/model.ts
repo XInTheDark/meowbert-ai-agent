@@ -112,6 +112,8 @@ type CreateModelResponseInput = {
   abortSignal?: AbortSignal;
   cacheUserId?: string;
   promptCacheKey?: string;
+  // Defaults to the prompt cache key; swarm lanes send their own.
+  sessionAffinityKey?: string;
   promptCacheTtl?: "30m";
   cacheKeepaliveSeconds?: number;
   prefixItems: ResponseInputItem[];
@@ -157,13 +159,14 @@ function buildReplayHeaders(
 // without it every tool round replays as a fresh session and loses the prompt cache.
 // Meridian also keeps that session's prompt cache warm for the requested window.
 function buildModelRequestHeaders(
-  input: Pick<CreateModelResponseInput, "promptCacheKey" | "cacheKeepaliveSeconds">
+  input: Pick<CreateModelResponseInput, "promptCacheKey" | "sessionAffinityKey" | "cacheKeepaliveSeconds">
 ): Record<string, string> {
-  if (typeof input.promptCacheKey !== "string" || input.promptCacheKey.length === 0) {
+  const affinityKey = input.sessionAffinityKey || input.promptCacheKey;
+  if (typeof affinityKey !== "string" || affinityKey.length === 0) {
     return {};
   }
   return {
-    "x-session-affinity": input.promptCacheKey,
+    "x-session-affinity": affinityKey,
     ...(input.cacheKeepaliveSeconds ? { "x-meridian-cache-keepalive": String(input.cacheKeepaliveSeconds) } : {})
   };
 }

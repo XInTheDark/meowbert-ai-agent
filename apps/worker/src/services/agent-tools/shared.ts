@@ -102,4 +102,6 @@ export interface ResponseToolAvailability {
   contextManagementVersion?: "v1" | "v2";
   contextRecoveryPhase?: "normal" | "needs_note" | "needs_reset";
   allowPersistentShellSessions?: boolean;
+  // Agent Swarm leaders; lanes reuse the tools array they were forked with.
+  allowSwarmTools?: boolean;
 }

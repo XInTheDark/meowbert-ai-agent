@@ -10,6 +10,7 @@ import {
   type ApplyPatchOperation
 } from "../../agent/apply-patch.js";
 import { resolveApplyPatchWritableRoots } from "../../agent/task-write-scope.js";
+import { recordFilesWritten } from "../../agent-swarm/auto-notes.js";
 import { emitTaskEvent } from "../../runtime/events.js";
 import { appendToolMessage } from "../events.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
@@ -151,13 +152,16 @@ export async function handleApplyPatch(
 
   const outputs: string[] = [];
   const absolutePaths: string[] = [];
-  const writableRoots = resolveApplyPatchWritableRoots({
-    taskDir: ctx.taskDir,
-    taskScratchDir: ctx.taskScratchDir,
-    envRoot: ctx.envRoot,
-    workspaceRoot: ctx.workspaceRoot,
-    isThreadTask: ctx.isThreadTask
-  });
+  // Swarm lanes write only in their own lane directory.
+  const writableRoots = ctx.swarm?.run.lane
+    ? [ctx.taskDir, ctx.taskScratchDir]
+    : resolveApplyPatchWritableRoots({
+      taskDir: ctx.taskDir,
+      taskScratchDir: ctx.taskScratchDir,
+      envRoot: ctx.envRoot,
+      workspaceRoot: ctx.workspaceRoot,
+      isThreadTask: ctx.isThreadTask
+    });
 
   try {
     for (const operation of invocation.operations) {
@@ -172,6 +176,7 @@ export async function handleApplyPatch(
     }
 
     const outputText = outputs.join("\n");
+    if (ctx.swarm?.run.lane) recordFilesWritten(ctx.swarm.run.activity, absolutePaths);
     const contextAwareOutput = serializeTextToolOutput(outputText, state);
     const durationMs = Date.now() - startedAtMs;
 

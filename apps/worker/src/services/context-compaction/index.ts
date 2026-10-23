@@ -26,5 +26,6 @@ export {
   compactContextNow,
   emitActualContextUsage,
   maybeAutoCompactContext,
+  prepareCompactedItems,
   recoverContextAfterContextWindowError
 } from "./orchestration.js";

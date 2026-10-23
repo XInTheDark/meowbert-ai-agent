@@ -43,6 +43,13 @@ import { loadProjectContextPromptData } from "./project-context.js";
 import type { AgentExecutionContext, AgentRunControlState, WorkflowCapabilityState } from "./execution-types.js";
 import type { PreparedAgentRunContext } from "./runtime.js";
 import { isTaskDebugModeEnabled, type TaskDebugLogger } from "../runtime/debug-task-events.js";
+import { loadSwarmRunContext, type SwarmRunContext } from "../agent-swarm/config.js";
+import { prepareLaneRun } from "../agent-swarm/lane-setup.js";
+import { clearSwarmPark } from "../agent-swarm/park.js";
+import { loadSwarmGuide } from "../agent-swarm/prompt.js";
+import { resolveLaneMaxSteps } from "../agent-swarm/forced-submit.js";
+import type { ContextManagementState } from "../context-management-v2/index.js";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
 
 async function inspectProjectContextDirectory(envRoot: string): Promise<Record<string, unknown>> {
   const resolvedEnvRoot = path.resolve(envRoot);
@@ -314,6 +321,82 @@ function buildQuickModeSystemPrompt(isProjectMaster: boolean): string {
   ].join("\n");
 }
 
+async function resolveRunConversation(input: {
+  job: AgentExecutionContext["job"];
+  prepared: PreparedAgentRunContext;
+  taskInputDir: string;
+  isManualClear: boolean;
+}): Promise<{
+  mappedConversationItems: ResponseInputItem[];
+  resolvedContextManagement: { state: ContextManagementState; conversationItems: ResponseInputItem[] };
+}> {
+  const { job, prepared, isManualClear } = input;
+  const frozenContextManagementVersion = await resolveFrozenContextManagementVersion({
+    taskId: job.taskId,
+    requestedVersion: prepared.requestedContextManagementVersion,
+    runtimeModel: prepared.runtimeModel
+  });
+  const activeContextMessages = isManualClear
+    ? getVisibleMessagesForContextClear(prepared.snapshot.messages)
+    : frozenContextManagementVersion === "v2"
+      ? getMessagesForV2ActiveWindow(prepared.snapshot.messages)
+      : getMessagesAfterLatestCompaction(prepared.snapshot.messages);
+  const mappedConversationItems = await mapMessagesForResponsesInput(
+    activeContextMessages,
+    input.taskInputDir,
+    prepared.snapshot.image_detail ?? "high",
+    {
+      quickMode: prepared.quickMode,
+      sendMetadataToModel: prepared.snapshot.send_metadata_to_model
+    }
+  );
+  const resolvedContextManagement = await resolveContextManagementState({
+    taskId: job.taskId,
+    requestedVersion: frozenContextManagementVersion,
+    runtimeModel: prepared.runtimeModel,
+    branchLeafMessageId: prepared.snapshot.branch_leaf_message_id,
+    seedItems: isManualClear ? [] : mappedConversationItems,
+    skipHistoryReplay: isManualClear
+  });
+  return { mappedConversationItems, resolvedContextManagement };
+}
+
+// The stable prefix of an ordinary run, plus the window notes and live state at the start of its
+// conversation. Swarm agents get the swarm guide, which covers the lane role too, so lanes forked
+// from this prefix inherit it unchanged.
+async function buildRunPromptEnvelope(input: {
+  systemPrompt: string;
+  prepared: PreparedAgentRunContext;
+  workflow: WorkflowCapabilityState;
+  swarm: SwarmRunContext | null;
+  organization: Awaited<ReturnType<typeof prepareConversationOrganization>>;
+  contextManagement: ContextManagementState;
+  conversationItems: ResponseInputItem[];
+}): Promise<ReturnType<typeof createPromptEnvelope>> {
+  const { prepared, organization } = input;
+  const promptEnvelope = createPromptEnvelope(input.systemPrompt);
+  if (organization) appendPromptEnvelopeDelta(promptEnvelope, { reason: "conversation-organization", content: conversationOrganizationPrompt(organization) });
+  if (prepared.isProjectMaster) appendPromptEnvelopeDelta(promptEnvelope, { reason: "project-master", content: buildProjectMasterPrompt() });
+  const workflowPrompt = input.workflow.workflowPromptContext;
+  const guide = input.swarm ? loadSwarmGuide() : workflowPrompt?.guide;
+  if (guide) {
+    appendPromptEnvelopeDelta(promptEnvelope, { reason: "workflow-guide", role: "developer", content: guide });
+  }
+  if (input.contextManagement.version === "v2") {
+    input.conversationItems.unshift(
+      ...(await buildV2WindowDeveloperItems({
+        state: input.contextManagement,
+        agentName: prepared.runtimeAgentId ?? "main"
+      })),
+      { role: "developer", content: CONTEXT_WINDOW_GUIDANCE }
+    );
+  }
+  if (workflowPrompt?.liveState) {
+    input.conversationItems.push({ role: "developer", content: workflowPrompt.liveState });
+  }
+  return promptEnvelope;
+}
+
 export async function initializeAgentExecution(
   job: AgentExecutionContext["job"],
   prepared: PreparedAgentRunContext,
@@ -387,34 +470,21 @@ export async function initializeAgentExecution(
     workflowTaskDir: workflow.workflowContext?.workflowTaskDir
   });
   prepared.shellEnvOverrides.TASK_INPUT_DIR = taskInputDir;
-  const frozenContextManagementVersion = await resolveFrozenContextManagementVersion({
-    taskId: job.taskId,
-    requestedVersion: prepared.requestedContextManagementVersion,
-    runtimeModel: prepared.runtimeModel
-  });
+  const swarm = await loadSwarmRunContext(prepared.snapshot.task);
+  if (swarm) await clearSwarmPark(job.taskId);
+  const laneRun = swarm?.lane && swarm.lane.kind !== "check"
+    ? await prepareLaneRun({
+      taskId: job.taskId,
+      lane: swarm.lane,
+      messages: prepared.snapshot.messages,
+      branchLeafMessageId: prepared.snapshot.branch_leaf_message_id,
+      runtimeModel: prepared.runtimeModel
+    })
+    : null;
   const isManualClear = job.mode === "compact_only" && job.contextAction === "clear";
-  const activeContextMessages = isManualClear
-    ? getVisibleMessagesForContextClear(prepared.snapshot.messages)
-    : frozenContextManagementVersion === "v2"
-      ? getMessagesForV2ActiveWindow(prepared.snapshot.messages)
-      : getMessagesAfterLatestCompaction(prepared.snapshot.messages);
-  const mappedConversationItems = await mapMessagesForResponsesInput(
-    activeContextMessages,
-    taskInputDir,
-    prepared.snapshot.image_detail ?? "high",
-    {
-      quickMode: prepared.quickMode,
-      sendMetadataToModel: prepared.snapshot.send_metadata_to_model
-    }
-  );
-  const resolvedContextManagement = await resolveContextManagementState({
-    taskId: job.taskId,
-    requestedVersion: frozenContextManagementVersion,
-    runtimeModel: prepared.runtimeModel,
-    branchLeafMessageId: prepared.snapshot.branch_leaf_message_id,
-    seedItems: isManualClear ? [] : mappedConversationItems,
-    skipHistoryReplay: isManualClear
-  });
+  const { mappedConversationItems, resolvedContextManagement } = laneRun
+    ? { mappedConversationItems: [], resolvedContextManagement: { state: laneRun.contextManagement, conversationItems: laneRun.conversationItems } }
+    : await resolveRunConversation({ job, prepared, taskInputDir, isManualClear });
   const conversationItems = resolvedContextManagement.conversationItems;
   await prepared.cancellationMonitor.assertNotCancelled();
 
@@ -447,39 +517,27 @@ export async function initializeAgentExecution(
     scheduleInfo,
     projectContextPromptData
   });
-  const systemPrompt = prepared.quickMode ? buildQuickModeSystemPrompt(prepared.isProjectMaster === true) : fullSystemPrompt;
+  const systemPrompt = laneRun
+    ? laneRun.promptEnvelope.baseFrames[0]?.content ?? fullSystemPrompt
+    : prepared.quickMode ? buildQuickModeSystemPrompt(prepared.isProjectMaster === true) : fullSystemPrompt;
   let activeSystemPrompt = systemPrompt;
   await debugLogger.log("Built system prompt.", {
     stage: "init.system_prompt",
     phase: "success",
     promptLength: systemPrompt.length
   });
-  const organization = await prepareConversationOrganization(prepared, job);
-  const promptEnvelope = createPromptEnvelope(systemPrompt);
-  if (organization) appendPromptEnvelopeDelta(promptEnvelope, { reason: "conversation-organization", content: conversationOrganizationPrompt(organization) });
-  if (prepared.isProjectMaster) appendPromptEnvelopeDelta(promptEnvelope, { reason: "project-master", content: buildProjectMasterPrompt() });
-  const workflowPrompt = workflow.workflowPromptContext;
-  if (workflowPrompt?.guide) {
-    appendPromptEnvelopeDelta(promptEnvelope, { reason: "workflow-guide", role: "developer", content: workflowPrompt.guide });
-  }
-  if (resolvedContextManagement.state.version === "v2") {
-    conversationItems.unshift(
-      ...(await buildV2WindowDeveloperItems({
-        state: resolvedContextManagement.state,
-        agentName: prepared.runtimeAgentId ?? "main"
-      })),
-      { role: "developer", content: CONTEXT_WINDOW_GUIDANCE }
-    );
-  }
-  if (workflowPrompt?.liveState) {
-    conversationItems.push({ role: "developer", content: workflowPrompt.liveState });
-  }
+  const organization = laneRun ? undefined : await prepareConversationOrganization(prepared, job);
+  const promptEnvelope = laneRun
+    ? laneRun.promptEnvelope
+    : await buildRunPromptEnvelope({ systemPrompt, prepared, workflow, swarm, organization, contextManagement: resolvedContextManagement.state, conversationItems });
   if (!prepared.quickMode) {
+    // A lane's prompt notes are already in its inherited prefix; only the tools come back.
+    const capabilityEnvelope = laneRun ? createPromptEnvelope("") : promptEnvelope;
     await debugLogger.stage({
       stage: "init.auto_enable",
       startMessage: "Auto-enabling selected skills and sources.",
       successMessage: "Auto-enabled selected skills and sources.",
-      run: () => enableRunCapabilities({ prepared, promptEnvelope, enableSkillById, onDemandCapabilities, conversationItems }),
+      run: () => enableRunCapabilities({ prepared, promptEnvelope: capabilityEnvelope, enableSkillById, onDemandCapabilities, conversationItems }),
       successPayload: {
         enabledSkillCount: prepared.runToolOptions.enabledSkills.length,
         enabledSourceCount: prepared.runToolOptions.enabledSources.length
@@ -507,7 +565,8 @@ export async function initializeAgentExecution(
     workflowPauseRequest: null,
     workflowAssistantPauseResponse: null,
     notificationRequested: true,
-    quickModeActive: prepared.quickMode
+    quickModeActive: prepared.quickMode,
+    stepCount: 0
   };
 
   const assertRunNotAborted = createRunAbortAsserter(prepared, runControl);
@@ -579,9 +638,11 @@ export async function initializeAgentExecution(
     onDemandCapabilities,
     allowSubtaskTools,
     allowStopTask,
-    maxRunSteps,
+    maxRunSteps: swarm?.lane ? resolveLaneMaxSteps(swarm.settings.advanced.laneMaxSteps, maxRunSteps) : maxRunSteps,
     recurringStateFilePath,
     workflow,
+    swarm,
+    laneSeed: laneRun?.seed ?? null,
     systemPrompt: activeSystemPrompt,
     promptEnvelope,
     runControl,

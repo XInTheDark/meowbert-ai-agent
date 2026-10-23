@@ -1,6 +1,7 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { SEARCH_WEB_TOOL_NAME, searchWebArgumentsSchema } from "../../agent-tools/index.js";
 import { parseToolArguments } from "../../agent/utils.js";
+import { recordSearchQuery } from "../../agent-swarm/auto-notes.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
 import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
@@ -27,6 +28,7 @@ export async function handleSearchWeb(
       throw new Error("Web search is not available for this model.");
     }
     const answer = await ctx.searchWeb(parsed.value.query);
+    if (ctx.swarm?.run.lane) recordSearchQuery(ctx.swarm.run.activity, parsed.value.query);
     return await finishBuiltinToolSuccess(ctx, execution, { answer }, {
       eventPayload: { answerLength: answer.length }
     });

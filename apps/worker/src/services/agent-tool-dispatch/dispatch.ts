@@ -2,6 +2,9 @@ import { handleSearchWeb } from "./handlers/web-search.js";
 import { handleConversationOrganization } from "./handlers/conversation-organization.js";
 import { handleSubagentTool } from "./handlers/subagents.js";
 import { handleProjectMasterTool } from "./handlers/project-master.js";
+import { handleSwarmTool } from "./handlers/swarm/index.js";
+import { SHARE_TOOL_NAME, SPLIT_TOOL_NAME, SUBMIT_TOOL_NAME } from "../agent-tools/swarm.js";
+import { recordWebSearchCall } from "../agent-swarm/auto-notes.js";
 import { assertSubagentsFinished } from "../subagents/mail.js";
 import type {
   ResponseCustomToolCall,
@@ -139,6 +142,10 @@ async function dispatchFunctionToolCall(
     case "list_subagents":
     case "interrupt_subagent":
       return handleSubagentTool(outputItem, ctx, state);
+    case SPLIT_TOOL_NAME:
+    case SHARE_TOOL_NAME:
+    case SUBMIT_TOOL_NAME:
+      return handleSwarmTool(outputItem, ctx, state);
     case "create_task":
     case "message_task":
     case "cancel_task":
@@ -161,6 +168,9 @@ async function dispatchFunctionToolCall(
       return handleRefreshGitHubToken(outputItem, ctx, state);
 
     case FINAL_RESPONSE_TOOL_NAME:
+      if (ctx.swarm?.run.lane) {
+        return toolErrorResult("Lanes finish with submit, not final_response. Call submit with your summary and files.");
+      }
       if (ctx.runToolOptions.subtasks) await assertSubagentsFinished(ctx.taskId);
       if (
         ctx.workflowContext?.workflowType === "long_horizon"
@@ -435,6 +445,7 @@ export async function dispatchResponseOutput(
 
     if (outputItem.type === "web_search_call") {
       sawToolCall = true;
+      if (ctx.swarm?.run.lane) recordWebSearchCall(ctx.swarm.run.activity, outputItem);
       continue;
     }
 

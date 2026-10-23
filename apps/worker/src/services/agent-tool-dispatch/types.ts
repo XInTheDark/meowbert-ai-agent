@@ -12,6 +12,8 @@ import type { WorkspaceImageDetail } from "../workspaces/workspace-model-setting
 import type { LoadedWorkflowRunContext } from "../task-workflows/service.js";
 import type { ContextManagementV2State } from "../context-management-v2/index.js";
 import type { ProjectMasterTaskAgent } from "../project-master/task-agent.js";
+import type { SwarmDispatchContext } from "../agent-swarm/dispatch-context.js";
+import type { SwarmLaneResult } from "../agent-swarm/lane-store.js";
 
 export interface ToolDispatchContext {
   subagentRuntime?: SubagentRuntime;
@@ -68,6 +70,8 @@ export interface ToolDispatchContext {
   cancellationSignal?: AbortSignal;
   assertNotCancelled: () => Promise<void>;
   workflowContext?: LoadedWorkflowRunContext | null;
+  // Set for every run of an Agent Swarm task (leader and lanes).
+  swarm?: SwarmDispatchContext | null;
   workflowActions?: {
     startLongHorizonTask?: (plan: string) => Promise<{ planPath: string; nextRunId: string }>;
     submitLongHorizonResponse?: (message: string) => Promise<{ roundNo: number; reviewerTaskIds: string[] }>;
@@ -97,6 +101,9 @@ export interface BudgetTelemetry {
 export interface ToolDispatchState {
   organization?: ConversationOrganizationState;
   subagentWaitDeadline?: string;
+  // A swarm call that ends the run: the caller parks until its lanes finish, or a lane submits.
+  swarmPark?: { reason: "lanes" };
+  swarmSubmit?: SwarmLaneResult;
   repeatedToolCall?: { name: string; parameters: string; count: number };
   conversationItems: ResponseInputItem[];
   runPersistedItems: ResponseInputItem[];
