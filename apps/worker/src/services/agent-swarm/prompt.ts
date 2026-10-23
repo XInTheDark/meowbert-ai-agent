@@ -117,6 +117,13 @@ export function buildForcedSubmitNote(reason: string): string {
   return `[System: ${reason}. Call submit now with your summary and files.]`;
 }
 
+export function buildLaneWrapUpNote(percent: number): string {
+  return `[System: This lane has used ${percent}% of its budget share. Wrap up: finish what matters most, then submit.]`;
+}
+
+export const LEADER_BUDGET_SPENT_NOTE = "[System: The swarm's token budget is used up. Start no more lanes; deliver now with what you have.]";
+export const LEADER_DEADLINE_NOTE = "[System: The swarm's time budget is up. Your lanes are submitting what they have; deliver with what you have.]";
+
 export const RECON_NUDGE_NOTE = "[System: You have worked alone for a while this turn. If the rest has independent parts, split now; otherwise carry on.]";
 
 export const LANE_STEP_LIMIT_NOTE = "[System: This lane has reached its step limit. Call submit now with your summary and files.]";

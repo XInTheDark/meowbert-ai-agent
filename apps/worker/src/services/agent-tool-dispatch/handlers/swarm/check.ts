@@ -1,47 +1,47 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import { CHECK_TOOL_NAME, checkArgumentsSchema } from "../../../agent-tools/swarm.js";
+import type { ChosenModelRoute } from "@meowbert/shared";
+import { checkArgumentsSchema } from "../../../agent-tools/swarm.js";
+import { buildLaneModelRoute, pickCheckModelRoute } from "../../../agent-swarm/model-route.js";
+import { SwarmToolError } from "../../../agent-swarm/tool-error.js";
 import { loadAutoCheckFiles, startCheckLane } from "../../../agent-swarm/check.js";
 import { hasOwnLanes } from "../../../agent-swarm/lane-store.js";
 import { buildCheckStartedMessage } from "../../../agent-swarm/prompt.js";
 import { toolErrorResult, type ToolCallResult } from "../../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../../types.js";
-import { checkSwarmToolRole } from "./role-gate.js";
+import { runSwarmToolCall } from "./swarm-tool-call.js";
 import { pool } from "../../../../lib/db.js";
 
 async function startCheck(ctx: ToolDispatchContext, state: ToolDispatchState, input: {
   draft: string;
   files: string[];
   focus: string | null;
+  modelRoute: ChosenModelRoute | null;
 }): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
-  let lane;
-  try {
-    lane = await startCheckLane({
-      swarm: ctx.swarm!,
-      parentTaskId: ctx.taskId,
-      leafMessageId: ctx.getCurrentLeafMessageId(),
-      envRoot: ctx.envRoot,
-      ...input
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message === "TASK_CANCELLED") throw error;
-    return toolErrorResult(message);
-  }
+  const lane = await startCheckLane({
+    swarm: ctx.swarm!,
+    parentTaskId: ctx.taskId,
+    leafMessageId: ctx.getCurrentLeafMessageId(),
+    envRoot: ctx.envRoot,
+    ...input
+  });
   state.swarmPark = { reason: "check" };
   return { output: { lane_id: lane.taskId, message: buildCheckStartedMessage() } };
 }
 
 export async function handleCheck(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
-  const roleError = checkSwarmToolRole(CHECK_TOOL_NAME, ctx.swarm?.run);
-  if (roleError) return toolErrorResult(roleError);
   if (ctx.codeModeParentCallId) return toolErrorResult("Call check directly, not from exec.");
-  if (ctx.swarm!.run.lane && !await hasOwnLanes(pool, ctx.taskId)) {
-    return toolErrorResult("Only the leader and lanes that have lanes of their own can start a check. Submit your part instead.");
-  }
-  const parsed = checkArgumentsSchema.safeParse(JSON.parse(call.arguments));
-  if (!parsed.success) return toolErrorResult(`Invalid check arguments: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`);
-  return startCheck(ctx, state, parsed.data);
+  return runSwarmToolCall(call, ctx, checkArgumentsSchema, async (args) => {
+    if (ctx.swarm!.run.lane && !await hasOwnLanes(pool, ctx.taskId)) {
+      return toolErrorResult("Only the leader and lanes that have lanes of their own can start a check. Submit your part instead.");
+    }
+    return startCheck(ctx, state, {
+      draft: args.draft,
+      files: args.files,
+      focus: args.focus,
+      modelRoute: buildLaneModelRoute(ctx.swarm!.run.router, args.model, args.effort)
+    });
+  });
 }
 
 // The automatic Check: a leader reply on a turn that used lanes goes to a fresh reviewer first. The
@@ -66,5 +66,16 @@ export async function interceptFinalResponseForCheck(
   if (!draft || args?.partial === true) return null;
   const files = await loadAutoCheckFiles(ctx.taskId);
   if (!files) return null;
-  return startCheck(ctx, state, { draft, files, focus: null });
+  try {
+    return await startCheck(ctx, state, {
+      draft,
+      files,
+      focus: null,
+      modelRoute: pickCheckModelRoute(swarm.run.router, swarm.runtime.model)
+    });
+  } catch (error) {
+    // A Check that cannot start (the fan-out cap) never holds the reply back.
+    if (error instanceof SwarmToolError) return null;
+    throw error;
+  }
 }

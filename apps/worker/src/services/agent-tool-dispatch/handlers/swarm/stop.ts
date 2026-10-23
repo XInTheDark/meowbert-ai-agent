@@ -3,10 +3,10 @@ import { stopLaneArgumentsSchema } from "../../../agent-tools/swarm.js";
 import { stopLane } from "../../../agent-swarm/lane-control.js";
 import type { ToolCallResult } from "../../tool-call-result.js";
 import type { ToolDispatchContext } from "../../types.js";
-import { runLaneControlCall } from "./lane-control-call.js";
+import { runSwarmToolCall } from "./swarm-tool-call.js";
 
 export async function handleStopLane(call: ResponseFunctionToolCall, ctx: ToolDispatchContext): Promise<ToolCallResult> {
-  return runLaneControlCall(call, ctx, stopLaneArgumentsSchema, async (args) => {
+  return runSwarmToolCall(call, ctx, stopLaneArgumentsSchema, async (args) => {
     await stopLane({ swarm: ctx.swarm!.run, parentTaskId: ctx.taskId, laneTaskId: args.lane_id, discard: args.discard });
     return {
       output: {

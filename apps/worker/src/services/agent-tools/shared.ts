@@ -105,4 +105,6 @@ export interface ResponseToolAvailability {
   allowPersistentShellSessions?: boolean;
   // Agent Swarm leaders and Check lanes; forked lanes reuse the tools array they were forked with.
   swarmTools?: SwarmToolSet;
+  // The swarm's model router; split, diverge and check then let the parent pick a lane's model.
+  swarmRouter?: PlatformModelRouter | null;
 }

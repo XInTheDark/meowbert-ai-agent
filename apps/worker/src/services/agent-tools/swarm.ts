@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { FunctionTool } from "openai/resources/responses/responses";
+import { CHOSEN_MODEL_ROUTE_EFFORTS, type PlatformModelRouter } from "@meowbert/shared";
 
 // Every forked swarm agent, leader and lanes alike, is offered the same swarm tools so a fork's tools
 // array matches its parent's; who may call what is checked when the call is dispatched. Check lanes
@@ -32,12 +33,18 @@ export function isSwarmToolName(name: string): boolean {
 
 const laneTitle = z.string().trim().min(1).max(200);
 const laneId = z.string().uuid();
+// Present only when the swarm has a model router; null keeps the parent's model.
+const laneModel = {
+  model: z.string().trim().min(1).nullable().optional(),
+  effort: z.enum(CHOSEN_MODEL_ROUTE_EFFORTS).nullable().optional()
+};
 
 export const splitArgumentsSchema = z.object({
   lanes: z.array(z.object({
     title: laneTitle,
     direction: z.string().trim().min(1).max(4_000).nullable(),
-    weight: z.number().positive().nullable()
+    weight: z.number().positive().nullable(),
+    ...laneModel
   })).min(1),
   spine_path: z.string().trim().min(1).nullable()
 });
@@ -46,14 +53,16 @@ export const divergeArgumentsSchema = z.object({
   question: z.string().trim().min(1).max(8_000),
   lanes: z.array(z.object({
     title: laneTitle,
-    direction: z.string().trim().min(1).max(4_000).nullable()
+    direction: z.string().trim().min(1).max(4_000).nullable(),
+    ...laneModel
   })).min(1)
 });
 
 export const checkArgumentsSchema = z.object({
   draft: z.string().trim().min(1),
   files: z.array(z.string().trim().min(1)),
-  focus: z.string().trim().min(1).max(4_000).nullable()
+  focus: z.string().trim().min(1).max(4_000).nullable(),
+  ...laneModel
 });
 
 export const steerArgumentsSchema = z.object({
@@ -102,36 +111,67 @@ function strictObject(properties: Record<string, unknown>): Record<string, unkno
 
 const laneIdProperty = { type: "string", description: "The lane_id from split, diverge, check or your lane results." };
 
-const SPLIT_TOOL = tool(SPLIT_TOOL_NAME, "Fork copies of yourself (lanes) that each take a different, concrete part of the work. Lanes start with everything you know. Must be your last tool call; your turn ends and you resume with their summaries once all have submitted.", {
-  lanes: {
-    type: "array",
-    minItems: 1,
-    items: strictObject({
-      title: { type: "string", description: "The part this lane owns, in a few words." },
-      direction: { type: ["string", "null"], description: "What the lane should do and deliver, beyond what the title says." },
-      weight: { type: ["number", "null"], description: "Relative share of the budget when budgets are on; null for an equal share." }
-    })
-  },
-  spine_path: { type: ["string", "null"], description: "Path of the spine file you wrote for a split deliverable; null when there is none." }
-});
+// With a router, each lane entry can pick its model from the router's targets, and its reasoning
+// effort when the router allows that. The leader and its forks build the same tools from the same
+// router, so their tools arrays still match.
+function modelChoiceProperties(router: PlatformModelRouter | null): Record<string, unknown> {
+  if (!router) return {};
+  const options = router.models.map((target) => `- ${target.id}: ${target.description}`).join("\n");
+  return {
+    model: {
+      type: ["string", "null"],
+      enum: [...router.models.map((target) => target.id), null],
+      description: `Model this lane runs on; null for your own model, which shares your cache and is usually best. A different model widens a diverge or makes a more independent Check:\n${options}`
+    },
+    ...(router.allowReasoningEffort ? {
+      effort: {
+        type: ["string", "null"],
+        enum: [...CHOSEN_MODEL_ROUTE_EFFORTS, null],
+        description: "Reasoning effort for a lane on a picked model; null for a balanced default."
+      }
+    } : {})
+  };
+}
 
-const DIVERGE_TOOL = tool(DIVERGE_TOOL_NAME, "Fork lanes that each answer the same question independently and cannot see each other, then compare their answers. For judgment calls worth about three times the cost; at least one lane is always undirected. Must be your last tool call.", {
-  question: { type: "string", description: "The question every lane answers, with what a full answer contains." },
-  lanes: {
-    type: "array",
-    minItems: 1,
-    items: strictObject({
-      title: { type: "string", description: "A short name for this answer." },
-      direction: { type: ["string", "null"], description: "An angle to take, or null to answer with no steer." }
-    })
-  }
-});
+function buildSplitTool(router: PlatformModelRouter | null): FunctionTool {
+  return tool(SPLIT_TOOL_NAME, "Fork copies of yourself (lanes) that each take a different, concrete part of the work. Lanes start with everything you know. Must be your last tool call; your turn ends and you resume with their summaries once all have submitted.", {
+    lanes: {
+      type: "array",
+      minItems: 1,
+      items: strictObject({
+        title: { type: "string", description: "The part this lane owns, in a few words." },
+        direction: { type: ["string", "null"], description: "What the lane should do and deliver, beyond what the title says." },
+        weight: { type: ["number", "null"], description: "Relative share of the budget when budgets are on; null for an equal share." },
+        ...modelChoiceProperties(router)
+      })
+    },
+    spine_path: { type: ["string", "null"], description: "Path of the spine file you wrote for a split deliverable; null when there is none." }
+  });
+}
 
-const CHECK_TOOL = tool(CHECK_TOOL_NAME, "Hand a deliverable to a fresh reviewer that sees the user's messages, the draft and its files, but none of your reasoning. Your turn ends; you resume with its findings.", {
-  draft: { type: "string", description: "The reply or deliverable as you would send it." },
-  files: { type: "array", items: { type: "string" }, description: "Paths of the deliverable's files." },
-  focus: { type: ["string", "null"], description: "Anything the reviewer should look at first; null for none." }
-});
+function buildDivergeTool(router: PlatformModelRouter | null): FunctionTool {
+  return tool(DIVERGE_TOOL_NAME, "Fork lanes that each answer the same question independently and cannot see each other, then compare their answers. For judgment calls worth about three times the cost; at least one lane is always undirected. Must be your last tool call.", {
+    question: { type: "string", description: "The question every lane answers, with what a full answer contains." },
+    lanes: {
+      type: "array",
+      minItems: 1,
+      items: strictObject({
+        title: { type: "string", description: "A short name for this answer." },
+        direction: { type: ["string", "null"], description: "An angle to take, or null to answer with no steer." },
+        ...modelChoiceProperties(router)
+      })
+    }
+  });
+}
+
+function buildCheckTool(router: PlatformModelRouter | null): FunctionTool {
+  return tool(CHECK_TOOL_NAME, "Hand a deliverable to a fresh reviewer that sees the user's messages, the draft and its files, but none of your reasoning. Your turn ends; you resume with its findings.", {
+    draft: { type: "string", description: "The reply or deliverable as you would send it." },
+    files: { type: "array", items: { type: "string" }, description: "Paths of the deliverable's files." },
+    focus: { type: ["string", "null"], description: "Anything the reviewer should look at first; null for none." },
+    ...modelChoiceProperties(router)
+  });
+}
 
 const STEER_TOOL = tool(STEER_TOOL_NAME, "Send a message to one of your running lanes. It arrives at the lane's next step.", {
   lane_id: laneIdProperty,
@@ -176,7 +216,7 @@ const SUBMIT_TOOL = tool(SUBMIT_TOOL_NAME, "Lanes only. Finish your part and rep
   files: { type: "array", items: { type: "string" }, description: "Paths of the files you produced, in your lane directory." }
 });
 
-export function buildSwarmFunctionTools(toolSet: SwarmToolSet): FunctionTool[] {
+export function buildSwarmFunctionTools(toolSet: SwarmToolSet, router: PlatformModelRouter | null = null): FunctionTool[] {
   if (toolSet === "check") return [SUBMIT_TOOL];
-  return [SPLIT_TOOL, DIVERGE_TOOL, CHECK_TOOL, STEER_TOOL, STOP_LANE_TOOL, RESUME_TOOL, SHARE_TOOL, SUBMIT_TOOL];
+  return [buildSplitTool(router), buildDivergeTool(router), buildCheckTool(router), STEER_TOOL, STOP_LANE_TOOL, RESUME_TOOL, SHARE_TOOL, SUBMIT_TOOL];
 }

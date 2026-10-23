@@ -1,3 +1,4 @@
+import type { ChosenModelRoute } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import type { SwarmDispatchContext } from "./dispatch-context.js";
 import { createCheckLane, type CreatedLane } from "./lane-creation.js";
@@ -59,6 +60,7 @@ export async function startCheckLane(input: {
   draft: string;
   files: string[];
   focus: string | null;
+  modelRoute: ChosenModelRoute | null;
   envRoot: string;
 }): Promise<CreatedLane> {
   const { swarm } = input;
@@ -79,6 +81,7 @@ export async function startCheckLane(input: {
       }
     },
     focus: input.focus,
+    modelRoute: input.modelRoute,
     envRoot: input.envRoot,
     buildBrief: (laneDir) => buildCheckBrief({
       userMessages,

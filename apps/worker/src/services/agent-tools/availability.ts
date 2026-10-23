@@ -235,7 +235,7 @@ export function buildResponseTools(
       }),
     ...CONTEXT_V2_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
     ...COMPUTER_RESPONSE_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
-    ...(availability.swarmTools ? buildSwarmFunctionTools(availability.swarmTools) : []),
+    ...(availability.swarmTools ? buildSwarmFunctionTools(availability.swarmTools, availability.swarmRouter ?? null) : []),
     ...skillTools
   ];
 

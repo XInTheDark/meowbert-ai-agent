@@ -25,6 +25,14 @@ export function findLaneForkOutput(messages: TaskMessageRow[]): ResponseInputIte
   return null;
 }
 
+// A lane on a different model than its parent (a router pick) inherits the messages and tool calls but
+// not the parent's reasoning items, which only its own provider can read. It shares no cache anyway.
+export function inheritedItems(seed: Pick<ForkSeed, "items" | "capabilities">, runtimeModel: string): ResponseInputItem[] {
+  const items = structuredClone(seed.items);
+  if (seed.capabilities.runtime.model === runtimeModel) return items;
+  return items.filter((item) => (item as { type?: string }).type !== "reasoning");
+}
+
 // Forked lanes never go through normal run setup: every run, resumes included, uses the seed's
 // envelope and its window items exactly as stored, with no window notes prepended and no live state
 // appended, so the prefix stays identical across the lane's runs and to its parent's up to the fork.
@@ -49,7 +57,7 @@ export async function prepareLaneRun(input: {
   if (conversationItems.length === 0) {
     const forkOutput = findLaneForkOutput(input.messages);
     if (!forkOutput) throw new Error("This lane has no fork result to start from.");
-    conversationItems = [...structuredClone(seed.items), forkOutput];
+    conversationItems = [...inheritedItems(seed, input.runtimeModel), forkOutput];
     await recordContextItems(resolved.state, conversationItems, { preserveItems: true });
   }
   return {

@@ -4,7 +4,9 @@ import { appendRunInboxItems } from "../agent/run-inbox.js";
 import type { SwarmRunContext } from "./config.js";
 import { TERMINAL_LANE_STATUSES, type SwarmLaneResult, type SwarmLaneRow } from "./lane-store.js";
 
-type MergedLane = Pick<SwarmLaneRow, "task_id" | "title" | "kind" | "status" | "result_json" | "created_at">;
+type MergedLane = Pick<SwarmLaneRow, "task_id" | "title" | "kind" | "status" | "result_json" | "created_at"> & {
+  spent_tokens?: string;
+};
 
 // Roughly four bytes of text per token; only used to decide whether to suggest an assembly lane.
 const BYTES_PER_TOKEN = 4;
@@ -36,8 +38,13 @@ function section(heading: string, lines: Array<string | null>): string {
   return [heading, ...lines].filter((line): line is string => line !== null).join("\n");
 }
 
-function formatSplitLane(lane: MergedLane): string {
-  return section(`## ${lane.title} (${lane.kind}, ${lane.status}, lane_id ${lane.task_id})`, [
+// Cost is shown only with budgets on, where the parent decides whether a lane is worth resuming.
+function formatCost(lane: MergedLane, budgetsEnabled: boolean): string {
+  return budgetsEnabled && lane.spent_tokens !== undefined ? `, ${Number(lane.spent_tokens).toLocaleString("en-US")} tokens` : "";
+}
+
+function formatSplitLane(lane: MergedLane, budgetsEnabled: boolean): string {
+  return section(`## ${lane.title} (${lane.kind}, ${lane.status}${formatCost(lane, budgetsEnabled)}, lane_id ${lane.task_id})`, [
     lane.result_json?.summary?.trim() || "No summary.",
     formatFiles(lane.result_json)
   ]);
@@ -45,13 +52,13 @@ function formatSplitLane(lane: MergedLane): string {
 
 // Judges favour whatever comes first and whoever they know, so diverged answers are anonymized and
 // shown in random order. The UI still shows the real lane titles to the user.
-function formatDivergedAnswers(lanes: MergedLane[], random: () => number): string[] {
+function formatDivergedAnswers(lanes: MergedLane[], budgetsEnabled: boolean, random: () => number): string[] {
   const shuffled = [...lanes];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swap = Math.floor(random() * (index + 1));
     [shuffled[index], shuffled[swap]] = [shuffled[swap], shuffled[index]];
   }
-  return shuffled.map((lane, index) => section(`## Answer ${index + 1} (${lane.status}, lane_id ${lane.task_id})`, [
+  return shuffled.map((lane, index) => section(`## Answer ${index + 1} (${lane.status}${formatCost(lane, budgetsEnabled)}, lane_id ${lane.task_id})`, [
     lane.result_json?.summary?.trim() || "No answer.",
     formatDecisions(lane.result_json),
     formatFiles(lane.result_json)
@@ -67,15 +74,15 @@ function formatCheckLane(lane: MergedLane): string {
 
 export function buildMergeMessage(
   lanes: MergedLane[],
-  settings: Pick<AgentSwarmSettings, "advanced">,
+  settings: Pick<AgentSwarmSettings, "advanced" | "budgetsEnabled">,
   random: () => number = Math.random
 ): string {
   const diverged = lanes.filter((lane) => lane.kind === "diverge");
   const sections = [
-    ...lanes.filter((lane) => lane.kind === "split").map(formatSplitLane),
+    ...lanes.filter((lane) => lane.kind === "split").map((lane) => formatSplitLane(lane, settings.budgetsEnabled)),
     ...(diverged.length > 0
       ? ["These answers were worked out independently. Compare their decisions: what they agree on, where they disagree, and ideas only one had. Build from the best whole answer.",
-        ...formatDivergedAnswers(diverged, random)]
+        ...formatDivergedAnswers(diverged, settings.budgetsEnabled, random)]
       : []),
     ...lanes.filter((lane) => lane.kind === "check").map(formatCheckLane)
   ];
@@ -102,7 +109,7 @@ export async function appendSwarmMergeMessage(execution: AgentExecutionContext, 
       `UPDATE task_swarm_lanes
           SET merged_at = now(), updated_at = now()
         WHERE parent_task_id = $1 AND merged_at IS NULL AND status = ANY($2::text[])
-        RETURNING task_id, title, kind, status, result_json, created_at`,
+        RETURNING task_id, title, kind, status, result_json, created_at, spent_tokens::text AS spent_tokens`,
       [execution.job.taskId, TERMINAL_LANE_STATUSES]
     );
     if (merged.rows.length === 0) return [];

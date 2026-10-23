@@ -472,7 +472,7 @@ export async function initializeAgentExecution(
     workflowTaskDir: workflow.workflowContext?.workflowTaskDir
   });
   prepared.shellEnvOverrides.TASK_INPUT_DIR = taskInputDir;
-  const swarm = await loadSwarmRunContext(prepared.snapshot.task);
+  const swarm = await loadSwarmRunContext(prepared.snapshot.task, prepared.snapshot.platform_model_routers);
   if (swarm) await clearSwarmPark(job.taskId);
   const laneRun = swarm?.lane && swarm.lane.kind !== "check"
     ? await prepareLaneRun({

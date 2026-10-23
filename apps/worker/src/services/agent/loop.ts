@@ -393,6 +393,8 @@ interface ModelTurnResult {
   responseTools: Tool[];
   // Conversation items sent with the request; a split forks from exactly this request.
   requestItemCount: number;
+  // What the response cost, for swarm budgets; null when usage was not reported.
+  weightedTokens: number | null;
 }
 
 // Code mode is a workspace experiment that each model can opt out of; the Master never uses it.
@@ -456,7 +458,8 @@ async function requestModelTurn(input: {
         : undefined,
       allowPersistentShellSessions: getPersistentRuntimeEnabled(execution.prepared.runtimeEnvironmentPayload),
       useClaudeWebSearch: execution.prepared.runtimeModelType === "claude",
-      swarmTools: execution.swarm ? (execution.swarm.lane?.kind === "check" ? "check" : "all") : undefined
+      swarmTools: execution.swarm ? (execution.swarm.lane?.kind === "check" ? "check" : "all") : undefined,
+      swarmRouter: execution.swarm?.router ?? null
     },
     codeMode: isCodeModeEnabled(execution)
   });
@@ -534,7 +537,7 @@ async function requestModelTurn(input: {
     promptPrefixHash: turnRequest.promptPrefixHash,
     promptRevision: turnRequest.promptRevision
   });
-  await recordSubscriptionUsage(execution, response);
+  const weightedTokens = await recordSubscriptionUsage(execution, response);
   await assertStepNotAborted(execution);
 
   return {
@@ -542,7 +545,8 @@ async function requestModelTurn(input: {
     requireWorkflowToolAction: availability.requireWorkflowToolAction,
     codeModeTools: turnRequest.codeModeTools,
     responseTools: turnRequest.responseTools,
-    requestItemCount
+    requestItemCount,
+    weightedTokens
   };
 }
 
@@ -906,7 +910,7 @@ async function processModelTurnResult(
     buildDispatchContext(execution, turn, step),
     execution.state.dispatchState
   );
-  await afterSwarmModelTurn(execution);
+  await afterSwarmModelTurn(execution, turn.weightedTokens);
   if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
   if (execution.state.dispatchState.pendingContextV2Reset) {
     await resetV2ContextWindow(execution, "manual");

@@ -45,6 +45,8 @@ const { loadAutoCheckFiles, loadBranchUserMessages } = await import("./check.js"
 const { resumeLane, steerLane, stopLane } = await import("./lane-control.js");
 const { appendLaneInbox } = await import("./lane-inbox.js");
 const { listDormantLanesInTx } = await import("./dormancy.js");
+const { addResumeShareInTx } = await import("./budget-shares.js");
+const { chargeSwarmStep } = await import("./budget.js");
 
 type SwarmRunContext = NonNullable<Awaited<ReturnType<typeof loadSwarmRunContext>>>;
 
@@ -52,15 +54,22 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
   const workspaceId = randomUUID();
   const environmentId = randomUUID();
 
-  async function createSwarm(advanced: Partial<AgentSwarmSettings["advanced"]> = {}): Promise<SwarmRunContext> {
+  async function createSwarm(
+    advanced: Partial<AgentSwarmSettings["advanced"]> = {},
+    budget: { tokenBudget: number } | null = null
+  ): Promise<SwarmRunContext> {
     const taskId = randomUUID();
-    const settings = normalizeAgentSwarmSettings({ leaderAgentId: "leader", advanced });
+    const settings = normalizeAgentSwarmSettings({ leaderAgentId: "leader", advanced, budgetsEnabled: budget !== null, tokenBudget: budget?.tokenBudget });
     await pool.query(
       `INSERT INTO tasks (id, workspace_id, environment_id, title, status, task_root_path, workflow_type)
        VALUES ($1, $2, $3, 'Swarm', 'running', $4, 'agent_swarm')`,
       [taskId, workspaceId, environmentId, `tasks/${taskId}`]
     );
-    await pool.query("INSERT INTO task_swarms (task_id, config_json) VALUES ($1, $2::jsonb)", [taskId, JSON.stringify(settings)]);
+    await pool.query(
+      "INSERT INTO task_swarms (task_id, config_json, token_budget, reserve_tokens) VALUES ($1, $2::jsonb, $3, $4)",
+      [taskId, JSON.stringify(settings), settings.tokenBudget,
+        settings.tokenBudget === null ? 0 : Math.ceil(settings.tokenBudget * settings.advanced.budgetReservePercent / 100)]
+    );
     return (await loadSwarmRunContext({ id: taskId, workflow_type: "agent_swarm", workflow_parent_task_id: null, workflow_internal_role: null }))!;
   }
 
@@ -85,7 +94,13 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     spinePath: null
   };
 
-  async function split(swarm: SwarmRunContext, parentTaskId: string, titles: string[], kind: "split" | "diverge" = "split") {
+  async function split(
+    swarm: SwarmRunContext,
+    parentTaskId: string,
+    titles: string[],
+    kind: "split" | "diverge" = "split",
+    weights: number[] = titles.map(() => 1)
+  ) {
     return createForkedLanes({
       swarm,
       parentTaskId,
@@ -96,7 +111,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
         items: [{ role: "user", content: "Find the programs." }],
         capabilities: seedCapabilities
       },
-      lanes: titles.map((title, index) => ({ label: String.fromCharCode(65 + index), title, direction: null, weight: 1 })),
+      lanes: titles.map((title, index) => ({ label: String.fromCharCode(65 + index), title, direction: null, weight: weights[index], modelRoute: null })),
       envRoot: "/env",
       buildForkOutput: (lane) => ({ brief: lane.title, item: { type: "function_call_output", call_id: "call_split", output: lane.title } })
     });
@@ -321,6 +336,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
       parentTaskId: swarm.swarmTaskId,
       seed: { capabilities: seedCapabilities },
       focus: null,
+      modelRoute: null,
       envRoot: "/env",
       buildBrief: () => "Check the table."
     });
@@ -401,5 +417,33 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const second = await insert("user", "Only EU ones.", reply);
 
     expect(await loadBranchUserMessages(swarm.swarmTaskId, second)).toEqual(["Find the grants.", "Only EU ones."]);
+  });
+
+  it("divides the budget across lanes, minus the reserve, and lets a resume give a lane more", async () => {
+    const swarm = await createSwarm({ budgetReservePercent: 10, dormantLaneTurns: 3 }, { tokenBudget: 1_000_000 });
+    const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    await chargeSwarmStep(swarm, swarm.swarmTaskId, 100_000);
+    const [eu, national] = await split(swarm, swarm.swarmTaskId, ["EU", "National"], "split", [3, 1]);
+    const shares = async () => (await pool.query<{ share_tokens: string }>(
+      "SELECT share_tokens FROM task_swarm_lanes WHERE parent_task_id = $1 ORDER BY created_at, task_id", [swarm.swarmTaskId]))
+      .rows.map((row) => Number(row.share_tokens));
+    expect(await shares()).toEqual([600_000, 200_000]);
+
+    await chargeSwarmStep(await laneContext(eu.taskId), eu.taskId, 50_000);
+    const spent = (await pool.query("SELECT spent_tokens FROM task_swarm_lanes WHERE task_id = $1", [eu.taskId])).rows[0];
+    expect(Number(spent.spent_tokens)).toBe(50_000);
+    await expect(split(swarm, swarm.swarmTaskId, ["One more"])).rejects.toThrow(/not enough for 1 lane/);
+
+    await submit(eu.taskId);
+    await submit(national.taskId);
+    await appendSwarmMergeMessage(executionFor(leaderJob), swarm);
+    // EU spent 50k; the leader now holds 1M - 100k reserve - 150k spent = 750k to give.
+    await expect(withClient((client) => addResumeShareInTx(client, swarm, swarm.swarmTaskId, eu.taskId, 800_000)))
+      .rejects.toThrow(/750,000 tokens left/);
+    await resumeLane({
+      swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: eu.taskId, message: "Go deeper.",
+      addShare: (client, lane) => addResumeShareInTx(client, swarm, swarm.swarmTaskId, lane.task_id, 100_000)
+    });
+    expect(await shares()).toEqual([700_000, 200_000]);
   });
 });

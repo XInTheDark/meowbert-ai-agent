@@ -1,5 +1,7 @@
 import { loadSubagentRuntime, loadSubagentPlatformProvider } from "../subagents/runtime.js";
+import type { SubagentRuntime } from "../subagents/types.js";
 import { loadLaneRuntime } from "../agent-swarm/fork-seed.js";
+import { applyLaneModelRoute, loadLaneModelRoute } from "../agent-swarm/model-route.js";
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import path from "node:path";
 import {
@@ -398,6 +400,15 @@ async function resolveRoutedRuntime(input: {
   return { runtimeModel, runtimeEnvironmentPayload, quickMode };
 }
 
+async function loadRoutedLaneRuntime(
+  laneTaskId: string,
+  routers: TaskSnapshot["platform_model_routers"],
+  environmentPayload: Record<string, unknown>
+): Promise<SubagentRuntime | null> {
+  const runtime = await loadLaneRuntime(laneTaskId);
+  return runtime ? applyLaneModelRoute(runtime, await loadLaneModelRoute(laneTaskId), routers, environmentPayload) : null;
+}
+
 async function resolveRuntimeConfig(
   job: TaskExecutionJob,
   snapshot: TaskSnapshot,
@@ -421,10 +432,13 @@ async function resolveRuntimeConfig(
     snapshot.platform_agent_presets,
     resolvedRunActorIsSuperAdmin
   );
-  // Subagents and swarm lanes run on the model and provider they were started with.
+  // Subagents and swarm lanes run on the model and provider they were started with, or on the
+  // router target their swarm parent picked for them.
   const inheritedRuntime = snapshot.task.parent_task_id
     ? await loadSubagentRuntime(job.taskId)
-    : snapshot.task.workflow_internal_role === "lane" ? await loadLaneRuntime(job.taskId) : null;
+    : snapshot.task.workflow_internal_role === "lane"
+      ? await loadRoutedLaneRuntime(job.taskId, snapshot.platform_model_routers, baseEnvironmentJsonPayload)
+      : null;
   const selectedAgentPreset = inheritedRuntime ? null : await resolveEffectiveAgentPreset({ snapshot, visibleAgentPresets });
   const isMemorySynthesis = job.mode === "memory_synthesis";
   const isQualityControlReviewer = job.mode === "quality_control_reviewer";

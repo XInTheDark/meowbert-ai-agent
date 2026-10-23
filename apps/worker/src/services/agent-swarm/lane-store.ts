@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import type { ChosenModelRoute } from "@meowbert/shared";
 
 export type SwarmQueryable = Pick<PoolClient, "query">;
 
@@ -64,15 +65,18 @@ export async function insertLaneInTx(client: PoolClient, lane: {
   direction: string | null;
   forkSeedId: string | null;
   weight: number;
+  modelRoute: ChosenModelRoute | null;
+  shareTokens: number | null;
 }): Promise<void> {
   await client.query(
     // clock_timestamp keeps the lanes of one split in the order they were given, for FIFO starts. A
     // fork already knows everything before it, so its note cursor starts after the swarm's latest note.
     `INSERT INTO task_swarm_lanes (task_id, swarm_task_id, parent_task_id, depth, kind, title, direction, status, fork_seed_id, weight,
-       note_cursor, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', $8, $9,
+       model_route_json, share_tokens, note_cursor, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', $8, $9, $10::jsonb, $11,
        (SELECT COALESCE(MAX(seq), 0) FROM task_swarm_notes WHERE swarm_task_id = $2), clock_timestamp())`,
-    [lane.taskId, lane.swarmTaskId, lane.parentTaskId, lane.depth, lane.kind, lane.title, lane.direction, lane.forkSeedId, lane.weight]
+    [lane.taskId, lane.swarmTaskId, lane.parentTaskId, lane.depth, lane.kind, lane.title, lane.direction, lane.forkSeedId, lane.weight,
+      lane.modelRoute ? JSON.stringify(lane.modelRoute) : null, lane.shareTokens]
   );
 }
 

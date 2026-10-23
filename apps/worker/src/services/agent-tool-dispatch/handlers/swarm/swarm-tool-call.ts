@@ -1,13 +1,13 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import type { ZodType } from "zod";
-import { LaneControlError } from "../../../agent-swarm/lane-control.js";
+import { SwarmToolError } from "../../../agent-swarm/tool-error.js";
 import { toolErrorResult, type ToolCallResult } from "../../tool-call-result.js";
 import type { ToolDispatchContext } from "../../types.js";
 import { checkSwarmToolRole } from "./role-gate.js";
 
-// The shared shape of steer, stop and resume: role check, arguments, then an action on one of the
-// caller's own lanes whose refusals become tool errors.
-export async function runLaneControlCall<T>(
+// The shared shape of the swarm tools that act on lanes: role check, arguments, then an action whose
+// refusals become tool errors.
+export async function runSwarmToolCall<T>(
   call: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   schema: ZodType<T>,
@@ -22,7 +22,7 @@ export async function runLaneControlCall<T>(
   try {
     return await action(parsed.data);
   } catch (error) {
-    if (error instanceof LaneControlError) return toolErrorResult(error.message);
+    if (error instanceof SwarmToolError) return toolErrorResult(error.message);
     throw error;
   }
 }

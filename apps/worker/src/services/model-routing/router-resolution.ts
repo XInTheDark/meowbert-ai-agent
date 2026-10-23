@@ -479,8 +479,9 @@ export async function resolveModelRouterSelection(input: ModelRouterSelectionInp
   return resolution;
 }
 
-// The Project Master already picked from the router's targets, so no routing request is made.
-function resolveChosenRoute(
+// The Project Master (or a swarm parent picking a lane's model) already picked from the router's
+// targets, so no routing request is made.
+export function resolveChosenRoute(
   chosenRoute: ChosenModelRoute,
   router: PlatformModelRouter,
   requestedModel: string,

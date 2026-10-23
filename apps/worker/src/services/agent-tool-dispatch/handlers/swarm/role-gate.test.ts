@@ -15,10 +15,12 @@ function context(
   return {
     swarmTaskId: "root",
     settings: normalizeAgentSwarmSettings({ leaderAgentId: "leader", advanced: { maxDepth } }),
+    router: null,
     lane: lane ? { task_id: "lane", parent_task_id: "root", depth: 1, kind: "split", ...lane } as SwarmLaneRow : null,
     ancestorLaneIds: [],
     withinDiverge,
     forcedSubmitReason: null,
+    budgetNoteSent: false,
     activity: createSwarmActivity()
   };
 }

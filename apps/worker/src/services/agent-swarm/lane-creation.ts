@@ -1,19 +1,22 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { PoolClient } from "pg";
-import { createTaskMessageMetadata } from "@meowbert/shared";
+import { createTaskMessageMetadata, type ChosenModelRoute } from "@meowbert/shared";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { withTransaction } from "../../lib/db.js";
 import type { SwarmRunContext } from "./config.js";
+import { allocateForkSharesInTx } from "./budget-shares.js";
 import { insertForkSeedInTx, type ForkSeed } from "./fork-seed.js";
 import { countActiveChildrenInTx, insertLaneInTx, type SwarmLaneKind } from "./lane-store.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
+import { SwarmToolError } from "./tool-error.js";
 
 export interface NewLane {
   label: string;
   title: string;
   direction: string | null;
   weight: number;
+  modelRoute: ChosenModelRoute | null;
 }
 
 export interface CreatedLane {
@@ -41,7 +44,7 @@ async function prepareLaneCreationInTx(client: PoolClient, swarm: SwarmRunContex
   const active = await countActiveChildrenInTx(client, parentTaskId);
   const maxLanes = swarm.settings.advanced.maxLanesPerParent;
   if (active + count > maxLanes) {
-    throw new Error(`A parent can run at most ${maxLanes} lanes at once; ${active} are still active.`);
+    throw new SwarmToolError(`A parent can run at most ${maxLanes} lanes at once; ${active} are still active.`);
   }
   return (await client.query<SwarmRootRow>(
     `SELECT workspace_id, environment_id, initiator_user_id, task_root_path, default_timezone, max_steps_override
@@ -93,10 +96,11 @@ export async function createForkedLanes(input: {
   const { swarm } = input;
   return withTransaction(async (client) => {
     const root = await prepareLaneCreationInTx(client, swarm, input.parentTaskId, input.lanes.length);
+    const shares = await allocateForkSharesInTx(client, swarm, input.parentTaskId, input.lanes.map((lane) => lane.weight));
     const seedId = await insertForkSeedInTx(client, { ...input.seed, swarmTaskId: swarm.swarmTaskId, sourceTaskId: input.parentTaskId });
     const depth = (swarm.lane?.depth ?? 0) + 1;
     const created: CreatedLane[] = [];
-    for (const lane of input.lanes) {
+    for (const [index, lane] of input.lanes.entries()) {
       const taskId = randomUUID();
       const forkOutput = input.buildForkOutput({ ...lane, laneDir: path.resolve(input.envRoot, laneRootPath(root, taskId)) });
       await insertLaneTaskInTx(client, {
@@ -115,7 +119,9 @@ export async function createForkedLanes(input: {
         title: lane.title,
         direction: lane.direction,
         forkSeedId: seedId,
-        weight: lane.weight
+        weight: lane.weight,
+        modelRoute: lane.modelRoute,
+        shareTokens: shares[index]
       });
       created.push({ taskId, label: lane.label, title: lane.title });
     }
@@ -131,6 +137,7 @@ export async function createCheckLane(input: {
   parentTaskId: string;
   seed: Pick<ForkSeed, "capabilities">;
   focus: string | null;
+  modelRoute: ChosenModelRoute | null;
   envRoot: string;
   buildBrief: (laneDir: string) => string;
 }): Promise<CreatedLane> {
@@ -166,7 +173,10 @@ export async function createCheckLane(input: {
       title,
       direction: input.focus,
       forkSeedId: seedId,
-      weight: 1
+      weight: 1,
+      modelRoute: input.modelRoute,
+      // Check is paid from the swarm's reserve rather than a share of its own.
+      shareTokens: null
     });
     await startQueuedLanesInTx(client, swarm.swarmTaskId, swarm.settings.advanced.maxRunningLanes);
     return { taskId, label: "Check", title };

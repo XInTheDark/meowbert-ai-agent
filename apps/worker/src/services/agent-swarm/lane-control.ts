@@ -15,27 +15,27 @@ import {
   type SwarmLaneRow
 } from "./lane-store.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
+import { SwarmToolError } from "./tool-error.js";
 
-// A parent acts only on its own direct lanes. Errors are what the model sees.
-export class LaneControlError extends Error {}
 
 function isActive(lane: Pick<SwarmLaneRow, "status">): boolean {
   return (ACTIVE_LANE_STATUSES as readonly string[]).includes(lane.status);
 }
 
+// A parent acts only on its own direct lanes.
 async function loadOwnLaneInTx(client: PoolClient, swarm: SwarmRunContext, parentTaskId: string, laneTaskId: string): Promise<SwarmLaneRow> {
   await lockSwarmInTx(client, swarm.swarmTaskId);
   await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [parentTaskId]);
   const lane = await loadChildLane(client, parentTaskId, laneTaskId);
-  if (!lane) throw new LaneControlError("That is not one of your lanes.");
+  if (!lane) throw new SwarmToolError("That is not one of your lanes.");
   return lane;
 }
 
 export async function steerLane(input: { swarm: SwarmRunContext; parentTaskId: string; laneTaskId: string; message: string }): Promise<void> {
   await withTransaction(async (client) => {
     const lane = await loadOwnLaneInTx(client, input.swarm, input.parentTaskId, input.laneTaskId);
-    if (lane.status === "done") throw new LaneControlError("This lane has submitted. Use resume to continue it.");
-    if (!isActive(lane)) throw new LaneControlError("This lane has ended.");
+    if (lane.status === "done") throw new SwarmToolError("This lane has submitted. Use resume to continue it.");
+    if (!isActive(lane)) throw new SwarmToolError("This lane has ended.");
     await insertLaneInboxInTx(client, { laneTaskId: lane.task_id, swarmTaskId: lane.swarm_task_id, kind: "steer", body: input.message });
   });
 }
@@ -83,7 +83,7 @@ export async function stopLane(input: {
 }): Promise<void> {
   await withTransaction(async (client) => {
     const lane = await loadOwnLaneInTx(client, input.swarm, input.parentTaskId, input.laneTaskId);
-    if (!isActive(lane)) throw new LaneControlError("This lane has already finished.");
+    if (!isActive(lane)) throw new SwarmToolError("This lane has already finished.");
     const descendantIds = await listDescendantLaneIdsInTx(client, lane.task_id);
     const targets = [lane];
     for (const id of descendantIds) {
@@ -108,14 +108,14 @@ export async function resumeLane(input: {
   parentTaskId: string;
   laneTaskId: string;
   message: string;
-  // Applied in the same transaction, for budgets; may throw a LaneControlError.
+  // Applied in the same transaction, for budgets; may refuse with a SwarmToolError.
   addShare?: (client: PoolClient, lane: SwarmLaneRow) => Promise<void>;
 }): Promise<SwarmLaneRow> {
   return withTransaction(async (client) => {
     const lane = await loadOwnLaneInTx(client, input.swarm, input.parentTaskId, input.laneTaskId);
-    if (isActive(lane)) throw new LaneControlError("This lane is still working. Use steer to send it a message.");
+    if (isActive(lane)) throw new SwarmToolError("This lane is still working. Use steer to send it a message.");
     if (!await isLaneResumableInTx(client, lane, input.swarm.settings.advanced.dormantLaneTurns)) {
-      throw new LaneControlError("This lane can no longer be resumed. Split a new lane instead.");
+      throw new SwarmToolError("This lane can no longer be resumed. Split a new lane instead.");
     }
     await input.addShare?.(client, lane);
     await insertLaneInboxInTx(client, { laneTaskId: lane.task_id, swarmTaskId: lane.swarm_task_id, kind: "resume", body: input.message });
