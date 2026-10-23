@@ -1,9 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
+  normalizeAgentSwarmAdvancedSettings,
+  AGENT_SWARM_ADVANCED_RANGES,
   AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
-  AGENT_SWARM_MAX_TOKEN_BUDGET,
-  AGENT_SWARM_MAX_WORKERS
+  AGENT_SWARM_MAX_TOKEN_BUDGET
 } from "@meowbert/shared";
 import { listAdminProcesses } from "../services/admin/admin-processes.js";
 import { listRecentMemoryRefreshes } from "../services/admin/admin-memory-refreshes.js";
@@ -19,24 +20,41 @@ import {
 } from "../services/admin/admin-settings.js";
 import { parseCsvList, parseUuidCsvList } from "./admin-query-params.js";
 
+function advancedInteger(field: keyof typeof AGENT_SWARM_ADVANCED_RANGES) {
+  const range = AGENT_SWARM_ADVANCED_RANGES[field];
+  return z.number().int().min(range.min).max(range.max);
+}
+
+// Agent Swarm defaults; every field here is also a composer task parameter (see AGENTS.md).
+const agentSwarmAdvancedSchema = z.object({
+  maxLanesPerParent: advancedInteger("maxLanesPerParent"),
+  maxDepth: advancedInteger("maxDepth"),
+  maxRunningLanes: advancedInteger("maxRunningLanes"),
+  laneMaxSteps: advancedInteger("laneMaxSteps").nullable(),
+  reconNudgeSteps: advancedInteger("reconNudgeSteps"),
+  forkCompactionThresholdTokens: advancedInteger("forkCompactionThresholdTokens"),
+  laneSummaryMaxTokens: advancedInteger("laneSummaryMaxTokens"),
+  assemblyHintTokens: advancedInteger("assemblyHintTokens"),
+  dormantLaneTurns: advancedInteger("dormantLaneTurns"),
+  autoCheck: z.boolean(),
+  budgetReservePercent: advancedInteger("budgetReservePercent"),
+  laneWrapUpPercent: advancedInteger("laneWrapUpPercent")
+}).strict().partial().transform((advanced) => normalizeAgentSwarmAdvancedSettings(advanced));
+
 const agentPresetSchema = z.object({
   id: z.string().min(1).max(240),
   name: z.string().min(1).max(240),
   description: z.string().min(1).max(240),
   requiresSuperAdmin: z.boolean().default(false),
   hidden: z.boolean().optional(),
-  spawnableAsNode: z.boolean().optional(),
   payload: z.record(z.string(), z.unknown()),
   mode: z.enum(["standard", "agent_swarm", "quality_control_reviewer"]).optional(),
   leaderAgentId: z.string().min(1).max(240).optional(),
-  modelAllocations: z.array(z.object({
-    agentId: z.string().min(1).max(240),
-    workerCount: z.number().int().min(1).max(AGENT_SWARM_MAX_WORKERS)
-  }).strict()).max(20).optional(),
-  reviewRounds: z.number().int().min(0).max(10).optional(),
+  routerId: z.string().min(1).max(240).nullable().optional(),
+  budgetsEnabled: z.boolean().optional(),
   tokenBudget: z.number().int().positive().max(AGENT_SWARM_MAX_TOKEN_BUDGET).optional(),
   timeBudgetMinutes: z.number().int().positive().max(AGENT_SWARM_MAX_TIME_BUDGET_MINUTES).optional(),
-  disableSpawningAndBudgets: z.boolean().optional()
+  advanced: agentSwarmAdvancedSchema.optional()
 });
 
 const modelMetadataSchema = z.record(z.string(), z.record(z.string(), z.unknown()));

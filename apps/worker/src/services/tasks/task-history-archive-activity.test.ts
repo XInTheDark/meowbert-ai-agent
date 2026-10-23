@@ -36,14 +36,13 @@ describe("task history archive activity", () => {
         compressedSizeBytes: 250,
         messageCount: 4,
         eventCount: 20,
-        revisionCount: 1,
-        workflowMessageCount: 2
+        revisionCount: 1
       }
     });
 
     expect(mockedQuery).toHaveBeenCalledWith(
       expect.stringContaining("compressed_size_bytes = $5"),
-      ["run-1", "completed", "v1/task.json.gz", 1000, 250, 4, 20, 1, 2, null]
+      ["run-1", "completed", "v1/task.json.gz", 1000, 250, 4, 20, 1, null]
     );
   });
 
@@ -56,11 +55,10 @@ describe("task history archive activity", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledWith(
-      expect.stringContaining("error_summary = $10"),
+      expect.stringContaining("error_summary = $9"),
       [
         "run-1",
         "skipped",
-        null,
         null,
         null,
         null,

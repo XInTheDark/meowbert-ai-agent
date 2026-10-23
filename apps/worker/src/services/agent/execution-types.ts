@@ -26,10 +26,8 @@ export interface WaitRequest extends FinalResponseRequest {
 }
 
 export interface WorkflowPauseRequest {
-  kind: "long_horizon_started" | "long_horizon_submitted" | "long_horizon_reviewed" | "long_horizon_clarification_requested" | "agent_swarm_paused";
+  kind: "long_horizon_started" | "long_horizon_submitted" | "long_horizon_reviewed" | "long_horizon_clarification_requested";
   response?: string;
-  // A stalled swarm hands the task back to the user instead of re-queueing.
-  awaitUser?: boolean;
 }
 
 export interface AgentRunControlState {
@@ -52,7 +50,6 @@ export interface WorkflowCapabilityState {
   allowWorkflowRequestClarification: boolean;
   allowWorkflowSubmitResponse: boolean;
   allowWorkflowSubmitReview: boolean;
-  allowSwarmTools: boolean;
 }
 
 export interface AgentExecutionState {
@@ -110,11 +107,6 @@ export interface AgentFailureContext {
 export interface AgentStepAvailability {
   allowFinalResponseTool: boolean;
   allowWaitTool: boolean;
-  allowSwarmPauseTool: boolean;
-  allowSwarmManageTool: boolean;
-  allowSwarmReviewTool: boolean;
-  allowSwarmFinalReviewTool: boolean;
-  allowSwarmOutputTool: boolean;
   allowStopTaskTool: boolean;
   requireWorkflowToolAction: boolean;
   stepsRemaining: number;

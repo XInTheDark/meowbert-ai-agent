@@ -29,7 +29,7 @@ export interface EnqueueRunInput {
     | "long_horizon_reviewer"
     | "quality_control_reviewer"
     | "agent_swarm_leader"
-    | "agent_swarm_worker"
+    | "agent_swarm_lane"
     | "memory_synthesis";
   restoreStatus?: TaskStatus;
   branchMessageId?: string;

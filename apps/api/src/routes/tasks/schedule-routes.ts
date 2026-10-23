@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PoolClient } from "pg";
-import type { PlatformAgentPreset, TaskWorkflowType } from "@meowbert/shared";
+import type { TaskWorkflowType } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { resolveTaskScheduleConfig } from "../../services/tasks/task-schedule-config.js";
 import {
@@ -14,14 +14,12 @@ import {
 } from "../../services/tasks/recurring-run-entitlement.js";
 import { updateTaskTimeLimitConfigInTx } from "../../services/tasks/task-service/time-limit.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
-import { getVisiblePlatformAgentsForUser } from "../../services/platform/platform-agents.js";
 import {
   applyWorkflowTransitionInTx,
   assertTaskTypeTransitionIdleInTx,
   clearTaskWorkflowInTx
 } from "../../services/tasks/task-workflow-transitions.js";
 import { getTaskWorkflowOverview } from "../../services/tasks/task-workflows.js";
-import { selectAgentSwarmNodeTypes } from "../../services/tasks/agent-swarm-node-types.js";
 import {
   assertRecurringTaskLimits,
   buildEntitlementExceededPayload,
@@ -335,9 +333,6 @@ function mergeTaskCleanupCandidates(
 }
 
 async function patchTaskParameters(taskId: string, userId: string, body: TaskParametersPatchInput) {
-  const dynamicNodeTypes: PlatformAgentPreset[] | undefined = body.workflow?.type === "agent_swarm"
-    ? selectAgentSwarmNodeTypes((await getVisiblePlatformAgentsForUser(userId)).presets)
-    : undefined;
   const result = await withTransaction(async (client) => {
     const task = await loadLockedTask(client, taskId);
     if (!task) {
@@ -360,8 +355,7 @@ async function patchTaskParameters(taskId: string, userId: string, body: TaskPar
         taskId,
         userId,
         task,
-        workflow: body.workflow,
-        dynamicNodeTypes
+        workflow: body.workflow
       }));
       if (body.workflow.type !== "standard") {
         await deleteTaskSchedule(client, taskId);

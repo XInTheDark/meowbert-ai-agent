@@ -205,16 +205,7 @@ function resolveFinalResponse(execution: AgentExecutionContext): ResolvedFinalRe
 }
 
 function shouldAllowFinalizeAfterSelfQueuedContinuation(execution: AgentExecutionContext): boolean {
-  const workflowContext = execution.workflow.workflowContext;
-  if (!workflowContext) {
-    return false;
-  }
-
-  if (workflowContext.workflowType === "agent_swarm") {
-    return execution.state.waitRequest?.nextRunAt !== null;
-  }
-
-  return workflowContext.workflowType === "long_horizon"
+  return execution.workflow.workflowContext !== null
     && execution.state.workflowPauseRequest?.kind === "long_horizon_started";
 }
 
@@ -320,7 +311,6 @@ async function maybeFinalizeWorkflowRun(execution: AgentExecutionContext, input:
 
   if (input.hasFinalResponse) {
     const completedWorkflow = await markWorkflowCompleted(workflowContext, {
-      keepRunId: execution.job.runId,
       currentRunId: execution.job.runId
     });
     if (!completedWorkflow) {
@@ -332,11 +322,6 @@ async function maybeFinalizeWorkflowRun(execution: AgentExecutionContext, input:
 
   if (input.hasAssistantPauseText && execution.job.mode === "long_horizon_clarify") {
     await completeRunWithTaskStatus(execution, "awaiting_input");
-    return true;
-  }
-
-  if (execution.state.workflowPauseRequest?.awaitUser) {
-    await completeRunWithTaskStatus(execution, "awaiting_input", true);
     return true;
   }
 

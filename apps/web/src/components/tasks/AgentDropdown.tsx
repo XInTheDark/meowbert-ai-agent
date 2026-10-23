@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { Bot, Check, ChevronDown, type LucideIcon } from "lucide-react";
-import type { AgentSwarmAgentAllocation } from "@meowbert/shared/agent-swarm";
+import type { AgentSwarmAdvancedSettings } from "@meowbert/shared/agent-swarm-config";
 import {
   useChatToolsDropdownPlacement,
   type ChatToolsPopoverPlacement
@@ -12,12 +12,11 @@ export type AgentSummaryMode = "standard" | "agent_swarm" | "quality_control_rev
 // A swarm preset's own settings, used to prefill the composer when the swarm is selected.
 export interface AgentSwarmPresetSummary {
   leaderAgentId: string | null;
-  modelAllocations: AgentSwarmAgentAllocation[];
-  reviewRounds: number;
+  routerId: string | null;
+  budgetsEnabled: boolean;
   tokenBudget: number | null;
   timeBudgetMinutes: number | null;
-  disableSpawningAndBudgets: boolean;
-  members: Array<{ id: string; name: string; mode: AgentSummaryMode }>;
+  advanced: AgentSwarmAdvancedSettings;
 }
 
 export interface AgentSummary {
@@ -25,8 +24,6 @@ export interface AgentSummary {
   name: string;
   description: string;
   mode?: AgentSummaryMode;
-  swarmWorkerCount?: number;
-  swarmReviewRounds?: number;
   swarm?: AgentSwarmPresetSummary;
 }
 

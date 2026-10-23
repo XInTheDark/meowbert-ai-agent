@@ -110,6 +110,8 @@ interface TaskDetailConversationPaneProps {
   showAgentSwitcher: boolean;
   errorText: string | null;
   hideComposer?: boolean;
+  // Shown where the composer would be when this conversation cannot be continued.
+  composerNotice?: string | null;
   showMessageActions?: boolean;
   showMessageAuthors?: boolean;
   submitWithShiftEnter?: boolean;
@@ -238,7 +240,9 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
         ) : null}
       </div>
 
-      {hideComposer ? null : (
+      {hideComposer ? (
+        props.composerNotice ? <p className="chat-input-notice muted-text">{props.composerNotice}</p> : null
+      ) : (
         <div ref={composerRef} className={`chat-input-container${isMobileInputCollapsed ? " mobile-collapsed" : ""}`}>
           {isMobileInputCollapsed ? (
             <button

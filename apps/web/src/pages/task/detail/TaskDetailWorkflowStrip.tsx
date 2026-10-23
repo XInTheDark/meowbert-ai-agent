@@ -1,10 +1,6 @@
 import { useMemo } from "react";
-import { PanelRightOpen, Users, GitFork, Compass } from "lucide-react";
-import type {
-  LongHorizonWorkflowOverview,
-  AgentSwarmWorkflowOverview,
-  TaskWorkflowOverview
-} from "../../../lib/types";
+import { PanelRightOpen, GitFork, Compass } from "lucide-react";
+import type { LongHorizonWorkflowOverview, TaskWorkflowOverview } from "../../../lib/types";
 import { badgeClass } from "../../../lib/utils";
 import type { TaskDetailWorkflowSidebarController } from "./useTaskDetailWorkflowSidebar";
 
@@ -49,58 +45,15 @@ function LongHorizonMetrics(props: {
   );
 }
 
-function AgentSwarmMetrics(props: {
-  workflow: AgentSwarmWorkflowOverview;
-  sidebar: TaskDetailWorkflowSidebarController;
-}) {
-  const activeWorkerCount = useMemo(
-    () => props.workflow.agentSwarm.workers.filter((worker) => (
-      !worker.paused && (worker.status === "running" || worker.status === "starting" || worker.status === "queued")
-    )).length,
-    [props.workflow.agentSwarm.workers]
-  );
-  const workerTotal = props.workflow.agentSwarm.workerCount;
-  const channelTotal = props.workflow.agentSwarm.channels.length;
-
-  return (
-    <div className="task-workflow-strip-metrics">
-      <button
-        type="button"
-        className={`task-workflow-strip-chip${activeWorkerCount > 0 ? " active" : ""}`}
-        onClick={props.sidebar.openOverview}
-        title="View swarm workers"
-      >
-        <span>Workers</span>
-        <strong>{`${activeWorkerCount}/${workerTotal} active`}</strong>
-      </button>
-      <button
-        type="button"
-        className="task-workflow-strip-chip"
-        onClick={props.sidebar.openOverview}
-        title="View swarm channels"
-      >
-        <span>Channels</span>
-        <strong>{channelTotal}</strong>
-      </button>
-    </div>
-  );
-}
-
 function getWorkflowTitle(workflow: TaskWorkflowOverview): string {
-  if (workflow.type === "long_horizon") {
-    if (workflow.config.reviewMode === "quality_control") return "Quality Control";
-    if (workflow.config.researchMode === "deep_research") return "Deep Research";
-    return "Long Horizon";
-  }
-  return "Agent Swarm";
+  if (workflow.config.reviewMode === "quality_control") return "Quality Control";
+  if (workflow.config.researchMode === "deep_research") return "Deep Research";
+  return "Long Horizon";
 }
 
 function WorkflowIcon({ workflow }: { workflow: TaskWorkflowOverview }) {
-  if (workflow.type === "long_horizon") {
-    if (workflow.config.researchMode === "deep_research") return <Compass size={14} aria-hidden="true" />;
-    return <GitFork size={14} aria-hidden="true" />;
-  }
-  return <Users size={14} aria-hidden="true" />;
+  if (workflow.config.researchMode === "deep_research") return <Compass size={14} aria-hidden="true" />;
+  return <GitFork size={14} aria-hidden="true" />;
 }
 
 export function TaskDetailWorkflowStrip(props: TaskDetailWorkflowStripProps) {
@@ -125,11 +78,7 @@ export function TaskDetailWorkflowStrip(props: TaskDetailWorkflowStripProps) {
         </span>
       </button>
 
-      {props.workflow.type === "long_horizon" ? (
-        <LongHorizonMetrics workflow={props.workflow} sidebar={props.sidebar} />
-      ) : (
-        <AgentSwarmMetrics workflow={props.workflow} sidebar={props.sidebar} />
-      )}
+      <LongHorizonMetrics workflow={props.workflow} sidebar={props.sidebar} />
 
       <button
         type="button"

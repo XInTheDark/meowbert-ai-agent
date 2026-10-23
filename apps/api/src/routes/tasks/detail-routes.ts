@@ -10,6 +10,7 @@ import { resolveActiveLeafMessageId } from "../../services/tasks/task-service/in
 import { getAdminSettings } from "../../services/admin/admin-settings.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { getTaskWorkflowOverview } from "../../services/tasks/task-workflows.js";
+import { legacyAgentSwarmTaskSql } from "../../services/agent-swarm/legacy.js";
 import { ensureTaskHistoryWarm } from "../../services/tasks/task-history.js";
 import {
   sanitizeContextUsagePayloadForDebugMode,
@@ -70,6 +71,8 @@ interface TaskDetailRow {
   subtask_depth: number;
   task_root_path: string;
   workflow_type: TaskWorkflowType | null;
+  // An Agent Swarm from before lanes: readable, but it cannot be continued.
+  is_legacy_swarm: boolean;
   interactive_canvas_id: string | null;
   interactive_canvas_intent: "create" | "update" | "view" | null;
   is_thread: boolean;
@@ -548,6 +551,7 @@ async function loadTaskDetailRecord(taskId: string) {
           t.subtask_depth,
           t.task_root_path,
           t.workflow_type,
+          ${legacyAgentSwarmTaskSql("t")} AS is_legacy_swarm,
           t.interactive_canvas_id,
           t.interactive_canvas_intent,
           (tt.task_id IS NOT NULL) AS is_thread,

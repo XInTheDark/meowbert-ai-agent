@@ -1,22 +1,19 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
-  compilePlatformAgentSwarm,
   findPlatformAgentPresetById,
   resolvePlatformAgentPresetMode,
   resolveWorkspaceDefaultAgentId,
-  type CompiledAgentSwarm,
-  type AgentSwarmAgentAllocation
+  type AgentSwarmSettings,
+  type PlatformAgentPreset
 } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { createLongHorizonWorkflowTask } from "../../services/tasks/task-workflows.js";
-import { createAgentSwarmTaskFromSettings } from "../../services/tasks/agent-swarm-task-creation.js";
-import { selectAgentSwarmNodeTypes } from "../../services/tasks/agent-swarm-node-types.js";
-import { resolveAgentSwarmTaskSettings, type AgentSwarmTaskSettings } from "../../services/tasks/agent-swarm-task-settings.js";
+import { createAgentSwarmTask } from "../../services/agent-swarm/creation.js";
+import { resolveAgentSwarmSettings } from "../../services/agent-swarm/settings.js";
 import { ensureEnvironmentStorageRoot } from "../../services/environments/environment-storage.js";
 import { assertCanvasBelongsToProject, touchProjectCanvasTask } from "../../services/canvases/project-canvases.js";
 import { getPromptEntitlementStatus, recordPromptUsageIfRequired } from "../../services/billing/entitlements.js";
 import {
-  requireVisiblePlatformAgentAllocationsForUser,
   requireVisiblePlatformAgentSelectionForUser,
   getVisiblePlatformAgentsForUser
 } from "../../services/platform/platform-agents.js";
@@ -91,10 +88,7 @@ async function createRequestedTask(input: {
   initialRunMode: "default" | "scheduled_auto" | "infinite_auto";
   scheduleInput: ResolvedScheduleInput | null;
   selectedAgent: Awaited<ReturnType<typeof requireVisiblePlatformAgentSelectionForUser>>;
-  agentSwarmAgentAllocations: AgentSwarmAgentAllocation[];
-  compiledSwarm: CompiledAgentSwarm | null;
-  swarmSettings: AgentSwarmTaskSettings | null;
-  dynamicNodeTypes: Awaited<ReturnType<typeof getVisiblePlatformAgentsForUser>>["presets"];
+  swarmSettings: AgentSwarmSettings | null;
 }): Promise<{ taskId: string; runId: string; userMessageId: string; reusedExisting: boolean }> {
   const baseInput = {
     taskId: input.body.taskId,
@@ -115,7 +109,7 @@ async function createRequestedTask(input: {
     interactiveCanvasIntent: input.body.interactiveCanvasIntent ?? (input.body.interactiveCanvasId ? "update" : null)
   };
 
-  if (!input.body.workflow && !input.compiledSwarm) {
+  if (!input.body.workflow && !input.swarmSettings) {
     return createTaskWithInitialMessage({
       ...baseInput,
       source: "web",
@@ -147,13 +141,19 @@ async function createRequestedTask(input: {
     return created;
   }
 
-  return createAgentSwarmTaskFromSettings(baseInput, {
-    compiledSwarm: input.compiledSwarm,
-    swarmSettings: input.swarmSettings,
-    agentAllocations: input.agentSwarmAgentAllocations,
-    dynamicNodeTypes: input.dynamicNodeTypes,
-    requestedWorkerCount: input.body.workflow?.workerCount ?? undefined
-  });
+  if (!input.swarmSettings) {
+    throw new Error("Agent Swarm settings are missing.");
+  }
+  return createAgentSwarmTask({ ...baseInput, settings: input.swarmSettings });
+}
+
+// A swarm's leader must be a single agent the user can run.
+function isUsableSwarmLeader(presets: PlatformAgentPreset[], settings: AgentSwarmSettings): boolean {
+  if (!settings.leaderAgentId) {
+    return true;
+  }
+  const leader = findPlatformAgentPresetById(presets, settings.leaderAgentId);
+  return Boolean(leader && resolvePlatformAgentPresetMode(leader) !== "agent_swarm");
 }
 
 async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
@@ -182,32 +182,16 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
   const selectedSwarmPreset = (!body.workflow || body.workflow.type === "agent_swarm")
     && resolvePlatformAgentPresetMode(selectedPreset) === "agent_swarm" ? selectedPreset : null;
   const swarmSettings = body.workflow?.type === "agent_swarm" || selectedSwarmPreset
-    ? resolveAgentSwarmTaskSettings(body.workflow, selectedSwarmPreset)
+    ? resolveAgentSwarmSettings(body.workflow?.type === "agent_swarm" ? body.workflow : undefined, selectedSwarmPreset)
     : null;
-  const agentSwarmAgentAllocations = !swarmSettings
-    ? []
-    : swarmSettings.usesRequestRoster
-      ? await requireVisiblePlatformAgentAllocationsForUser(request.user.id, swarmSettings.modelAllocations)
-      : swarmSettings.modelAllocations;
-  let compiledSwarm: CompiledAgentSwarm | null = null;
-  if (swarmSettings) {
-    try {
-      compiledSwarm = compilePlatformAgentSwarm({
-        presets: visibleAgentContext.presets,
-        leaderAgentId: swarmSettings.leaderAgentId ?? selectedAgent?.id ?? defaultAgentId ?? "",
-        modelAllocations: agentSwarmAgentAllocations,
-        reviewRounds: swarmSettings.reviewRounds,
-        title: selectedPreset?.name
-      });
-    } catch (error) {
-      return reply.status(400).send({ error: error instanceof Error ? error.message : "Invalid Agent Swarm configuration." });
-    }
+  if (swarmSettings && !isUsableSwarmLeader(visibleAgentContext.presets, swarmSettings)) {
+    return reply.status(400).send({ error: "This Agent Swarm's leader agent is not available to you." });
   }
   const defaultTimezone = normalizeTimezoneOrThrow(body.clientTimezone);
-  if ((body.workflow || compiledSwarm) && body.schedule) {
+  if ((body.workflow || swarmSettings) && body.schedule) {
     return reply.status(400).send({ error: "Workflow tasks cannot use schedules in v1." });
   }
-  if (body.incognito === true && (body.workflow || compiledSwarm || body.schedule)) {
+  if (body.incognito === true && (body.workflow || swarmSettings || body.schedule)) {
     return reply.status(400).send({ error: "Incognito chat is only available for standard tasks." });
   }
 
@@ -236,10 +220,7 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
     initialRunMode,
     scheduleInput,
     selectedAgent,
-    agentSwarmAgentAllocations,
-    compiledSwarm,
-    swarmSettings,
-    dynamicNodeTypes: selectAgentSwarmNodeTypes(visibleAgentContext.presets)
+    swarmSettings
   });
 
   if (!created.reusedExisting) {

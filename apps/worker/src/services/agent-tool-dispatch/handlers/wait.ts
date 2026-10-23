@@ -24,9 +24,6 @@ export async function handleWaitTool(
   });
   try {
     const shellSessions = parsed.value.shell_sessions ?? [];
-    if (ctx.workflowContext?.workflowType === "agent_swarm" && shellSessions.length === 0) {
-      throw new Error("Agent Swarm waits require a shell session condition. Use swarm_pause to wait for swarm work.");
-    }
     if (ctx.runMode === "infinite_auto" && shellSessions.length === 0) {
       if (parsed.value.seconds < 60 || !parsed.value.response?.trim()) {
         throw new Error("Infinite recurring time-only waits require seconds between 60 and 604800 and a response.");

@@ -570,7 +570,7 @@ describe("createTaskWithInitialMessage", () => {
     expect(mockedRecordPromptUsageIfRequired).not.toHaveBeenCalled();
   });
 
-  it("reactivates completed agent swarm follow-ups before dispatching, even when the stale parent status is queued", async () => {
+  it("dispatches a swarm follow-up to the leader", async () => {
     const client = createClient((sql) => {
       if (sql.includes("INSERT INTO task_messages")) {
         return buildRowsResult([{ id: "message-5", created_at: "2026-03-21T00:00:00.000Z" }]);
@@ -589,27 +589,8 @@ describe("createTaskWithInitialMessage", () => {
           status: "queued"
         }]);
       }
-      if (sql.includes("SELECT phase, state_json")) {
-        return buildRowsResult([{
-          phase: "completed",
-          state_json: {
-            cycleStartMessageNo: 12,
-            leaderKickoffMessageNo: 21,
-            workersStartedAt: "2026-03-18T00:00:00.000Z"
-          }
-        }]);
-      }
-      if (sql.includes("SELECT COALESCE(MAX(message_no), 0)::int AS latest_message_no")) {
-        return buildRowsResult([{ latest_message_no: 33 }]);
-      }
-      if (sql.includes("UPDATE task_workflows") || sql.includes("DELETE FROM task_workflow_swarm_")) {
-        return buildRowsResult([]);
-      }
-      if (sql.includes("UPDATE task_runs tr")) {
-        return buildRowsResult([]);
-      }
-      if (sql.includes("SET status = 'awaiting_input'")) {
-        return buildRowsResult([]);
+      if (sql.includes("AS legacy")) {
+        return buildRowsResult([{ legacy: false }]);
       }
       if (sql.includes("SELECT status") && sql.includes("FROM tasks") && sql.includes("FOR UPDATE") && !sql.includes("workflow_type")) {
         return buildRowsResult([{ status: "awaiting_input" }]);
@@ -651,14 +632,6 @@ describe("createTaskWithInitialMessage", () => {
       activeLeafMessageId: "message-5"
     });
 
-    expect(client.query).toHaveBeenCalledWith(
-      expect.stringContaining("workflow_parent_task_id = $1"),
-      ["task-5"]
-    );
-    expect(client.query).toHaveBeenCalledWith(
-      expect.stringContaining("UPDATE task_runs tr"),
-      ["task-5"]
-    );
     expect(client.query).not.toHaveBeenCalledWith(
       expect.stringContaining("cancellation_requested = true"),
       expect.anything()
@@ -673,7 +646,7 @@ describe("createTaskWithInitialMessage", () => {
     expect(mockedQueueAdd).not.toHaveBeenCalled();
   });
 
-  it("retries completed agent swarm branches by reactivating the workflow and enqueuing the leader mode", async () => {
+  it("retries a swarm branch on the leader", async () => {
     const client = createClient((sql) => {
       if (sql.includes("INSERT INTO task_messages")) {
         return buildRowsResult([{ id: "message-6", created_at: "2026-03-21T00:00:00.000Z" }]);
@@ -698,27 +671,8 @@ describe("createTaskWithInitialMessage", () => {
           status: "queued"
         }]);
       }
-      if (sql.includes("SELECT phase, state_json")) {
-        return buildRowsResult([{
-          phase: "completed",
-          state_json: {
-            cycleStartMessageNo: 12,
-            leaderKickoffMessageNo: 21,
-            workersStartedAt: "2026-03-18T00:00:00.000Z"
-          }
-        }]);
-      }
-      if (sql.includes("SELECT COALESCE(MAX(message_no), 0)::int AS latest_message_no")) {
-        return buildRowsResult([{ latest_message_no: 33 }]);
-      }
-      if (sql.includes("UPDATE task_workflows") || sql.includes("DELETE FROM task_workflow_swarm_")) {
-        return buildRowsResult([]);
-      }
-      if (sql.includes("UPDATE task_runs tr")) {
-        return buildRowsResult([]);
-      }
-      if (sql.includes("SET status = 'awaiting_input'")) {
-        return buildRowsResult([]);
+      if (sql.includes("AS legacy")) {
+        return buildRowsResult([{ legacy: false }]);
       }
       if (sql.includes("SELECT status") && sql.includes("FROM tasks") && sql.includes("FOR UPDATE") && !sql.includes("workflow_type")) {
         return buildRowsResult([{ status: "awaiting_input" }]);
@@ -774,10 +728,6 @@ describe("createTaskWithInitialMessage", () => {
         JSON.stringify({ text: "old prompt" }),
         JSON.stringify({ text: "retry prompt" })
       ]
-    );
-    expect(client.query).toHaveBeenCalledWith(
-      expect.stringContaining("UPDATE task_runs tr"),
-      ["task-6"]
     );
 
     const dispatch = expectDispatchPayload(client.query);

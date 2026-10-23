@@ -10,8 +10,6 @@ import type { SkillSummary } from "../agent/skill-registry.js";
 import type { TaskLiveSyncFileSummary } from "../agent/live-sync-types.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
 import type { LoadedWorkflowRunContext } from "../task-workflows/service.js";
-import type { SwarmTarget } from "../task-workflows/swarm-target.js";
-import type { SwarmBudgetStatus } from "../task-workflows/agent-swarm-budget-status.js";
 import type { ContextManagementV2State } from "../context-management-v2/index.js";
 import type { ProjectMasterTaskAgent } from "../project-master/task-agent.js";
 
@@ -84,120 +82,6 @@ export interface ToolDispatchContext {
       majority: number;
       outcome: "pending" | "approved" | "changes_requested";
     }>;
-    manageSwarmWorkers?: (input: {
-      targetSwarm?: SwarmTarget;
-      start: string[];
-      stop: string[];
-      viewOnly: boolean;
-    }) => Promise<{
-      started: string[];
-      stopped: string[];
-      workers: Array<{
-        taskId: string;
-        label: string;
-        status: string;
-        stopped: boolean;
-        paused: boolean;
-        pauseReason: string | null;
-        waitingForTaskIds: string[];
-      }>;
-      agents: Array<{
-        taskId: string;
-        label: string;
-        status: string;
-        stopped: boolean;
-        paused: boolean;
-        pauseReason: string | null;
-        waitingForTaskIds: string[];
-      }>;
-    }>;
-    assignSwarmWorkers?: (input: {
-      targetSwarm?: SwarmTarget;
-      workers: string[];
-      message: string;
-      wait: boolean;
-    }) => Promise<{ messageNo: number; assigned: string[]; started: string[]; paused: boolean; escalation: string | null }>;
-    getSwarmBudgetStatus?: (targetSwarm?: SwarmTarget) => Promise<SwarmBudgetStatus>;
-    spawnSwarmNode?: (input: {
-      targetSwarm?: SwarmTarget;
-      nodeTypeId: string;
-      title: string;
-      initialInstruction: string | null;
-      tokenBudget: number;
-      timeBudgetMinutes: number | null;
-    }) => Promise<{
-      nodeId: string;
-      title: string;
-      status: string;
-      leaderTaskId: string;
-      workerTaskIds: string[];
-      allocatedTokens: number;
-      deadlineAt: string | null;
-    }>;
-    grantSwarmBudget?: (input: {
-      targetSwarm?: SwarmTarget;
-      nodeId: string;
-      additionalTokens: number;
-      extendDeadlineMinutes: number | null;
-    }) => Promise<{
-      nodeId: string;
-      allocatedTokens: number;
-      remainingTokens: number;
-      deadlineAt: string | null;
-      resumed: boolean;
-    }>;
-    cancelSwarmNode?: (input: {
-      targetSwarm?: SwarmTarget;
-      nodeId: string;
-      reason: string;
-    }) => Promise<{ nodeId: string; cancelledNodeIds: string[] }>;
-    recordSwarmReviewRound?: (input: { targetSwarm?: SwarmTarget; reviewer: string; summary: string }) => Promise<{
-      completedRounds: number;
-      requiredRounds: number;
-      reviewerLabel: string;
-    }>;
-    recordSwarmFinalReview?: (input: { targetSwarm?: SwarmTarget; reviewer: string; approved: boolean; summary: string }) => Promise<{
-      reviewerLabel: string;
-      approved: boolean;
-    }>;
-    listSwarmChannels?: (targetSwarm?: SwarmTarget) => Promise<Array<{
-      id: string;
-      kind: "global" | "direct" | "group";
-      title: string | null;
-      created_at: string;
-      latest_message_no: number;
-      unread_count: number;
-      member_task_ids: string[];
-    }>>;
-    readSwarmChannel?: (input: { targetSwarm?: SwarmTarget; channelId: string; sinceMessageNo?: number | null }) => Promise<{
-      channelId: string;
-      messages: Array<{
-        id: string;
-        messageNo: number;
-        createdAt: string;
-        senderTaskId: string | null;
-        senderRole: "main" | "reviewer" | "leader" | "worker" | null;
-        senderSlotIndex: number | null;
-        contentMarkdown: string;
-      }>;
-      hasMore: boolean;
-    }>;
-    createSwarmChannel?: (input: {
-      targetSwarm?: SwarmTarget;
-      memberAgentTaskIds: string[];
-      title?: string | null;
-    }) => Promise<{
-      channelId: string;
-      kind: "direct" | "group";
-      title: string | null;
-      memberTaskIds: string[];
-    }>;
-    sendSwarmChannelMessage?: (input: { targetSwarm?: SwarmTarget; channelId: string; message: string }) => Promise<{
-      messageNo: number;
-      createdAt: string;
-    }>;
-    submitSwarmOutput?: (response: string, targetSwarm?: SwarmTarget) => Promise<{ messageNo: number }>;
-    pauseSwarmAgent?: (input: { targetSwarm?: SwarmTarget; status: string; waitingForTaskIds?: string[] | null }) => Promise<{ escalation: string | null }>;
   };
 }
 
@@ -262,9 +146,8 @@ export interface ToolDispatchResult {
   } | null;
   workflowPause:
     | {
-      kind: "long_horizon_started" | "long_horizon_submitted" | "long_horizon_reviewed" | "long_horizon_clarification_requested" | "agent_swarm_paused";
+      kind: "long_horizon_started" | "long_horizon_submitted" | "long_horizon_reviewed" | "long_horizon_clarification_requested";
       response?: string;
-      awaitUser?: boolean;
     }
     | null;
 }

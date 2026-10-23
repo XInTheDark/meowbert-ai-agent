@@ -27,117 +27,34 @@ describe("resolveUserTriggeredRunModeInTx", () => {
       .resolves.toBe("quality_control_reviewer");
   });
 
-  it("reactivates completed agent swarm workflows before enqueuing the next leader run", async () => {
+  it("continues a swarm through its leader", async () => {
     const query = vi.fn()
       .mockResolvedValueOnce(buildRowsResult([{
-        workflow_type: "agent_swarm",
-        workflow_internal_role: "leader",
-        workflow_parent_task_id: null,
-        status: "succeeded"
+        workflow_type: "agent_swarm", workflow_internal_role: null, workflow_parent_task_id: null, status: "succeeded"
       }]))
-      .mockResolvedValueOnce(buildRowsResult([{
-        phase: "completed",
-        state_json: {
-          workersStartedAt: "2026-03-18T00:00:00.000Z",
-          leaderKickoffMessageNo: 14,
-          finalReview: { approved: true }
-        }
-      }]))
-      .mockResolvedValueOnce(buildRowsResult([{ latest_message_no: 29 }]))
-      .mockResolvedValueOnce(buildRowsResult([]))
-      .mockResolvedValueOnce(buildRowsResult([]));
+      .mockResolvedValueOnce(buildRowsResult([{ legacy: false }]));
 
-    const mode = await resolveUserTriggeredRunModeInTx({ query } as never, "task-1");
-
-    expect(mode).toBe("agent_swarm_leader");
-    expect(query).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining("SELECT t.workflow_type"),
-      ["task-1"]
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining("SELECT phase, state_json"),
-      ["task-1"]
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      3,
-      expect.stringContaining("SELECT COALESCE(MAX(message_no), 0)::int AS latest_message_no"),
-      ["task-1"]
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      4,
-      expect.stringContaining("SET phase = 'active'"),
-      [
-        "task-1",
-        JSON.stringify({
-          workersStartedAt: null,
-          leaderKickoffMessageNo: null,
-          finalReview: null,
-          cycleStartMessageNo: 29,
-          startedSwarmWorkerTaskIds: [],
-          reviewRounds: []
-        })
-      ]
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      5,
-      expect.stringContaining("DELETE FROM task_workflow_swarm_pauses"),
-      ["task-1"]
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      6,
-      expect.stringContaining("DELETE FROM task_workflow_swarm_stalls"),
-      ["task-1"]
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      7,
-      expect.stringContaining("UPDATE task_runs tr"),
-      ["task-1"]
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      8,
-      expect.stringContaining("SET status = 'awaiting_input'"),
-      ["task-1"]
-    );
+    await expect(resolveUserTriggeredRunModeInTx({ query } as never, "task-1")).resolves.toBe("agent_swarm_leader");
   });
 
-  it("reactivates completed agent swarm workflows even if a stale queued status remains", async () => {
+  it("rejects follow-ups on a swarm from the previous version", async () => {
     const query = vi.fn()
       .mockResolvedValueOnce(buildRowsResult([{
-        workflow_type: "agent_swarm",
-        workflow_internal_role: "leader",
-        workflow_parent_task_id: null,
-        status: "queued"
+        workflow_type: "agent_swarm", workflow_internal_role: null, workflow_parent_task_id: null, status: "succeeded"
       }]))
+      .mockResolvedValueOnce(buildRowsResult([{ legacy: true }]));
+
+    await expect(resolveUserTriggeredRunModeInTx({ query } as never, "task-1"))
+      .rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("previous swarm version") });
+  });
+
+  it("does not let a user message a lane directly", async () => {
+    const query = vi.fn()
       .mockResolvedValueOnce(buildRowsResult([{
-        phase: "completed",
-        state_json: {
-          workersStartedAt: "2026-03-18T00:00:00.000Z",
-          leaderKickoffMessageNo: 14
-        }
+        workflow_type: "agent_swarm", workflow_internal_role: "lane", workflow_parent_task_id: "task-1", status: "succeeded"
       }]))
-      .mockResolvedValueOnce(buildRowsResult([{ latest_message_no: 31 }]))
-      .mockResolvedValueOnce(buildRowsResult([]))
-      .mockResolvedValueOnce(buildRowsResult([]));
+      .mockResolvedValueOnce(buildRowsResult([{ legacy: false }]));
 
-    const mode = await resolveUserTriggeredRunModeInTx({ query } as never, "task-2");
-
-    expect(mode).toBe("agent_swarm_leader");
-    expect(query).toHaveBeenNthCalledWith(
-      4,
-      expect.stringContaining("SET phase = 'active'"),
-      [
-        "task-2",
-        JSON.stringify({
-          workersStartedAt: null,
-          leaderKickoffMessageNo: null,
-          cycleStartMessageNo: 31,
-          startedSwarmWorkerTaskIds: [],
-          reviewRounds: [],
-          finalReview: null
-        })
-      ]
-    );
+    await expect(resolveUserTriggeredRunModeInTx({ query } as never, "lane-1")).rejects.toMatchObject({ statusCode: 409 });
   });
 });

@@ -1,12 +1,11 @@
 import { ChevronLeft, X } from "lucide-react";
 import type { ApiClient } from "../../../lib/api";
 import type { TaskWorkflowOverview } from "../../../lib/types";
-import { formatDateTime, formatTaskTypeLabel } from "../../../lib/utils";
+import { formatDateTime } from "../../../lib/utils";
 import type { TaskDetailWorkflowSidebarController } from "./useTaskDetailWorkflowSidebar";
 import type { TaskWorkflowSidebarPanel } from "./taskWorkflowSidebarTypes";
 import { TaskWorkflowOverviewPanel } from "./TaskWorkflowOverviewPanel";
 import { TaskWorkflowWorkerPanel } from "./TaskWorkflowWorkerPanel";
-import { TaskWorkflowChannelPanel } from "./TaskWorkflowChannelPanel";
 import { TaskWorkflowTextPanel } from "./TaskWorkflowTextPanel";
 
 interface TaskWorkflowSidebarProps {
@@ -17,12 +16,9 @@ interface TaskWorkflowSidebarProps {
 }
 
 function getWorkflowTitle(workflow: TaskWorkflowOverview): string {
-  if (workflow.type === "long_horizon") {
-    if (workflow.config.reviewMode === "quality_control") return "Quality Control";
-    if (workflow.config.researchMode === "deep_research") return "Deep Research";
-    return "Long Horizon";
-  }
-  return "Agent Swarm";
+  if (workflow.config.reviewMode === "quality_control") return "Quality Control";
+  if (workflow.config.researchMode === "deep_research") return "Deep Research";
+  return "Long Horizon";
 }
 
 function resolvePanelHeaderInfo(panel: TaskWorkflowSidebarPanel | null, workflow: TaskWorkflowOverview) {
@@ -32,27 +28,15 @@ function resolvePanelHeaderInfo(panel: TaskWorkflowSidebarPanel | null, workflow
       subtitle: "Workflow Overview"
     };
   }
-  if (panel.kind === "worker") {
-    return {
-      title: panel.title || `Worker ${panel.slotIndex + 1}`,
-      subtitle: `Worker ${panel.slotIndex + 1}`
-    };
-  }
-  if (panel.kind === "channel") {
-    return {
-      title: panel.title || `${formatTaskTypeLabel(panel.channelKind)} channel`,
-      subtitle: `${formatTaskTypeLabel(panel.channelKind)} · ${panel.memberCount} members`
-    };
-  }
   if (panel.kind === "plan") {
-    const plan = workflow.type === "long_horizon" ? workflow.longHorizon.plan : null;
+    const plan = workflow.longHorizon.plan;
     return {
       title: "Plan",
       subtitle: plan?.createdAt ? `Saved ${formatDateTime(plan.createdAt)}` : "PLAN.md"
     };
   }
   if (panel.kind === "submission") {
-    const latestRound = workflow.type === "long_horizon" ? workflow.longHorizon.latestRound : 0;
+    const latestRound = workflow.longHorizon.latestRound;
     return {
       title: "Latest Submission",
       subtitle: latestRound > 0 ? `Round ${latestRound}` : null
@@ -126,33 +110,10 @@ function WorkflowPanelContent(props: {
   if (panel.kind === "overview") {
     return <TaskWorkflowOverviewPanel workflow={props.workflow} sidebar={props.sidebar} />;
   }
-  if (panel.kind === "worker") {
-    return (
-      <TaskWorkflowWorkerPanel
-        api={props.api}
-        workerTaskId={panel.workerTaskId}
-        slotIndex={panel.slotIndex}
-        workerTitle={panel.title}
-        status={panel.status}
-      />
-    );
-  }
-  if (panel.kind === "channel") {
-    return (
-      <TaskWorkflowChannelPanel
-        api={props.api}
-        taskId={props.taskId}
-        channelId={panel.channelId}
-        channelTitle={panel.title}
-        channelKind={panel.channelKind}
-        memberCount={panel.memberCount}
-      />
-    );
-  }
   if (panel.kind === "plan") {
     return (
       <TaskWorkflowTextPanel
-        content={props.workflow.type === "long_horizon" ? props.workflow.longHorizon.plan.content : null}
+        content={props.workflow.longHorizon.plan.content}
         emptyLabel="PLAN.md will appear once the agent starts execution."
       />
     );
@@ -160,7 +121,7 @@ function WorkflowPanelContent(props: {
   if (panel.kind === "submission") {
     return (
       <TaskWorkflowTextPanel
-        content={props.workflow.type === "long_horizon" ? props.workflow.longHorizon.latestSubmissionMessage : null}
+        content={props.workflow.longHorizon.latestSubmissionMessage}
         emptyLabel="No review submission yet."
       />
     );

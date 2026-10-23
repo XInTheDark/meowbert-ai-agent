@@ -1,3 +1,10 @@
+import {
+  AGENT_SWARM_ADVANCED_RANGES,
+  AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
+  AGENT_SWARM_MAX_TOKEN_BUDGET,
+  normalizeAgentSwarmAdvancedSettings,
+  type AgentSwarmAdvancedSettings
+} from "@meowbert/shared/agent-swarm-config";
 import { apiBaseUrl } from "../../../lib/api";
 import type { AdminRuntimeMigrationSummary } from "./shared";
 
@@ -9,15 +16,14 @@ interface AgentPresetDraft {
   description: string;
   requiresSuperAdmin: boolean;
   hidden?: boolean;
-  spawnableAsNode?: boolean;
   payload: Record<string, unknown>;
   mode?: "standard" | "agent_swarm" | "quality_control_reviewer";
   leaderAgentId?: string;
-  modelAllocations?: Array<{ agentId: string; workerCount: number }>;
-  reviewRounds?: number;
+  routerId?: string | null;
+  budgetsEnabled?: boolean;
   tokenBudget?: number;
   timeBudgetMinutes?: number;
-  disableSpawningAndBudgets?: boolean;
+  advanced?: AgentSwarmAdvancedSettings;
 }
 
 interface ModelRouterTargetDraft {
@@ -227,9 +233,6 @@ export function parseAgentPresetsDraft(raw: string): AgentPresetDraft[] {
     if (typeof record.hidden !== "undefined" && typeof record.hidden !== "boolean") {
       throw new Error(`Agent preset ${id || "<unknown>"} hidden must be a boolean when provided.`);
     }
-    if (typeof record.spawnableAsNode !== "undefined" && typeof record.spawnableAsNode !== "boolean") {
-      throw new Error(`Agent preset ${id || "<unknown>"} spawnableAsNode must be a boolean when provided.`);
-    }
     if (!id || !name || !description) {
       throw new Error("Each agent preset requires id, name, and description.");
     }
@@ -241,20 +244,8 @@ export function parseAgentPresetsDraft(raw: string): AgentPresetDraft[] {
       throw new Error(`Agent preset ${id} mode must be standard, agent_swarm, or quality_control_reviewer.`);
     }
     const leaderAgentId = typeof record.leaderAgentId === "string" ? record.leaderAgentId.trim() : undefined;
-    const modelAllocations = Array.isArray(record.modelAllocations)
-      ? record.modelAllocations.map((item) => {
-        if (!item || typeof item !== "object" || Array.isArray(item)) {
-          throw new Error(`Agent preset ${id} modelAllocations entries must be objects.`);
-        }
-        const allocation = item as Record<string, unknown>;
-        if (typeof allocation.agentId !== "string" || !Number.isInteger(allocation.workerCount)) {
-          throw new Error(`Agent preset ${id} modelAllocations entries require agentId and workerCount.`);
-        }
-        return { agentId: allocation.agentId.trim(), workerCount: allocation.workerCount as number };
-      })
-      : undefined;
-    if (mode === "agent_swarm" && (!leaderAgentId || !modelAllocations)) {
-      throw new Error(`Agent Swarm preset ${id} requires leaderAgentId and modelAllocations.`);
+    if (mode === "agent_swarm" && !leaderAgentId) {
+      throw new Error(`Agent Swarm preset ${id} requires leaderAgentId.`);
     }
 
     return {
@@ -263,42 +254,70 @@ export function parseAgentPresetsDraft(raw: string): AgentPresetDraft[] {
       description,
       requiresSuperAdmin: record.requiresSuperAdmin === true,
       ...(record.hidden === true ? { hidden: true } : {}),
-      ...(typeof record.spawnableAsNode === "boolean"
-        ? { spawnableAsNode: record.spawnableAsNode }
-        : {}),
       payload: record.payload as Record<string, unknown>,
       ...(mode ? { mode } : {}),
       ...(leaderAgentId ? { leaderAgentId } : {}),
-      ...(modelAllocations ? { modelAllocations } : {}),
-      ...(typeof record.reviewRounds === "number" && Number.isInteger(record.reviewRounds)
-        ? { reviewRounds: record.reviewRounds }
-        : {}),
-      ...parseSwarmBudgetFields(id, record)
+      ...parseSwarmFields(id, record)
     };
   });
 }
 
-function parseSwarmBudgetFields(id: string, record: Record<string, unknown>): {
-  tokenBudget?: number;
-  timeBudgetMinutes?: number;
-  disableSpawningAndBudgets?: boolean;
-} {
+// Mirrors the admin preset schema on the API, so a bad swarm field fails here before saving.
+function parseSwarmFields(id: string, record: Record<string, unknown>): Pick<
+  AgentPresetDraft,
+  "routerId" | "budgetsEnabled" | "tokenBudget" | "timeBudgetMinutes" | "advanced"
+> {
+  const budgetMaxima = { tokenBudget: AGENT_SWARM_MAX_TOKEN_BUDGET, timeBudgetMinutes: AGENT_SWARM_MAX_TIME_BUDGET_MINUTES };
   for (const key of ["tokenBudget", "timeBudgetMinutes"] as const) {
     const value = record[key];
-    if (value !== undefined && (typeof value !== "number" || !Number.isInteger(value) || value <= 0)) {
-      throw new Error(`Agent preset ${id} ${key} must be a positive whole number when provided.`);
+    if (value !== undefined && (!isWholeNumber(value) || value <= 0 || value > budgetMaxima[key])) {
+      throw new Error(`Agent preset ${id} ${key} must be a whole number from 1 to ${budgetMaxima[key]} when provided.`);
     }
   }
-  if (record.disableSpawningAndBudgets !== undefined && typeof record.disableSpawningAndBudgets !== "boolean") {
-    throw new Error(`Agent preset ${id} disableSpawningAndBudgets must be a boolean when provided.`);
+  if (record.routerId !== undefined && record.routerId !== null && typeof record.routerId !== "string") {
+    throw new Error(`Agent preset ${id} routerId must be a string or null when provided.`);
   }
+  if (record.budgetsEnabled !== undefined && typeof record.budgetsEnabled !== "boolean") {
+    throw new Error(`Agent preset ${id} budgetsEnabled must be a boolean when provided.`);
+  }
+  const routerId = typeof record.routerId === "string" ? record.routerId.trim() || null : record.routerId;
   return {
+    ...(routerId !== undefined ? { routerId } : {}),
+    ...(typeof record.budgetsEnabled === "boolean" ? { budgetsEnabled: record.budgetsEnabled } : {}),
     ...(typeof record.tokenBudget === "number" ? { tokenBudget: record.tokenBudget } : {}),
     ...(typeof record.timeBudgetMinutes === "number" ? { timeBudgetMinutes: record.timeBudgetMinutes } : {}),
-    ...(typeof record.disableSpawningAndBudgets === "boolean"
-      ? { disableSpawningAndBudgets: record.disableSpawningAndBudgets }
-      : {})
+    ...(record.advanced !== undefined ? { advanced: parseSwarmAdvanced(id, record.advanced) } : {})
   };
+}
+
+function isWholeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value);
+}
+
+function parseSwarmAdvanced(id: string, raw: unknown): AgentSwarmAdvancedSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`Agent preset ${id} advanced must be an object.`);
+  }
+  const advanced = raw as Record<string, unknown>;
+  for (const [key, value] of Object.entries(advanced)) {
+    if (key === "autoCheck") {
+      if (typeof value !== "boolean") {
+        throw new Error(`Agent preset ${id} advanced.autoCheck must be a boolean.`);
+      }
+      continue;
+    }
+    const range = AGENT_SWARM_ADVANCED_RANGES[key as keyof typeof AGENT_SWARM_ADVANCED_RANGES];
+    if (!range) {
+      throw new Error(`Agent preset ${id} has unknown advanced field ${key}.`);
+    }
+    if (key === "laneMaxSteps" && value === null) {
+      continue;
+    }
+    if (!isWholeNumber(value) || value < range.min || value > range.max) {
+      throw new Error(`Agent preset ${id} advanced.${key} must be a whole number from ${range.min} to ${range.max}.`);
+    }
+  }
+  return normalizeAgentSwarmAdvancedSettings(advanced);
 }
 
 export function parseModelRoutersDraft(raw: string): ModelRouterDraft[] {

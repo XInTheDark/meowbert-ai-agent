@@ -2,17 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ApiClient } from "../../../lib/api";
 import type { TaskWorkflowOverview, TaskWorkflowType } from "../../../lib/types";
-import { badgeClass, formatDateTime, formatRelative, formatTaskTypeLabel } from "../../../lib/utils";
+import { badgeClass, formatDateTime, formatRelative } from "../../../lib/utils";
 import {
   readTaskWorkflowPanelOpenPreference,
   writeTaskWorkflowPanelOpenPreference
 } from "../../../task/taskWorkflowPanelPreferences";
-import {
-  SwarmChannelModal,
-  SwarmWorkerPovModal,
-  WorkflowTextModal
-} from "./TaskDetailWorkflowModals";
-import { formatSwarmAgentLabel } from "./swarmAgentLabel";
+import { WorkflowTextModal } from "./TaskDetailWorkflowModals";
 
 interface TaskDetailWorkflowPanelProps {
   api: ApiClient;
@@ -290,134 +285,10 @@ function LongHorizonPanel(props: {
   );
 }
 
-function AgentSwarmPanel(props: {
-  api: ApiClient;
-  taskId: string;
-  workflow: Extract<TaskWorkflowOverview, { type: "agent_swarm" }>;
-}): JSX.Element {
-  const [openChannelId, setOpenChannelId] = useState<string | null>(null);
-  const [openWorkerTaskId, setOpenWorkerTaskId] = useState<string | null>(null);
-  const activeWorkerCount = useMemo(
-    () => props.workflow.agentSwarm.workers.filter((worker) => (
-      !worker.paused && (worker.status === "running" || worker.status === "starting" || worker.status === "queued")
-    )).length,
-    [props.workflow.agentSwarm.workers]
-  );
-  const swarmPhaseLabel = activeWorkerCount > 0 ? "active" : props.workflow.phase;
-  const selectedChannel = props.workflow.agentSwarm.channels.find((channel) => channel.id === openChannelId) ?? null;
-  const selectedWorker = props.workflow.agentSwarm.workers.find((worker) => worker.task_id === openWorkerTaskId) ?? null;
-
-  return (
-    <>
-      <WorkflowSection
-        title="Agent Swarm"
-        subtitle="Workflow"
-        metrics={[
-          {
-            label: "Phase",
-            value: swarmPhaseLabel,
-            tone: swarmPhaseLabel === "active"
-              ? "warning"
-              : props.workflow.phase === "completed"
-                ? "good"
-                : "neutral"
-          },
-          {
-            label: "Workers",
-            value: `${activeWorkerCount}/${props.workflow.agentSwarm.workerCount} active`,
-            tone: activeWorkerCount > 0 ? "warning" : "neutral"
-          },
-          {
-            label: "Channels",
-            value: String(props.workflow.agentSwarm.channels.length)
-          }
-        ]}
-        storagePreference={{
-          taskId: props.taskId,
-          workflowType: props.workflow.type
-        }}
-      >
-        <div className="workflow-swarm-body">
-          <section className="workflow-chip-group">
-            <div className="workflow-chip-group-header">
-              <div className="workflow-section-label">Workers</div>
-            </div>
-            <div className="workflow-worker-grid" role="list" aria-label="Swarm workers">
-              {props.workflow.agentSwarm.workers.map((worker) => (
-                <button
-                  key={worker.task_id}
-                  type="button"
-                  className={`workflow-worker-card ${worker.task_id === openWorkerTaskId ? "active" : ""}`}
-                  onClick={() => setOpenWorkerTaskId(worker.task_id)}
-                >
-                  <span className="workflow-worker-meta">{formatSwarmAgentLabel(worker)}</span>
-                  <span className="workflow-worker-title">{worker.title || formatSwarmAgentLabel(worker)}</span>
-                  <span className="workflow-worker-footer">
-                    <span
-                      className={`${badgeClass(worker.paused ? "paused" : worker.status)} workflow-chip-status`}
-                      title={worker.paused ? worker.pause_reason ?? "Paused." : undefined}
-                    >
-                      {worker.paused ? "paused" : worker.status}
-                    </span>
-                    <span>{formatRelative(worker.updated_at)}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="workflow-chip-group">
-            <div className="workflow-chip-group-header">
-              <div className="workflow-section-label">Channels</div>
-            </div>
-            <div className="workflow-channel-grid" role="list" aria-label="Swarm channels">
-              {props.workflow.agentSwarm.channels.map((channel) => (
-                <button
-                  key={channel.id}
-                  type="button"
-                  className={`workflow-channel-card ${channel.id === openChannelId ? "active" : ""}`}
-                  onClick={() => setOpenChannelId(channel.id)}
-                >
-                  <span className="workflow-worker-meta">{formatTaskTypeLabel(channel.kind)}</span>
-                  <span className="workflow-worker-title">{channel.title || formatTaskTypeLabel(channel.kind)}</span>
-                  <span className="workflow-worker-footer">
-                    <span>{channel.member_task_ids.length} members</span>
-                    <span>#{channel.latest_message_no ?? 0}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
-      </WorkflowSection>
-
-      {selectedChannel ? (
-        <SwarmChannelModal
-          api={props.api}
-          taskId={props.taskId}
-          channel={selectedChannel}
-          onClose={() => setOpenChannelId(null)}
-        />
-      ) : null}
-      {selectedWorker ? (
-        <SwarmWorkerPovModal
-          api={props.api}
-          worker={selectedWorker}
-          onClose={() => setOpenWorkerTaskId(null)}
-        />
-      ) : null}
-    </>
-  );
-}
-
 export function TaskDetailWorkflowPanel(props: TaskDetailWorkflowPanelProps) {
   if (!props.workflow) {
     return null;
   }
 
-  if (props.workflow.type === "long_horizon") {
-    return <LongHorizonPanel taskId={props.taskId} workflow={props.workflow} />;
-  }
-
-  return <AgentSwarmPanel api={props.api} taskId={props.taskId} workflow={props.workflow} />;
+  return <LongHorizonPanel taskId={props.taskId} workflow={props.workflow} />;
 }

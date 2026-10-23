@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS } from "@meowbert/shared";
 
 const platformAgentsMock = vi.hoisted(() => ({
   getVisiblePlatformAgentsForUser: vi.fn()
@@ -117,14 +118,15 @@ describe("agentRoutes", () => {
     await app.close();
   });
 
-  it("reports the compiled worker count for a leader-only Swarm preset", async () => {
+  it("sends a Swarm preset's defaults for the composer to prefill", async () => {
     platformAgentsMock.getVisiblePlatformAgentsForUser.mockResolvedValue({
       actorIsSuperAdmin: false,
       modelSliderAgentIds: [],
       presets: [
         { id: "luna-xhigh", name: "Luna", description: "Luna", requiresSuperAdmin: false, payload: {} },
-        { id: "solo-swarm", name: "Solo Swarm", description: "Leader only", requiresSuperAdmin: false,
-          payload: {}, mode: "agent_swarm", leaderAgentId: "luna-xhigh", modelAllocations: [], reviewRounds: 0 }
+        { id: "research", name: "Research", description: "Swarm", requiresSuperAdmin: false, payload: {},
+          mode: "agent_swarm", leaderAgentId: "luna-xhigh", routerId: null, budgetsEnabled: false, tokenBudget: 20_000_000,
+          advanced: { ...DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS, maxDepth: 1 } }
       ],
       defaultAgentId: "luna-xhigh"
     });
@@ -138,16 +140,14 @@ describe("agentRoutes", () => {
     const response = await app.inject({ method: "GET", url: "/api/agents" });
 
     expect(response.json().agents).toContainEqual({
-      id: "solo-swarm", name: "Solo Swarm", description: "Leader only", mode: "agent_swarm",
-      swarmWorkerCount: 0, swarmReviewRounds: 0,
+      id: "research", name: "Research", description: "Swarm", mode: "agent_swarm",
       swarm: {
         leaderAgentId: "luna-xhigh",
-        modelAllocations: [],
-        reviewRounds: 0,
-        tokenBudget: 10_000_000,
+        routerId: null,
+        budgetsEnabled: false,
+        tokenBudget: 20_000_000,
         timeBudgetMinutes: null,
-        disableSpawningAndBudgets: false,
-        members: [{ id: "luna-xhigh", name: "Luna", mode: "standard" }]
+        advanced: { ...DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS, maxDepth: 1 }
       }
     });
     await app.close();

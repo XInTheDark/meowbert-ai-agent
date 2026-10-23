@@ -251,6 +251,10 @@ function TaskConversationMain({ model }: ModelProps) {
         toolOptions={model.composer.toolOptions}
         taskParameters={model.composer.taskParameters}
         taskType={task.task_type}
+        hideComposer={task.is_legacy_swarm === true}
+        composerNotice={task.is_legacy_swarm === true
+          ? "This Agent Swarm task was created with the previous swarm version. Start a new task."
+          : null}
         workflowConfig={model.composer.workflowConfig}
         showMemorySearch={model.context.workspaceMemoryEnabled}
         showComputerUse={model.context.runtime.capabilities.isDesktop}

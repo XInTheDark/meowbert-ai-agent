@@ -15,11 +15,6 @@ export interface SystemPromptRuntimeOptions {
   allowFinalResponse: boolean;
   allowStopTask: boolean;
   allowWaitTool: boolean;
-  allowSwarmPauseTool?: boolean;
-  allowSwarmManageTool?: boolean;
-  allowSwarmReviewTool?: boolean;
-  allowSwarmFinalReviewTool?: boolean;
-  allowSwarmOutputTool?: boolean;
   qualityReviewSpecialist?: boolean;
   allowScheduleTools: boolean;
   allowSubtaskTools: boolean;
@@ -39,7 +34,6 @@ export interface SystemPromptRuntimeOptions {
     remoteWebUrl: string | null;
     lastSyncError: string | null;
   }>;
-  writableSharedPaths?: string[];
   memoryEnabled?: boolean;
   thoughtPersistenceEnabled?: boolean;
   memoryMainFilePath?: string | null;
@@ -68,7 +62,7 @@ export interface SystemPromptRuntimeOptions {
     runTimeoutSeconds: number | null;
   } | null;
   workflow?: {
-    workflowType: "long_horizon" | "agent_swarm";
+    workflowType: "long_horizon";
     roleSummary: string;
     section: string;
     embeddedPersonalityIds?: string[];
@@ -76,7 +70,6 @@ export interface SystemPromptRuntimeOptions {
     allowRequestClarification?: boolean;
     allowSubmitResponse?: boolean;
     allowSubmitReview?: boolean;
-    allowSwarmTools?: boolean;
   } | null;
   projectContext?: {
     rootPath: string;
@@ -118,16 +111,6 @@ function buildToolUsageNotes(options: SystemPromptRuntimeOptions): string {
       "- Desktop computer control is enabled. Use `computer_screenshot` to inspect the desktop, then act with the other `computer_*` tools. Coordinates always refer to the latest screenshot returned by the most recent computer observation.",
       "- Use `computer_local_shell` for shell commands on the local machine running Meowbert Desktop instead of the remote task workspace."
     );
-  }
-
-  if (options.allowSwarmPauseTool) {
-    notes.push(
-      "- New swarm mail arrives between turns on its own; never poll for it. When your work is done, post your update and call `swarm_pause`."
-    );
-  }
-
-  if (options.allowSwarmOutputTool) {
-    notes.push("- Use `submit_swarm_output` only after your subgroup has converged.");
   }
 
   return notes.join("\n");
@@ -175,7 +158,7 @@ function buildCanvasSection(options: SystemPromptRuntimeOptions): string {
 }
 
 function buildCompletionSection(options: SystemPromptRuntimeOptions): string {
-  if (options.allowWaitTool && !options.allowFinalResponse && !options.allowSwarmPauseTool) {
+  if (options.allowWaitTool && !options.allowFinalResponse) {
     const stopTaskLine = options.allowStopTask
       ? "- To stop the recurring automation entirely, call `stop_task` once with { response, notify }."
       : "- This run can't stop the recurrence directly.";
@@ -196,47 +179,6 @@ function buildCompletionSection(options: SystemPromptRuntimeOptions): string {
       "- To end the cycle, set `shell_sessions` to null and pick a sensible `seconds` delay for the next wake-up (minimum 60, maximum 604800 — that's one week). Shell-conditional waits only pause within this cycle.",
       "",
       "If you're blocked or waiting on something, still call `wait` with a brief status update and a reasonable checkpoint delay."
-    ].join("\n");
-  }
-
-  if (options.allowSwarmPauseTool && !options.allowFinalResponse) {
-    return [
-      "## Run Completion — Agent Swarm",
-      "",
-      "This run is part of an ongoing Agent Swarm loop.",
-      "",
-      "- Do **not** stop implicitly. Keep working, or post your update and call `swarm_pause`.",
-      "- A direct message, or the agents you wait for finishing, resumes you automatically. Do not poll for updates.",
-      "- Pause status is operational context and is not added to the swarm conversation."
-    ].join("\n");
-  }
-
-  if (options.allowSwarmPauseTool && options.allowFinalResponse) {
-    return [
-      "## Run Completion — Agent Swarm",
-      "",
-      "This run is part of an ongoing Agent Swarm loop.",
-      "",
-      "- When the swarm is genuinely ready to speak with one voice, call `final_response` exactly once.",
-      "- Otherwise keep working, or assign work with `assign_worker` and `wait: true`.",
-      "- The workers you wait for finishing resumes you automatically. Do not poll for updates."
-    ].join("\n");
-  }
-
-  if (options.workflow?.workflowType === "agent_swarm" && !options.allowSwarmPauseTool) {
-    return [
-      "## Run Completion — Agent Swarm",
-      "",
-      options.allowFinalResponse
-        ? "This swarm task has waiting disabled for this run."
-        : "This swarm task has waiting disabled for this run, and this role cannot deliver the final answer directly.",
-      "",
-      options.allowFinalResponse
-        ? "- Keep coordinating through the swarm tools until you're ready to call `final_response`."
-        : "- Keep coordinating through the swarm tools and making concrete progress; pausing is disabled here.",
-      options.allowFinalResponse
-        ? "- Do not stop implicitly. Finish only by calling `final_response`."
-        : "- Do not stop implicitly. Continue using swarm tools until the run ends or another workflow action becomes available."
     ].join("\n");
   }
 
@@ -339,7 +281,7 @@ function buildQualityReviewSpecialistSection(options: SystemPromptRuntimeOptions
     "",
     QUALITY_REVIEW_CORE_GUIDANCE,
     QUALITY_REVIEW_TASTE_GUIDANCE,
-    "Do not use `submit_review` unless that tool is explicitly available to your runtime. If operating within an Agent Swarm, contribute exclusively through the swarm channel and strictly adhere to its leader and output rules."
+    "Do not use `submit_review` unless that tool is explicitly available to your runtime."
   ].join("\n");
 }
 
@@ -388,13 +330,6 @@ export function buildSystemPrompt(
   const taskRunsRoot = path.resolve(envRoot, ".meowbert", "task-runs");
   const sharedDependenciesDir = path.resolve(envRoot, ".meowbert", "shared");
   const taskInputDir = path.resolve(options.taskInputDir ?? resolveTaskInputDir(taskDir));
-  const writableSharedPaths = Array.from(
-    new Set(
-      (options.writableSharedPaths ?? [])
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0)
-    )
-  );
   const memoryEnabled = options.memoryEnabled === true;
   const thoughtPersistenceEnabled = memoryEnabled && options.thoughtPersistenceEnabled !== false;
   const memoryDir = path.resolve(workspaceRoot, WORKSPACE_MEMORY_DIRNAME);
@@ -427,15 +362,10 @@ export function buildSystemPrompt(
       : `- **Environment root** (writable): \`${envRoot}\` (also available as \`$ENV_ROOT\`) — project files persist across later tasks`,
     `- **Task runs root**: \`${taskRunsRoot}\` — each task's files live in its own \`<task id>\` folder, so earlier tasks' outputs stay readable`,
     options.taskFilesystemReadOnly
-      ? writableSharedPaths.length > 0
-        ? "- **Task directory** (read-only): `$TASK_DIR` — this thread can inspect task files. Use the writable shared paths listed below for cross-agent handoffs or any workflow-shared files."
-        : "- **Task directory** (read-only): `$TASK_DIR` — this thread can inspect task files, but it should not write workspace/environment files from this run"
+      ? "- **Task directory** (read-only): `$TASK_DIR` — this thread can inspect task files, but it should not write workspace/environment files from this run"
       : "- **Task directory** (writable): `$TASK_DIR` — this persists for the task, so files you create here remain available on later follow-up messages",
     `- **Task input uploads** (read-only): \`${taskInputDir}\` (also available as \`$TASK_INPUT_DIR\`)`,
     "- **Task scratch directory** (writable): `$TASK_SCRATCH_DIR` — fast local disk for this task, described below",
-    ...writableSharedPaths.map((sharedPath) => (
-      `- **Writable shared path**: \`${sharedPath}\` — use this for cross-agent handoffs or other explicitly shared workflow files`
-    )),
     ...(memoryEnabled
       ? [
           `- **Workspace Memory directory**: \`${memoryDir}\` (also available as \`$MEMORY_DIR\` and \`$MEOWBERT_MEMORY_DIR\`)`,
@@ -451,12 +381,10 @@ export function buildSystemPrompt(
     "The workspace, project and task directories can be on network storage, where creating or deleting lots of files and folders is very slow: a `git clone` there can take minutes. Do that kind of work in `$TASK_SCRATCH_DIR` instead: cloning repos, installing dependencies such as `node_modules` or virtualenvs, builds, and unpacking large archives.",
     "Everything else, including documents and normal working files, belongs in `$TASK_DIR` as usual. Scratch isn't shown in the user's file browser and is deleted when the task is archived, so copy anything the user should keep into `$TASK_DIR`. If writes to scratch fail with a disk quota error, its space is full; delete what you no longer need there.",
     ...(options.taskFilesystemReadOnly
-      ? writableSharedPaths.length > 0
-        ? ["For other scratch files, make a folder under a writable shared path listed above."]
-        : []
+      ? []
       : ["For other scratch files, make a folder such as `$TASK_DIR/tmp` and remove it when you no longer need it. Avoid `/tmp`: it is not kept if the sandbox restarts."]),
     options.taskFilesystemReadOnly
-      ? `- **Shared project dependencies**: \`${sharedDependenciesDir}\` can be reused, but this run must not install or modify libraries there. Use only the writable workflow paths listed above when they apply.`
+      ? `- **Shared project dependencies**: \`${sharedDependenciesDir}\` can be reused, but this run must not install or modify libraries there.`
       : `- **Shared project dependencies**: create and reuse \`${sharedDependenciesDir}\` for libraries and tools needed across this project's tasks. Check what is installed first, and don't replace or upgrade a shared version unless the task requires it. Keep an application's own dependencies in its package manifest and lockfile.`,
     "",
     ...(memoryEnabled

@@ -69,13 +69,9 @@
       "types": "./dist/responses-settings.d.ts",
       "default": "./dist/responses-settings.js"
     },
-    "./agent-swarm": {
-      "types": "./dist/agent-swarm.d.ts",
-      "default": "./dist/agent-swarm.js"
-    },
-    "./agent-swarm-quota": {
-      "types": "./dist/agent-swarm-quota.d.ts",
-      "default": "./dist/agent-swarm-quota.js"
+    "./agent-swarm-config": {
+      "types": "./dist/agent-swarm-config.d.ts",
+      "default": "./dist/agent-swarm-config.js"
     },
     "./docker-sandbox": {
       "types": "./dist/docker-sandbox.d.ts",

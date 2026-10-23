@@ -1,14 +1,10 @@
 import { normalizeAgentPresetPayload } from "./responses-settings.js";
 import {
-  clampAgentSwarmReviewRounds,
-  limitAgentSwarmAgentAllocations,
+  normalizeAgentSwarmAdvancedSettings,
   normalizeAgentSwarmTimeBudgetMinutes,
   normalizeAgentSwarmTokenBudget,
-  normalizeAgentSwarmAgentAllocations,
-  sumAgentSwarmAgentAllocations,
-  type AgentSwarmAgentAllocation
-} from "./agent-swarm.js";
-import { AGENT_SWARM_MAX_ACTIVE_AGENTS, AGENT_SWARM_MAX_ACTIVE_NODES } from "./agent-swarm-quota.js";
+  type AgentSwarmAdvancedSettings
+} from "./agent-swarm-config.js";
 
 export const PLATFORM_AGENT_PRESET_MODE_VALUES = [
   "standard",
@@ -24,16 +20,16 @@ export interface PlatformAgentPreset {
   description: string;
   requiresSuperAdmin: boolean;
   hidden?: boolean;
-  spawnableAsNode?: boolean;
   payload: Record<string, unknown>;
   mode?: PlatformAgentPresetMode;
+  // Agent Swarm defaults. Keep these in step with the swarm task parameters in the composer
+  // (see agent-swarm-config.ts and the preset contract in AGENTS.md).
   leaderAgentId?: string;
-  modelAllocations?: AgentSwarmAgentAllocation[];
-  reviewRounds?: number;
-  // Agent Swarm task defaults. Keep these in step with the swarm task parameters (TaskWorkflowComposerConfig).
+  routerId?: string | null;
+  budgetsEnabled?: boolean;
   tokenBudget?: number;
   timeBudgetMinutes?: number;
-  disableSpawningAndBudgets?: boolean;
+  advanced?: AgentSwarmAdvancedSettings;
 }
 
 const MAX_AGENT_PRESETS = 100;
@@ -114,29 +110,31 @@ function clonePreset(preset: PlatformAgentPreset): PlatformAgentPreset {
     description: preset.description,
     requiresSuperAdmin: preset.requiresSuperAdmin,
     ...(preset.hidden === true ? { hidden: true } : {}),
-    ...(typeof preset.spawnableAsNode === "boolean" ? { spawnableAsNode: preset.spawnableAsNode } : {}),
     payload: deepCloneJsonValue(preset.payload) as Record<string, unknown>,
     ...(preset.mode ? { mode: preset.mode } : {}),
     ...(preset.leaderAgentId ? { leaderAgentId: preset.leaderAgentId } : {}),
-    ...(preset.modelAllocations ? { modelAllocations: preset.modelAllocations.map((item) => ({ ...item })) } : {}),
-    ...(typeof preset.reviewRounds === "number" ? { reviewRounds: preset.reviewRounds } : {}),
-    ...swarmBudgetFields(preset)
+    ...(preset.routerId !== undefined ? { routerId: preset.routerId } : {}),
+    ...(typeof preset.budgetsEnabled === "boolean" ? { budgetsEnabled: preset.budgetsEnabled } : {}),
+    ...(typeof preset.tokenBudget === "number" ? { tokenBudget: preset.tokenBudget } : {}),
+    ...(typeof preset.timeBudgetMinutes === "number" ? { timeBudgetMinutes: preset.timeBudgetMinutes } : {}),
+    ...(preset.advanced ? { advanced: { ...preset.advanced } } : {})
   };
 }
 
-// Budgets are swarm task defaults; disabling spawning and budgets wins over any budget values.
-function swarmBudgetFields(raw: Record<string, unknown> | PlatformAgentPreset): Pick<
+// The swarm defaults a preset carries. Budget figures are kept even while budgets are off, so the
+// composer can show them when the user switches budgets on.
+function swarmPresetFields(raw: Record<string, unknown>): Pick<
   PlatformAgentPreset,
-  "tokenBudget" | "timeBudgetMinutes" | "disableSpawningAndBudgets"
+  "routerId" | "budgetsEnabled" | "tokenBudget" | "timeBudgetMinutes" | "advanced"
 > {
-  if (raw.disableSpawningAndBudgets === true) {
-    return { disableSpawningAndBudgets: true };
-  }
   const tokenBudget = normalizeAgentSwarmTokenBudget(raw.tokenBudget);
   const timeBudgetMinutes = normalizeAgentSwarmTimeBudgetMinutes(raw.timeBudgetMinutes);
   return {
+    routerId: normalizeId(raw.routerId),
+    budgetsEnabled: raw.budgetsEnabled === true,
     ...(tokenBudget !== null ? { tokenBudget } : {}),
-    ...(timeBudgetMinutes !== null ? { timeBudgetMinutes } : {})
+    ...(timeBudgetMinutes !== null ? { timeBudgetMinutes } : {}),
+    advanced: normalizeAgentSwarmAdvancedSettings(raw.advanced)
   };
 }
 
@@ -200,9 +198,6 @@ function normalizePreset(rawPreset: unknown): PlatformAgentPreset | null {
 
   if (mode === "agent_swarm") {
     const leaderAgentId = normalizeSwarmLeaderAgentId(rawPreset.leaderAgentId);
-    const modelAllocations = limitAgentSwarmAgentAllocations(
-      normalizeAgentSwarmAgentAllocations(rawPreset.modelAllocations)
-    );
     if (!leaderAgentId) {
       return null;
     }
@@ -213,13 +208,10 @@ function normalizePreset(rawPreset: unknown): PlatformAgentPreset | null {
       description,
       requiresSuperAdmin,
       ...(rawPreset.hidden === true ? { hidden: true } : {}),
-      ...(typeof rawPreset.spawnableAsNode === "boolean" ? { spawnableAsNode: rawPreset.spawnableAsNode } : {}),
       payload: normalizeAgentPresetPayload(deepCloneJsonValue(rawPreset.payload) as Record<string, unknown>),
       mode,
       leaderAgentId,
-      modelAllocations,
-      reviewRounds: clampAgentSwarmReviewRounds(rawPreset.reviewRounds),
-      ...swarmBudgetFields(rawPreset)
+      ...swarmPresetFields(rawPreset)
     };
   }
 
@@ -229,7 +221,6 @@ function normalizePreset(rawPreset: unknown): PlatformAgentPreset | null {
     description,
     requiresSuperAdmin,
     ...(rawPreset.hidden === true ? { hidden: true } : {}),
-    ...(typeof rawPreset.spawnableAsNode === "boolean" ? { spawnableAsNode: rawPreset.spawnableAsNode } : {}),
     payload: normalizeAgentPresetPayload(deepCloneJsonValue(rawPreset.payload) as Record<string, unknown>),
     ...(mode === "quality_control_reviewer" ? { mode } : {})
   };
@@ -239,167 +230,22 @@ export function resolvePlatformAgentPresetMode(preset: PlatformAgentPreset | nul
   return preset?.mode ?? "standard";
 }
 
-export function validatePlatformAgentPresetGraph(presets: PlatformAgentPreset[]): string[] {
+// Swarm presets must name an existing single-agent leader; a swarm cannot lead another swarm.
+export function validatePlatformAgentPresetReferences(presets: PlatformAgentPreset[]): string[] {
   const byId = new Map(presets.map((preset) => [preset.id, preset]));
   const errors: string[] = [];
-
   for (const preset of presets) {
     if (resolvePlatformAgentPresetMode(preset) !== "agent_swarm") {
       continue;
     }
-    const referencedIds = [preset.leaderAgentId, ...(preset.modelAllocations ?? []).map((item) => item.agentId)];
-    for (const referencedId of referencedIds) {
-      if (!referencedId || !byId.has(referencedId)) {
-        errors.push(`Agent Swarm preset ${preset.id} references unknown agent ${referencedId ?? "<missing>"}.`);
-      }
+    const leader = preset.leaderAgentId ? byId.get(preset.leaderAgentId) : undefined;
+    if (!leader) {
+      errors.push(`Agent Swarm preset ${preset.id} references unknown agent ${preset.leaderAgentId ?? "<missing>"}.`);
+    } else if (resolvePlatformAgentPresetMode(leader) === "agent_swarm") {
+      errors.push(`Agent Swarm preset ${preset.id} must be led by a single agent, not the swarm ${leader.id}.`);
     }
   }
-
-  const visit = (presetId: string, swarmDepth: number, path: string[]): void => {
-    const preset = byId.get(presetId);
-    if (!preset || resolvePlatformAgentPresetMode(preset) !== "agent_swarm") {
-      return;
-    }
-    if (swarmDepth > 3) {
-      errors.push(`Agent Swarm preset ${path[0] ?? presetId} exceeds the maximum nesting depth of 3.`);
-      return;
-    }
-    const references = [preset.leaderAgentId, ...(preset.modelAllocations ?? []).map((item) => item.agentId)]
-      .filter((value): value is string => Boolean(value));
-    for (const referenceId of references) {
-      if (path.includes(referenceId)) {
-        errors.push(`Agent Swarm preset cycle: ${[...path, referenceId].join(" -> ")}.`);
-        continue;
-      }
-      visit(referenceId, swarmDepth + 1, [...path, referenceId]);
-    }
-  };
-
-  for (const preset of presets) {
-    visit(preset.id, 1, [preset.id]);
-  }
-  return Array.from(new Set(errors));
-}
-
-export interface CompiledAgentSwarmLeaf {
-  id: string;
-  agentId: string;
-  name: string;
-  mode: PlatformAgentPresetMode;
-  nodeIds: string[];
-  leaderNodeIds: string[];
-  parentNodeId: string | null;
-}
-
-export interface CompiledAgentSwarmNode {
-  id: string;
-  parentNodeId: string | null;
-  title: string;
-  leaderLeafId: string;
-  workerLeafIds: string[];
-  reviewRounds: number;
-}
-
-export interface CompiledAgentSwarm {
-  rootNodeId: string;
-  nodes: CompiledAgentSwarmNode[];
-  leaves: CompiledAgentSwarmLeaf[];
-}
-
-export function compilePlatformAgentSwarm(input: {
-  presets: PlatformAgentPreset[];
-  leaderAgentId: string;
-  modelAllocations: AgentSwarmAgentAllocation[];
-  reviewRounds?: number;
-  title?: string;
-}): CompiledAgentSwarm {
-  const errors = validatePlatformAgentPresetGraph(input.presets);
-  if (errors.length > 0) {
-    throw new Error(errors.join(" "));
-  }
-  const byId = new Map(input.presets.map((preset) => [preset.id, preset]));
-  const leaves: CompiledAgentSwarmLeaf[] = [];
-  const nodes: CompiledAgentSwarmNode[] = [];
-  let nextLeaf = 0;
-  let nextNode = 0;
-
-  const expandSeat = (agentId: string, parentNodeId: string | null): string => {
-    const preset = byId.get(agentId);
-    if (!preset) {
-      throw new Error(`Agent not found: ${agentId}`);
-    }
-    if (resolvePlatformAgentPresetMode(preset) !== "agent_swarm") {
-      const id = `leaf-${nextLeaf++}`;
-      leaves.push({
-        id,
-        agentId: preset.id,
-        name: preset.name,
-        mode: resolvePlatformAgentPresetMode(preset),
-        nodeIds: [],
-        leaderNodeIds: [],
-        parentNodeId
-      });
-      return id;
-    }
-
-    return expandNode({
-      parentNodeId,
-      title: preset.name,
-      leaderAgentId: preset.leaderAgentId!,
-      modelAllocations: preset.modelAllocations ?? [],
-      reviewRounds: preset.reviewRounds ?? 0
-    }).leaderLeafId;
-  };
-
-  const expandNode = (nodeInput: {
-    parentNodeId: string | null;
-    title: string;
-    leaderAgentId: string;
-    modelAllocations: AgentSwarmAgentAllocation[];
-    reviewRounds: number;
-  }): CompiledAgentSwarmNode => {
-    const id = `node-${nextNode++}`;
-    const leaderLeafId = expandSeat(nodeInput.leaderAgentId, id);
-    const workerLeafIds: string[] = [];
-    for (const allocation of nodeInput.modelAllocations) {
-      for (let count = 0; count < allocation.workerCount; count += 1) {
-        workerLeafIds.push(expandSeat(allocation.agentId, id));
-      }
-    }
-    const node: CompiledAgentSwarmNode = {
-      id,
-      parentNodeId: nodeInput.parentNodeId,
-      title: nodeInput.title,
-      leaderLeafId,
-      workerLeafIds,
-      reviewRounds: nodeInput.reviewRounds
-    };
-    nodes.push(node);
-    const leader = leaves.find((leaf) => leaf.id === leaderLeafId)!;
-    leader.nodeIds.push(id);
-    leader.leaderNodeIds.push(id);
-    for (const workerLeafId of workerLeafIds) {
-      const worker = leaves.find((leaf) => leaf.id === workerLeafId)!;
-      worker.nodeIds.push(id);
-    }
-    return node;
-  };
-
-  const root = expandNode({
-    parentNodeId: null,
-    title: input.title ?? "Agent Swarm",
-    leaderAgentId: input.leaderAgentId,
-    modelAllocations: input.modelAllocations,
-    reviewRounds: input.reviewRounds ?? 0
-  });
-  const overcommittedLeaf = leaves.find((leaf) => leaf.nodeIds.length > 2);
-  if (overcommittedLeaf) {
-    throw new Error(`Agent ${overcommittedLeaf.name} belongs to more than two Agent Swarms.`);
-  }
-  if (nodes.length > AGENT_SWARM_MAX_ACTIVE_NODES || leaves.length > AGENT_SWARM_MAX_ACTIVE_AGENTS) {
-    throw new Error(`Agent Swarm exceeds the limit of ${AGENT_SWARM_MAX_ACTIVE_NODES} nodes or ${AGENT_SWARM_MAX_ACTIVE_AGENTS} agents.`);
-  }
-  return { rootNodeId: root.id, nodes, leaves };
+  return errors;
 }
 
 export function normalizePlatformAgentPresets(rawValue: unknown): PlatformAgentPreset[] {

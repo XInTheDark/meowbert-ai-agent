@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import type { TaskWorkflowType } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { resolveTaskDir } from "../tasks/task-paths.js";
-import { buildSwarmContext, loadSwarmChannels } from "./swarm-context.js";
 import * as contextTypes from "./context-types.js";
 import { buildLongHorizonContext } from "./long-horizon-context.js";
 import {
@@ -12,12 +11,9 @@ import {
 } from "./shared.js";
 
 export type {
-  SwarmChannelSummary,
-  SwarmInboxRefreshResult,
   LoadedWorkflowRunContext,
   WorkflowPromptContext
 } from "./context-types.js";
-export { loadSwarmChannels };
 
 async function loadWorkflowAgents(workflowTaskId: string): Promise<WorkflowAgentRecord[]> {
   const agentsRes = await query<{
@@ -43,7 +39,7 @@ async function loadWorkflowAgents(workflowTaskId: string): Promise<WorkflowAgent
        FROM task_workflow_agents a
        JOIN tasks t ON t.id = a.task_id
       WHERE a.workflow_task_id = $1
-      ORDER BY CASE a.role WHEN 'leader' THEN 0 WHEN 'main' THEN 0 ELSE 1 END, a.slot_index ASC, a.task_id ASC`,
+      ORDER BY CASE a.role WHEN 'main' THEN 0 ELSE 1 END, a.slot_index ASC, a.task_id ASC`,
     [workflowTaskId]
   );
 
@@ -89,7 +85,7 @@ export async function loadWorkflowRunContext(input: {
 
   const workflowTaskId = task.workflow_parent_task_id ?? task.id;
   const workflowRes = await query<{
-    workflow_type: TaskWorkflowType;
+    workflow_type: "long_horizon";
     phase: string;
     config_json: Record<string, unknown>;
     state_json: Record<string, unknown>;
@@ -126,25 +122,11 @@ export async function loadWorkflowRunContext(input: {
     planContent: await loadPlanContent(workflowTaskId)
   };
 
-  if (workflow.workflow_type === "long_horizon") {
-    context.longHorizon = await buildLongHorizonContext({
-      workflowTaskId,
-      configJson: workflow.config_json ?? {},
-      stateJson: workflow.state_json ?? {}
-    });
-  }
-
-  if (workflow.workflow_type === "agent_swarm") {
-    context.swarm = await buildSwarmContext({
-      workflowTaskId,
-      taskId: input.taskId,
-      envRoot: input.envRoot,
-      currentAgentId: currentAgent?.id ?? null,
-      agents,
-      configJson: workflow.config_json ?? {},
-      stateJson: workflow.state_json ?? {}
-    });
-  }
+  context.longHorizon = await buildLongHorizonContext({
+    workflowTaskId,
+    configJson: workflow.config_json ?? {},
+    stateJson: workflow.state_json ?? {}
+  });
 
   await fs.mkdir(workflowTaskDir, { recursive: true });
   return context;

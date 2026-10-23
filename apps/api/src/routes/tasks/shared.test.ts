@@ -52,18 +52,12 @@ describe("taskParametersPatchBody", () => {
     });
   });
 
-  it("accepts workflow patch with agent_swarm type", () => {
+  it("accepts workflow patch with agent_swarm type and rejects the old roster fields", () => {
     const swarmParsed = taskParametersPatchBody.parse({
-      workflow: {
-        type: "agent_swarm",
-        workerCount: 4,
-        reviewRounds: 1,
-        leaderAgentId: "agent-1",
-        modelAllocations: [{ agentId: "agent-1", workerCount: 4 }]
-      }
+      workflow: { type: "agent_swarm", routerId: "router-1", advanced: { maxDepth: 1, laneMaxSteps: null } }
     });
-    expect(swarmParsed.workflow?.type).toBe("agent_swarm");
-    expect(swarmParsed.workflow?.workerCount).toBe(4);
+    expect(swarmParsed.workflow).toMatchObject({ type: "agent_swarm", routerId: "router-1", advanced: { maxDepth: 1 } });
+    expect(() => taskParametersPatchBody.parse({ workflow: { type: "agent_swarm", workerCount: 4 } })).toThrow();
   });
 });
 
@@ -148,24 +142,22 @@ describe("createTaskBodySchema", () => {
     });
   });
 
-  it("accepts Agent Swarm budgets and an optional deadline with the default token budget", () => {
+  it("accepts Agent Swarm budgets and advanced settings", () => {
     const parsed = createTaskBodySchema.parse({
       message: "Bounded swarm task",
       workflow: {
         type: "agent_swarm",
-        workerCount: 3,
-        modelAllocations: [{ agentId: "agent-1", workerCount: 3 }],
+        budgetsEnabled: true,
         tokenBudget: 80_000,
-        timeBudgetMinutes: 60
+        timeBudgetMinutes: 60,
+        advanced: { autoCheck: false }
       }
     });
 
-    expect(parsed.workflow?.tokenBudget).toBe(80_000);
-    expect(parsed.workflow?.timeBudgetMinutes).toBe(60);
-    const deadlineWithDefaultBudget = createTaskBodySchema.parse({
-      message: "Deadline with default envelope",
-      workflow: { type: "agent_swarm", workerCount: 3, timeBudgetMinutes: 60 }
-    });
-    expect(deadlineWithDefaultBudget.workflow?.timeBudgetMinutes).toBe(60);
+    expect(parsed.workflow).toMatchObject({ budgetsEnabled: true, tokenBudget: 80_000, timeBudgetMinutes: 60 });
+    expect(() => createTaskBodySchema.parse({
+      message: "Unknown setting",
+      workflow: { type: "agent_swarm", advanced: { reviewRounds: 2 } }
+    })).toThrow();
   });
 });

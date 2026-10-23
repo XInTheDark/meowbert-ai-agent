@@ -329,71 +329,6 @@ export const waitArgumentsSchema = z.object({
   notify: z.boolean().nullable().optional()
 }).strict();
 
-export const swarmManageArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).nullable().optional(),
-  start: z.array(z.string().min(1)).max(6),
-  stop: z.array(z.string().min(1)).max(6),
-  view_only: z.boolean()
-}).strict().superRefine((value, context) => {
-  const overlap = value.start.find((worker) => value.stop.includes(worker));
-  if (overlap) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: `Worker cannot be both started and stopped: ${overlap}` });
-  }
-  const changes = value.start.length + value.stop.length;
-  if (value.view_only && changes > 0) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "view_only cannot be combined with start or stop." });
-  }
-  if (!value.view_only && changes === 0) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "Provide a worker to start or stop, or set view_only to true." });
-  }
-});
-
-export const assignWorkerArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).nullable().optional(),
-  workers: z.array(z.string().min(1)).min(1).max(6),
-  message: z.string().min(1).max(20_000),
-  wait: z.boolean()
-}).strict();
-
-export const swarmBudgetStatusArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).nullable().optional()
-}).strict();
-
-export const swarmSpawnNodeArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).nullable().optional(),
-  node_type_id: z.string().min(1).max(240),
-  title: z.string().min(1).max(240),
-  initial_instruction: z.string().min(1).max(20_000).nullable(),
-  token_budget: z.number().int().positive(),
-  time_budget_minutes: z.number().int().positive().nullable()
-}).strict();
-
-export const swarmGrantBudgetArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).nullable().optional(),
-  node_id: z.string().uuid(),
-  additional_tokens: z.number().int().positive(),
-  extend_deadline_minutes: z.number().int().positive().nullable()
-}).strict();
-
-export const swarmCancelNodeArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).nullable().optional(),
-  node_id: z.string().uuid(),
-  reason: z.string().min(1).max(2_000)
-}).strict();
-
-export const swarmRecordReviewArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).optional(),
-  reviewer: z.string().min(1),
-  summary: z.string().min(1).max(20_000)
-}).strict();
-
-export const swarmRecordFinalReviewArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).optional(),
-  reviewer: z.string().min(1),
-  approved: z.boolean(),
-  summary: z.string().min(1).max(20_000)
-}).strict();
-
 export const stopTaskArgumentsSchema = z.object({
   response: z.string().min(1),
   notify: z.boolean().nullable().optional()
@@ -410,37 +345,6 @@ export const submitResponseArgumentsSchema = z.object({
 export const submitReviewArgumentsSchema = z.object({
   review: z.string().min(1),
   approved: z.boolean()
-});
-
-export const listChannelsArgumentsSchema = z.object({ target_swarm: z.enum(["outer", "inner"]).optional() });
-
-export const readChannelArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).optional(),
-  channel_id: z.string().min(1),
-  since_message_no: z.number().int().positive().nullable().optional()
-});
-
-export const createChannelArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).optional(),
-  member_agent_task_ids: z.array(z.string().uuid()).min(2).max(8),
-  title: z.string().min(1).max(120).nullable().optional()
-});
-
-export const sendChannelMessageArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).optional(),
-  channel_id: z.string().min(1),
-  message: z.string().min(1)
-});
-
-export const swarmPauseArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).optional(),
-  status: z.string().min(1).max(2_000),
-  wait_for_task_ids: z.array(z.string().min(1)).max(32).nullable().optional()
-});
-
-export const submitSwarmOutputArgumentsSchema = z.object({
-  target_swarm: z.enum(["outer", "inner"]).optional(),
-  response: z.string().min(1)
 });
 
 export {

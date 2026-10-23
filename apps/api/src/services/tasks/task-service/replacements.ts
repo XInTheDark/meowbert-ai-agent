@@ -6,7 +6,7 @@ import { setTaskBranchSelection } from "./branching.js";
 import { decideTaskDispatchModeInTx, resolveUserTriggeredRunModeInTx } from "./dispatch.js";
 import { enqueueRun } from "./runs.js";
 import { activateTaskTimeLimitInTx } from "./time-limit.js";
-import { applySelectedSwarmInTx, resolveSelectedSwarm } from "./swarm-selection.js";
+import { applySelectedSwarmPresetInTx, resolveSelectedSwarmPreset } from "../../agent-swarm/preset-selection.js";
 
 export async function replaceTaskMessageAndEnqueue(input: {
   taskId: string;
@@ -24,7 +24,7 @@ export async function replaceTaskMessageAndEnqueue(input: {
   | { taskId: string; mode: "interrupting"; messageId: string; activeLeafMessageId: string }
 > {
   const selectedAgent = input.nextContent.agent;
-  const selectedSwarm = await resolveSelectedSwarm(
+  const selectedSwarmPreset = await resolveSelectedSwarmPreset(
     input.userId,
     selectedAgent && typeof selectedAgent === "object" && !Array.isArray(selectedAgent)
       && typeof (selectedAgent as { id?: unknown }).id === "string"
@@ -60,13 +60,8 @@ export async function replaceTaskMessageAndEnqueue(input: {
     const nextMessageId = insertedMessage.rows[0].id;
     await touchTaskHistoryActivity(client, input.taskId, insertedMessage.rows[0].created_at);
 
-    if (selectedSwarm) {
-      await applySelectedSwarmInTx(client, {
-        taskId: input.taskId,
-        userId: input.userId,
-        selectedSwarm,
-        prompt: typeof input.nextContent.text === "string" ? input.nextContent.text : ""
-      });
+    if (selectedSwarmPreset) {
+      await applySelectedSwarmPresetInTx(client, { taskId: input.taskId, preset: selectedSwarmPreset });
     }
 
     await activateTaskTimeLimitInTx(client, input.taskId, insertedMessage.rows[0].created_at);

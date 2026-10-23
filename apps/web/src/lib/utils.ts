@@ -376,29 +376,6 @@ export function getEffectiveTaskStatus(input: {
     return "interrupting";
   }
 
-  const workflow = input.workflow;
-  if (!workflow) {
-    return input.taskStatus;
-  }
-
-  if (workflow.type === "agent_swarm") {
-    if (workflow.phase !== "completed") {
-      return "running";
-    }
-
-    if (workflow.agentSwarm.workers.some((worker) => worker.status === "running" || worker.status === "starting")) {
-      return "running";
-    }
-
-    if (workflow.agentSwarm.workers.some((worker) => worker.status === "queued")) {
-      return "queued";
-    }
-
-    if (workflow.phase !== "completed" && input.taskStatus === "succeeded") {
-      return "running";
-    }
-  }
-
   return input.taskStatus;
 }
 

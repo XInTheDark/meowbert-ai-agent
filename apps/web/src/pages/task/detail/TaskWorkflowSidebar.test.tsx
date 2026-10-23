@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "../../../lib/api";
-import type { LongHorizonWorkflowOverview, AgentSwarmWorkflowOverview } from "../../../lib/types";
+import type { LongHorizonWorkflowOverview } from "../../../lib/types";
 import { TaskWorkflowSidebar } from "./TaskWorkflowSidebar";
 import type { TaskDetailWorkflowSidebarController } from "./useTaskDetailWorkflowSidebar";
 
@@ -23,73 +23,9 @@ describe("TaskWorkflowSidebar", () => {
     root = null;
   });
 
-  const mockWorkflow: AgentSwarmWorkflowOverview = {
-    type: "agent_swarm",
-    phase: "running",
-    config: {},
-    agentSwarm: {
-      workerCount: 2,
-      channels: [
-        { id: "chan-1", kind: "global", title: "General", member_task_ids: ["w1", "w2"], created_at: "2026-08-28T00:00:00Z", latest_message_no: 3 }
-      ],
-      workers: [
-        { workflow_agent_id: "a1", task_id: "w1", slot_index: 0, title: "Worker 1", status: "running", updated_at: "2026-08-28T00:00:00Z" },
-        { workflow_agent_id: "a2", task_id: "w2", slot_index: 1, title: "Worker 2", status: "succeeded", updated_at: "2026-08-28T00:00:00Z" }
-      ]
-    }
-  };
-
   const mockApi = {
     get: vi.fn().mockResolvedValue({ items: [] })
   } as unknown as ApiClient;
-
-  it("renders overview panel with workers and channels, and handles click to open worker", async () => {
-    const sidebar: TaskDetailWorkflowSidebarController = {
-      workflowSidebarStack: [{ kind: "overview" }],
-      setWorkflowSidebarStack: vi.fn(),
-      openOverview: vi.fn(),
-      openWorker: vi.fn(),
-      openChannel: vi.fn(),
-      openPlan: vi.fn(),
-      openSubmission: vi.fn(),
-      openReview: vi.fn(),
-      openReviewer: vi.fn(),
-      popPanel: vi.fn(),
-      closeSidebar: vi.fn(),
-      isWorkflowSidebarOpen: true,
-      activePanel: { kind: "overview" }
-    };
-
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-
-    await act(async () => {
-      root?.render(
-        <TaskWorkflowSidebar
-          api={mockApi}
-          taskId="task-1"
-          workflow={mockWorkflow}
-          sidebar={sidebar}
-        />
-      );
-    });
-
-    expect(container.textContent).toContain("Agent Swarm");
-    expect(container.textContent).toContain("Workflow Overview");
-    expect(container.textContent).toContain("Workers (2)");
-    expect(container.textContent).toContain("Worker 1");
-    expect(container.textContent).toContain("Worker 2");
-    expect(container.textContent).toContain("General");
-
-    const workerBtn = container.querySelector<HTMLButtonElement>(".workflow-worker-item");
-    await act(async () => workerBtn?.click());
-    expect(sidebar.openWorker).toHaveBeenCalledWith(mockWorkflow.agentSwarm.workers[0]);
-
-    const closeBtn = container.querySelector<HTMLButtonElement>(".thread-sidebar-header-actions button");
-    await act(async () => closeBtn?.click());
-    expect(sidebar.closeSidebar).toHaveBeenCalledTimes(1);
-  });
 
   it("renders plan panel and back button when stack has depth > 1", async () => {
     const longHorizonWorkflow: LongHorizonWorkflowOverview = {
@@ -120,8 +56,6 @@ describe("TaskWorkflowSidebar", () => {
       ],
       setWorkflowSidebarStack: vi.fn(),
       openOverview: vi.fn(),
-      openWorker: vi.fn(),
-      openChannel: vi.fn(),
       openPlan: vi.fn(),
       openSubmission: vi.fn(),
       openReview: vi.fn(),
@@ -202,8 +136,6 @@ describe("TaskWorkflowSidebar", () => {
       workflowSidebarStack: [{ kind: "overview" }],
       setWorkflowSidebarStack: vi.fn(),
       openOverview: vi.fn(),
-      openWorker: vi.fn(),
-      openChannel: vi.fn(),
       openPlan: vi.fn(),
       openSubmission: vi.fn(),
       openReview: vi.fn(),

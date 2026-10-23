@@ -2,13 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import {
   APPLY_PATCH_TOOL_NAME,
-  SWARM_PAUSE_TOOL_NAME,
-  SWARM_MANAGE_TOOL_NAME,
-  SWARM_RECORD_FINAL_REVIEW_TOOL_NAME,
-  SWARM_RECORD_REVIEW_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,
-  CREATE_CHANNEL_TOOL_NAME,
   CREATE_PROJECT_CANVAS_TOOL_NAME,
   SHOW_CANVAS_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
@@ -17,7 +12,6 @@ import {
   HISTORY_LIST_ITEMS_TOOL_NAME,
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
   INIT_SANDBOX_TOOL_NAME,
-  LIST_CHANNELS_TOOL_NAME,
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
   MARK_ARTIFACT_TOOL_NAME,
   MEMORY_SEARCH_TOOL_NAME,
@@ -26,7 +20,6 @@ import {
   NOTES_READ_FILE_TOOL_NAME,
   NOTES_WRITE_FILE_TOOL_NAME,
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
-  ASSIGN_WORKER_TOOL_NAME,
   RESPONSE_FUNCTION_TOOLS,
   RUN_SHELL_TOOL_NAME,
   SCHEDULE_TASK_TOOL_NAME,
@@ -145,49 +138,6 @@ describe("strict function tool schemas", () => {
 });
 
 describe("buildResponseTools", () => {
-  it("requires swarm targets only for dual-role leaders", () => {
-    const options = {
-      webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false,
-      computerUse: false, enabledSkills: [], enabledSources: []
-    };
-    const availability = {
-      allowSwarmTools: true, allowSwarmManageTool: true, allowSwarmPauseTool: true,
-      allowSwarmReviewTool: true, allowSwarmFinalReviewTool: true, allowSwarmOutputTool: true
-    };
-    const targeted = buildResponseTools(options, [], { ...availability, requireSwarmTarget: true });
-    const ordinary = buildResponseTools(options, [], availability);
-    for (const tool of targeted) {
-      if (tool.type !== "function" || ![
-        SWARM_MANAGE_TOOL_NAME, SWARM_PAUSE_TOOL_NAME, ASSIGN_WORKER_TOOL_NAME,
-        LIST_CHANNELS_TOOL_NAME, CREATE_CHANNEL_TOOL_NAME, SWARM_RECORD_REVIEW_TOOL_NAME,
-        SWARM_RECORD_FINAL_REVIEW_TOOL_NAME, "read_channel", "send_channel_message",
-        "submit_swarm_output"
-      ].includes(tool.name)) continue;
-      expect((tool.parameters as { required: string[] }).required).toContain("target_swarm");
-      expect(validateTool(tool)).toEqual([]);
-      const normal = ordinary.find((candidate) => candidate.type === "function" && candidate.name === tool.name);
-      expect((normal?.parameters as { properties: Record<string, unknown> }).properties).not.toHaveProperty("target_swarm");
-    }
-  });
-
-  it("drops budget and spawn tools for swarms without a budget", () => {
-    const options = {
-      webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false,
-      computerUse: false, enabledSkills: [], enabledSources: []
-    };
-    const availability = { allowSwarmTools: true, allowSwarmManageTool: true };
-    const names = (tools: ReturnType<typeof buildResponseTools>) => tools.flatMap((tool) => tool.type === "function" ? [tool.name] : []);
-    const budgetToolNames = ["swarm_budget_status", "swarm_spawn_node", "swarm_grant_budget", "swarm_cancel_node"];
-
-    const budgeted = buildResponseTools(options, [], { ...availability, allowSwarmBudgetTools: true });
-    const unbudgeted = buildResponseTools(options, [], availability);
-
-    expect(names(budgeted)).toEqual(expect.arrayContaining(budgetToolNames));
-    for (const name of budgetToolNames) expect(names(unbudgeted)).not.toContain(name);
-    const manage = unbudgeted.find((tool): tool is FunctionTool => tool.type === "function" && tool.name === SWARM_MANAGE_TOOL_NAME)!;
-    expect(validateTool(manage)).toEqual([]);
-  });
-
   it.each([false, true])("gates organization tools and strict summary fields in quickMode=%s", (quickModeActive) => {
     const options = { webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false, computerUse: false, enabledSkills: [], enabledSources: [] };
     const disabled = buildResponseTools(options, [], { quickModeActive, allowTaskHistoryTools: false });
@@ -807,97 +757,16 @@ describe("buildResponseTools", () => {
         allowFinalResponse: false,
         allowStartLongHorizonTask: true,
         allowSubmitResponse: true,
-        allowSubmitReview: true,
-        allowSwarmTools: true,
-        allowSwarmManageTool: true,
-        allowSwarmReviewTool: true,
-        allowSwarmFinalReviewTool: true
+        allowSubmitReview: true
       }
     );
 
     expect(disabled.some((tool) => tool.type === "function" && tool.name === START_LONG_HORIZON_TASK_TOOL_NAME)).toBe(false);
     expect(disabled.some((tool) => tool.type === "function" && tool.name === SUBMIT_RESPONSE_TOOL_NAME)).toBe(false);
     expect(disabled.some((tool) => tool.type === "function" && tool.name === SUBMIT_REVIEW_TOOL_NAME)).toBe(false);
-    expect(disabled.some((tool) => tool.type === "function" && tool.name === ASSIGN_WORKER_TOOL_NAME)).toBe(false);
-    expect(disabled.some((tool) => tool.type === "function" && tool.name === LIST_CHANNELS_TOOL_NAME)).toBe(false);
-    expect(disabled.some((tool) => tool.type === "function" && tool.name === CREATE_CHANNEL_TOOL_NAME)).toBe(false);
 
     expect(enabled.some((tool) => tool.type === "function" && tool.name === START_LONG_HORIZON_TASK_TOOL_NAME)).toBe(true);
     expect(enabled.some((tool) => tool.type === "function" && tool.name === SUBMIT_RESPONSE_TOOL_NAME)).toBe(true);
     expect(enabled.some((tool) => tool.type === "function" && tool.name === SUBMIT_REVIEW_TOOL_NAME)).toBe(true);
-    expect(enabled.some((tool) => tool.type === "function" && tool.name === ASSIGN_WORKER_TOOL_NAME)).toBe(true);
-    expect(enabled.some((tool) => tool.type === "function" && tool.name === "refresh_inbox")).toBe(false);
-    expect(enabled.some((tool) => tool.type === "function" && tool.name === LIST_CHANNELS_TOOL_NAME)).toBe(true);
-    expect(enabled.some((tool) => tool.type === "function" && tool.name === CREATE_CHANNEL_TOOL_NAME)).toBe(true);
-    expect(disabled.some((tool) => tool.type === "function" && tool.name === SWARM_MANAGE_TOOL_NAME)).toBe(false);
-    expect(enabled.some((tool) => tool.type === "function" && tool.name === SWARM_MANAGE_TOOL_NAME)).toBe(true);
-    expect(disabled.some((tool) => tool.type === "function" && tool.name === SWARM_RECORD_REVIEW_TOOL_NAME)).toBe(false);
-    expect(enabled.some((tool) => tool.type === "function" && tool.name === SWARM_RECORD_REVIEW_TOOL_NAME)).toBe(true);
-    expect(disabled.some((tool) => tool.type === "function" && tool.name === SWARM_RECORD_FINAL_REVIEW_TOOL_NAME)).toBe(false);
-    expect(enabled.some((tool) => tool.type === "function" && tool.name === SWARM_RECORD_FINAL_REVIEW_TOOL_NAME)).toBe(true);
-  });
-
-  it("exposes swarm_pause separately from generic wait", () => {
-    const swarmTools = buildResponseTools(
-      {
-        webSearch: false,
-        memorySearch: false,
-        scheduleTask: false,
-        subtasks: false,
-        computerUse: false,
-        enabledSkills: [],
-        enabledSources: []
-      },
-      [],
-      {
-        allowFinalResponse: false,
-        allowWaitTool: false,
-        allowSwarmPauseTool: true
-      }
-    );
-
-    expect(swarmTools.some((tool) => tool.type === "function" && tool.name === SWARM_PAUSE_TOOL_NAME)).toBe(true);
-    expect(swarmTools.some((tool) => tool.type === "function" && tool.name === WAIT_TOOL_NAME)).toBe(false);
-  });
-
-  it("keeps final_response available alongside swarm_pause", () => {
-    const tools = buildResponseTools(
-      {
-        webSearch: false,
-        memorySearch: false,
-        scheduleTask: false,
-        subtasks: false,
-        computerUse: false,
-        enabledSkills: [],
-        enabledSources: []
-      },
-      [],
-      {
-        allowFinalResponse: true,
-        allowSwarmPauseTool: true
-      }
-    );
-
-    const swarmPauseTool = tools.find(
-      (tool) => tool.type === "function" && tool.name === SWARM_PAUSE_TOOL_NAME
-    );
-
-    expect(tools.some((tool) => tool.type === "function" && tool.name === FINAL_RESPONSE_TOOL_NAME)).toBe(true);
-    expect(swarmPauseTool).toEqual(expect.objectContaining({
-      type: "function",
-      name: SWARM_PAUSE_TOOL_NAME
-    }));
-    if (!swarmPauseTool || swarmPauseTool.type !== "function") {
-      throw new Error("Expected swarm_pause function tool to be present.");
-    }
-    if (!swarmPauseTool.parameters) {
-      throw new Error("Expected swarm_pause function tool parameters to be present.");
-    }
-
-    expect(swarmPauseTool.parameters).toEqual(expect.objectContaining({
-      required: ["status", "wait_for_task_ids"]
-    }));
-    expect(isRecord(swarmPauseTool.parameters.properties)).toBe(true);
-    expect(swarmPauseTool.parameters.properties).not.toHaveProperty("dependencies");
   });
 });

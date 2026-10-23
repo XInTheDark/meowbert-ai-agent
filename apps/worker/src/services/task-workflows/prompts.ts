@@ -1,8 +1,6 @@
 import type { TaskExecutionJob } from "@meowbert/shared";
 import type { LoadedWorkflowRunContext, WorkflowPromptContext } from "./context.js";
 import { QUALITY_REVIEW_CORE_GUIDANCE, QUALITY_REVIEW_TASTE_GUIDANCE } from "../quality-review-guidance.js";
-import { buildSwarmPromptContext } from "./swarm-prompts.js";
-import { isQualityReviewSwarmAgent } from "./swarm-prompt-sections.js";
 
 function buildQualityReviewPrompt(context: LoadedWorkflowRunContext): string {
   const mainTaskDir = context.workflowTaskDir ?? context.taskDir;
@@ -174,16 +172,6 @@ function buildQualityControlMainPrompt(phase: string): string {
   ].join("\n");
 }
 
-function buildQualityReviewSwarmOverlay(context: LoadedWorkflowRunContext): string {
-  return [
-    buildQualityReviewPrompt(context),
-    "",
-    "### Swarm handoff",
-    "- Report the complete audit, evidence, repairs, and remaining corrections to the swarm leader in your required swarm message.",
-    "- Do not call `submit_review`; that tool belongs to the Long Horizon reviewer. The swarm leader uses your report to decide whether the candidate is ready."
-  ].join("\n");
-}
-
 function buildQualityControlReviewerPrompt(
   context: LoadedWorkflowRunContext,
   planBlock: string
@@ -211,94 +199,87 @@ export function buildWorkflowPromptContext(
   context: LoadedWorkflowRunContext,
   jobMode: TaskExecutionJob["mode"]
 ): WorkflowPromptContext {
-  if (context.workflowType === "long_horizon") {
-    const qualityControl = isQualityControlWorkflow(context);
-    const deepResearch = isDeepResearchWorkflow(context);
-    const workflowLabel = qualityControl ? "Quality control" : deepResearch ? "Deep Research" : "Long Horizon";
-    const planBlock = context.planContent
-      ? ["", "### Current PLAN.md", "```md", context.planContent, "```", ""].join("\n")
-      : "\nPLAN.md has not been created yet.\n";
+  const qualityControl = isQualityControlWorkflow(context);
+  const deepResearch = isDeepResearchWorkflow(context);
+  const workflowLabel = qualityControl ? "Quality control" : deepResearch ? "Deep Research" : "Long Horizon";
+  const planBlock = context.planContent
+    ? ["", "### Current PLAN.md", "```md", context.planContent, "```", ""].join("\n")
+    : "\nPLAN.md has not been created yet.\n";
 
-    if (jobMode === "long_horizon_clarify") {
-      return {
-        roleSummary: `${workflowLabel} · Clarify`,
-        section: [
-          `## ${workflowLabel} workflow — Clarify agent`,
-          "",
-          `You are the Clarify agent for a ${workflowLabel.toLowerCase()} task.`,
-          "- Your job is to understand the request fully before the main execution begins.",
-          "- If genuinely required information is missing, call `request_clarification` with one concise question. Do not answer the task in a normal assistant message.",
-          "- Only YOU can start the actual long-horizon execution.",
-          "- When the task is sufficiently clear, call `start_long_horizon_task` exactly once with a detailed markdown plan.",
-          "- That tool writes `PLAN.md`, saves the plan to workflow state, and hands off to the main execution stage.",
-          "- Do not pretend the task is complete during clarify. Your run must call either `request_clarification` or `start_long_horizon_task`.",
-          deepResearch ? buildDeepResearchSystemPrompt() : null
-        ].filter(Boolean).join("\n")
-      };
-    }
-
-    if (jobMode === "long_horizon_reviewer" || jobMode === "quality_control_reviewer") {
-      if (qualityControl) {
-        return buildQualityControlReviewerPrompt(context, planBlock);
-      }
-      if (deepResearch) {
-        return buildDeepResearchReviewerPrompt(context, planBlock);
-      }
-      return {
-        roleSummary: "Long Horizon · Reviewer",
-        section: [
-          "## Long Horizon Workflow — Reviewer",
-          "",
-          "You are the reviewer for this long-horizon task.",
-          "- Review the latest submitted work strictly against the plan.",
-          "- `approved: true` means the task is FULLY complete, aligned with the plan, and high quality.",
-          "- If anything is missing, weak, or non-compliant, submit `approved: false` with concrete feedback.",
-          "- Finish your run by calling `submit_review` exactly once.",
-          planBlock,
-          context.longHorizon?.currentReviewSummary
-            ? ["### Current submission & review state", context.longHorizon.currentReviewSummary].join("\n\n")
-            : "There is no active submission to review yet."
-        ].join("\n")
-      };
-    }
-
-    const phase = context.phase;
-    const reviewSummary = context.longHorizon?.currentReviewSummary;
-    const budgetPrompt = buildLongHorizonBudgetPrompt(context);
-    const reviewDisabled = context.longHorizon?.enableReviewPhase === false;
+  if (jobMode === "long_horizon_clarify") {
     return {
-      roleSummary: `${workflowLabel} · Main`,
+      roleSummary: `${workflowLabel} · Clarify`,
       section: [
-        `## ${workflowLabel} workflow — Main execution`,
+        `## ${workflowLabel} workflow — Clarify agent`,
         "",
-        `Current phase: ${phase}.`,
-        "- Work through the task thoroughly and keep the plan as your contract.",
-        reviewDisabled
-          ? "- Review phase is disabled for this workflow. When you have completed the task and verified against the completion audit, call `final_response` directly to deliver the final user-facing answer."
-          : phase === "approved"
-            ? "- Reviewer approval has been reached. Finalize carefully and call `final_response` when the final user-facing answer is ready."
-            : "- `final_response` is locked until reviewer approval is reached.",
-        reviewDisabled
-          ? null
-          : phase === "approved"
-            ? "- Do not call `submit_response` anymore in the approved phase."
-            : qualityControl
-              ? "- When the work is ready for review, call `submit_response` exactly once and follow the Quality-control submission contract below."
-              : "- When you believe the task is complete enough for review, call `submit_response` exactly once with a concise summary of what was done and what the reviewer should inspect.",
-        buildLongHorizonCompletionAuditPrompt(),
-        deepResearch ? buildDeepResearchSystemPrompt() : null,
-        qualityControl ? buildQualityControlMainPrompt(phase) : null,
-        budgetPrompt,
-        planBlock,
-        reviewSummary ? ["### Latest review state", reviewSummary].join("\n\n") : ""
+        `You are the Clarify agent for a ${workflowLabel.toLowerCase()} task.`,
+        "- Your job is to understand the request fully before the main execution begins.",
+        "- If genuinely required information is missing, call `request_clarification` with one concise question. Do not answer the task in a normal assistant message.",
+        "- Only YOU can start the actual long-horizon execution.",
+        "- When the task is sufficiently clear, call `start_long_horizon_task` exactly once with a detailed markdown plan.",
+        "- That tool writes `PLAN.md`, saves the plan to workflow state, and hands off to the main execution stage.",
+        "- Do not pretend the task is complete during clarify. Your run must call either `request_clarification` or `start_long_horizon_task`.",
+        deepResearch ? buildDeepResearchSystemPrompt() : null
       ].filter(Boolean).join("\n")
     };
   }
 
-  const qualityReviewOverlay = isQualityReviewSwarmAgent(context)
-    ? buildQualityReviewSwarmOverlay(context)
-    : null;
-  return buildSwarmPromptContext(context, jobMode === "agent_swarm_leader" ? "leader" : "worker", qualityReviewOverlay);
+  if (jobMode === "long_horizon_reviewer" || jobMode === "quality_control_reviewer") {
+    if (qualityControl) {
+      return buildQualityControlReviewerPrompt(context, planBlock);
+    }
+    if (deepResearch) {
+      return buildDeepResearchReviewerPrompt(context, planBlock);
+    }
+    return {
+      roleSummary: "Long Horizon · Reviewer",
+      section: [
+        "## Long Horizon Workflow — Reviewer",
+        "",
+        "You are the reviewer for this long-horizon task.",
+        "- Review the latest submitted work strictly against the plan.",
+        "- `approved: true` means the task is FULLY complete, aligned with the plan, and high quality.",
+        "- If anything is missing, weak, or non-compliant, submit `approved: false` with concrete feedback.",
+        "- Finish your run by calling `submit_review` exactly once.",
+        planBlock,
+        context.longHorizon?.currentReviewSummary
+          ? ["### Current submission & review state", context.longHorizon.currentReviewSummary].join("\n\n")
+          : "There is no active submission to review yet."
+      ].join("\n")
+    };
+  }
+
+  const phase = context.phase;
+  const reviewSummary = context.longHorizon?.currentReviewSummary;
+  const budgetPrompt = buildLongHorizonBudgetPrompt(context);
+  const reviewDisabled = context.longHorizon?.enableReviewPhase === false;
+  return {
+    roleSummary: `${workflowLabel} · Main`,
+    section: [
+      `## ${workflowLabel} workflow — Main execution`,
+      "",
+      `Current phase: ${phase}.`,
+      "- Work through the task thoroughly and keep the plan as your contract.",
+      reviewDisabled
+        ? "- Review phase is disabled for this workflow. When you have completed the task and verified against the completion audit, call `final_response` directly to deliver the final user-facing answer."
+        : phase === "approved"
+          ? "- Reviewer approval has been reached. Finalize carefully and call `final_response` when the final user-facing answer is ready."
+          : "- `final_response` is locked until reviewer approval is reached.",
+      reviewDisabled
+        ? null
+        : phase === "approved"
+          ? "- Do not call `submit_response` anymore in the approved phase."
+          : qualityControl
+            ? "- When the work is ready for review, call `submit_response` exactly once and follow the Quality-control submission contract below."
+            : "- When you believe the task is complete enough for review, call `submit_response` exactly once with a concise summary of what was done and what the reviewer should inspect.",
+      buildLongHorizonCompletionAuditPrompt(),
+      deepResearch ? buildDeepResearchSystemPrompt() : null,
+      qualityControl ? buildQualityControlMainPrompt(phase) : null,
+      budgetPrompt,
+      planBlock,
+      reviewSummary ? ["### Latest review state", reviewSummary].join("\n\n") : ""
+    ].filter(Boolean).join("\n")
+  };
 }
 
 export function shouldAllowWorkflowFinalResponse(
@@ -309,15 +290,10 @@ export function shouldAllowWorkflowFinalResponse(
     return true;
   }
 
-  if (context.workflowType === "long_horizon") {
-    if (context.longHorizon?.enableReviewPhase === false) {
-      return jobMode === "long_horizon_main";
-    }
-    return jobMode === "long_horizon_main" && context.phase === "approved";
+  if (context.longHorizon?.enableReviewPhase === false) {
+    return jobMode === "long_horizon_main";
   }
-
-  return jobMode === "agent_swarm_leader"
-    && context.phase !== "completed";
+  return jobMode === "long_horizon_main" && context.phase === "approved";
 }
 
 export function shouldAllowWorkflowSubmitResponse(
@@ -356,8 +332,4 @@ export function shouldAllowWorkflowRequestClarification(
   return context?.workflowType === "long_horizon"
     && jobMode === "long_horizon_clarify"
     && context.phase === "clarify";
-}
-
-export function shouldAllowSwarmChannelTools(context: LoadedWorkflowRunContext | null): boolean {
-  return context?.workflowType === "agent_swarm" && context.phase !== "completed";
 }

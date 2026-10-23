@@ -25,7 +25,6 @@ import { buildAgentTurnRequest } from "./turn-request.js";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "./prompt-envelope.js";
 import { appendQueuedPromptDeltas } from "./queued-prompt-deltas.js";
-import { appendSwarmBudgetNotes } from "./swarm-budget-notes.js";
 import { runClaudeWebSearch } from "./claude-web-search.js";
 import { resolveRunUsageBilling } from "./usage-billing.js";
 import {
@@ -34,35 +33,11 @@ import {
   recordPlatformTokenUsageEvent
 } from "../tasks/subscription-usage.js";
 import {
-  canRecordSwarmFinalReview,
-  canRecordSwarmReview,
-  cancelSwarmNode,
-  createSwarmChannelForAgent,
-  getSwarmBudgetStatus,
-  grantSwarmNodeBudget,
-  releaseSwarmInference,
-  reserveSwarmInference,
-  settleSwarmInference,
-  wakeParentForSwarmQuota,
-  listSwarmChannelsForAgent,
   loadLongHorizonBudgetTelemetry,
-  manageSwarmWorkers,
-  assignSwarmWorkers,
-  recordSwarmFinalReview,
-  recordSwarmReviewRound,
-  deliverSwarmInbox,
-  pauseSwarmAgent,
-  assertSwarmBudgetAllowsWaiting,
-  readSwarmChannel,
-  sendSwarmChannelMessage,
-  submitSwarmOutput,
-  spawnSwarmNode,
   startLongHorizonTask,
   submitLongHorizonResponse,
   submitLongHorizonReview
 } from "../task-workflows/service.js";
-import type { SwarmQuotaError } from "../task-workflows/service.js";
-import { hasSwarmLeadership, hasDualSwarmRole, hasAgentSwarmBudget } from "../task-workflows/swarm-target.js";
 import { buildTimedRunFinalizationMessage } from "../tasks/recurring-run-utils.js";
 import type { AgentExecutionContext, AgentStepAvailability, WorkflowActions } from "./execution-types.js";
 
@@ -72,15 +47,6 @@ const MAX_MODEL_REQUEST_RECOVERY_ITEMS = 6;
 const CLAUDE_CACHE_KEEPALIVE_SECONDS = 30 * 60;
 
 type ModelTurnResponse = Awaited<ReturnType<typeof createModelResponseWithRetry>>;
-
-function isSwarmQuotaError(error: unknown): error is SwarmQuotaError {
-  if (!(error instanceof Error) || error.name !== "SwarmQuotaError") return false;
-  const reason = (error as { reason?: unknown }).reason;
-  return reason === "budget_exhausted"
-    || reason === "deadline_reached"
-    || reason === "worker_budget_exhausted"
-    || reason === "parent_cancelled";
-}
 
 async function assertStepNotAborted(execution: AgentExecutionContext): Promise<void> {
   if (execution.runControl.timedRunFinalizing) {
@@ -99,21 +65,9 @@ function summarizeResponseOutputTypes(response: ModelTurnResponse): string[] {
   }, []);
 }
 
+// Long Horizon runs move on only through their workflow tools.
 function shouldRequireWorkflowToolAction(execution: AgentExecutionContext): boolean {
-  const workflowContext = execution.workflow.workflowContext;
-  if (!workflowContext) {
-    return false;
-  }
-
-  if (workflowContext.workflowType === "long_horizon") {
-    return true;
-  }
-
-  if (workflowContext.workflowType === "agent_swarm") {
-    return true;
-  }
-
-  return false;
+  return execution.workflow.workflowContext !== null;
 }
 
 function resolveStepAvailability(execution: AgentExecutionContext, step: number): AgentStepAvailability {
@@ -123,28 +77,7 @@ function resolveStepAvailability(execution: AgentExecutionContext, step: number)
       : (execution.job.mode !== "infinite_auto" || execution.runControl.timedRunFinalizing),
     allowWaitTool: execution.prepared.snapshot.task.allow_waiting !== false
       && !execution.runControl.timedRunFinalizing
-      && (!execution.workflow.workflowContext || (
-        execution.workflow.workflowContext.workflowType === "agent_swarm"
-        && getPersistentRuntimeEnabled(execution.prepared.runtimeEnvironmentPayload)
-      )),
-    allowSwarmPauseTool: execution.workflow.workflowContext
-      ? (
-        execution.workflow.workflowContext.workflowType === "agent_swarm"
-        && !execution.runControl.timedRunFinalizing
-      )
-      : false,
-    allowSwarmManageTool: execution.workflow.allowSwarmTools
-      && Boolean(execution.workflow.workflowContext && hasSwarmLeadership(execution.workflow.workflowContext)),
-    allowSwarmReviewTool: execution.workflow.workflowContext?.workflowType === "agent_swarm"
-      && execution.workflow.allowSwarmTools
-      && canRecordSwarmReview(execution.workflow.workflowContext),
-    allowSwarmFinalReviewTool: execution.workflow.workflowContext?.workflowType === "agent_swarm"
-      && execution.workflow.allowSwarmTools
-      && canRecordSwarmFinalReview(execution.workflow.workflowContext),
-    allowSwarmOutputTool: execution.workflow.workflowContext?.workflowType === "agent_swarm"
-      && execution.workflow.allowSwarmTools
-      && Array.isArray(execution.workflow.workflowContext.currentAgent?.state_json?.swarmLeaderNodeIds)
-      && execution.workflow.workflowContext.currentAgent!.state_json.swarmLeaderNodeIds.some((nodeId) => nodeId !== "node-0"),
+      && !execution.workflow.workflowContext,
     allowStopTaskTool: execution.allowStopTask && !execution.runControl.timedRunFinalizing,
     requireWorkflowToolAction: shouldRequireWorkflowToolAction(execution),
     stepsRemaining: execution.maxRunSteps - step,
@@ -163,10 +96,6 @@ function resolveModelToolChoice(
 
   if (availability.allowWaitTool && !availability.allowFinalResponseTool) {
     return "required";
-  }
-
-  if (availability.allowSwarmPauseTool && !availability.allowFinalResponseTool) {
-    return "auto";
   }
 
   return "auto";
@@ -194,34 +123,6 @@ async function maybeApplySubscriptionQuota(execution: AgentExecutionContext): Pr
   return true;
 }
 
-// Budget events pause the agent from the runtime rather than through a tool call.
-async function applyRuntimeSwarmPause(execution: AgentExecutionContext, status: string): Promise<void> {
-  const paused = await pauseSwarmAgent({
-    context: execution.workflow.workflowContext!,
-    triggerSource: execution.job.triggerSource,
-    selectionUserId: execution.job.selectionUserId ?? null,
-    status
-  }).catch(() => null);
-  execution.state.workflowPauseRequest = paused?.escalation
-    ? { kind: "agent_swarm_paused", awaitUser: true }
-    : { kind: "agent_swarm_paused" };
-  if (paused?.escalation) execution.state.workflowAssistantPauseResponse = paused.escalation;
-}
-
-async function maybeAppendSwarmPassiveInbox(execution: AgentExecutionContext): Promise<void> {
-  if (execution.workflow.workflowContext?.workflowType !== "agent_swarm") {
-    return;
-  }
-
-  const passiveInbox = await deliverSwarmInbox(execution.workflow.workflowContext);
-  if (passiveInbox?.delivered) {
-    execution.state.dispatchState.conversationItems.push({
-      role: "system",
-      content: passiveInbox.bundleText
-    });
-  }
-}
-
 function maybeAppendWindingDownNotice(execution: AgentExecutionContext, availability: AgentStepAvailability): void {
   if (!availability.isWindingDown && !execution.runControl.timedRunFinalizing) {
     return;
@@ -231,15 +132,11 @@ function maybeAppendWindingDownNotice(execution: AgentExecutionContext, availabi
     role: "user",
     content: execution.runControl.timedRunFinalizing
       ? buildTimedRunFinalizationMessage()
-      : execution.workflow.workflowContext?.workflowType === "agent_swarm" && availability.allowFinalResponseTool && availability.allowSwarmPauseTool
-        ? `[System: You have ${availability.stepsRemaining} step(s) remaining. If the swarm is ready, call final_response now. Otherwise post your update and call swarm_pause.]`
-        : availability.allowFinalResponseTool
+      : availability.allowFinalResponseTool
         ? `[System: You have ${availability.stepsRemaining} step(s) remaining. Call final_response now to deliver your answer.]`
-        : availability.allowSwarmPauseTool
-          ? `[System: You have ${availability.stepsRemaining} step(s) remaining. Post your update, then call swarm_pause.]`
-          : availability.allowWaitTool
-            ? `[System: You have ${availability.stepsRemaining} step(s) remaining. Call wait now with {seconds, response, notify} to save your update and schedule the next cycle.]`
-            : `[System: You have ${availability.stepsRemaining} step(s) remaining. Waiting is disabled for this task and final_response is not available yet. Keep working and use tools to make progress.]`
+        : availability.allowWaitTool
+          ? `[System: You have ${availability.stepsRemaining} step(s) remaining. Call wait now with {seconds, response, notify} to save your update and schedule the next cycle.]`
+          : `[System: You have ${availability.stepsRemaining} step(s) remaining. Waiting is disabled for this task and final_response is not available yet. Keep working and use tools to make progress.]`
   });
 }
 
@@ -381,72 +278,6 @@ function buildWorkflowActions(execution: AgentExecutionContext): WorkflowActions
         environmentId: execution.prepared.snapshot.task.environment_id,
         triggerSource: execution.job.triggerSource
       })
-      : undefined,
-    manageSwarmWorkers: execution.workflow.allowSwarmTools
-      && hasSwarmLeadership(execution.workflow.workflowContext)
-      ? async (input) => manageSwarmWorkers({ context: execution.workflow.workflowContext!, ...input })
-      : undefined,
-    assignSwarmWorkers: execution.workflow.allowSwarmTools
-      && hasSwarmLeadership(execution.workflow.workflowContext)
-      ? async (input) => assignSwarmWorkers({
-        context: execution.workflow.workflowContext!,
-        ...input,
-        triggerSource: execution.job.triggerSource,
-        selectionUserId: execution.job.selectionUserId ?? null
-      })
-      : undefined,
-    getSwarmBudgetStatus: execution.workflow.allowSwarmTools
-      ? async (targetSwarm) => getSwarmBudgetStatus(execution.workflow.workflowContext!, targetSwarm)
-      : undefined,
-    spawnSwarmNode: execution.workflow.allowSwarmTools
-      && hasSwarmLeadership(execution.workflow.workflowContext)
-      ? async (input) => spawnSwarmNode({ context: execution.workflow.workflowContext!, ...input })
-      : undefined,
-    grantSwarmBudget: execution.workflow.allowSwarmTools
-      && hasSwarmLeadership(execution.workflow.workflowContext)
-      ? async (input) => grantSwarmNodeBudget({ context: execution.workflow.workflowContext!, ...input })
-      : undefined,
-    cancelSwarmNode: execution.workflow.allowSwarmTools
-      && hasSwarmLeadership(execution.workflow.workflowContext)
-      ? async (input) => cancelSwarmNode({ context: execution.workflow.workflowContext!, ...input })
-      : undefined,
-    recordSwarmReviewRound: execution.workflow.allowSwarmTools
-      && canRecordSwarmReview(execution.workflow.workflowContext)
-      ? async (input) => recordSwarmReviewRound({ context: execution.workflow.workflowContext!, ...input })
-      : undefined,
-    recordSwarmFinalReview: execution.workflow.allowSwarmTools
-      && canRecordSwarmFinalReview(execution.workflow.workflowContext)
-      ? async (input) => recordSwarmFinalReview({ context: execution.workflow.workflowContext!, ...input })
-      : undefined,
-    listSwarmChannels: execution.workflow.allowSwarmTools
-      ? async (targetSwarm) => listSwarmChannelsForAgent(execution.workflow.workflowContext!, targetSwarm)
-      : undefined,
-    readSwarmChannel: execution.workflow.allowSwarmTools
-      ? async (input) => readSwarmChannel(execution.workflow.workflowContext!, input)
-      : undefined,
-    createSwarmChannel: execution.workflow.allowSwarmTools
-      ? async (input) => createSwarmChannelForAgent(execution.workflow.workflowContext!, input)
-      : undefined,
-    sendSwarmChannelMessage: execution.workflow.allowSwarmTools
-      ? async (input) => sendSwarmChannelMessage(execution.workflow.workflowContext!, input)
-      : undefined,
-    submitSwarmOutput: execution.workflow.allowSwarmTools
-      && Array.isArray(execution.workflow.workflowContext.currentAgent?.state_json?.swarmLeaderNodeIds)
-      && execution.workflow.workflowContext.currentAgent!.state_json.swarmLeaderNodeIds.some((nodeId) => nodeId !== "node-0")
-      ? async (response: string, targetSwarm) => submitSwarmOutput(execution.workflow.workflowContext!, response, targetSwarm)
-      : undefined,
-    pauseSwarmAgent: execution.workflow.allowSwarmTools
-      ? async (input) => {
-        await assertSwarmBudgetAllowsWaiting(execution.workflow.workflowContext!, input);
-        return pauseSwarmAgent({
-          context: execution.workflow.workflowContext!,
-          triggerSource: execution.job.triggerSource,
-          selectionUserId: execution.job.selectionUserId ?? null,
-          status: input.status,
-          targetSwarm: input.targetSwarm,
-          waitingForTaskIds: input.waitingForTaskIds
-        });
-      }
       : undefined
   };
 }
@@ -551,11 +382,6 @@ async function requestModelTurn(input: {
       allowFinalResponse: availability.allowFinalResponseTool,
       allowStopTask: availability.allowStopTaskTool,
       allowWaitTool: availability.allowWaitTool,
-      allowSwarmPauseTool: availability.allowSwarmPauseTool,
-      allowSwarmManageTool: availability.allowSwarmManageTool,
-      allowSwarmReviewTool: availability.allowSwarmReviewTool,
-      allowSwarmFinalReviewTool: availability.allowSwarmFinalReviewTool,
-      allowSwarmOutputTool: availability.allowSwarmOutputTool,
       allowScheduleTools: execution.allowScheduleTools,
       loadedToolGroups: [...execution.loadedToolGroups],
       allowSubtaskTools: execution.allowSubtaskTools,
@@ -575,13 +401,6 @@ async function requestModelTurn(input: {
       allowRequestClarification: execution.workflow.allowWorkflowRequestClarification,
       allowSubmitResponse: execution.workflow.allowWorkflowSubmitResponse,
       allowSubmitReview: execution.workflow.allowWorkflowSubmitReview,
-      allowSwarmTools: execution.workflow.allowSwarmTools,
-      allowSwarmBudgetTools: execution.workflow.workflowContext
-        ? hasAgentSwarmBudget(execution.workflow.workflowContext)
-        : false,
-      requireSwarmTarget: execution.workflow.workflowContext
-        ? hasDualSwarmRole(execution.workflow.workflowContext)
-        : false,
       runShellMaxTimeoutSeconds: execution.prepared.runShellMaxTimeoutSeconds,
       quickModeActive: availability.quickModeActive,
       contextManagementVersion: execution.state.contextManagement.version,
@@ -596,43 +415,9 @@ async function requestModelTurn(input: {
   sealPromptEnvelope(execution.promptEnvelope);
   const toolChoice = resolveModelToolChoice(execution, availability);
 
-  // The reservation only estimates output; the turn is not capped to it, since a reasoning model can
-  // spend a small cap entirely on thinking and never act. Settlement charges any overrun.
-  let swarmReservation = null;
-  if (execution.workflow.workflowContext?.workflowType === "agent_swarm") {
-    try {
-      swarmReservation = await reserveSwarmInference(
-        execution.workflow.workflowContext,
-        false,
-        execution.job.runId,
-        estimateContextTokens("", [
-          ...turnRequest.promptPrefixItems,
-          ...execution.state.dispatchState.conversationItems
-        ], execution.prepared.runtimeModel) + 4_096
-      );
-    } catch (error) {
-      if (!isSwarmQuotaError(error)) throw error;
-      // Post the budget notice before pausing, so a stall wake triggered by this pause cannot resume
-      // the leader ahead of the notice.
-      if (error.notify) {
-        await wakeParentForSwarmQuota({
-          context: execution.workflow.workflowContext,
-          reason: error.reason,
-          detail: error.message
-        }).catch(() => undefined);
-      }
-      await applyRuntimeSwarmPause(execution, error.message);
-      throw error;
-    }
-  }
-
-  appendSwarmBudgetNotes(execution, swarmReservation);
-
   await emitTaskEvent(execution.job.taskId, "thinking_start", { step });
   let recoveredItemCount = 0;
-  let response: ModelTurnResponse;
-  try {
-    response = await createModelResponseWithRetry(
+  const response = await createModelResponseWithRetry(
       execution.job.taskId,
       {
       provider: execution.prepared.runtimeProvider,
@@ -689,45 +474,16 @@ async function requestModelTurn(input: {
           parentMessageId: execution.state.currentLeafMessageId
         });
       }
-    );
-  } catch (error) {
-    if (swarmReservation && execution.workflow.workflowContext) {
-      await releaseSwarmInference(execution.workflow.workflowContext, swarmReservation).catch(() => undefined);
-    }
-    throw error;
-  }
+  );
   await emitTaskEvent(execution.job.taskId, "thinking_end", { step });
-  try {
-    await recordModelResponseUsage({
-      execution,
-      response,
-      step,
-      promptPrefixHash: turnRequest.promptPrefixHash,
-      promptRevision: turnRequest.promptRevision
-    });
-    const weightedTokens = await recordSubscriptionUsage(execution, response);
-    if (swarmReservation && execution.workflow.workflowContext) {
-      const accepted = await settleSwarmInference(
-        execution.workflow.workflowContext,
-        swarmReservation,
-        weightedTokens ?? swarmReservation.requestedTokens
-      );
-      if (!accepted) {
-        await wakeParentForSwarmQuota({
-          context: execution.workflow.workflowContext,
-          reason: "response_quarantined",
-          detail: "A response arrived after its deadline or after this node was cancelled. Its tool calls were discarded."
-        }).catch(() => undefined);
-        await applyRuntimeSwarmPause(execution, "Swarm response arrived after its deadline or after the node was cancelled.");
-        throw new Error("SWARM_RESPONSE_QUARANTINED");
-      }
-    }
-  } catch (error) {
-    if (swarmReservation && execution.workflow.workflowContext) {
-      await releaseSwarmInference(execution.workflow.workflowContext, swarmReservation).catch(() => undefined);
-    }
-    throw error;
-  }
+  await recordModelResponseUsage({
+    execution,
+    response,
+    step,
+    promptPrefixHash: turnRequest.promptPrefixHash,
+    promptRevision: turnRequest.promptRevision
+  });
+  await recordSubscriptionUsage(execution, response);
   await assertStepNotAborted(execution);
 
   return { response, requireWorkflowToolAction: availability.requireWorkflowToolAction, codeModeTools: turnRequest.codeModeTools };
@@ -906,11 +662,7 @@ function handlePlainTextWithoutToolCall(
       role: "user",
       content: availability.allowFinalResponseTool
         ? "[System: Workflow runs cannot finish via plain text. Call final_response explicitly.]"
-        : execution.workflow.workflowContext?.workflowType === "agent_swarm"
-          ? availability.allowSwarmPauseTool
-            ? "[System: Workflow runs cannot continue via plain text. Use the swarm tools; post your update and call swarm_pause when your work is done.]"
-            : "[System: Workflow runs cannot continue via plain text. Use the swarm tools explicitly; pausing is disabled in this task.]"
-          : "[System: Workflow runs cannot continue via plain text. Use the available workflow tool explicitly.]"
+        : "[System: Workflow runs cannot continue via plain text. Use the available workflow tool explicitly.]"
     });
     return;
   }
@@ -925,39 +677,17 @@ function handlePlainTextWithoutToolCall(
 
   execution.state.dispatchState.conversationItems.push({
     role: "user",
-    content: !availability.allowWaitTool && !availability.allowSwarmPauseTool
+    content: !availability.allowWaitTool
       ? "[System: Plain-text completion is not allowed yet. Waiting is disabled for this task, so continue working and use tools instead of concluding.]"
-      : execution.workflow.workflowContext?.workflowType === "agent_swarm"
-        ? availability.allowSwarmPauseTool
-          ? "[System: Do not stop yet. Continue working, or post your update and call swarm_pause when your work is done.]"
-          : "[System: Do not stop yet. Continue working with the swarm tools; pausing is disabled in this task.]"
-        : "[System: Do not stop yet. Either continue working with tools or call wait() explicitly when you want to pause.]"
+      : "[System: Do not stop yet. Either continue working with tools or call wait() explicitly when you want to pause.]"
   });
 }
 
 function handleNoToolCallFallback(execution: AgentExecutionContext, availability: AgentStepAvailability): "continue" | "break" {
-  if (!availability.allowFinalResponseTool && !availability.allowWaitTool && !availability.allowSwarmPauseTool) {
+  if (!availability.allowFinalResponseTool && !availability.allowWaitTool) {
     execution.state.dispatchState.conversationItems.push({
       role: "user",
       content: "[System: You must keep working in this run. Waiting is disabled and no completion tool is available yet. Continue with tools.]"
-    });
-    return "continue";
-  }
-
-  if (execution.workflow.workflowContext?.workflowType === "agent_swarm" && availability.allowSwarmPauseTool) {
-    execution.state.dispatchState.conversationItems.push({
-      role: "user",
-      content: "[System: You must explicitly choose the next step. Continue using tools, or post your update and call swarm_pause when your work is done.]"
-    });
-    return "continue";
-  }
-
-  if (execution.workflow.workflowContext?.workflowType === "agent_swarm") {
-    execution.state.dispatchState.conversationItems.push({
-      role: "user",
-      content: availability.allowFinalResponseTool
-        ? "[System: You must explicitly choose the next step. Continue using swarm tools, or call final_response() when the swarm is truly ready.]"
-        : "[System: You must explicitly choose the next step. Continue using swarm tools; waiting is disabled in this task.]"
     });
     return "continue";
   }
@@ -1154,7 +884,6 @@ async function processModelTurnResult(
     outputTypes: summarizeResponseOutputTypes(response),
     allowFinalResponseTool: availability.allowFinalResponseTool,
     allowWaitTool: availability.allowWaitTool,
-    allowSwarmPauseTool: availability.allowSwarmPauseTool,
     requireWorkflowToolAction,
     incompleteReason: response.incomplete_details?.reason ?? null
   });
@@ -1178,7 +907,6 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
   const availability = resolveStepAvailability(execution, step);
   await appendSubagentInbox(execution);
   await appendProjectMasterInbox(execution);
-  await maybeAppendSwarmPassiveInbox(execution);
   maybeAppendWindingDownNotice(execution, availability);
   await maybeRunAutoCompaction(execution, step);
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);
@@ -1194,12 +922,6 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
 }
 
 function handleStepError(execution: AgentExecutionContext, error: unknown): "continue" | "break" | "throw" {
-  if (error instanceof Error && error.message === "SWARM_RESPONSE_QUARANTINED") {
-    return "break";
-  }
-  if (isSwarmQuotaError(error)) {
-    return "break";
-  }
   if (execution.prepared.cancellationMonitor.signal.aborted || (error instanceof Error && error.message === "TASK_CANCELLED")) {
     return "throw";
   }

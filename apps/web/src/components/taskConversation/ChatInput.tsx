@@ -5,7 +5,6 @@ import { TaskAttachment, TaskParameters, TaskToolOptions, TaskType, TaskWorkflow
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
 import type { SkillSummary } from "../tasks/ToolOptionsDropdown";
 import type { AgentSummary } from "../tasks/AgentDropdown";
-import { formatAgentSwarmRosterSummary } from "../../task/agentSwarmRosterSummary";
 import { CreateTextFileModal } from "../files/CreateTextFileModal";
 import type { SubscriptionUsageWarning } from "../../subscription/usageLimits";
 import { ChatInputAttachmentRow } from "./ChatInputAttachmentRow";
@@ -128,9 +127,7 @@ function canReadClipboardText(): boolean {
 }
 
 function getWorkflowReminder(
-  workflowConfig: TaskWorkflowComposerConfig | undefined,
-  availableAgents: AgentSummary[] | undefined,
-  selectedAgentId: string | null | undefined
+  workflowConfig: TaskWorkflowComposerConfig | undefined
 ): { label: string; icon: "brain" | "search" | "shield" | "users" } | null {
   if (workflowConfig?.type === "long_horizon") {
     return { label: "Long Horizon selected", icon: "brain" };
@@ -142,8 +139,7 @@ function getWorkflowReminder(
     return { label: "Deep Research selected", icon: "search" };
   }
   if (workflowConfig?.type === "agent_swarm") {
-    const roster = formatAgentSwarmRosterSummary(workflowConfig, availableAgents ?? [], selectedAgentId);
-    return { label: roster ? `Agent Swarm · ${roster}` : "Agent Swarm selected", icon: "users" };
+    return { label: "Agent Swarm selected", icon: "users" };
   }
   return null;
 }
@@ -212,7 +208,7 @@ export function ChatInput({
   });
   const isQueuedSubmitPending = isSubmitQueued && isUploading && !isSubmitting;
   const isSendButtonDisabled = !hasContent || isSubmitting;
-  const workflowReminder = getWorkflowReminder(workflowConfig, availableAgents, selectedAgentId);
+  const workflowReminder = getWorkflowReminder(workflowConfig);
 
   const handleSubmitRequest = useCallback(() => {
     if (!hasContent || isSubmitting) {

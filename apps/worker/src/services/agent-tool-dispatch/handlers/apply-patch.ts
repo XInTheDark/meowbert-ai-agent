@@ -156,9 +156,7 @@ export async function handleApplyPatch(
     taskScratchDir: ctx.taskScratchDir,
     envRoot: ctx.envRoot,
     workspaceRoot: ctx.workspaceRoot,
-    isThreadTask: ctx.isThreadTask,
-    workflowType: ctx.workflowContext?.workflowType ?? null,
-    workflowTaskId: ctx.workflowContext?.workflowTaskId ?? null
+    isThreadTask: ctx.isThreadTask
   });
 
   try {

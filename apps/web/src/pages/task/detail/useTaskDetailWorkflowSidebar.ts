@@ -2,8 +2,6 @@ import { useCallback, useState } from "react";
 import type {
   LongHorizonReviewItem,
   LongHorizonReviewerItem,
-  AgentSwarmChannelItem,
-  AgentSwarmWorkerItem,
   TaskWorkflowSidebarPanel
 } from "./taskWorkflowSidebarTypes";
 
@@ -12,36 +10,6 @@ export function useTaskDetailWorkflowSidebar() {
 
   const openOverview = useCallback(() => {
     setWorkflowSidebarStack([{ kind: "overview" }]);
-  }, []);
-
-  const openWorker = useCallback((worker: AgentSwarmWorkerItem) => {
-    setWorkflowSidebarStack((current) => [
-      ...(current.length === 0 ? [{ kind: "overview" as const }] : current),
-      {
-        kind: "worker",
-        workerTaskId: worker.task_id,
-        slotIndex: worker.slot_index,
-        title: worker.title,
-        status: worker.status,
-        paused: worker.paused,
-        pauseReason: worker.pause_reason,
-        updatedAt: worker.updated_at
-      }
-    ]);
-  }, []);
-
-  const openChannel = useCallback((channel: AgentSwarmChannelItem) => {
-    setWorkflowSidebarStack((current) => [
-      ...(current.length === 0 ? [{ kind: "overview" as const }] : current),
-      {
-        kind: "channel",
-        channelId: channel.id,
-        title: channel.title,
-        channelKind: channel.kind,
-        memberCount: channel.member_task_ids.length,
-        latestMessageNo: channel.latest_message_no
-      }
-    ]);
   }, []);
 
   const openPlan = useCallback(() => {
@@ -101,8 +69,6 @@ export function useTaskDetailWorkflowSidebar() {
     workflowSidebarStack,
     setWorkflowSidebarStack,
     openOverview,
-    openWorker,
-    openChannel,
     openPlan,
     openSubmission,
     openReview,

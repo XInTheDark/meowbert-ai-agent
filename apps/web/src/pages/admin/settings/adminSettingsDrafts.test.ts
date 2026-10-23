@@ -1,13 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { parseAgentPresetsDraft } from "./adminSettingsDrafts";
 
-describe("agent preset draft", () => {
-  it("keeps an individual agent's node opt-in when saving admin settings", () => {
-    const presets = parseAgentPresetsDraft(JSON.stringify([{
-      id: "luna", name: "Luna", description: "Focused research",
-      requiresSuperAdmin: false, payload: { model: "gpt-6-luna" }, spawnableAsNode: true
-    }]));
+function swarmDraft(fields: Record<string, unknown>): string {
+  return JSON.stringify([{
+    id: "research-swarm", name: "Research Swarm", description: "Lanes for research",
+    requiresSuperAdmin: false, payload: {}, mode: "agent_swarm", leaderAgentId: "luna", ...fields
+  }]);
+}
 
-    expect(presets[0]).toMatchObject({ id: "luna", spawnableAsNode: true });
+describe("agent preset draft", () => {
+  it("keeps a swarm preset's router, budgets and advanced lane limits", () => {
+    const [preset] = parseAgentPresetsDraft(swarmDraft({
+      routerId: "auto", budgetsEnabled: true, tokenBudget: 2_000_000,
+      advanced: { maxLanesPerParent: 4, laneMaxSteps: null, autoCheck: false }
+    }));
+
+    expect(preset).toMatchObject({
+      routerId: "auto",
+      budgetsEnabled: true,
+      tokenBudget: 2_000_000,
+      advanced: { maxLanesPerParent: 4, laneMaxSteps: null, autoCheck: false, maxDepth: 2 }
+    });
+  });
+
+  it("rejects swarm fields the API would refuse", () => {
+    expect(() => parseAgentPresetsDraft(swarmDraft({ leaderAgentId: undefined }))).toThrow(/leaderAgentId/);
+    expect(() => parseAgentPresetsDraft(swarmDraft({ advanced: { maxDepth: 9 } }))).toThrow(/maxDepth/);
+    expect(() => parseAgentPresetsDraft(swarmDraft({ advanced: { workerCount: 3 } }))).toThrow(/unknown advanced field/);
   });
 });

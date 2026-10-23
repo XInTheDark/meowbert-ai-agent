@@ -12,10 +12,9 @@ import {
   isSourceManifest,
   getVisiblePlatformAgentPresets,
   findPlatformAgentPresetById,
-  normalizeAgentSwarmAgentAllocations,
+  normalizeAgentSwarmSettings,
   resolveCompatibilityModesForModel,
   resolveFastModel,
-  resolveAgentSwarmAgentIdForWorkerSlot,
   resolvePlatformAgentPresetMode,
   resolveEffectiveEnvironmentJsonPayload,
   resolveModelTypeForModel,
@@ -201,48 +200,17 @@ async function resolveRunActorIsSuperAdmin(snapshot: TaskSnapshot, runActorUserI
   return isUserSuperAdmin(runActorUserId);
 }
 
-async function resolveAgentSwarmAgentId(snapshot: TaskSnapshot): Promise<string | null> {
-  if (snapshot.task.workflow_type !== "agent_swarm") {
+// A swarm leader runs on the leader agent its swarm settings name; without one it keeps the task's agent.
+async function resolveAgentSwarmLeaderAgentId(snapshot: TaskSnapshot): Promise<string | null> {
+  if (snapshot.task.workflow_type !== "agent_swarm" || snapshot.task.workflow_parent_task_id) {
     return null;
   }
 
-  const workflowTaskId = snapshot.task.workflow_parent_task_id ?? snapshot.task.id;
-  const result = await query<{
-    state_json: Record<string, unknown> | null;
-    slot_index: number;
-    config_json: Record<string, unknown> | null;
-  }>(
-    `SELECT a.slot_index,
-            a.state_json,
-            w.config_json
-       FROM task_workflow_agents a
-       JOIN task_workflows w ON w.task_id = a.workflow_task_id
-      WHERE a.workflow_task_id = $1
-        AND a.task_id = $2
-      LIMIT 1`,
-    [workflowTaskId, snapshot.task.id]
+  const result = await query<{ config_json: unknown }>(
+    "SELECT config_json FROM task_swarms WHERE task_id = $1",
+    [snapshot.task.id]
   );
-  const row = result.rows[0] ?? null;
-  if (!row) {
-    return null;
-  }
-
-  const stateAgentId = row.state_json?.agentPresetId;
-  if (typeof stateAgentId === "string" && stateAgentId.trim().length > 0) {
-    return stateAgentId.trim().toLowerCase();
-  }
-
-  if (snapshot.task.workflow_internal_role !== "worker") {
-    const leaderAgentId = row.config_json?.leaderAgentId;
-    return typeof leaderAgentId === "string" && leaderAgentId.trim()
-      ? leaderAgentId.trim().toLowerCase()
-      : null;
-  }
-
-  return resolveAgentSwarmAgentIdForWorkerSlot(
-    normalizeAgentSwarmAgentAllocations(row.config_json?.modelAllocations),
-    row.slot_index
-  );
+  return result.rows[0] ? normalizeAgentSwarmSettings(result.rows[0].config_json).leaderAgentId : null;
 }
 
 async function resolveEffectiveAgentPreset(input: {
@@ -254,7 +222,7 @@ async function resolveEffectiveAgentPreset(input: {
     input.visibleAgentPresets,
     getWorkspaceDefaultAgentId(input.snapshot.workspace_model_defaults)
   );
-  const swarmAgentId = await resolveAgentSwarmAgentId(input.snapshot);
+  const swarmAgentId = await resolveAgentSwarmLeaderAgentId(input.snapshot);
   if (!swarmAgentId) {
     return selectedAgentPreset;
   }
@@ -564,7 +532,10 @@ async function resolveRuntimeConfig(
     runtimeModel,
     runtimeCompatibilityModes: resolveCompatibilityModesForModel(runtimeModel, snapshot.platform_model_metadata),
     runtimeModelType: resolveModelTypeForModel(runtimeModel, snapshot.platform_model_metadata),
-    requestedContextManagementVersion: resolveContextManagementVersionForModel(runtimeModel, snapshot.platform_model_metadata),
+    // Swarm forks are defined on v2 context windows, so every swarm task uses v2.
+    requestedContextManagementVersion: snapshot.task.workflow_type === "agent_swarm"
+      ? "v2" as const
+      : resolveContextManagementVersionForModel(runtimeModel, snapshot.platform_model_metadata),
     runtimeEnvironmentPayload,
     memoryEnabled,
     thoughtPersistenceEnabled: memoryEnabled && snapshot.thought_persistence_enabled === true,
@@ -645,8 +616,6 @@ async function createSandbox(input: {
   workspaceId: string;
   environmentId: string;
   workspaceRoot: string;
-  workflowType: TaskSnapshot["task"]["workflow_type"];
-  workflowTaskId: string | null;
   workspaceRunAsRoot: boolean;
   envOverrides: Record<string, string>;
 }): Promise<PersistentSandbox> {
@@ -671,8 +640,6 @@ async function createSandbox(input: {
       workspaceRoot: input.workspaceRoot,
       taskScratchDir: input.taskScratchDir,
       isThreadTask: input.isThreadTask,
-      workflowType: input.workflowType,
-      workflowTaskId: input.workflowTaskId,
       skillsRootDir: input.skillsRootDir
     }),
     successPayload: (resolvedMounts) => ({
@@ -1271,8 +1238,6 @@ async function createPreparedRunSandbox(
     workspaceId: input.snapshot.task.workspace_id,
     environmentId: input.snapshot.task.environment_id,
     workspaceRoot: input.workspaceRoot,
-    workflowType: input.snapshot.task.workflow_type,
-    workflowTaskId: input.snapshot.task.workflow_parent_task_id ?? input.snapshot.task.id,
     workspaceRunAsRoot: input.snapshot.environment.workspace_run_as_root === true,
     envOverrides: input.shellEnvOverrides
   };

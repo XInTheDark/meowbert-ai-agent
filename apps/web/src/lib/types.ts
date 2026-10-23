@@ -1,5 +1,5 @@
 import { THEME_MODE_VALUES, type ThemeMode } from "@meowbert/shared/themes";
-import type { AgentSwarmAgentAllocation } from "@meowbert/shared/agent-swarm";
+import type { AgentSwarmAdvancedSettings } from "@meowbert/shared/agent-swarm-config";
 import type { TaskSearchPreview } from "@meowbert/shared/task-history-search";
 import type { TaskMessageDisplay } from "@meowbert/shared/task-message-display";
 import type { WorkspaceIconKey } from "@meowbert/shared/workspace-icons";
@@ -234,6 +234,8 @@ export interface TaskDetail {
     thread_selected_text?: string | null;
     thread_agent_id?: string | null;
     task_type?: TaskType;
+    // An Agent Swarm from before lanes: readable, but it cannot be continued.
+    is_legacy_swarm?: boolean;
     default_timezone?: string;
     max_steps_override?: number | null;
     time_limit_seconds?: number | null;
@@ -373,46 +375,7 @@ export interface LongHorizonWorkflowOverview {
   };
 }
 
-export interface AgentSwarmWorkflowOverview {
-  type: "agent_swarm";
-  phase: string;
-  config: Record<string, unknown>;
-  agentSwarm: {
-    workerCount: number;
-    channels: Array<{
-      id: string;
-      kind: "global" | "direct" | "group";
-      title: string | null;
-      member_task_ids: string[];
-      created_at: string;
-      latest_message_no: number | null;
-    }>;
-    workers: Array<{
-      workflow_agent_id: string;
-      role?: "leader" | "worker";
-      task_id: string;
-      slot_index: number;
-      title: string | null;
-      status: string;
-      paused?: boolean;
-      pause_reason?: string | null;
-      updated_at: string;
-    }>;
-  };
-}
-
-export type TaskWorkflowOverview = LongHorizonWorkflowOverview | AgentSwarmWorkflowOverview;
-
-export interface SwarmChannelMessage {
-  id: string;
-  channel_id: string;
-  sender_task_id: string | null;
-  sender_role: string | null;
-  sender_slot_index?: number | null;
-  message_no: number;
-  content_markdown: string;
-  created_at: string;
-}
+export type TaskWorkflowOverview = LongHorizonWorkflowOverview;
 
 export interface TaskArtifact {
   id: string;
@@ -570,15 +533,14 @@ export type TaskScheduleType = "standard" | "scheduled" | "infinite" | "timed";
 
 export interface TaskWorkflowComposerConfig {
   type: TaskWorkflowComposerType;
-  workerCount: number;
-  reviewRounds: number;
-  leaderAgentId?: string | null;
-  modelAllocations: AgentSwarmAgentAllocation[];
   tokenBudget: number | null;
   timeBudgetMinutes?: number | null;
-  disableSpawningAndBudgets?: boolean;
   enableClarifyPhase?: boolean;
   enableReviewPhase?: boolean;
+  // Agent Swarm settings, prefilled from the selected swarm preset.
+  routerId?: string | null;
+  budgetsEnabled?: boolean;
+  advanced?: AgentSwarmAdvancedSettings;
 }
 
 export interface TaskParameters {
@@ -856,8 +818,11 @@ export interface AdminSettings {
     payload: Record<string, unknown>;
     mode?: "standard" | "agent_swarm" | "quality_control_reviewer";
     leaderAgentId?: string;
-    modelAllocations?: AgentSwarmAgentAllocation[];
-    reviewRounds?: number;
+    routerId?: string | null;
+    budgetsEnabled?: boolean;
+    tokenBudget?: number;
+    timeBudgetMinutes?: number;
+    advanced?: AgentSwarmAdvancedSettings;
   }>;
   specializedModels: {
     internalModel: string | null;

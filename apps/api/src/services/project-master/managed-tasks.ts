@@ -1,9 +1,9 @@
 import { parseChosenModelRoute, resolveWorkspaceDefaultAgentId, type ChosenModelRoute } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { getVisiblePlatformAgentsForUser, requireVisiblePlatformAgentSelectionForUser } from "../platform/platform-agents.js";
-import { createAgentSwarmTaskFromSettings } from "../tasks/agent-swarm-task-creation.js";
-import { resolveAgentSwarmTaskSettings } from "../tasks/agent-swarm-task-settings.js";
-import { resolveSelectedSwarm } from "../tasks/task-service/swarm-selection.js";
+import { createAgentSwarmTask } from "../agent-swarm/creation.js";
+import { resolveSelectedSwarmPreset } from "../agent-swarm/preset-selection.js";
+import { resolveAgentSwarmSettings } from "../agent-swarm/settings.js";
 import { loadWorkspaceDefaultAgentId } from "../workspaces/workspace-default-agent.js";
 import { cancelTaskAndSchedules } from "../tasks/task-cancellation.js";
 import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
@@ -45,12 +45,12 @@ async function loadMasterTimezone(masterTaskId: string): Promise<string> {
   return result.rows[0]?.default_timezone ?? "UTC";
 }
 
-// A swarm pick for the Master's tasks starts an Agent Swarm with the preset's own roster, as in the composer.
+// A swarm pick for the Master's tasks starts an Agent Swarm with the preset's own settings, as in the composer.
 async function resolveManagedTaskSwarm(userId: string, workspaceId: string, agent: TaskMessageAgentSelection | undefined) {
   const { presets } = await getVisiblePlatformAgentsForUser(userId);
   const agentId = agent?.id ?? resolveWorkspaceDefaultAgentId(presets, await loadWorkspaceDefaultAgentId(workspaceId));
-  const selected = await resolveSelectedSwarm(userId, agentId ?? undefined);
-  return selected ? { ...selected, settings: resolveAgentSwarmTaskSettings(undefined, selected.preset) } : null;
+  const preset = await resolveSelectedSwarmPreset(userId, agentId ?? undefined);
+  return preset ? resolveAgentSwarmSettings(undefined, preset) : null;
 }
 
 // A caller-supplied task id makes retried tool calls reuse the same task. The task runs on the
@@ -78,14 +78,9 @@ export async function createManagedTask(input: {
     agent,
     defaultTimezone: await loadMasterTimezone(input.master.taskId)
   };
-  const swarm = await resolveManagedTaskSwarm(input.userId, input.master.workspaceId, agent);
-  const created = swarm
-    ? await createAgentSwarmTaskFromSettings(base, {
-      compiledSwarm: swarm.compiled,
-      swarmSettings: swarm.settings,
-      agentAllocations: swarm.settings.modelAllocations,
-      dynamicNodeTypes: swarm.dynamicNodeTypes
-    })
+  const swarmSettings = await resolveManagedTaskSwarm(input.userId, input.master.workspaceId, agent);
+  const created = swarmSettings
+    ? await createAgentSwarmTask({ ...base, settings: swarmSettings })
     : await createTaskWithInitialMessage({ ...base, source: "web", modelRoute: input.modelRoute });
   return { taskId: created.taskId, reusedExisting: created.reusedExisting };
 }

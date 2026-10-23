@@ -300,9 +300,7 @@ describe("chat input submit flow", () => {
             isUploading={false}
             workflowConfig={{
               type: "long_horizon",
-              workerCount: 3,
-              reviewRounds: 0,
-              modelAllocations: [],
+
               tokenBudget: 100_000
             }}
           />
@@ -328,9 +326,7 @@ describe("chat input submit flow", () => {
             isUploading={false}
             workflowConfig={{
               type: "agent_swarm",
-              workerCount: 3,
-              reviewRounds: 0,
-              modelAllocations: [],
+
               tokenBudget: null
             }}
           />
@@ -356,9 +352,7 @@ describe("chat input submit flow", () => {
             isUploading={false}
             workflowConfig={{
               type: "quality_control",
-              workerCount: 3,
-              reviewRounds: 0,
-              modelAllocations: [],
+
               tokenBudget: null
             }}
           />

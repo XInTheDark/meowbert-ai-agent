@@ -14,18 +14,8 @@ import type { PlatformModelCompatibilityMode } from "@meowbert/shared";
 import { parseXmlToolCalls, stripXmlToolCalls } from "@meowbert/shared";
 import {
   APPLY_PATCH_TOOL_NAME,
-  ASSIGN_WORKER_TOOL_NAME,
-  SWARM_BUDGET_STATUS_TOOL_NAME,
-  SWARM_CANCEL_NODE_TOOL_NAME,
-  SWARM_GRANT_BUDGET_TOOL_NAME,
-  SWARM_PAUSE_TOOL_NAME,
-  SWARM_MANAGE_TOOL_NAME,
-  SWARM_RECORD_FINAL_REVIEW_TOOL_NAME,
-  SWARM_RECORD_REVIEW_TOOL_NAME,
-  SWARM_SPAWN_NODE_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,
-  CREATE_CHANNEL_TOOL_NAME,
   CREATE_PROJECT_CANVAS_TOOL_NAME,
   SHOW_CANVAS_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
@@ -36,7 +26,6 @@ import {
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
   INIT_SANDBOX_TOOL_NAME,
   LIST_SKILLS_TOOL_NAME,
-  LIST_CHANNELS_TOOL_NAME,
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
   MEMORY_SEARCH_TOOL_NAME,
   SEARCH_WEB_TOOL_NAME,
@@ -44,15 +33,12 @@ import {
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
   SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
-  READ_CHANNEL_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
   RUN_SHELL_TOOL_NAME,
   SHELL_SESSION_TOOL_NAME,
   SCHEDULE_TASK_TOOL_NAME,
   LEGACY_SEARCH_TASK_HISTORY_TOOL_NAME,
   QUERY_TASKS_TOOL_NAME,
-  SEND_CHANNEL_MESSAGE_TOOL_NAME,
-  SUBMIT_SWARM_OUTPUT_TOOL_NAME,
   START_LONG_HORIZON_TASK_TOOL_NAME,
   START_SUBTASK_TOOL_NAME,
   STOP_TASK_TOOL_NAME,
@@ -64,7 +50,6 @@ import {
   WAIT_TOOL_NAME
 } from "../agent-tools/index.js";
 import { isFunctionCallItem, toContinuityInputItem } from "../agent/utils.js";
-import { hasApprovedSwarmFinalReview } from "../task-workflows/service.js";
 import {
   isApplyPatchCallItem,
   isApplyPatchCustomToolCallItem,
@@ -102,29 +87,15 @@ import { handleWaitTool } from "./handlers/wait.js";
 import { handleEnableSkill, handleListSkills, handleSkillToolCall } from "./handlers/skills.js";
 import {
   handleEditCurrentTaskSchedule,
-  handleSwarmPauseTool,
   handleScheduleTask,
   handleStopTask
 } from "./handlers/scheduling.js";
 import { handleCreateSubtask, handleStartSubtask } from "./handlers/subtasks.js";
 import {
-  handleAssignWorker,
-  handleCreateChannel,
-  handleSwarmManage,
-  handleSwarmBudgetStatus,
-  handleSwarmCancelNode,
-  handleSwarmGrantBudget,
-  handleSwarmRecordFinalReview,
-  handleSwarmRecordReview,
-  handleSwarmSpawnNode,
-  handleListChannels,
-  handleReadChannel,
   handleRequestClarification,
-  handleSendChannelMessage,
   handleStartLongHorizonTask,
   handleSubmitResponse,
-  handleSubmitReview,
-  handleSubmitSwarmOutput
+  handleSubmitReview
 } from "./handlers/workflows.js";
 import {
   hasApplyPatchCallOutput,
@@ -192,22 +163,6 @@ async function dispatchFunctionToolCall(
     case FINAL_RESPONSE_TOOL_NAME:
       if (ctx.runToolOptions.subtasks) await assertSubagentsFinished(ctx.taskId);
       if (
-        ctx.workflowContext?.workflowType === "agent_swarm"
-        && (
-          ctx.runMode !== "agent_swarm_leader"
-          || ctx.workflowContext.taskId !== ctx.workflowContext.workflowTaskId
-        )
-      ) {
-        return toolErrorResult("Only the top Agent Swarm leader can call final_response. Complete your swarm work with send_channel_message or submit_swarm_output.");
-      }
-      if (
-        ctx.workflowContext?.workflowType === "agent_swarm"
-        && ctx.runMode === "agent_swarm_leader"
-        && (ctx.workflowContext.swarm?.pendingNestedSwarmNodeIds?.length ?? 0) > 0
-      ) {
-        return toolErrorResult(`Started nested swarms have not published their output: ${ctx.workflowContext.swarm!.pendingNestedSwarmNodeIds!.join(", ")}. Wait for their output, or cancel them with swarm_cancel_node.`);
-      }
-      if (
         ctx.workflowContext?.workflowType === "long_horizon"
         && (
           ctx.runMode !== "long_horizon_main"
@@ -215,12 +170,6 @@ async function dispatchFunctionToolCall(
         )
       ) {
         return toolErrorResult("Long Horizon review approval is required before final_response. Continue the workflow with its available action.");
-      }
-      if (
-        ctx.workflowContext?.workflowType === "agent_swarm"
-        && (ctx.runMode !== "agent_swarm_leader" || !hasApprovedSwarmFinalReview(ctx.workflowContext))
-      ) {
-        return toolErrorResult("The final swarm review is missing. Send the complete proposed response to a worker for review, then record it with swarm_record_final_review.");
       }
       return handleFinalResponse(outputItem, state);
 
@@ -248,33 +197,6 @@ async function dispatchFunctionToolCall(
 
     case WAIT_TOOL_NAME:
       return handleWaitTool(outputItem, ctx, state);
-
-    case SWARM_PAUSE_TOOL_NAME:
-      return handleSwarmPauseTool(outputItem, ctx, state);
-
-    case SWARM_MANAGE_TOOL_NAME:
-      return handleSwarmManage(outputItem, ctx, state);
-
-    case ASSIGN_WORKER_TOOL_NAME:
-      return handleAssignWorker(outputItem, ctx, state);
-
-    case SWARM_BUDGET_STATUS_TOOL_NAME:
-      return handleSwarmBudgetStatus(outputItem, ctx, state);
-
-    case SWARM_SPAWN_NODE_TOOL_NAME:
-      return handleSwarmSpawnNode(outputItem, ctx, state);
-
-    case SWARM_GRANT_BUDGET_TOOL_NAME:
-      return handleSwarmGrantBudget(outputItem, ctx, state);
-
-    case SWARM_CANCEL_NODE_TOOL_NAME:
-      return handleSwarmCancelNode(outputItem, ctx, state);
-
-    case SWARM_RECORD_REVIEW_TOOL_NAME:
-      return handleSwarmRecordReview(outputItem, ctx, state);
-
-    case SWARM_RECORD_FINAL_REVIEW_TOOL_NAME:
-      return handleSwarmRecordFinalReview(outputItem, ctx, state);
 
     case STOP_TASK_TOOL_NAME:
       return handleStopTask(outputItem, ctx, state);
@@ -345,21 +267,6 @@ async function dispatchFunctionToolCall(
 
     case SUBMIT_REVIEW_TOOL_NAME:
       return handleSubmitReview(outputItem, ctx, state);
-
-    case LIST_CHANNELS_TOOL_NAME:
-      return handleListChannels(outputItem, ctx, state);
-
-    case READ_CHANNEL_TOOL_NAME:
-      return handleReadChannel(outputItem, ctx, state);
-
-    case CREATE_CHANNEL_TOOL_NAME:
-      return handleCreateChannel(outputItem, ctx, state);
-
-    case SEND_CHANNEL_MESSAGE_TOOL_NAME:
-      return handleSendChannelMessage(outputItem, ctx, state);
-
-    case SUBMIT_SWARM_OUTPUT_TOOL_NAME:
-      return handleSubmitSwarmOutput(outputItem, ctx, state);
 
     default:
       return await handleComputerToolCall(outputItem, ctx, state)

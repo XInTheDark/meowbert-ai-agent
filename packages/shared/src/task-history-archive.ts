@@ -76,11 +76,6 @@ export interface TaskHistoryArchiveRevisionEntry {
   new_content_json: Record<string, unknown>;
 }
 
-export interface TaskHistoryArchiveWorkflowMessageEntry {
-  id: string;
-  content_markdown: string;
-}
-
 export interface TaskHistoryArchiveDocument {
   conversation_snapshots?: ConversationSnapshotArchive;
   context?: TaskContextArchive;
@@ -97,7 +92,6 @@ export interface TaskHistoryArchiveDocument {
   messages: TaskHistoryArchiveMessageEntry[];
   events: TaskHistoryArchiveEventEntry[];
   message_revisions: TaskHistoryArchiveRevisionEntry[];
-  workflow_messages: TaskHistoryArchiveWorkflowMessageEntry[];
 }
 
 interface TaskArchiveSnapshotRow {
@@ -143,11 +137,6 @@ function normalizeOptionalArchiveTimestamp(value: string | Date | null): string 
   return value === null ? null : normalizeArchiveTimestamp(value);
 }
 
-interface TaskArchivePayloadWorkflowMessageRow {
-  id: string;
-  content_markdown: string;
-}
-
 interface QueryResultLike<T> {
   rows: T[];
   rowCount: number | null;
@@ -186,7 +175,6 @@ export interface TaskHistoryArchiveMetrics {
   messageCount: number;
   eventCount: number;
   revisionCount: number;
-  workflowMessageCount: number;
 }
 
 export interface EnsureTaskHistoryWarmResult {
@@ -222,11 +210,8 @@ const taskHistoryArchiveDocumentSchema = z.object({
     id: z.string().uuid(),
     old_content_json: z.record(z.string(), z.unknown()),
     new_content_json: z.record(z.string(), z.unknown())
-  })),
-  workflow_messages: z.array(z.object({
-    id: z.string().uuid(),
-    content_markdown: z.string()
   }))
+  // Archives written before Agent Swarm lanes may carry workflow_messages; parsing drops that section.
 });
 
 function resolvePathFromRoot(root: string, maybeRelative: string): string {
@@ -376,9 +361,8 @@ async function loadArchivePayload(client: TaskHistoryArchiveQueryable, taskId: s
   messages: TaskHistoryArchiveMessageEntry[];
   events: TaskHistoryArchiveEventEntry[];
   message_revisions: TaskHistoryArchiveRevisionEntry[];
-  workflow_messages: TaskHistoryArchiveWorkflowMessageEntry[];
 }> {
-  const [messagesRes, eventsRes, revisionsRes, workflowMessagesRes] = await Promise.all([
+  const [messagesRes, eventsRes, revisionsRes] = await Promise.all([
     client.query<TaskArchivePayloadMessageRow>(
       `SELECT id, role, content_json, token_usage_json
          FROM task_messages
@@ -399,15 +383,6 @@ async function loadArchivePayload(client: TaskHistoryArchiveQueryable, taskId: s
         WHERE task_id = $1
         ORDER BY created_at ASC, id ASC`,
       [taskId]
-    ),
-    client.query<TaskArchivePayloadWorkflowMessageRow>(
-      `SELECT m.id, m.content_markdown
-         FROM task_workflow_messages m
-         JOIN task_workflows w
-           ON w.task_id = m.workflow_task_id
-        WHERE w.task_id = $1
-        ORDER BY m.message_no ASC, m.id ASC`,
-      [taskId]
     )
   ]);
 
@@ -421,8 +396,7 @@ async function loadArchivePayload(client: TaskHistoryArchiveQueryable, taskId: s
       id: row.id,
       payload_json: row.payload_json
     })),
-    message_revisions: revisionsRes.rows,
-    workflow_messages: workflowMessagesRes.rows
+    message_revisions: revisionsRes.rows
   };
 }
 
@@ -507,12 +481,6 @@ async function applyArchiveStubs(
       WHERE task_id = $1`,
     [taskId]
   );
-  await client.query(
-    `UPDATE task_workflow_messages
-        SET content_markdown = ''
-      WHERE workflow_task_id = $1`,
-    [taskId]
-  );
 }
 
 async function restoreArchivedPayload(
@@ -553,15 +521,6 @@ async function restoreArchivedPayload(
         JSON.stringify(revision.old_content_json),
         JSON.stringify(revision.new_content_json)
       ]
-    );
-  }
-
-  for (const workflowMessage of document.workflow_messages) {
-    await client.query(
-      `UPDATE task_workflow_messages
-          SET content_markdown = $2
-        WHERE id = $1`,
-      [workflowMessage.id, workflowMessage.content_markdown]
     );
   }
 }
@@ -781,8 +740,7 @@ async function prepareTaskArchive(
       },
       messages: payload.messages,
       events: payload.events,
-      message_revisions: payload.message_revisions,
-      workflow_messages: payload.workflow_messages
+      message_revisions: payload.message_revisions
     }
   };
   });
@@ -861,8 +819,7 @@ export async function archiveTaskHistory(
         ...sizeMetrics,
         messageCount: prepared.document.messages.length,
         eventCount: prepared.document.events.length,
-        revisionCount: prepared.document.message_revisions.length,
-        workflowMessageCount: prepared.document.workflow_messages.length
+        revisionCount: prepared.document.message_revisions.length
       }
     };
   } catch (error) {

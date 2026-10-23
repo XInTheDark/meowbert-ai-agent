@@ -7,7 +7,6 @@ import { isToolGroupLoaded } from "./tool-groups.js";
 import { COMPUTER_LOCAL_SHELL_TOOL_NAME, COMPUTER_RESPONSE_FUNCTION_TOOLS } from "../computer/computer-tools.js";
 import {
   INIT_SANDBOX_TOOL,
-  buildSwarmPauseFunctionTool,
   buildRunShellFunctionTool,
   CONTEXT_V2_FUNCTION_TOOLS,
   RESPONSE_FUNCTION_TOOLS,
@@ -15,15 +14,6 @@ import {
   WEB_SEARCH_TOOL
 } from "./function-tools.js";
 import {
-  SWARM_PAUSE_TOOL_NAME,
-  SWARM_MANAGE_TOOL_NAME,
-  ASSIGN_WORKER_TOOL_NAME,
-  SWARM_BUDGET_STATUS_TOOL_NAME,
-  SWARM_CANCEL_NODE_TOOL_NAME,
-  SWARM_GRANT_BUDGET_TOOL_NAME,
-  SWARM_RECORD_FINAL_REVIEW_TOOL_NAME,
-  SWARM_RECORD_REVIEW_TOOL_NAME,
-  SWARM_SPAWN_NODE_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
@@ -31,14 +21,12 @@ import {
   HISTORY_LIST_WINDOWS_TOOL_NAME,
   HISTORY_READ_ITEM_TOOL_NAME,
   HISTORY_SEARCH_CONTENTS_TOOL_NAME,
-  CREATE_CHANNEL_TOOL_NAME,
   CREATE_PROJECT_CANVAS_TOOL_NAME,
   SHOW_CANVAS_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
-  LIST_CHANNELS_TOOL_NAME,
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
   MEMORY_SEARCH_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
@@ -51,14 +39,11 @@ import {
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
   SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
-  READ_CHANNEL_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
   RUN_SHELL_TOOL_NAME,
   SHELL_SESSION_TOOL_NAME,
   SCHEDULE_TASK_TOOL_NAME,
   QUERY_TASKS_TOOL_NAME,
-  SEND_CHANNEL_MESSAGE_TOOL_NAME,
-  SUBMIT_SWARM_OUTPUT_TOOL_NAME,
   START_LONG_HORIZON_TASK_TOOL_NAME,
   START_SUBTASK_TOOL_NAME,
   STOP_TASK_TOOL_NAME,
@@ -120,38 +105,6 @@ function isToolEnabled(
     return availability.allowWaitTool === true;
   }
 
-  if (tool.name === SWARM_PAUSE_TOOL_NAME) {
-    return availability.allowSwarmPauseTool === true;
-  }
-
-  if (tool.name === SWARM_MANAGE_TOOL_NAME || tool.name === ASSIGN_WORKER_TOOL_NAME) {
-    return availability.allowSwarmManageTool === true;
-  }
-
-  if (tool.name === SWARM_BUDGET_STATUS_TOOL_NAME) {
-    return availability.allowSwarmTools === true && availability.allowSwarmBudgetTools === true;
-  }
-
-  if (
-    tool.name === SWARM_SPAWN_NODE_TOOL_NAME
-    || tool.name === SWARM_GRANT_BUDGET_TOOL_NAME
-    || tool.name === SWARM_CANCEL_NODE_TOOL_NAME
-  ) {
-    return availability.allowSwarmManageTool === true && availability.allowSwarmBudgetTools === true;
-  }
-
-  if (tool.name === SWARM_RECORD_REVIEW_TOOL_NAME) {
-    return availability.allowSwarmReviewTool === true;
-  }
-
-  if (tool.name === SWARM_RECORD_FINAL_REVIEW_TOOL_NAME) {
-    return availability.allowSwarmFinalReviewTool === true;
-  }
-
-  if (tool.name === SUBMIT_SWARM_OUTPUT_TOOL_NAME) {
-    return availability.allowSwarmOutputTool === true;
-  }
-
   if (tool.name === STOP_TASK_TOOL_NAME) {
     return availability.allowStopTask === true;
   }
@@ -178,15 +131,6 @@ function isToolEnabled(
 
   if (tool.name === SUBMIT_REVIEW_TOOL_NAME) {
     return availability.allowSubmitReview === true;
-  }
-
-  if (
-    tool.name === LIST_CHANNELS_TOOL_NAME
-    || tool.name === READ_CHANNEL_TOOL_NAME
-    || tool.name === CREATE_CHANNEL_TOOL_NAME
-    || tool.name === SEND_CHANNEL_MESSAGE_TOOL_NAME
-  ) {
-    return availability.allowSwarmTools === true;
   }
 
   if (tool.name === MEMORY_SEARCH_TOOL_NAME) {
@@ -243,46 +187,6 @@ function isToolEnabled(
   return true;
 }
 
-const TARGETED_SWARM_TOOL_NAMES = new Set([
-  SWARM_PAUSE_TOOL_NAME,
-  SWARM_MANAGE_TOOL_NAME,
-  ASSIGN_WORKER_TOOL_NAME,
-  SWARM_BUDGET_STATUS_TOOL_NAME,
-  SWARM_SPAWN_NODE_TOOL_NAME,
-  SWARM_GRANT_BUDGET_TOOL_NAME,
-  SWARM_CANCEL_NODE_TOOL_NAME,
-  SWARM_RECORD_REVIEW_TOOL_NAME,
-  SWARM_RECORD_FINAL_REVIEW_TOOL_NAME,
-  LIST_CHANNELS_TOOL_NAME,
-  READ_CHANNEL_TOOL_NAME,
-  CREATE_CHANNEL_TOOL_NAME,
-  SEND_CHANNEL_MESSAGE_TOOL_NAME,
-  SUBMIT_SWARM_OUTPUT_TOOL_NAME
-]);
-
-function withSwarmTarget(tool: FunctionTool, required: boolean): FunctionTool {
-  if (!required || !TARGETED_SWARM_TOOL_NAMES.has(tool.name)) return tool;
-  const parameters = tool.parameters as {
-    properties: Record<string, unknown>;
-    required: string[];
-  };
-  return {
-    ...tool,
-    parameters: {
-      ...parameters,
-      properties: {
-        ...parameters.properties,
-        target_swarm: {
-          type: "string",
-          enum: ["outer", "inner"],
-          description: "Choose the outer swarm where you are a member, or the inner swarm you lead."
-        }
-      },
-      required: [...parameters.required, "target_swarm"]
-    }
-  };
-}
-
 // The Master only coordinates: it delegates work to tasks and never gets a shell, patching, web, or skills.
 const PROJECT_MASTER_ALLOWED_TOOL_NAMES = new Set<string>([
   ...PROJECT_MASTER_TOOL_NAMES,
@@ -326,10 +230,7 @@ export function buildResponseTools(
         if (tool.name === RUN_SHELL_TOOL_NAME) {
           return runShellTool;
         }
-        return withSwarmTarget(
-          tool.name === SWARM_PAUSE_TOOL_NAME ? buildSwarmPauseFunctionTool() : tool,
-          availability.requireSwarmTarget === true
-        );
+        return tool;
       }),
     ...CONTEXT_V2_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
     ...COMPUTER_RESPONSE_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),

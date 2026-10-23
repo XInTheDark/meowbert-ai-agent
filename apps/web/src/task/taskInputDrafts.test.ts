@@ -209,18 +209,12 @@ describe("normalizeTaskInputDraft", () => {
       toolOptions: {},
       workflow: {
         type: "long_horizon",
-        workerCount: 3,
-        modelAllocations: [],
         tokenBudget: 125_500.9
       }
     });
 
     expect(normalized.workflow).toEqual({
       type: "long_horizon",
-      workerCount: 3,
-      reviewRounds: 0,
-      leaderAgentId: null,
-      modelAllocations: [],
       tokenBudget: 125_500,
       timeBudgetMinutes: null,
       enableClarifyPhase: true,
@@ -234,8 +228,6 @@ describe("normalizeTaskInputDraft", () => {
       toolOptions: {},
       workflow: {
         type: "long_horizon",
-        workerCount: 3,
-        modelAllocations: []
       }
     });
 
@@ -249,8 +241,6 @@ describe("normalizeTaskInputDraft", () => {
       toolOptions: {},
       workflow: {
         type: "long_horizon",
-        workerCount: 3,
-        modelAllocations: [],
         tokenBudget: 50_000,
         timeBudgetMinutes: 45.8,
         enableClarifyPhase: false,
@@ -260,10 +250,6 @@ describe("normalizeTaskInputDraft", () => {
 
     expect(normalized.workflow).toEqual({
       type: "long_horizon",
-      workerCount: 3,
-      reviewRounds: 0,
-      leaderAgentId: null,
-      modelAllocations: [],
       tokenBudget: 50_000,
       timeBudgetMinutes: 45,
       enableClarifyPhase: false,
@@ -277,18 +263,12 @@ describe("normalizeTaskInputDraft", () => {
       toolOptions: {},
       workflow: {
         type: "quality_control",
-        workerCount: 3,
-        modelAllocations: [],
         tokenBudget: 80_500.9
       }
     });
 
     expect(normalized.workflow).toEqual({
       type: "quality_control",
-      workerCount: 3,
-      reviewRounds: 0,
-      leaderAgentId: null,
-      modelAllocations: [],
       tokenBudget: 80_500,
       timeBudgetMinutes: null,
       enableClarifyPhase: true,
@@ -302,18 +282,12 @@ describe("normalizeTaskInputDraft", () => {
       toolOptions: {},
       workflow: {
         type: "deep_research",
-        workerCount: 3,
-        modelAllocations: [],
         tokenBudget: 80_500.9
       }
     });
 
     expect(normalized.workflow).toEqual({
       type: "deep_research",
-      workerCount: 3,
-      reviewRounds: 0,
-      leaderAgentId: null,
-      modelAllocations: [],
       tokenBudget: 80_500,
       timeBudgetMinutes: null,
       enableClarifyPhase: true,
@@ -321,35 +295,23 @@ describe("normalizeTaskInputDraft", () => {
     });
   });
 
-  it("derives Agent Swarm worker count from valid model allocations", () => {
+  it("keeps the Agent Swarm budgets switch and fills advanced lane limits", () => {
     const normalized = normalizeTaskInputDraft({
       prompt: "hello",
       toolOptions: {},
       workflow: {
         type: "agent_swarm",
-        workerCount: 2,
-        reviewRounds: 2,
-        modelAllocations: [
-          { agentId: "Fast", workerCount: 2 },
-          { agentId: "Deep", workerCount: 3 }
-        ]
+        routerId: " auto ",
+        budgetsEnabled: true,
+        advanced: { maxLanesPerParent: 40, autoCheck: false }
       }
     });
 
-    expect(normalized.workflow).toEqual({
+    expect(normalized.workflow).toMatchObject({
       type: "agent_swarm",
-      workerCount: 5,
-      reviewRounds: 2,
-      leaderAgentId: null,
-      modelAllocations: [
-        { agentId: "fast", workerCount: 2 },
-        { agentId: "deep", workerCount: 3 }
-      ],
-      tokenBudget: null,
-      timeBudgetMinutes: null,
-      disableSpawningAndBudgets: false,
-      enableClarifyPhase: true,
-      enableReviewPhase: true
+      routerId: "auto",
+      budgetsEnabled: true,
+      advanced: { maxLanesPerParent: 16, maxDepth: 2, autoCheck: false }
     });
   });
 
@@ -359,8 +321,7 @@ describe("normalizeTaskInputDraft", () => {
       toolOptions: {},
       workflow: {
         type: "agent_swarm",
-        workerCount: 3,
-        modelAllocations: [{ agentId: "fast", workerCount: 3 }],
+        budgetsEnabled: true,
         tokenBudget: 125_500.9,
         timeBudgetMinutes: 45.8
       }

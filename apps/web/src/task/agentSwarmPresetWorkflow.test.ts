@@ -1,3 +1,4 @@
+import { DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS } from "@meowbert/shared/agent-swarm-config";
 import { describe, expect, it } from "vitest";
 import type { AgentSummary } from "../components/tasks/AgentDropdown";
 import { resolveWorkflowForAgentChange } from "./agentSwarmPresetWorkflow";
@@ -10,12 +11,11 @@ const swarmAgent: AgentSummary = {
   mode: "agent_swarm",
   swarm: {
     leaderAgentId: "luna",
-    modelAllocations: [{ agentId: "fast", workerCount: 2 }],
-    reviewRounds: 1,
+    routerId: "auto",
+    budgetsEnabled: true,
     tokenBudget: 20_000_000,
     timeBudgetMinutes: 60,
-    disableSpawningAndBudgets: false,
-    members: [{ id: "luna", name: "Luna", mode: "standard" }]
+    advanced: { ...DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS, maxLanesPerParent: 4 }
   }
 };
 const standardAgent: AgentSummary = { id: "default", name: "Default", description: "Agent", mode: "standard" };
@@ -25,18 +25,16 @@ describe("resolveWorkflowForAgentChange", () => {
     const workflow = resolveWorkflowForAgentChange({
       workflow: buildDefaultTaskWorkflowComposerConfig(),
       previousAgent: standardAgent,
-      nextAgent: swarmAgent,
-      nextAgentId: swarmAgent.id
+      nextAgent: swarmAgent
     });
 
     expect(workflow).toMatchObject({
       type: "agent_swarm",
-      workerCount: 2,
-      reviewRounds: 1,
-      leaderAgentId: "luna",
-      modelAllocations: [{ agentId: "fast", workerCount: 2 }],
+      routerId: "auto",
+      budgetsEnabled: true,
       tokenBudget: 20_000_000,
-      timeBudgetMinutes: 60
+      timeBudgetMinutes: 60,
+      advanced: { maxLanesPerParent: 4 }
     });
   });
 
@@ -44,8 +42,7 @@ describe("resolveWorkflowForAgentChange", () => {
     const workflow = resolveWorkflowForAgentChange({
       workflow: { ...buildDefaultTaskWorkflowComposerConfig(), type: "agent_swarm" },
       previousAgent: swarmAgent,
-      nextAgent: standardAgent,
-      nextAgentId: standardAgent.id
+      nextAgent: standardAgent
     });
 
     expect(workflow.type).toBe("standard");

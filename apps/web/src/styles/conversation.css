@@ -184,65 +184,6 @@
   display: flex;
   flex-direction: column;
 }
-.workflow-channel-sidebar-pane {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.workflow-channel-messages-feed {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 0.85rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.workflow-channel-msg-card {
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 0.65rem;
-  padding: 0.75rem;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.workflow-channel-msg-card.system {
-  background: color-mix(in srgb, var(--surface) 40%, transparent);
-  border-style: dashed;
-}
-
-.workflow-channel-msg-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.workflow-channel-msg-sender {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.workflow-channel-msg-no {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.workflow-channel-msg-time {
-  font-size: 0.74rem;
-}
-
-.workflow-channel-msg-content {
-  font-size: 0.84rem;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
 .workflow-text-sidebar-pane {
   flex: 1 1 auto;
   min-height: 0;
@@ -417,8 +358,7 @@
   border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
 }
 
-.workflow-long-horizon-body,
-.workflow-swarm-body {
+.workflow-long-horizon-body {
   display: grid;
   gap: 0.95rem;
   min-height: 0;
@@ -463,8 +403,7 @@
 .workflow-review-card-meta,
 .workflow-feed-card-meta,
 .workflow-review-section-header,
-.workflow-chip-group-header,
-.workflow-worker-pov-meta {
+.workflow-chip-group-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -525,72 +464,9 @@
   gap: 0.6rem;
 }
 
-.workflow-worker-grid,
-.workflow-channel-grid {
-  display: grid;
-  gap: 0.65rem;
-}
-
-.workflow-worker-grid {
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-}
-
-.workflow-channel-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.workflow-worker-card,
-.workflow-channel-card {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 100%;
-  display: grid;
-  gap: 0.34rem;
-  min-width: 0;
-  padding: 0.78rem 0.82rem;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 0.72rem;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.workflow-worker-card:hover,
-.workflow-channel-card:hover {
-  border-color: color-mix(in srgb, var(--brand) 30%, var(--border));
-  background: var(--surface-muted);
-}
-
-.workflow-worker-card.active,
-.workflow-channel-card.active {
-  border-color: color-mix(in srgb, var(--brand) 42%, var(--border));
-  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
-}
-
 .workflow-worker-meta {
   color: var(--text-muted);
   font-size: 0.74rem;
-  line-height: 1.2;
-}
-
-.workflow-worker-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.workflow-worker-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.55rem;
-  color: var(--text-muted);
-  font-size: 0.76rem;
   line-height: 1.2;
 }
 
@@ -664,27 +540,6 @@
 .workflow-modal-feed {
   display: grid;
   gap: 0.75rem;
-}
-
-.workflow-worker-pov-shell {
-  display: grid;
-  gap: 0.8rem;
-  min-height: 0;
-  flex: 1;
-}
-
-.workflow-worker-pov-pane {
-  display: flex;
-  min-height: 0;
-  height: min(68vh, 760px);
-  border: 1px solid var(--border);
-  border-radius: 0.95rem;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--surface) 76%, transparent);
-}
-
-.workflow-worker-pov-pane .task-chat-feed {
-  flex: 1;
 }
 
 .source-file-picker-search .chat-tools-search-input {
@@ -1670,7 +1525,6 @@
   background: color-mix(in srgb, var(--brand) 10%, var(--surface));
 }
 
-
 .tool-activity-steps {
   position: relative;
   display: flex;
@@ -2446,6 +2300,13 @@
   position: relative;
   z-index: 10;
   padding: 1rem 1.5rem;
+}
+
+.chat-input-notice {
+  margin: 0;
+  padding: 1rem 1.5rem 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
 }
 
 .chat-input-mobile-header {

@@ -25,13 +25,11 @@ function buildWorkflowPayload(workflow: TaskWorkflowComposerConfig): Record<stri
   return {
     type: workflow.type,
     ...(workflow.type === "agent_swarm" ? {
-      workerCount: workflow.workerCount,
-      reviewRounds: workflow.reviewRounds,
+      ...(workflow.routerId !== undefined ? { routerId: workflow.routerId } : {}),
+      budgetsEnabled: workflow.budgetsEnabled === true,
       tokenBudget: workflow.tokenBudget,
       timeBudgetMinutes: workflow.timeBudgetMinutes,
-      ...(workflow.disableSpawningAndBudgets ? { disableSpawningAndBudgets: true } : {}),
-      ...(workflow.leaderAgentId ? { leaderAgentId: workflow.leaderAgentId } : {}),
-      ...(workflow.modelAllocations.length > 0 ? { modelAllocations: workflow.modelAllocations } : {})
+      ...(workflow.advanced ? { advanced: workflow.advanced } : {})
     } : {}),
     ...(workflow.type === "long_horizon" || workflow.type === "deep_research" || workflow.type === "quality_control" ? {
       tokenBudget: workflow.tokenBudget,

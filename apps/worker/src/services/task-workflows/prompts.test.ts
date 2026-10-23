@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LoadedWorkflowRunContext } from "./context-types.js";
 import {
-  buildWorkflowPromptContext,
-  shouldAllowSwarmChannelTools,
+
   shouldAllowWorkflowFinalResponse,
   shouldAllowWorkflowRequestClarification,
   shouldAllowWorkflowStartLongHorizon,
@@ -54,14 +53,6 @@ describe("workflow action gates", () => {
     expect(shouldAllowWorkflowFinalResponse(makeContext({
       longHorizon: { ...makeContext().longHorizon!, enableReviewPhase: false }
     }), "long_horizon_main")).toBe(true);
-    expect(shouldAllowWorkflowFinalResponse(makeContext({
-      workflowType: "agent_swarm",
-      phase: "active"
-    }), "agent_swarm_leader")).toBe(true);
-    expect(shouldAllowWorkflowFinalResponse(makeContext({
-      workflowType: "agent_swarm",
-      phase: "completed"
-    }), "agent_swarm_leader")).toBe(false);
   });
 
   it("allows clarification and plan start only for the clarify agent", () => {
@@ -88,75 +79,5 @@ describe("workflow action gates", () => {
     expect(shouldAllowWorkflowSubmitReview(reviewingContext, "quality_control_reviewer")).toBe(true);
     expect(shouldAllowWorkflowSubmitReview(reviewingContext, "long_horizon_main")).toBe(false);
     expect(shouldAllowWorkflowSubmitReview(makeContext({ phase: "completed" }), "quality_control_reviewer")).toBe(false);
-  });
-
-  it("exposes swarm tools only while an Agent Swarm workflow is active", () => {
-    expect(shouldAllowSwarmChannelTools(makeContext({ workflowType: "agent_swarm", phase: "active" }))).toBe(true);
-    expect(shouldAllowSwarmChannelTools(makeContext({ workflowType: "agent_swarm", phase: "completed" }))).toBe(false);
-    expect(shouldAllowSwarmChannelTools(makeContext({ workflowType: "long_horizon" }))).toBe(false);
-    expect(shouldAllowSwarmChannelTools(null)).toBe(false);
-  });
-});
-
-describe("Swarm node catalog", () => {
-  const buildLeaderPrompt = (tokenBudget: number | null) => buildWorkflowPromptContext(makeContext({
-    workflowType: "agent_swarm",
-    phase: "active",
-    currentAgent: { id: "leader", role: "leader", task_id: "task-1", slot_index: 0, state_json: {} } as never,
-    config: { tokenBudget, dynamicNodeTypes: [{
-      id: "luna", name: "Luna", description: "Focused research", spawnableAsNode: true
-    }] }
-  }), "agent_swarm_leader");
-
-  it("shows node descriptions and the one-agent roster to the leader", () => {
-    expect(buildLeaderPrompt(50_000_000).guide).toContain("luna: Luna — Focused research · leader luna · workers none");
-  });
-
-  it("hides spawnable nodes when the swarm has no budget", () => {
-    const guide = buildLeaderPrompt(null).guide;
-    expect(guide).not.toContain("luna: Luna");
-    expect(guide).not.toContain("swarm_spawn_node");
-  });
-});
-
-describe("Swarm prompt caching", () => {
-  const buildLeaderPrompt = (swarm: Partial<NonNullable<LoadedWorkflowRunContext["swarm"]>>) => buildWorkflowPromptContext(makeContext({
-    workflowType: "agent_swarm",
-    phase: "active",
-    currentAgent: { id: "leader", role: "leader", task_id: "task-1", slot_index: 0, state_json: {} } as never,
-    agents: [{ id: "worker", role: "worker", task_id: "worker-1", slot_index: 0, state_json: {} } as never],
-    swarm: {
-      sharedDir: "/tmp/shared",
-      channels: [],
-      peerTaskDirs: [],
-      globalChannelId: "global-channel",
-      latestWorkflowMessageNo: 0,
-      leaderGlobalMessageCount: 0,
-      activeWorkerCount: 0,
-      workerGlobalReportTaskIds: [],
-      workerGlobalReportLabels: [],
-      missingWorkerGlobalReportTaskIds: [],
-      missingWorkerGlobalReportLabels: [],
-      workersStartedAt: null,
-      completedReviewRounds: 0,
-      finalReview: null,
-      ...swarm
-    }
-  }), "agent_swarm_leader");
-
-  it("keeps per-run swarm state out of the cached system prompt and guide", () => {
-    const before = buildLeaderPrompt({});
-    const after = buildLeaderPrompt({
-      workersStartedAt: "2026-10-09T00:00:00.000Z",
-      missingWorkerGlobalReportTaskIds: ["worker-1"],
-      missingWorkerGlobalReportLabels: ["Worker 1"],
-      latestWorkflowMessageNo: 40,
-      finalReview: { reviewerTaskId: "worker-1", reviewerLabel: "Worker 1", approved: true, summary: "Ready." }
-    });
-
-    expect(after.section).toBe(before.section);
-    expect(after.guide).toBe(before.guide);
-    expect(after.liveState).not.toBe(before.liveState);
-    expect(after.liveState).toContain("Still waiting on reports from: Worker 1");
   });
 });

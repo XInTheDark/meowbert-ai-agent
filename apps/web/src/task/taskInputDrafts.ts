@@ -1,10 +1,8 @@
 import {
-  clampAgentSwarmWorkerCount,
-  clampAgentSwarmReviewRounds,
-  limitAgentSwarmAgentAllocations,
-  normalizeAgentSwarmAgentAllocations,
-  sumAgentSwarmAgentAllocations
-} from "@meowbert/shared/agent-swarm";
+  normalizeAgentSwarmAdvancedSettings,
+  normalizeAgentSwarmTimeBudgetMinutes,
+  normalizeAgentSwarmTokenBudget
+} from "@meowbert/shared/agent-swarm-config";
 import { buildDefaultTaskParameters, normalizeTaskParameters } from "./taskParameters";
 import { TaskAttachment, TaskParameters, TaskToolOptions, TaskWorkflowComposerConfig } from "../lib/types";
 
@@ -32,10 +30,6 @@ export interface TaskInputDraft {
 export function buildDefaultTaskWorkflowComposerConfig(): TaskWorkflowComposerConfig {
   return {
     type: "standard",
-    workerCount: 3,
-    reviewRounds: 0,
-    leaderAgentId: null,
-    modelAllocations: [],
     tokenBudget: null,
     timeBudgetMinutes: null,
     enableClarifyPhase: true,
@@ -249,15 +243,13 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
 
       const workflow = candidate.workflow as {
         type?: unknown;
-        workerCount?: unknown;
-        reviewRounds?: unknown;
-        leaderAgentId?: unknown;
-        modelAllocations?: unknown;
         tokenBudget?: unknown;
         timeBudgetMinutes?: unknown;
-        disableSpawningAndBudgets?: unknown;
         enableClarifyPhase?: unknown;
         enableReviewPhase?: unknown;
+        routerId?: unknown;
+        budgetsEnabled?: unknown;
+        advanced?: unknown;
       };
 
       const workflowType = workflow.type === "long_horizon"
@@ -266,47 +258,22 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
         || workflow.type === "agent_swarm"
         ? workflow.type
         : "standard";
-      const modelAllocations = limitAgentSwarmAgentAllocations(
-        normalizeAgentSwarmAgentAllocations(workflow.modelAllocations)
-      );
-      const allocationWorkerCount = sumAgentSwarmAgentAllocations(modelAllocations);
+      const isLongHorizon = workflowType === "long_horizon" || workflowType === "deep_research" || workflowType === "quality_control";
+      const hasBudgets = isLongHorizon || workflowType === "agent_swarm";
 
       return {
         type: workflowType,
-        workerCount: workflowType === "agent_swarm" && allocationWorkerCount > 0
-          ? allocationWorkerCount
-          : clampAgentSwarmWorkerCount(workflow.workerCount, fallback.workflow.workerCount),
-        reviewRounds: workflowType === "agent_swarm"
-          && typeof workflow.reviewRounds === "number"
-          && Number.isFinite(workflow.reviewRounds)
-          ? clampAgentSwarmReviewRounds(workflow.reviewRounds)
-          : 0,
-        leaderAgentId: workflowType === "agent_swarm" && typeof workflow.leaderAgentId === "string"
-          && workflow.leaderAgentId.trim().length > 0
-          ? workflow.leaderAgentId.trim().toLowerCase()
-          : null,
-        modelAllocations: workflowType === "agent_swarm" ? modelAllocations : [],
-        tokenBudget: (workflowType === "long_horizon" || workflowType === "deep_research" || workflowType === "quality_control" || workflowType === "agent_swarm")
-          && typeof workflow.tokenBudget === "number"
-          && Number.isFinite(workflow.tokenBudget)
-          && workflow.tokenBudget > 0
-          ? Math.floor(workflow.tokenBudget)
-          : null,
-        timeBudgetMinutes: (workflowType === "long_horizon" || workflowType === "deep_research" || workflowType === "quality_control" || workflowType === "agent_swarm")
-          && typeof workflow.timeBudgetMinutes === "number"
-          && Number.isFinite(workflow.timeBudgetMinutes)
-          && workflow.timeBudgetMinutes > 0
-          ? Math.floor(workflow.timeBudgetMinutes)
-          : null,
+        tokenBudget: hasBudgets ? normalizeAgentSwarmTokenBudget(workflow.tokenBudget) : null,
+        timeBudgetMinutes: hasBudgets ? normalizeAgentSwarmTimeBudgetMinutes(workflow.timeBudgetMinutes) : null,
         ...(workflowType === "agent_swarm"
-          ? { disableSpawningAndBudgets: workflow.disableSpawningAndBudgets === true }
+          ? {
+              routerId: typeof workflow.routerId === "string" && workflow.routerId.trim() ? workflow.routerId.trim() : null,
+              budgetsEnabled: workflow.budgetsEnabled === true,
+              advanced: normalizeAgentSwarmAdvancedSettings(workflow.advanced)
+            }
           : {}),
-        enableClarifyPhase: (workflowType === "long_horizon" || workflowType === "deep_research" || workflowType === "quality_control")
-          ? workflow.enableClarifyPhase !== false
-          : true,
-        enableReviewPhase: (workflowType === "long_horizon" || workflowType === "deep_research" || workflowType === "quality_control")
-          ? workflow.enableReviewPhase !== false
-          : true
+        enableClarifyPhase: isLongHorizon ? workflow.enableClarifyPhase !== false : true,
+        enableReviewPhase: isLongHorizon ? workflow.enableReviewPhase !== false : true
       };
     })()
   };

@@ -3,9 +3,6 @@ import {
   Check,
   ChevronLeft,
   Clock3,
-  Crown,
-  Minus,
-  Plus,
   Repeat2,
   Search,
   ShieldCheck,
@@ -14,12 +11,6 @@ import {
   Users
 } from "lucide-react";
 import {
-  AGENT_SWARM_DEFAULT_WORKERS,
-  AGENT_SWARM_MAX_REVIEW_ROUNDS,
-  AGENT_SWARM_MAX_WORKERS,
-  AGENT_SWARM_MIN_WORKERS
-} from "@meowbert/shared/agent-swarm";
-import {
   MAX_LONG_HORIZON_TOKEN_BUDGET,
   MAX_LONG_HORIZON_TIME_BUDGET_MINUTES,
   MAX_AGENT_SWARM_TIME_BUDGET_MINUTES,
@@ -27,7 +18,7 @@ import {
   formatMinutes,
   type TaskParametersDropdownController
 } from "./taskParametersDropdownController";
-import { AGENT_SWARM_DEFAULT_TOKEN_BUDGET } from "@meowbert/shared/agent-swarm-quota";
+import { AGENT_SWARM_DEFAULT_TOKEN_BUDGET } from "@meowbert/shared/agent-swarm-config";
 import { TaskTypeChangeConfirmModal } from "./TaskTypeChangeConfirmModal";
 import { useChatToolsDropdownPlacement } from "./useChatToolsDropdownPlacement";
 import { MenuSheet } from "../mobile/MenuSheet";
@@ -60,7 +51,7 @@ function ParametersSummary({ controller }: ControllerProps) {
       <div className="task-parameters-summary">
         <strong>{controller.workflowSummary}</strong>
         <span>{controller.props.workflowConfig?.type === "agent_swarm"
-          ? "Leader + workers collaborate through shared channels."
+          ? "The leader splits work across lanes when it helps."
           : "Clarify first, then execute against a durable plan."}</span>
       </div>
     );
@@ -92,9 +83,6 @@ function WorkflowMenu({ controller }: ControllerProps) {
         className={`chat-tools-item ${isStandard ? "active" : ""}`}
         onClick={() => controller.requestTaskTypeChange("standard", "Standard task", () => controller.workflow.applyWorkflow({
           type: "standard",
-          workerCount: config.workerCount ?? AGENT_SWARM_DEFAULT_WORKERS,
-          reviewRounds: 0,
-          modelAllocations: [],
           tokenBudget: null
         }))}
         disabled={controller.isApplying}
@@ -391,76 +379,21 @@ function LongHorizonForm({
   );
 }
 
-function SwarmAgentAllocations({ controller }: ControllerProps) {
-  if (!controller.agentSwarmHasAgentAllocations) {
-    return (
-      <label className="task-parameters-field">
-        <span>Worker count</span>
-        <input type="number" min={AGENT_SWARM_MIN_WORKERS} max={AGENT_SWARM_MAX_WORKERS} step="1"
-          value={controller.draft.agentSwarmWorkerCount}
-          onChange={(event) => controller.draft.setAgentSwarmWorkerCount(event.target.value)}
-          placeholder={String(AGENT_SWARM_DEFAULT_WORKERS)} disabled={controller.isApplying} />
-      </label>
-    );
-  }
-  return (
-    <div className="agent-swarm-agent-list">
-      <div className="agent-swarm-agent-list-header">
-        <span>Agents</span><strong>{controller.agentSwarmAllocatedWorkers} workers</strong>
-      </div>
-      {controller.draft.agents.map((agent) => {
-        const count = controller.draft.agentSwarmAllocations.find((item) => item.agentId === agent.id)?.workerCount ?? 0;
-        const isLeader = controller.draft.agentSwarmLeaderAgentId === agent.id;
-        const roleLabel = agent.mode === "agent_swarm"
-          ? "Agent Swarm"
-          : agent.mode === "quality_control_reviewer" ? "Quality review" : null;
-        return (
-          <div key={agent.id} className="agent-swarm-agent-row">
-            <div className="agent-swarm-agent-copy">
-              <strong>{agent.name}</strong><span>{roleLabel ? `${roleLabel} · ` : ""}{count} {count === 1 ? "worker" : "workers"}</span>
-            </div>
-            <div className="agent-swarm-agent-controls">
-              <button type="button" className={`icon-btn-subtle ${isLeader ? "active" : ""}`}
-                onClick={() => {
-                  controller.draft.setAgentSwarmLeaderAgentId(agent.id);
-                  controller.applySwarmUpdate({ leaderAgentId: agent.id });
-                }}
-                disabled={controller.isApplying}
-                title={`Make ${agent.name} the swarm leader`}
-                aria-label={`Make ${agent.name} the swarm leader`}><Crown size={14} /></button>
-              <button type="button" className="icon-btn-subtle" onClick={() => controller.adjustSwarmAllocation(agent.id, -1)}
-                disabled={controller.isApplying || controller.agentSwarmAllocatedWorkers <= AGENT_SWARM_MIN_WORKERS || count <= 0}
-                title={`Remove worker from ${agent.name}`}><Minus size={14} /></button>
-              <button type="button" className="icon-btn-subtle" onClick={() => controller.adjustSwarmAllocation(agent.id, 1)}
-                disabled={controller.isApplying || controller.agentSwarmAllocatedWorkers >= AGENT_SWARM_MAX_WORKERS}
-                title={`Add worker to ${agent.name}`}><Plus size={14} /></button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function SwarmBudgetFields({ controller }: ControllerProps) {
-  const budgetsDisabled = controller.draft.agentSwarmDisableSpawningAndBudgets;
-  const budgetIsImmutable = controller.props.mode === "edit"
-    && controller.props.workflowConfig?.type === "agent_swarm"
-    && typeof controller.props.workflowConfig.tokenBudget === "number"
-    && controller.props.workflowConfig.tokenBudget > 0;
+  const budgetsEnabled = controller.draft.agentSwarmBudgetsEnabled;
   return (
     <>
       <label className="task-parameters-toggle">
-        <input type="checkbox" checked={budgetsDisabled}
+        <input type="checkbox" checked={budgetsEnabled}
           onChange={(event) => {
-            const disableSpawningAndBudgets = event.target.checked;
-            controller.draft.setAgentSwarmDisableSpawningAndBudgets(disableSpawningAndBudgets);
-            controller.applySwarmUpdate({ disableSpawningAndBudgets });
+            const nextBudgetsEnabled = event.target.checked;
+            controller.draft.setAgentSwarmBudgetsEnabled(nextBudgetsEnabled);
+            controller.applySwarmUpdate({ budgetsEnabled: nextBudgetsEnabled });
           }}
-          disabled={controller.isApplying || budgetIsImmutable} />
-        <span><strong>Disable spawning and budgets</strong><small>Runs with the configured roster only, with no token or time budget.</small></span>
+          disabled={controller.isApplying} />
+        <span><strong>Budgets</strong><small>Share one token and time budget across the leader and its lanes.</small></span>
       </label>
-      {budgetsDisabled ? null : (
+      {budgetsEnabled ? (
         <>
           <label className="task-parameters-field">
             <span>Token budget</span>
@@ -478,9 +411,8 @@ function SwarmBudgetFields({ controller }: ControllerProps) {
               onBlur={() => controller.applySwarmBudget("timeBudgetMinutes", controller.draft.agentSwarmTimeBudgetMinutes)}
               placeholder="No deadline" disabled={controller.isApplying} />
           </label>
-          <p className="task-parameters-help">Swarm budgets limit weighted tokens and time. At least ten percent is held for recovery and final synthesis.</p>
         </>
-      )}
+      ) : null}
     </>
   );
 }
@@ -489,25 +421,7 @@ function AgentSwarmForm({ controller }: ControllerProps) {
   return (
     <div className="task-parameters-form">
       <FormHeader controller={controller} title="Agent Swarm" />
-      <SwarmAgentAllocations controller={controller} />
       <SwarmBudgetFields controller={controller} />
-      <p className="task-parameters-help">
-        Choose the leader with the crown. Worker agents are bounded from {AGENT_SWARM_MIN_WORKERS} to {AGENT_SWARM_MAX_WORKERS}.
-      </p>
-      <label className="task-parameters-field">
-        <span>Review rounds: {controller.draft.agentSwarmReviewRounds}</span>
-        <input type="range" min="0" max={AGENT_SWARM_MAX_REVIEW_ROUNDS} step="1"
-          value={controller.draft.agentSwarmReviewRounds}
-          onChange={(event) => {
-            const reviewRounds = Number(event.target.value);
-            controller.draft.setAgentSwarmReviewRounds(reviewRounds);
-            controller.applySwarmUpdate({ reviewRounds });
-          }}
-          disabled={controller.isApplying} />
-      </label>
-      <p className="task-parameters-help">
-        Each round requires an independent worker critique before the leader can deliver the final result.
-      </p>
       {controller.applyError ? <p className="error-text task-parameters-error">{controller.applyError}</p> : null}
       <div className="task-parameters-actions">
         <button type="button" className="btn ghost" onClick={() => {

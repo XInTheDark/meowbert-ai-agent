@@ -1,21 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import {
-  clampAgentSwarmWorkerCount,
-  calculateAgentSwarmBudgetEstimate,
-  calculateAgentSwarmSystemReserve,
-  AGENT_SWARM_MINIMUM_INFERENCE_TOKENS,
-  AGENT_SWARM_DEFAULT_TOKEN_BUDGET,
   createTaskMessageMetadata,
-  limitAgentSwarmAgentAllocations,
-  type CompiledAgentSwarm,
-  type PlatformAgentPreset,
+  normalizeAgentSwarmSettings,
   type TaskWorkflowType
 } from "@meowbert/shared";
 import type { z } from "zod";
 import type { taskWorkflowPatchSchema } from "../../routes/tasks/shared.js";
 import { deleteTaskTreesInTx, type TaskCleanupCandidateResult } from "./task-cleanup.js";
-import { insertSeededSwarmQuotaNodesInTx } from "./agent-swarm-seeded-quota.js";
+import { enableAgentSwarmOnTaskInTx } from "../agent-swarm/swarm-row.js";
+import { assertNotLegacyAgentSwarmTaskInTx } from "../agent-swarm/legacy.js";
+import { resolveAgentSwarmSettings } from "../agent-swarm/settings.js";
 
 type TaskWorkflowPatchInput = NonNullable<z.infer<typeof taskWorkflowPatchSchema>>;
 
@@ -46,111 +41,6 @@ function buildTaskRootPath(taskId: string): string {
 
 function emptyTaskCleanupCandidates(): TaskCleanupCandidateResult {
   return { taskIds: [], taskRootPaths: [], workspacePaths: [], archiveKeys: [] };
-}
-
-function asPositiveInteger(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
-}
-
-async function ensureAgentSwarmQuotaRootInTx(input: {
-  client: PoolClient;
-  taskId: string;
-  nodeKey: string;
-  title: string;
-  tokenBudget: number | null;
-  timeBudgetMinutes: number | null;
-  leaderAgentId: string;
-  workerAgentIds: string[];
-}): Promise<string | null> {
-  const tokenBudget = asPositiveInteger(input.tokenBudget);
-  if (tokenBudget === null) {
-    const existing = await input.client.query<{ id: string }>(
-      `SELECT id FROM task_workflow_swarm_nodes
-        WHERE workflow_task_id = $1 AND node_key = $2
-        FOR UPDATE`,
-      [input.taskId, input.nodeKey]
-    );
-    if (existing.rows[0]) {
-      throw new Error("An Agent Swarm token budget cannot be cleared after quota creation. Start a new swarm without a hard budget.");
-    }
-    return null;
-  }
-
-  const estimate = calculateAgentSwarmBudgetEstimate({
-    minimumStepTokens: AGENT_SWARM_MINIMUM_INFERENCE_TOKENS,
-    workerSlots: input.workerAgentIds.length
-  });
-  const reserveTokens = calculateAgentSwarmSystemReserve(tokenBudget, estimate.minimumStepTokens);
-  if (tokenBudget < reserveTokens + estimate.minimumSpawnAllocationTokens) {
-    throw new Error(`Agent Swarm token budget is too small. Minimum required for the initial roster is ${reserveTokens + estimate.minimumSpawnAllocationTokens} weighted tokens.`);
-  }
-  const deadlineAt = input.timeBudgetMinutes
-    ? new Date(Date.now() + input.timeBudgetMinutes * 60_000).toISOString()
-    : null;
-
-  const existingResult = await input.client.query<{
-    id: string;
-    allocated_tokens: string | number;
-    spent_tokens: string | number;
-    reserved_tokens: string | number;
-    debt_tokens: string | number;
-  }>(
-    `SELECT id, allocated_tokens, spent_tokens, reserved_tokens, debt_tokens
-       FROM task_workflow_swarm_nodes
-      WHERE workflow_task_id = $1 AND node_key = $2
-      FOR UPDATE`,
-    [input.taskId, input.nodeKey]
-  );
-  const existing = existingResult.rows[0];
-  if (existing) {
-    const existingAllocated = Math.max(0, Math.floor(Number(existing.allocated_tokens) || 0));
-    if (existingAllocated !== tokenBudget) {
-      throw new Error("Changing an Agent Swarm token budget after quota creation is not supported. Start a new swarm with the revised budget.");
-    }
-    await input.client.query(
-      `UPDATE task_workflow_swarm_nodes
-          SET deadline_at = $2,
-              status = CASE WHEN paused_reason = 'deadline_reached' THEN 'active' ELSE status END,
-              paused_reason = CASE WHEN paused_reason = 'deadline_reached' THEN NULL ELSE paused_reason END,
-              updated_at = now()
-        WHERE id = $1`,
-      [existing.id, deadlineAt]
-    );
-    return existing.id;
-  }
-  const unassignedTokens = Math.max(0, tokenBudget - reserveTokens);
-
-  const nodeResult = await input.client.query<{ id: string }>(
-    `INSERT INTO task_workflow_swarm_nodes (
-        workflow_task_id, node_key, generation, title, depth, status,
-        leader_task_id, allocated_tokens, system_reserve_tokens,
-        unassigned_tokens, deadline_at, created_by_workflow_agent_id
-      ) VALUES ($1, $2, 0, $3, 1, 'active', $1, $4, $5, $6, $7, $8)
-      RETURNING id`,
-    [input.taskId, input.nodeKey, input.title, tokenBudget, reserveTokens, unassignedTokens, deadlineAt, input.leaderAgentId]
-  );
-  const nodeId = nodeResult.rows[0]?.id;
-  if (!nodeId) throw new Error("Agent Swarm quota root could not be created.");
-  await input.client.query(
-    `INSERT INTO task_workflow_swarm_node_members (node_id, workflow_agent_id, role, slot_index)
-       VALUES ($1, $2, 'leader', 0)`,
-    [nodeId, input.leaderAgentId]
-  );
-  for (let index = 0; index < input.workerAgentIds.length; index += 1) {
-    await input.client.query(
-      `INSERT INTO task_workflow_swarm_node_members (node_id, workflow_agent_id, role, slot_index)
-         VALUES ($1, $2, 'worker', $3)`,
-      [nodeId, input.workerAgentIds[index], index]
-    );
-  }
-  await input.client.query(
-    `INSERT INTO task_workflow_swarm_quota_ledger
-        (workflow_task_id, node_id, kind, amount_tokens, metadata_json)
-       VALUES ($1, $2, 'root_grant', $3, $4::jsonb)`,
-    [input.taskId, nodeId, tokenBudget, JSON.stringify({ deadlineAt })]
-  );
-  return nodeId;
 }
 
 export async function assertTaskTypeTransitionIdleInTx(client: PoolClient, taskId: string): Promise<void> {
@@ -210,6 +100,7 @@ export async function clearTaskWorkflowInTx(
 
   const deletedChildren = await deleteTaskTreesInTx(client, childRes.rows.map((row) => row.id));
   await client.query(`DELETE FROM task_workflows WHERE task_id = $1`, [taskId]);
+  await client.query(`DELETE FROM task_swarms WHERE task_id = $1`, [taskId]);
 
   await client.query(
     `UPDATE tasks
@@ -288,7 +179,7 @@ async function insertSystemChildTask(
     defaultTimezone: string;
     allowWaiting: boolean;
     workflowType: TaskWorkflowType;
-    workflowInternalRole: "worker" | "reviewer";
+    workflowInternalRole: "reviewer";
   }
 ): Promise<void> {
   const createdAt = new Date().toISOString();
@@ -333,19 +224,6 @@ function buildLongHorizonReviewerBootstrapMessage(userMessage: string): string {
     userMessage.trim(),
     "",
     "Review their plan and submissions when requested using the review tools."
-  ].join("\n");
-}
-
-function buildSwarmWorkerBootstrapMessage(workerNumber: number, userMessage: string): string {
-  return [
-    `You are Worker ${workerNumber} in this Agent Swarm.`,
-    "Do not expect a direct user message in this worker thread.",
-    "The swarm task is:",
-    "",
-    userMessage.trim(),
-    "",
-    "Start by reading the workflow/system instructions, then use the swarm tools to discuss with the team.",
-    "Refresh your inbox before sending any swarm message."
   ].join("\n");
 }
 
@@ -555,419 +433,27 @@ async function reconcileLongHorizonReviewersInTx(
   return cleanup;
 }
 
-interface ExistingSwarmWorker {
-  agentId: string;
-  taskId: string;
-  slotIndex: number;
-  status: string;
-}
-
-async function loadExistingSwarmWorkers(client: PoolClient, workflowTaskId: string): Promise<ExistingSwarmWorker[]> {
-  const workersRes = await client.query<ExistingSwarmWorker>(
-    `SELECT a.id AS "agentId",
-            a.task_id AS "taskId",
-            a.slot_index AS "slotIndex",
-            t.status
-       FROM task_workflow_agents a
-       JOIN tasks t ON t.id = a.task_id
-      WHERE a.workflow_task_id = $1
-        AND a.role = 'worker'
-      ORDER BY a.slot_index ASC, a.task_id ASC
-      FOR UPDATE OF a, t`,
-    [workflowTaskId]
-  );
-
-  return workersRes.rows;
-}
-
-async function removeSwarmWorkers(
-  client: PoolClient,
-  workers: ExistingSwarmWorker[]
-): Promise<TaskCleanupCandidateResult> {
-  if (workers.length === 0) return emptyTaskCleanupCandidates();
-
-  const taskIds = workers.map((worker) => worker.taskId);
-  await cancelTaskRowsInTx(client, taskIds);
-
-  return deleteTaskTreesInTx(client, taskIds);
-}
-
-async function addSwarmWorkers(
-  client: PoolClient,
-  input: {
-    task: LockedTaskContext;
-    userId: string;
-    existingWorkerCount: number;
-    desiredWorkerCount: number;
-  }
-): Promise<void> {
-  if (input.desiredWorkerCount <= input.existingWorkerCount) return;
-
-  const prompt = await loadTaskInitialUserPrompt(client, input.task.id, input.task.title);
-  const globalChannelsRes = await client.query<{ id: string }>(
-    `SELECT id
-       FROM task_workflow_channels
-      WHERE workflow_task_id = $1
-        AND kind = 'global'
-      ORDER BY created_at ASC, id ASC`,
-    [input.task.id]
-  );
-
-  for (let index = input.existingWorkerCount; index < input.desiredWorkerCount; index += 1) {
-    const workerTaskId = randomUUID();
-    await insertSystemChildTask(client, {
-      taskId: workerTaskId,
-      parentTaskId: input.task.id,
-      workspaceId: input.task.workspace_id,
-      environmentId: input.task.environment_id,
-      initiatorUserId: input.userId,
-      title: `${input.task.title?.trim() || "Agent Swarm Task"} · Worker ${index + 1}`,
-      message: buildSwarmWorkerBootstrapMessage(index + 1, prompt),
-      defaultTimezone: input.task.default_timezone,
-      allowWaiting: input.task.allow_waiting,
-      workflowType: "agent_swarm",
-      workflowInternalRole: "worker"
-    });
-
-    const workerAgent = await insertWorkflowAgent(client, {
-      workflowTaskId: input.task.id,
-      role: "worker",
-      slotIndex: index,
-      taskId: workerTaskId
-    });
-
-    for (const channel of globalChannelsRes.rows) {
-      await client.query(
-        `INSERT INTO task_workflow_channel_members (channel_id, workflow_agent_id)
-         VALUES ($1, $2)`,
-        [channel.id, workerAgent.id]
-      );
-    }
-  }
-}
-
-async function reconcileAgentSwarmWorkers(
-  client: PoolClient,
-  input: {
-    task: LockedTaskContext;
-    userId: string;
-    desiredWorkerCount: number;
-  }
-): Promise<TaskCleanupCandidateResult> {
-  const existingWorkers = await loadExistingSwarmWorkers(client, input.task.id);
-  const cleanup = await removeSwarmWorkers(client, existingWorkers.slice(input.desiredWorkerCount));
-  await addSwarmWorkers(client, {
-    task: input.task,
-    userId: input.userId,
-    existingWorkerCount: Math.min(existingWorkers.length, input.desiredWorkerCount),
-    desiredWorkerCount: input.desiredWorkerCount
-  });
-  return cleanup;
-}
-
-function compiledLeafState(leaf: CompiledAgentSwarm["leaves"][number] | null): Record<string, unknown> {
-  return leaf ? {
-    ...(leaf.agentId ? { agentPresetId: leaf.agentId } : {}),
-    swarmLeafId: leaf.id,
-    agentPresetMode: leaf.mode,
-    swarmNodeIds: leaf.nodeIds,
-    swarmLeaderNodeIds: leaf.leaderNodeIds,
-    swarmParentNodeId: leaf.parentNodeId
-  } : {};
-}
-
-function buildFlatSwarmTopology(input: {
-  title: string;
-  workerCount: number;
-  reviewRounds: number;
-}): CompiledAgentSwarm {
-  const rootNodeId = "node-0";
-  const workerLeafIds = Array.from({ length: input.workerCount }, (_, index) => `leaf-${index + 1}`);
-  return {
-    rootNodeId,
-    nodes: [{ id: rootNodeId, parentNodeId: null, title: input.title,
-      leaderLeafId: "leaf-0", workerLeafIds, reviewRounds: input.reviewRounds }],
-    leaves: [
-      { id: "leaf-0", agentId: "", name: "Leader", mode: "standard",
-        nodeIds: [rootNodeId], leaderNodeIds: [rootNodeId], parentNodeId: null },
-      ...workerLeafIds.map((id, index) => ({ id, agentId: "",
-        name: `Worker ${index + 1}`, mode: "standard" as const,
-        nodeIds: [rootNodeId], leaderNodeIds: [], parentNodeId: rootNodeId }))
-    ]
-  };
-}
-
-async function createCompiledSwarmChannels(
-  client: PoolClient,
-  taskId: string,
-  compiledSwarm: CompiledAgentSwarm,
-  agentIdsByLeaf: Map<string, string>
-): Promise<Record<string, string>> {
-  const swarmChannelIds: Record<string, string> = {};
-  for (const node of compiledSwarm.nodes) {
-    const channel = await client.query<{ id: string }>(
-      `INSERT INTO task_workflow_channels (workflow_task_id, kind, title, created_by_workflow_agent_id)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id`,
-      [
-        taskId,
-        node.id === compiledSwarm.rootNodeId ? "global" : "group",
-        node.id === compiledSwarm.rootNodeId ? "Global" : node.title,
-        agentIdsByLeaf.get(node.leaderLeafId) ?? null
-      ]
-    );
-    const channelId = channel.rows[0].id;
-    swarmChannelIds[node.id] = channelId;
-    for (const leafId of [node.leaderLeafId, ...node.workerLeafIds]) {
-      const agentId = agentIdsByLeaf.get(leafId);
-      if (agentId) {
-        await client.query(
-          `INSERT INTO task_workflow_channel_members (channel_id, workflow_agent_id) VALUES ($1, $2)`,
-          [channelId, agentId]
-        );
-      }
-    }
-  }
-  return swarmChannelIds;
-}
-
-async function createAgentSwarmTransitionInTx(
-  client: PoolClient,
-  input: {
-    task: LockedTaskContext;
-    userId: string;
-    config: Record<string, unknown>;
-    workerCount: number;
-    compiledSwarm?: CompiledAgentSwarm;
-    promptOverride?: string;
-  }
-): Promise<TaskCleanupCandidateResult> {
-  const { task, userId, workerCount, compiledSwarm, promptOverride } = input;
-  const cleanup = await clearTaskWorkflowInTx(client, task.id);
-  await client.query(
-    `UPDATE tasks
-        SET workflow_type = 'agent_swarm',
-            workflow_internal_role = 'leader',
-            updated_at = now()
-      WHERE id = $1`,
-    [task.id]
-  );
-
-  await insertWorkflowRow(client, {
-    taskId: task.id,
-    workflowType: "agent_swarm",
-    phase: "active",
-    config: input.config
-  });
-
-  const rootNode = compiledSwarm?.nodes.find((node) => node.id === compiledSwarm.rootNodeId) ?? null;
-  const leaderLeaf = rootNode
-    ? compiledSwarm!.leaves.find((leaf) => leaf.id === rootNode.leaderLeafId) ?? null
-    : null;
-  const workerLeaves = compiledSwarm && rootNode
-    ? compiledSwarm.leaves.filter((leaf) => leaf.id !== rootNode.leaderLeafId)
-    : [];
-  const agentIdsByLeaf = new Map<string, string>();
-  const leaderAgent = await insertWorkflowAgent(client, {
-    workflowTaskId: task.id,
-    role: "leader",
-    slotIndex: 0,
-    taskId: task.id,
-    state: compiledLeafState(leaderLeaf)
-  });
-  if (leaderLeaf) agentIdsByLeaf.set(leaderLeaf.id, leaderAgent.id);
-
-  const prompt = promptOverride ?? await loadTaskInitialUserPrompt(client, task.id, task.title);
-  const workerAgentIds: string[] = [];
-
-  for (let index = 0; index < workerCount; index += 1) {
-    const workerTaskId = randomUUID();
-    const leaf = workerLeaves[index] ?? null;
-    await insertSystemChildTask(client, {
-      taskId: workerTaskId,
-      parentTaskId: task.id,
-      workspaceId: task.workspace_id,
-      environmentId: task.environment_id,
-      initiatorUserId: userId,
-      title: `${task.title?.trim() || "Agent Swarm Task"} · ${leaf?.name ?? `Worker ${index + 1}`}`,
-      message: buildSwarmWorkerBootstrapMessage(index + 1, prompt),
-      defaultTimezone: task.default_timezone,
-      allowWaiting: task.allow_waiting,
-      workflowType: "agent_swarm",
-      workflowInternalRole: "worker"
-    });
-
-    const workerAgent = await insertWorkflowAgent(client, {
-      workflowTaskId: task.id,
-      role: "worker",
-      slotIndex: index,
-      taskId: workerTaskId,
-      state: compiledLeafState(leaf)
-    });
-    workerAgentIds.push(workerAgent.id);
-    if (leaf) agentIdsByLeaf.set(leaf.id, workerAgent.id);
-  }
-
-  const directWorkerAgentIds = rootNode
-    ? rootNode.workerLeafIds.map((leafId) => agentIdsByLeaf.get(leafId)).filter((id): id is string => Boolean(id))
-    : workerAgentIds;
-  const quotaRootNodeId = await ensureAgentSwarmQuotaRootInTx({
-    client,
-    taskId: task.id,
-    nodeKey: rootNode?.id ?? "node-0",
-    title: task.title?.trim() || "Agent Swarm Task",
-    tokenBudget: typeof input.config.tokenBudget === "number" ? input.config.tokenBudget : null,
-    timeBudgetMinutes: typeof input.config.timeBudgetMinutes === "number" ? input.config.timeBudgetMinutes : null,
-    leaderAgentId: leaderAgent.id,
-    workerAgentIds: directWorkerAgentIds
-  });
-  if (quotaRootNodeId && compiledSwarm && compiledSwarm.nodes.length > 1) {
-    await insertSeededSwarmQuotaNodesInTx(client, {
-      workflowTaskId: task.id,
-      compiledSwarm,
-      rootQuotaNodeId: quotaRootNodeId,
-      agentIdsByLeaf
-    });
-  }
-
-  if (compiledSwarm && rootNode) {
-    const swarmChannelIds = await createCompiledSwarmChannels(client, task.id, compiledSwarm, agentIdsByLeaf);
-    await client.query(
-      `UPDATE task_workflows SET config_json = config_json || $2::jsonb, updated_at = now() WHERE task_id = $1`,
-      [task.id, JSON.stringify({ swarmChannelIds })]
-    );
-    return cleanup;
-  }
-
-  const channelRes = await client.query<{ id: string }>(
-    `INSERT INTO task_workflow_channels (workflow_task_id, kind, title, created_by_workflow_agent_id)
-     VALUES ($1, 'global', 'Global', $2)
-     RETURNING id`,
-    [task.id, leaderAgent.id]
-  );
-  const channelId = channelRes.rows[0].id;
-
-  for (const agentId of [leaderAgent.id, ...workerAgentIds]) {
-    await client.query(
-      `INSERT INTO task_workflow_channel_members (channel_id, workflow_agent_id)
-       VALUES ($1, $2)`,
-      [channelId, agentId]
-    );
-  }
-
-  return cleanup;
-}
-
+// A swarm task needs only its swarm row; lanes are created by the leader as it works. Changing the
+// settings of an existing swarm keeps whatever the request leaves out.
 async function transitionToAgentSwarmInTx(
   client: PoolClient,
   task: LockedTaskContext,
-  userId: string,
-  workflow: TaskWorkflowPatchInput,
-  compiledSwarm?: CompiledAgentSwarm,
-  promptOverride?: string,
-  dynamicNodeTypes?: PlatformAgentPreset[]
+  workflow: TaskWorkflowPatchInput
 ): Promise<TaskCleanupCandidateResult> {
-  const workerCount = compiledSwarm
-    ? Math.max(0, compiledSwarm.leaves.length - 1)
-    : clampAgentSwarmWorkerCount(workflow.workerCount);
-  const agentAllocations = limitAgentSwarmAgentAllocations(workflow.modelAllocations ?? [], workerCount);
-  if (!compiledSwarm && task.workflow_type !== "agent_swarm") {
-    compiledSwarm = buildFlatSwarmTopology({
-      title: task.title?.trim() || "Agent Swarm Task",
-      workerCount,
-      reviewRounds: workflow.reviewRounds ?? 0
-    });
-  }
-  // Without budgets there is nothing to fund child nodes, so spawning goes with them.
-  const budgetsDisabled = workflow.disableSpawningAndBudgets === true;
-  const config = {
-    workerCount,
-    reviewRounds: workflow.reviewRounds ?? 0,
-    modelAllocations: agentAllocations,
-    leaderAgentId: workflow.leaderAgentId ?? null,
-    tokenBudget: budgetsDisabled
-      ? null
-      : workflow.tokenBudget ?? (task.workflow_type === "agent_swarm" ? null : AGENT_SWARM_DEFAULT_TOKEN_BUDGET),
-    timeBudgetMinutes: budgetsDisabled ? null : workflow.timeBudgetMinutes ?? null,
-    ...(budgetsDisabled ? { dynamicNodeTypes: [] } : dynamicNodeTypes ? { dynamicNodeTypes } : {}),
-    ...(compiledSwarm ? { compiledSwarm } : {})
-  };
-
-  let existingBudget: number | null = null;
+  let existing = null;
   if (task.workflow_type === "agent_swarm") {
-    const existingBudgetResult = await client.query<{ token_budget: number | null; compiled_swarm: CompiledAgentSwarm | null }>(
-      `SELECT (config_json->>'tokenBudget')::bigint AS token_budget,
-              config_json->'compiledSwarm' AS compiled_swarm
-         FROM task_workflows
-        WHERE task_id = $1
-        FOR UPDATE`,
+    await assertNotLegacyAgentSwarmTaskInTx(client, task.id);
+    const existingRes = await client.query<{ config_json: unknown }>(
+      "SELECT config_json FROM task_swarms WHERE task_id = $1",
       [task.id]
     );
-    existingBudget = asPositiveInteger(existingBudgetResult.rows[0]?.token_budget);
-    const nextBudget = asPositiveInteger(config.tokenBudget);
-    if (existingBudget !== null && existingBudget !== nextBudget) {
-      throw new Error("Changing or clearing an Agent Swarm token budget after creation is not supported. Start a new swarm with the revised budget.");
-    }
-    if (existingBudget === null && nextBudget !== null && !compiledSwarm) {
-      compiledSwarm = existingBudgetResult.rows[0]?.compiled_swarm ?? undefined;
-    }
+    existing = normalizeAgentSwarmSettings(existingRes.rows[0]?.config_json);
   }
-
-  if (task.workflow_type === "agent_swarm") {
-    const cleanup = await reconcileAgentSwarmWorkers(client, {
-      task,
-      userId,
-      desiredWorkerCount: workerCount
-    });
-    const members = await client.query<{ id: string; role: "leader" | "worker"; state_json: Record<string, unknown> }>(
-      `SELECT id, role, state_json
-         FROM task_workflow_agents
-        WHERE workflow_task_id = $1
-        ORDER BY role ASC, slot_index ASC`,
-      [task.id]
-    );
-    const leaderAgent = members.rows.find((member) => member.role === "leader");
-    if (leaderAgent) {
-      const agentIdsByLeaf = new Map(members.rows.flatMap((member) => {
-        const leafId = member.state_json?.swarmLeafId;
-        return typeof leafId === "string" ? [[leafId, member.id] as const] : [];
-      }));
-      const rootNode = compiledSwarm?.nodes.find((node) => node.id === compiledSwarm.rootNodeId);
-      const directWorkerAgentIds = rootNode
-        ? rootNode.workerLeafIds.map((leafId) => agentIdsByLeaf.get(leafId)).filter((id): id is string => Boolean(id))
-        : members.rows.filter((member) => member.role === "worker").map((member) => member.id);
-      const quotaRootNodeId = await ensureAgentSwarmQuotaRootInTx({
-        client,
-        taskId: task.id,
-        nodeKey: rootNode?.id ?? "node-0",
-        title: task.title?.trim() || "Agent Swarm Task",
-        tokenBudget: typeof config.tokenBudget === "number" ? config.tokenBudget : null,
-        timeBudgetMinutes: typeof config.timeBudgetMinutes === "number" ? config.timeBudgetMinutes : null,
-        leaderAgentId: leaderAgent.id,
-        workerAgentIds: directWorkerAgentIds
-      });
-      if (quotaRootNodeId && compiledSwarm && compiledSwarm.nodes.length > 1 && existingBudget === null) {
-        await insertSeededSwarmQuotaNodesInTx(client, {
-          workflowTaskId: task.id,
-          compiledSwarm,
-          rootQuotaNodeId: quotaRootNodeId,
-          agentIdsByLeaf
-        });
-      }
-    }
-    await client.query(
-      `UPDATE task_workflows
-          SET config_json = config_json || $2::jsonb,
-              updated_at = now()
-        WHERE task_id = $1`,
-      [task.id, JSON.stringify(config)]
-    );
-    return cleanup;
-  }
-
-  return createAgentSwarmTransitionInTx(client, {
-    task, userId, config, workerCount, compiledSwarm, promptOverride
-  });
+  const cleanup = task.workflow_type === "long_horizon"
+    ? await clearTaskWorkflowInTx(client, task.id)
+    : emptyTaskCleanupCandidates();
+  await enableAgentSwarmOnTaskInTx(client, task.id, resolveAgentSwarmSettings(workflow, existing));
+  return cleanup;
 }
 
 export async function applyWorkflowTransitionInTx(
@@ -977,9 +463,6 @@ export async function applyWorkflowTransitionInTx(
     userId: string;
     task: LockedTaskContext;
     workflow: TaskWorkflowPatchInput;
-    compiledSwarm?: CompiledAgentSwarm;
-    promptOverride?: string;
-    dynamicNodeTypes?: PlatformAgentPreset[];
   }
 ): Promise<TaskCleanupCandidateResult> {
   if (input.workflow.type === "standard") {
@@ -995,9 +478,7 @@ export async function applyWorkflowTransitionInTx(
   }
 
   if (input.workflow.type === "agent_swarm") {
-    return transitionToAgentSwarmInTx(
-      client, input.task, input.userId, input.workflow, input.compiledSwarm, input.promptOverride, input.dynamicNodeTypes
-    );
+    return transitionToAgentSwarmInTx(client, input.task, input.workflow);
   }
 
   return emptyTaskCleanupCandidates();

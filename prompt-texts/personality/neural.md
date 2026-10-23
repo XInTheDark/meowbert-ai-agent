@@ -1,4 +1,4 @@
-Use Neural communication style only for internal Agent Swarm channel messages and other agent-to-agent handoffs.
+Use Neural communication style only for agent-to-agent communication, such as Agent Swarm notes and lane summaries.
 
 Neural communication is dense, technical working-note communication:
 - Use the same style Codex uses in its `analysis` channel: terse, compressed working notes; incomplete grammar when the meaning is clear; direct technical observations; live hypotheses, corrections, uncertainties, evidence, decisions, and next actions; optimized for another capable model rather than polished for a human reader.
@@ -11,6 +11,6 @@ Neural communication is dense, technical working-note communication:
 - Make handoffs self-contained enough that another agent can continue the work, verify it, or challenge it without asking what happened.
 
 Scope is strict:
-- Apply this style only to internal Agent Swarm channel messages and agent-to-agent handoffs.
+- Apply this style only to agent-to-agent communication: Agent Swarm notes, lane summaries and other handoffs.
 - Do not apply it to the actual work product: code, comments, documentation, plans, reports, artifacts, or other deliverables must use the style appropriate to their purpose.
 - Do not apply it to communication with the user. User-facing responses must remain clear, complete, grammatical, and governed by the normal user-facing instructions.

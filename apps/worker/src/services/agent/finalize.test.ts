@@ -43,7 +43,7 @@ function createExecution() {
     job: {
       taskId: "task-1",
       runId: "run-1",
-      mode: "agent_swarm_worker",
+      mode: "long_horizon_main",
       triggerSource: "web",
       selectionUserId: null
     },
@@ -69,8 +69,8 @@ function createExecution() {
     workflow: {
       workflowContext: {
         workflowTaskId: "workflow-1",
-        workflowType: "agent_swarm",
-        phase: "active"
+        workflowType: "long_horizon",
+        phase: "working"
       }
     },
     runControl: {
@@ -87,7 +87,7 @@ function createExecution() {
       finalResponseFromTool: null,
       waitRequest: null,
       stopRequest: null,
-      workflowPauseRequest: { kind: "agent_swarm_paused" },
+      workflowPauseRequest: { kind: "long_horizon_submitted" },
       workflowAssistantPauseResponse: null,
       notificationRequested: true
     },
@@ -127,7 +127,7 @@ describe("finalizeAgentRun", () => {
     expect(execution.assertRunNotAborted).not.toHaveBeenCalled();
   });
 
-  it("finishes a swarm pause without adding conversation history or re-queueing when no pause text was provided", async () => {
+  it("finishes a workflow pause without adding conversation history or re-queueing when no pause text was provided", async () => {
     const execution = createExecution();
 
     await finalizeAgentRun(execution);
@@ -138,11 +138,11 @@ describe("finalizeAgentRun", () => {
     expect(mockedEnqueueWorkflowTaskRun).not.toHaveBeenCalled();
   });
 
-  it("appends an assistant message with pause text when swarm pause has a response message", async () => {
+  it("appends an assistant message with pause text when a workflow pause has a response message", async () => {
     const execution = createExecution() as any;
     execution.state.workflowAssistantPauseResponse = "Candidate solution is ready for review.";
     execution.prepared.runPersistedItems = [
-      { type: "function_call", call_id: "c1", name: "send_channel_message", arguments: "{}" }
+      { type: "function_call", call_id: "c1", name: "submit_response", arguments: "{}" }
     ];
 
     await finalizeAgentRun(execution as never);
@@ -153,7 +153,7 @@ describe("finalizeAgentRun", () => {
       {
         text: "Candidate solution is ready for review.",
         response_items: [
-          { type: "function_call", call_id: "c1", name: "send_channel_message", arguments: "{}" }
+          { type: "function_call", call_id: "c1", name: "submit_response", arguments: "{}" }
         ]
       },
       expect.objectContaining({
@@ -163,35 +163,6 @@ describe("finalizeAgentRun", () => {
     );
     expect(mockedSetTaskStatusForRun).toHaveBeenCalledWith("task-1", "run-1", "queued");
     expect(mockedRecordRunCompletion).toHaveBeenCalledWith("run-1", "completed", undefined, false);
-  });
-
-  it("completes the root task run after the swarm workflow is marked completed", async () => {
-    const execution = createExecution() as any;
-    execution.job.mode = "agent_swarm_leader";
-    execution.job.taskId = "workflow-1";
-    execution.workflow.workflowContext = {
-      ...execution.workflow.workflowContext,
-      taskId: "workflow-1",
-      workflowTaskId: "workflow-1",
-      currentAgent: { role: "leader" }
-    };
-    execution.state.workflowPauseRequest = null;
-    execution.state.finalResponseFromTool = { response: "Swarm finished.", notify: true };
-    vi.mocked(markWorkflowCompleted).mockResolvedValueOnce(true);
-
-    await finalizeAgentRun(execution);
-
-    expect(markWorkflowCompleted).toHaveBeenCalledWith(expect.objectContaining({
-      workflowTaskId: "workflow-1"
-    }), expect.objectContaining({
-      keepRunId: "run-1",
-      currentRunId: "run-1"
-    }));
-    expect(completeTaskRun).toHaveBeenCalledWith(expect.objectContaining({
-      taskId: "workflow-1",
-      runId: "run-1",
-      finalResponse: "Swarm finished."
-    }));
   });
 
   it("persists the preserved reasoning content count in assistant message metadata", async () => {

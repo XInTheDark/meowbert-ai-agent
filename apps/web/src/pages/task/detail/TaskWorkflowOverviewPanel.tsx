@@ -1,70 +1,7 @@
 import { ChevronRight, FileText, Send, CheckCircle2, XCircle, Clock3 } from "lucide-react";
-import type {
-  LongHorizonWorkflowOverview,
-  AgentSwarmWorkflowOverview,
-  TaskWorkflowOverview
-} from "../../../lib/types";
-import { badgeClass, formatDateTime, formatRelative, formatTaskTypeLabel } from "../../../lib/utils";
+import type { LongHorizonWorkflowOverview, TaskWorkflowOverview } from "../../../lib/types";
+import { badgeClass, formatDateTime } from "../../../lib/utils";
 import type { TaskDetailWorkflowSidebarController } from "./useTaskDetailWorkflowSidebar";
-import { formatSwarmAgentLabel } from "./swarmAgentLabel";
-
-function WorkerCard(props: {
-  worker: AgentSwarmWorkflowOverview["agentSwarm"]["workers"][number];
-  onSelect: () => void;
-}) {
-  const worker = props.worker;
-  return (
-    <button
-      type="button"
-      className="workflow-sidebar-card workflow-worker-item"
-      onClick={props.onSelect}
-    >
-      <div className="workflow-sidebar-card-main">
-        <div className="workflow-sidebar-card-header">
-          <span className="workflow-sidebar-card-slot">{formatSwarmAgentLabel(worker)}</span>
-          <span className={`${badgeClass(worker.paused ? "paused" : worker.status)} workflow-chip-status`}>
-            {worker.paused ? "paused" : worker.status}
-          </span>
-        </div>
-        <div className="workflow-sidebar-card-title">
-          {worker.title || formatSwarmAgentLabel(worker)}
-        </div>
-        <div className="workflow-sidebar-card-footer muted-text">
-          <span>Updated {formatRelative(worker.updated_at)}</span>
-        </div>
-      </div>
-      <ChevronRight size={15} className="workflow-sidebar-card-chevron" aria-hidden="true" />
-    </button>
-  );
-}
-
-function ChannelCard(props: {
-  channel: AgentSwarmWorkflowOverview["agentSwarm"]["channels"][number];
-  onSelect: () => void;
-}) {
-  const channel = props.channel;
-  return (
-    <button
-      type="button"
-      className="workflow-sidebar-card workflow-channel-item"
-      onClick={props.onSelect}
-    >
-      <div className="workflow-sidebar-card-main">
-        <div className="workflow-sidebar-card-header">
-          <span className="workflow-sidebar-card-slot">{formatTaskTypeLabel(channel.kind)}</span>
-          <span className="badge muted">#{channel.latest_message_no ?? 0}</span>
-        </div>
-        <div className="workflow-sidebar-card-title">
-          {channel.title || `${formatTaskTypeLabel(channel.kind)} channel`}
-        </div>
-        <div className="workflow-sidebar-card-footer muted-text">
-          <span>{channel.member_task_ids.length} members</span>
-        </div>
-      </div>
-      <ChevronRight size={15} className="workflow-sidebar-card-chevron" aria-hidden="true" />
-    </button>
-  );
-}
 
 function ReviewCard(props: {
   review: LongHorizonWorkflowOverview["longHorizon"]["reviews"][number];
@@ -141,46 +78,6 @@ function ReviewerStatusCard(props: {
       </div>
       <ChevronRight size={15} className="workflow-sidebar-card-chevron" aria-hidden="true" />
     </button>
-  );
-}
-
-function AgentSwarmOverview(props: {
-  workflow: AgentSwarmWorkflowOverview;
-  sidebar: TaskDetailWorkflowSidebarController;
-}) {
-  const { workers, channels } = props.workflow.agentSwarm;
-  return (
-    <div className="workflow-sidebar-body-inner">
-      <section className="workflow-sidebar-section">
-        <div className="workflow-sidebar-section-heading">
-          <h4>Workers ({workers.length})</h4>
-        </div>
-        <div className="workflow-sidebar-cards-list">
-          {workers.map((worker) => (
-            <WorkerCard
-              key={worker.task_id}
-              worker={worker}
-              onSelect={() => props.sidebar.openWorker(worker)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="workflow-sidebar-section">
-        <div className="workflow-sidebar-section-heading">
-          <h4>Channels ({channels.length})</h4>
-        </div>
-        <div className="workflow-sidebar-cards-list">
-          {channels.map((channel) => (
-            <ChannelCard
-              key={channel.id}
-              channel={channel}
-              onSelect={() => props.sidebar.openChannel(channel)}
-            />
-          ))}
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -275,8 +172,5 @@ export function TaskWorkflowOverviewPanel(props: {
   workflow: TaskWorkflowOverview;
   sidebar: TaskDetailWorkflowSidebarController;
 }) {
-  if (props.workflow.type === "long_horizon") {
-    return <LongHorizonOverview workflow={props.workflow} sidebar={props.sidebar} />;
-  }
-  return <AgentSwarmOverview workflow={props.workflow} sidebar={props.sidebar} />;
+  return <LongHorizonOverview workflow={props.workflow} sidebar={props.sidebar} />;
 }

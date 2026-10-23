@@ -8,7 +8,7 @@ import { enqueueRun } from "./runs.js";
 import { ensureTaskPromptEntitlement, recordTaskPromptUsage } from "./prompt-usage.js";
 import { activateTaskTimeLimitInTx } from "./time-limit.js";
 import { publishMemorySynthesisEvent } from "../../workspaces/memory-synthesis-events.js";
-import { applySelectedSwarmInTx, resolveSelectedSwarm } from "./swarm-selection.js";
+import { applySelectedSwarmPresetInTx, resolveSelectedSwarmPreset } from "../../agent-swarm/preset-selection.js";
 import type { ProjectCanvasIntent } from "../../canvases/project-canvases.js";
 import { recordProjectMasterReplyContextInTx } from "../../project-master/reply-contexts.js";
 import {
@@ -48,7 +48,7 @@ export async function appendTaskUserMessageAndEnqueue(input: {
     source: input.triggerSource,
     userId: input.userId ?? null
   });
-  const selectedSwarm = await resolveSelectedSwarm(input.userId, input.agent?.id);
+  const selectedSwarmPreset = await resolveSelectedSwarmPreset(input.userId, input.agent?.id);
   const followUpDecision = await withTransaction(async (client) => {
     const resolvedParentMessageId =
       input.parentMessageId !== undefined
@@ -92,13 +92,8 @@ export async function appendTaskUserMessageAndEnqueue(input: {
     const messageId = insertedMessage.rows[0].id;
     await touchTaskHistoryActivity(client, input.taskId, insertedMessage.rows[0].created_at);
 
-    if (selectedSwarm && input.userId) {
-      await applySelectedSwarmInTx(client, {
-        taskId: input.taskId,
-        userId: input.userId,
-        selectedSwarm,
-        prompt: input.message
-      });
+    if (selectedSwarmPreset) {
+      await applySelectedSwarmPresetInTx(client, { taskId: input.taskId, preset: selectedSwarmPreset });
     }
 
     await activateTaskTimeLimitInTx(client, input.taskId, insertedMessage.rows[0].created_at);

@@ -6,8 +6,7 @@ import {
   normalizePlatformAgentPresets,
   isPlatformAgentPresetVisible,
   resolveDefaultPlatformAgentId,
-  compilePlatformAgentSwarm,
-  validatePlatformAgentPresetGraph
+  validatePlatformAgentPresetReferences
 } from "./agent-presets.js";
 
 describe("normalizePlatformAgentPresets", () => {
@@ -102,40 +101,29 @@ describe("normalizePlatformAgentPresets", () => {
     expect(getVisiblePlatformAgentPresets(normalized, false)).toEqual(normalized);
   });
 
-  it("preserves the spawnable node choice on Swarm presets", () => {
-    const normalized = normalizePlatformAgentPresets([{
-      id: "research-swarm", name: "Research swarm", description: "Three workers",
-      payload: {}, mode: "agent_swarm", leaderAgentId: "luna",
-      modelAllocations: [{ agentId: "luna", workerCount: 3 }], spawnableAsNode: false
+  it("fills Swarm defaults and clamps advanced settings", () => {
+    const [swarm] = normalizePlatformAgentPresets([{
+      id: "research-swarm", name: "Research swarm", description: "Research", payload: {},
+      mode: "agent_swarm", leaderAgentId: "Luna", routerId: "Router-1", tokenBudget: 20_000_000,
+      advanced: { maxLanesPerParent: 40, maxDepth: 0, laneMaxSteps: null, autoCheck: false }
     }]);
 
-    expect(normalized[0]).toMatchObject({ id: "research-swarm", spawnableAsNode: false });
+    expect(swarm).toMatchObject({
+      leaderAgentId: "luna",
+      routerId: "router-1",
+      budgetsEnabled: false,
+      tokenBudget: 20_000_000,
+      advanced: { maxLanesPerParent: 16, maxDepth: 1, maxRunningLanes: 32, laneMaxSteps: null, autoCheck: false }
+    });
+    expect(swarm).not.toHaveProperty("modelAllocations");
   });
 
-  it("keeps Swarm budget defaults, and drops them when spawning and budgets are disabled", () => {
-    const [withBudgets, withoutBudgets] = normalizePlatformAgentPresets([
-      {
-        id: "budgeted", name: "Budgeted", description: "Swarm", payload: {}, mode: "agent_swarm",
-        leaderAgentId: "luna", modelAllocations: [{ agentId: "luna", workerCount: 2 }],
-        tokenBudget: 20_000_000, timeBudgetMinutes: 90
-      },
-      {
-        id: "roster-only", name: "Roster only", description: "Swarm", payload: {}, mode: "agent_swarm",
-        leaderAgentId: "luna", modelAllocations: [{ agentId: "luna", workerCount: 2 }],
-        tokenBudget: 20_000_000, disableSpawningAndBudgets: true
-      }
+  it("rejects a Swarm preset without a leader", () => {
+    const normalized = normalizePlatformAgentPresets([
+      { id: "ok", name: "Ok", description: "Ok", payload: {} },
+      { id: "leaderless", name: "Leaderless", description: "Swarm", payload: {}, mode: "agent_swarm" }
     ]);
-
-    expect(withBudgets).toMatchObject({ tokenBudget: 20_000_000, timeBudgetMinutes: 90 });
-    expect(withoutBudgets).toMatchObject({ disableSpawningAndBudgets: true });
-    expect(withoutBudgets.tokenBudget).toBeUndefined();
-  });
-
-  it("preserves an individual agent's explicit node opt-in", () => {
-    const normalized = normalizePlatformAgentPresets([{
-      id: "luna", name: "Luna", description: "Fast research", payload: {}, spawnableAsNode: true
-    }]);
-    expect(normalized[0]).toMatchObject({ id: "luna", spawnableAsNode: true });
+    expect(normalized.map((preset) => preset.id)).toEqual(["ok"]);
   });
 
   it("falls back to defaults when all entries are invalid", () => {
@@ -234,91 +222,18 @@ describe("agent preset visibility", () => {
   });
 });
 
-describe("agent swarm presets", () => {
-  const presets = normalizePlatformAgentPresets([
-    { id: "writer", name: "Writer", description: "Writes", payload: {} },
-    { id: "reviewer", name: "Reviewer", description: "Reviews", mode: "quality_control_reviewer", payload: {} },
-    {
-      id: "inner",
-      name: "Inner swarm",
-      description: "Inner",
-      mode: "agent_swarm",
-      leaderAgentId: "reviewer",
-      modelAllocations: [{ agentId: "reviewer", workerCount: 2 }],
-      payload: {}
-    },
-    {
-      id: "root",
-      name: "Root swarm",
-      description: "Root",
-      mode: "agent_swarm",
-      leaderAgentId: "inner",
-      modelAllocations: [{ agentId: "inner", workerCount: 2 }],
-      payload: {}
-    }
-  ]);
-
-  it("compiles nested swarms into logical nodes and leaf occurrences", () => {
-    const compiled = compilePlatformAgentSwarm({
-      presets,
-      leaderAgentId: "writer",
-      modelAllocations: [{ agentId: "inner", workerCount: 2 }],
-      reviewRounds: 0
-    });
-
-    expect(compiled.nodes.length).toBeGreaterThan(1);
-    expect(compiled.leaves.length).toBeGreaterThan(4);
-    expect(compiled.leaves.every((leaf) => leaf.nodeIds.length <= 2)).toBe(true);
-    const root = compiled.nodes.find((node) => node.id === compiled.rootNodeId);
-    expect(root?.leaderLeafId).toBeTruthy();
-  });
-
-  it("compiles a leader-only swarm so it can spawn workers later", () => {
-    const leaderOnly = normalizePlatformAgentPresets([
-      ...presets,
-      { id: "solo", name: "Solo", description: "Solo", mode: "agent_swarm",
-        leaderAgentId: "writer", modelAllocations: [], payload: {} }
-    ]).find((preset) => preset.id === "solo");
-    expect(leaderOnly).toBeDefined();
-    const compiled = compilePlatformAgentSwarm({
-      presets: [...presets, leaderOnly!], leaderAgentId: leaderOnly!.leaderAgentId!, modelAllocations: []
-    });
-    expect(compiled.nodes).toHaveLength(1);
-    expect(compiled.leaves).toHaveLength(1);
-    expect(compiled.nodes[0].workerLeafIds).toEqual([]);
-  });
-
-  it("rejects a seeded roster that would create more than 256 agent loops", () => {
-    const heavy = {
-      id: "heavy", name: "Heavy", description: "Heavy", mode: "agent_swarm" as const,
-      leaderAgentId: "writer", modelAllocations: [{ agentId: "writer", workerCount: 16 }], payload: {}
-    };
-    expect(() => compilePlatformAgentSwarm({
-      presets: [...presets, heavy], leaderAgentId: "writer",
-      modelAllocations: [{ agentId: "heavy", workerCount: 16 }]
-    })).toThrow("256 agents");
-  });
-
-  it("rejects a leader that would belong to three swarms", () => {
-    expect(() => compilePlatformAgentSwarm({
-      presets,
-      leaderAgentId: "root",
-      modelAllocations: [{ agentId: "root", workerCount: 2 }]
-    })).toThrow("more than two Agent Swarms");
-  });
-
-  it("rejects recursive swarm references", () => {
-    const cyclic = normalizePlatformAgentPresets([
-      {
-        id: "a", name: "A", description: "A", mode: "agent_swarm", leaderAgentId: "b",
-        modelAllocations: [{ agentId: "b", workerCount: 2 }], payload: {}
-      },
-      {
-        id: "b", name: "B", description: "B", mode: "agent_swarm", leaderAgentId: "a",
-        modelAllocations: [{ agentId: "a", workerCount: 2 }], payload: {}
-      }
+describe("validatePlatformAgentPresetReferences", () => {
+  it("requires a Swarm leader to be an existing single agent", () => {
+    const presets = normalizePlatformAgentPresets([
+      { id: "writer", name: "Writer", description: "Writes", payload: {} },
+      { id: "ok", name: "Ok", description: "Swarm", mode: "agent_swarm", leaderAgentId: "writer", payload: {} },
+      { id: "missing", name: "Missing", description: "Swarm", mode: "agent_swarm", leaderAgentId: "ghost", payload: {} },
+      { id: "nested", name: "Nested", description: "Swarm", mode: "agent_swarm", leaderAgentId: "ok", payload: {} }
     ]);
 
-    expect(validatePlatformAgentPresetGraph(cyclic).some((error) => error.includes("cycle"))).toBe(true);
+    const errors = validatePlatformAgentPresetReferences(presets);
+    expect(errors).toHaveLength(2);
+    expect(errors.some((error) => error.includes("missing") && error.includes("ghost"))).toBe(true);
+    expect(errors.some((error) => error.includes("nested"))).toBe(true);
   });
 });

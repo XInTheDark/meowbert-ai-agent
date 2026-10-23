@@ -323,13 +323,11 @@ export function TaskComposerPage() {
               type: workflow.type,
               ...(workflow.type === "agent_swarm"
                 ? {
-                    workerCount: workflow.workerCount,
-                    reviewRounds: workflow.reviewRounds,
+                    ...(workflow.routerId !== undefined ? { routerId: workflow.routerId } : {}),
+                    budgetsEnabled: workflow.budgetsEnabled === true,
                     tokenBudget: workflow.tokenBudget,
                     timeBudgetMinutes: workflow.timeBudgetMinutes,
-                    ...(workflow.disableSpawningAndBudgets ? { disableSpawningAndBudgets: true } : {}),
-                    ...(workflow.leaderAgentId ? { leaderAgentId: workflow.leaderAgentId } : {}),
-                    ...(workflow.modelAllocations.length > 0 ? { modelAllocations: workflow.modelAllocations } : {})
+                    ...(workflow.advanced ? { advanced: workflow.advanced } : {})
                   }
                 : {
                     tokenBudget: workflow.tokenBudget,
@@ -469,8 +467,7 @@ export function TaskComposerPage() {
                 const workflow = resolveWorkflowForAgentChange({
                   workflow: current.workflow,
                   previousAgent: availableAgents.find((agent) => agent.id === selectedAgentId),
-                  nextAgent: availableAgents.find((agent) => agent.id === nextAgentId),
-                  nextAgentId
+                  nextAgent: availableAgents.find((agent) => agent.id === nextAgentId)
                 });
                 return {
                   ...current,

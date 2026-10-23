@@ -107,30 +107,10 @@ vi.mock("../tasks/subscription-usage.js", () => ({
 }));
 
 vi.mock("../task-workflows/service.js", () => ({
-  createSwarmChannelForAgent: vi.fn(),
-  cancelSwarmNode: vi.fn(),
-  canRecordSwarmFinalReview: vi.fn(() => false),
-  canRecordSwarmReview: vi.fn(() => false),
-  getSwarmBudgetStatus: vi.fn(),
-  grantSwarmNodeBudget: vi.fn(),
-  listSwarmChannelsForAgent: vi.fn(),
-  recordSwarmFinalReview: vi.fn(),
-  requiresSwarmFinalReview: vi.fn((context) =>
-    context?.workflowType === "agent_swarm" && context.agents.some((agent: { role: string }) => agent.role === "worker")
-  ),
-  deliverSwarmInbox: vi.fn(),
-  pauseSwarmAgent: vi.fn(),
-  readSwarmChannel: vi.fn(),
-  assignSwarmWorkers: vi.fn(),
-  releaseSwarmInference: vi.fn(),
-  reserveSwarmInference: vi.fn(),
-  settleSwarmInference: vi.fn(),
-  sendSwarmChannelMessage: vi.fn(),
-  spawnSwarmNode: vi.fn(),
+  loadLongHorizonBudgetTelemetry: vi.fn(),
   startLongHorizonTask: vi.fn(),
   submitLongHorizonResponse: vi.fn(),
-  submitLongHorizonReview: vi.fn(),
-  wakeParentForSwarmQuota: vi.fn()
+  submitLongHorizonReview: vi.fn()
 }));
 
 vi.mock("../tasks/recurring-run-utils.js", () => ({
@@ -152,18 +132,7 @@ import {
   recordPlatformTokenUsageEvent
 } from "../tasks/subscription-usage.js";
 import { runAgentStepLoop } from "./loop.js";
-import {
-  pauseSwarmAgent,
-  releaseSwarmInference,
-  reserveSwarmInference,
-  settleSwarmInference,
-  wakeParentForSwarmQuota
-} from "../task-workflows/service.js";
 import { resetV2ContextWindow } from "./context-window.js";
-import {
-  REFRESH_INBOX_TOOL_NAME,
-  SEND_CHANNEL_MESSAGE_TOOL_NAME
-} from "../agent-tools/index.js";
 
 function createExecutionContext() {
   const abortController = new AbortController();
@@ -258,7 +227,6 @@ function createExecutionContext() {
       allowWorkflowRequestClarification: false,
       allowWorkflowSubmitResponse: false,
       allowWorkflowSubmitReview: false,
-      allowSwarmTools: false
     },
     systemPrompt: "system prompt",
     promptEnvelope: {},
@@ -351,69 +319,8 @@ describe("runAgentStepLoop", () => {
     expect(execution.state.finalResponseFromTool).toEqual(finalResponse);
   });
 
-  it("does not dispatch a Swarm response quarantined after its deadline", async () => {
+  it("does not cap turns to an output budget, so reasoning cannot starve the action", async () => {
     const execution = createExecutionContext();
-    execution.workflow.workflowContext = {
-      workflowTaskId: "task-1",
-      workflowType: "agent_swarm",
-      phase: "active",
-      config: { tokenBudget: 10_000 },
-      taskId: "task-1",
-      taskDir: "/tmp/task-1",
-      workspaceId: "workspace-1",
-      environmentId: "environment-1",
-      currentAgent: null,
-      agents: [],
-      planContent: null
-    };
-    execution.workflow.allowSwarmTools = true;
-    vi.mocked(reserveSwarmInference).mockResolvedValueOnce({
-      reservationId: "reservation-1",
-      requestedTokens: 512,
-      nodeId: "node-1",
-      workflowAgentId: "agent-1",
-      recovery: false,
-      runId: "run-1"
-    });
-    vi.mocked(settleSwarmInference).mockResolvedValueOnce(false);
-    vi.mocked(releaseSwarmInference).mockResolvedValue(undefined);
-    vi.mocked(pauseSwarmAgent).mockResolvedValue({ escalation: null });
-    vi.mocked(wakeParentForSwarmQuota).mockResolvedValue(undefined);
-    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: [], output_text: "" } as never);
-
-    await runAgentStepLoop(execution as never);
-
-    expect(mockedDispatchResponseOutput).not.toHaveBeenCalled();
-    expect(pauseSwarmAgent).toHaveBeenCalledOnce();
-    expect(wakeParentForSwarmQuota).toHaveBeenCalledOnce();
-    expect(execution.state.workflowPauseRequest).toEqual({ kind: "agent_swarm_paused" });
-  });
-
-  it("does not cap Swarm turns to the reserved output, so reasoning cannot starve the action", async () => {
-    const execution = createExecutionContext();
-    execution.workflow.workflowContext = {
-      workflowTaskId: "task-1",
-      workflowType: "agent_swarm",
-      phase: "active",
-      config: { tokenBudget: 10_000 },
-      taskId: "task-1",
-      taskDir: "/tmp/task-1",
-      workspaceId: "workspace-1",
-      environmentId: "environment-1",
-      currentAgent: null,
-      agents: [],
-      planContent: null
-    };
-    execution.workflow.allowSwarmTools = true;
-    vi.mocked(reserveSwarmInference).mockResolvedValue({
-      reservationId: "reservation-1",
-      requestedTokens: 512,
-      nodeId: "node-1",
-      workflowAgentId: "agent-1",
-      recovery: false,
-      runId: "run-1"
-    });
-    vi.mocked(settleSwarmInference).mockResolvedValue(true);
     mockedCreateModelResponseWithRetry
       .mockResolvedValueOnce({
         output: [{ type: "reasoning" }],
@@ -433,10 +340,10 @@ describe("runAgentStepLoop", () => {
       .mockResolvedValueOnce({
         sawToolCall: true,
         sawFunctionToolCall: true,
-        finalResponse: null,
+        finalResponse: { response: "done", notify: true, partial: false },
         waitRequest: null,
         stopRequest: null,
-        workflowPause: { kind: "agent_swarm_paused" }
+        workflowPause: null
       });
 
     await runAgentStepLoop(execution as never);
@@ -927,7 +834,7 @@ describe("runAgentStepLoop", () => {
     });
   });
 
-  it("records platform token usage for every Agent Swarm leader and worker run", async () => {
+  it("records platform token usage for every Agent Swarm leader and lane run", async () => {
     mockedCreateModelResponseWithRetry.mockResolvedValue({
       output: [],
       output_text: "Done.",
@@ -951,22 +858,14 @@ describe("runAgentStepLoop", () => {
 
     for (const run of [
       { taskId: "leader-task", runId: "leader-run", mode: "agent_swarm_leader" },
-      { taskId: "worker-task-1", runId: "worker-run-1", mode: "agent_swarm_worker" },
-      { taskId: "worker-task-2", runId: "worker-run-2", mode: "agent_swarm_worker" }
+      { taskId: "worker-task-1", runId: "worker-run-1", mode: "agent_swarm_lane" },
+      { taskId: "worker-task-2", runId: "worker-run-2", mode: "agent_swarm_lane" }
     ]) {
       const execution = createExecutionContext();
       execution.job.taskId = run.taskId;
       execution.job.runId = run.runId;
       execution.job.mode = run.mode;
       execution.prepared.subscriptionUserId = "user-1";
-      execution.workflow.workflowContext = {
-        workflowType: "agent_swarm",
-        phase: "active",
-        config: {},
-        currentAgent: {
-          role: run.mode === "agent_swarm_leader" ? "leader" : "worker"
-        }
-      };
 
       await runAgentStepLoop(execution as never);
     }
@@ -1212,270 +1111,6 @@ describe("runAgentStepLoop", () => {
 
     expect(mockedResetV2ContextWindow).toHaveBeenCalledOnce();
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(2);
-  });
-
-  it("lets the swarm leader choose its own next tool", async () => {
-    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
-      output: [],
-      output_text: "",
-      usage: undefined
-    } as never);
-    mockedDispatchResponseOutput.mockResolvedValueOnce({
-      sawToolCall: false,
-      sawFunctionToolCall: false,
-      finalResponse: null,
-      waitRequest: {
-        seconds: 60,
-        response: "pause",
-        notify: true,
-        nextRunAt: "2026-03-18T00:01:00.000Z"
-      },
-      stopRequest: null,
-      workflowPause: null
-    });
-
-    const execution = createExecutionContext();
-    execution.job.mode = "agent_swarm_leader";
-    execution.workflow.workflowContext = {
-      workflowTaskId: "workflow-1",
-      workflowType: "agent_swarm",
-      phase: "active",
-      config: {},
-      taskId: "task-1",
-      taskDir: "/tmp/task-1",
-      workspaceId: "workspace-1",
-      environmentId: "environment-1",
-      currentAgent: {
-        id: "leader-agent",
-        role: "leader",
-        slot_index: 0,
-        task_id: "task-1",
-        title: "Leader",
-        status: "running",
-        task_root_path: ".meowbert/task-runs/task-1",
-        last_inbox_refresh_message_no: 0
-      },
-      agents: [{
-        id: "worker-agent",
-        role: "worker",
-        slot_index: 0,
-        task_id: "worker-1",
-        title: "Worker 1",
-        status: "queued",
-        task_root_path: ".meowbert/task-runs/worker-1",
-        last_inbox_refresh_message_no: 0,
-        state_json: {}
-      }],
-      planContent: null,
-      swarm: {
-        sharedDir: "/tmp/shared",
-        channels: [],
-        peerTaskDirs: [],
-        globalChannelId: "global-channel",
-        latestWorkflowMessageNo: 30,
-        leaderGlobalMessageCount: 0,
-        activeWorkerCount: 0,
-        workerGlobalReportTaskIds: [],
-        workerGlobalReportLabels: [],
-        missingWorkerGlobalReportTaskIds: ["worker-1"],
-        missingWorkerGlobalReportLabels: ["Worker 1"],
-        workersStartedAt: null
-      }
-    };
-    execution.workflow.allowSwarmTools = true;
-
-    await runAgentStepLoop(execution as never);
-
-    expect(buildAgentTurnRequest).toHaveBeenCalledWith(expect.objectContaining({
-      availability: expect.objectContaining({ allowWaitTool: true })
-    }));
-    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledWith(
-      "task-1",
-      expect.objectContaining({ toolChoice: "required" }),
-      expect.any(Function)
-    );
-
-    execution.workflow.workflowContext.swarm.leaderGlobalMessageCount = 1;
-    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
-      output: [], output_text: "", usage: undefined
-    } as never);
-    mockedDispatchResponseOutput.mockResolvedValueOnce({
-      sawToolCall: false,
-      sawFunctionToolCall: false,
-      finalResponse: null,
-      waitRequest: {
-        seconds: 60, response: "pause", notify: true, nextRunAt: "2026-03-18T00:01:00.000Z"
-      },
-      stopRequest: null,
-      workflowPause: null
-    });
-    await runAgentStepLoop(execution as never);
-
-    expect(mockedCreateModelResponseWithRetry).toHaveBeenLastCalledWith(
-      "task-1",
-      expect.objectContaining({ toolChoice: "required" }),
-      expect.any(Function)
-    );
-  });
-
-  it("does not force a swarm message after the leader has read its inbox", async () => {
-    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
-      output: [],
-      output_text: "",
-      usage: undefined
-    } as never);
-    mockedDispatchResponseOutput.mockResolvedValueOnce({
-      sawToolCall: false,
-      sawFunctionToolCall: false,
-      finalResponse: null,
-      waitRequest: {
-        seconds: 60,
-        response: "pause",
-        notify: true,
-        nextRunAt: "2026-03-18T00:01:00.000Z"
-      },
-      stopRequest: null,
-      workflowPause: null
-    });
-
-    const execution = createExecutionContext();
-    execution.job.mode = "agent_swarm_leader";
-    execution.workflow.workflowContext = {
-      workflowTaskId: "workflow-1",
-      workflowType: "agent_swarm",
-      phase: "active",
-      config: {},
-      taskId: "task-1",
-      taskDir: "/tmp/task-1",
-      workspaceId: "workspace-1",
-      environmentId: "environment-1",
-      currentAgent: {
-        id: "leader-agent",
-        role: "leader",
-        slot_index: 0,
-        task_id: "task-1",
-        title: "Leader",
-        status: "running",
-        task_root_path: ".meowbert/task-runs/task-1",
-        last_inbox_refresh_message_no: 29
-      },
-      agents: [],
-      planContent: null,
-      swarm: {
-        sharedDir: "/tmp/shared",
-        channels: [],
-        peerTaskDirs: [],
-        globalChannelId: "global-channel",
-        latestWorkflowMessageNo: 29,
-        leaderGlobalMessageCount: 0,
-        activeWorkerCount: 0,
-        workerGlobalReportTaskIds: [],
-        workerGlobalReportLabels: [],
-        missingWorkerGlobalReportTaskIds: ["worker-1"],
-        missingWorkerGlobalReportLabels: ["Worker 1"],
-        workersStartedAt: null
-      }
-    };
-    execution.workflow.allowSwarmTools = true;
-
-    await runAgentStepLoop(execution as never);
-
-    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledWith(
-      "task-1",
-      expect.objectContaining({ toolChoice: "required" }),
-      expect.any(Function)
-    );
-  });
-
-  it("does not force a specific swarm tool for ordinary swarm steps", async () => {
-    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
-      output: [],
-      output_text: "",
-      usage: undefined
-    } as never);
-    mockedDispatchResponseOutput.mockResolvedValueOnce({
-      sawToolCall: false,
-      sawFunctionToolCall: false,
-      finalResponse: null,
-      waitRequest: {
-        seconds: 60,
-        response: "pause",
-        notify: true,
-        nextRunAt: "2026-03-18T00:01:00.000Z"
-      },
-      stopRequest: null,
-      workflowPause: null
-    });
-
-    const execution = createExecutionContext();
-    execution.job.mode = "agent_swarm_leader";
-    execution.workflow.workflowContext = {
-      workflowTaskId: "workflow-1",
-      workflowType: "agent_swarm",
-      phase: "active",
-      config: {},
-      taskId: "task-1",
-      taskDir: "/tmp/task-1",
-      workspaceId: "workspace-1",
-      environmentId: "environment-1",
-      currentAgent: {
-        id: "leader-agent",
-        role: "leader",
-        slot_index: 0,
-        task_id: "task-1",
-        title: "Leader",
-        status: "running",
-        task_root_path: ".meowbert/task-runs/task-1",
-        last_inbox_refresh_message_no: 29
-      },
-      agents: [],
-      planContent: null,
-      swarm: {
-        sharedDir: "/tmp/shared",
-        channels: [],
-        peerTaskDirs: [],
-        globalChannelId: "global-channel",
-        latestWorkflowMessageNo: 30,
-        leaderGlobalMessageCount: 1,
-        activeWorkerCount: 3,
-        workerGlobalReportTaskIds: [],
-        workerGlobalReportLabels: [],
-        missingWorkerGlobalReportTaskIds: ["worker-1"],
-        missingWorkerGlobalReportLabels: ["Worker 1"],
-        workersStartedAt: "2026-03-18T00:00:10.000Z"
-      }
-    };
-    execution.workflow.allowSwarmTools = true;
-
-    await runAgentStepLoop(execution as never);
-
-    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledWith(
-      "task-1",
-      expect.objectContaining({
-        toolChoice: "required"
-      }),
-      expect.any(Function)
-    );
-    expect(mockedCreateModelResponseWithRetry).not.toHaveBeenCalledWith(
-      "task-1",
-      expect.objectContaining({
-        toolChoice: {
-          type: "function",
-          name: REFRESH_INBOX_TOOL_NAME
-        }
-      }),
-      expect.any(Function)
-    );
-    expect(mockedCreateModelResponseWithRetry).not.toHaveBeenCalledWith(
-      "task-1",
-      expect.objectContaining({
-        toolChoice: {
-          type: "function",
-          name: SEND_CHANNEL_MESSAGE_TOOL_NAME
-        }
-      }),
-      expect.any(Function)
-    );
   });
 
   it("requires an explicit action during Long Horizon clarify", async () => {

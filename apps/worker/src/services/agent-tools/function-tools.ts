@@ -12,15 +12,6 @@ import { applyPatchCustomToolDefinition } from "../agent/apply-patch.js";
 import {
   SEARCH_WEB_TOOL_NAME,
   APPLY_PATCH_TOOL_NAME,
-  SWARM_PAUSE_TOOL_NAME,
-  SWARM_MANAGE_TOOL_NAME,
-  ASSIGN_WORKER_TOOL_NAME,
-  SWARM_BUDGET_STATUS_TOOL_NAME,
-  SWARM_CANCEL_NODE_TOOL_NAME,
-  SWARM_GRANT_BUDGET_TOOL_NAME,
-  SWARM_RECORD_FINAL_REVIEW_TOOL_NAME,
-  SWARM_RECORD_REVIEW_TOOL_NAME,
-  SWARM_SPAWN_NODE_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME,
   CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
@@ -30,7 +21,6 @@ import {
   HISTORY_SEARCH_CONTENTS_TOOL_NAME,
   CREATE_PROJECT_CANVAS_TOOL_NAME,
   SHOW_CANVAS_TOOL_NAME,
-  CREATE_CHANNEL_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   ENABLE_SKILL_TOOL_NAME,
@@ -44,7 +34,6 @@ import {
   NOTES_WRITE_FILE_TOOL_NAME,
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
   INIT_SANDBOX_TOOL_NAME,
-  LIST_CHANNELS_TOOL_NAME,
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
   LIST_SKILLS_TOOL_NAME,
   MEMORY_SEARCH_TOOL_NAME,
@@ -52,7 +41,6 @@ import {
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
   SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
-  READ_CHANNEL_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
   RUN_SHELL_MAX_TIMEOUT_SECONDS,
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS,
@@ -62,8 +50,6 @@ import {
   SHELL_SESSION_TOOL_NAME,
   SCHEDULE_TASK_TOOL_NAME,
   QUERY_TASKS_TOOL_NAME,
-  SEND_CHANNEL_MESSAGE_TOOL_NAME,
-  SUBMIT_SWARM_OUTPUT_TOOL_NAME,
   START_LONG_HORIZON_TASK_TOOL_NAME,
   START_SUBTASK_TOOL_NAME,
   STOP_TASK_TOOL_NAME,
@@ -195,31 +181,6 @@ export const SHELL_SESSION_TOOL: FunctionTool = {
   }
 };
 
-export function buildSwarmPauseFunctionTool(): FunctionTool {
-  return {
-    type: "function",
-    name: SWARM_PAUSE_TOOL_NAME,
-    description: "End your turn and pause this Agent Swarm agent. With wait_for_task_ids, you resume once every named agent has finished its current work; they must be running. With null, a direct message or, for a leader, any of its workers finishing resumes you.",
-    strict: true,
-    parameters: {
-      type: "object",
-      properties: {
-        status: {
-          type: "string",
-          description: "Short reason for pausing, shown in task events but not added to swarm conversation history."
-        },
-        wait_for_task_ids: {
-          type: ["array", "null"],
-          items: { type: "string" },
-          description: "Task IDs of running swarm agents to wait for, or null."
-        }
-      },
-      required: ["status", "wait_for_task_ids"],
-      additionalProperties: false
-    }
-  };
-}
-
 const nullableString = { type: ["string", "null"] } as const;
 const nullableInteger = { type: ["integer", "null"] } as const;
 
@@ -280,180 +241,11 @@ export const CONTEXT_V2_FUNCTION_TOOLS: FunctionTool[] = [
   }))
 ];
 
-export const ASSIGN_WORKER_TOOL: FunctionTool = {
-  type: "function",
-  name: ASSIGN_WORKER_TOOL_NAME,
-  description:
-    "For Agent Swarm node leaders: post an assignment to your node's channel and start or resume the named workers so they act on it. Set wait to true to end your turn and resume once every named worker has finished.",
-  strict: true,
-  parameters: {
-    type: "object",
-    properties: {
-      workers: {
-        type: "array",
-        items: { type: "string" },
-        description: "Direct workers to assign, by task ID or label such as 'Worker 1'."
-      },
-      message: {
-        type: "string",
-        description: "The assignment: objective, ownership, and what to report back."
-      },
-      wait: {
-        type: "boolean",
-        description: "True to pause until every named worker has finished; false to keep working."
-      }
-    },
-    required: ["workers", "message", "wait"],
-    additionalProperties: false
-  }
-};
-
-export const SWARM_MANAGE_TOOL: FunctionTool = {
-  type: "function",
-  name: SWARM_MANAGE_TOOL_NAME,
-  description:
-    "For Agent Swarm node leaders: view every agent's status, pause reason, and wait dependencies; start, resume, or stop only direct workers. Identify workers by task ID or label such as 'Worker 1'.",
-  strict: true,
-  parameters: {
-    type: "object",
-    properties: {
-      start: {
-        type: "array",
-        items: { type: "string" },
-        description: "Existing swarm workers to start or resume. May be empty."
-      },
-      stop: {
-        type: "array",
-        items: { type: "string" },
-        description: "Existing swarm workers to stop completely. May be empty."
-      },
-      view_only: {
-        type: "boolean",
-        description: "Set true to view current workers without changing them."
-      }
-    },
-    required: ["start", "stop", "view_only"],
-    additionalProperties: false
-  }
-};
-
-// Swarms without a budget manage workers without moving budget between them.
-export const SWARM_BUDGET_STATUS_TOOL: FunctionTool = {
-  type: "function",
-  name: SWARM_BUDGET_STATUS_TOOL_NAME,
-  description:
-    "For Agent Swarm leaders and workers: inspect the budget pool this node's agents share, its protected reserve, deadline, minimum spawn allocation, what each worker has spent, and direct child budgets.",
-  strict: true,
-  parameters: {
-    type: "object",
-    properties: {},
-    required: [],
-    additionalProperties: false
-  }
-};
-
-export const SWARM_SPAWN_NODE_TOOL: FunctionTool = {
-  type: "function",
-  name: SWARM_SPAWN_NODE_TOOL_NAME,
-  description:
-    "For Agent Swarm leaders: spawn one direct child node from an admin-defined node type, including one-agent types. The token budget must cover the displayed minimum allocation; model roster and worker count come from the selected type.",
-  strict: true,
-  parameters: {
-    type: "object",
-    properties: {
-      node_type_id: { type: "string", description: "Admin-defined Swarm or individual agent node type ID." },
-      title: { type: "string", description: "Human-readable title for the child node." },
-      initial_instruction: { type: ["string", "null"], description: "Optional focused instruction for the child leader." },
-      token_budget: { type: "integer", minimum: 1, description: "Weighted-token envelope transferred from the parent." },
-      time_budget_minutes: { type: ["integer", "null"], minimum: 1, description: "Optional child deadline, bounded by the parent deadline." }
-    },
-    required: ["node_type_id", "title", "initial_instruction", "token_budget", "time_budget_minutes"],
-    additionalProperties: false
-  }
-};
-
-export const SWARM_GRANT_BUDGET_TOOL: FunctionTool = {
-  type: "function",
-  name: SWARM_GRANT_BUDGET_TOOL_NAME,
-  description:
-    "For Agent Swarm leaders: transfer unassigned weighted-token budget to a direct child node and optionally extend its deadline within the parent deadline.",
-  strict: true,
-  parameters: {
-    type: "object",
-    properties: {
-      node_id: { type: "string", description: "Direct child node ID from swarm_budget_status." },
-      additional_tokens: { type: "integer", minimum: 1, description: "Weighted tokens to transfer from the parent." },
-      extend_deadline_minutes: { type: ["integer", "null"], minimum: 1, description: "Optional additional child deadline time." }
-    },
-    required: ["node_id", "additional_tokens", "extend_deadline_minutes"],
-    additionalProperties: false
-  }
-};
-
-export const SWARM_CANCEL_NODE_TOOL: FunctionTool = {
-  type: "function",
-  name: SWARM_CANCEL_NODE_TOOL_NAME,
-  description:
-    "For Agent Swarm leaders: cascade-cancel a direct child node. The branch disappears from active Swarm coordination but its tasks, runs, messages, and artifacts remain available for debugging.",
-  strict: true,
-  parameters: {
-    type: "object",
-    properties: {
-      node_id: { type: "string", description: "Direct child node ID from swarm_budget_status." },
-      reason: { type: "string", description: "Reason recorded with the retained cancelled branch." }
-    },
-    required: ["node_id", "reason"],
-    additionalProperties: false
-  }
-};
-
-export const SWARM_RECORD_REVIEW_TOOL: FunctionTool = {
-  type: "function",
-  name: SWARM_RECORD_REVIEW_TOOL_NAME,
-  description:
-    "For Agent Swarm leaders only: record an independent critique supplied by an existing worker. Required review rounds must be recorded before final delivery is available.",
-  strict: true,
-  parameters: {
-    type: "object",
-    properties: {
-      reviewer: { type: "string", description: "The worker task ID or label that supplied the critique." },
-      summary: { type: "string", description: "Concise critique summary and how the candidate was addressed or retained." }
-    },
-    required: ["reviewer", "summary"],
-    additionalProperties: false
-  }
-};
-
-export const SWARM_RECORD_FINAL_REVIEW_TOOL: FunctionTool = {
-  type: "function",
-  name: SWARM_RECORD_FINAL_REVIEW_TOOL_NAME,
-  description: "For Agent Swarm leaders: record the final peer review of the proposed delivery. A Quality Control worker must review when one is present.",
-  strict: true,
-  parameters: {
-    type: "object",
-    properties: {
-      reviewer: { type: "string", description: "The worker task ID or label that reviewed the proposed delivery." },
-      approved: { type: "boolean", description: "Whether the proposed delivery is ready for the user." },
-      summary: { type: "string", description: "Brief review result and any changes made or still required." }
-    },
-    required: ["reviewer", "approved", "summary"],
-    additionalProperties: false
-  }
-};
-
 export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   ...SUBAGENT_FUNCTION_TOOLS,
   ...PROJECT_MASTER_FUNCTION_TOOLS,
   buildRunShellFunctionTool(),
   SHELL_SESSION_TOOL,
-  ASSIGN_WORKER_TOOL,
-  SWARM_MANAGE_TOOL,
-  SWARM_BUDGET_STATUS_TOOL,
-  SWARM_SPAWN_NODE_TOOL,
-  SWARM_GRANT_BUDGET_TOOL,
-  SWARM_CANCEL_NODE_TOOL,
-  SWARM_RECORD_FINAL_REVIEW_TOOL,
-  SWARM_RECORD_REVIEW_TOOL,
   {
     type: "function",
     name: CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME,
@@ -1196,97 +988,6 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   },
   {
     type: "function",
-    name: LIST_CHANNELS_TOOL_NAME,
-    description: "List swarm channels you belong to.",
-    strict: true,
-    parameters: {
-      type: "object",
-      properties: {},
-      required: [],
-      additionalProperties: false
-    }
-  },
-  {
-    type: "function",
-    name: READ_CHANNEL_TOOL_NAME,
-    description: "Read raw swarm channel messages: the latest ones, or those after a specific message number.",
-    strict: true,
-    parameters: {
-      type: "object",
-      properties: {
-        channel_id: {
-          type: "string",
-          description: "Swarm channel ID or alias like 'global'."
-        },
-        since_message_no: {
-          type: ["number", "null"],
-          description: "Optional lower-bound message number for incremental reads."
-        }
-      },
-      required: ["channel_id", "since_message_no"],
-      additionalProperties: false
-    }
-  },
-  {
-    type: "function",
-    name: CREATE_CHANNEL_TOOL_NAME,
-    description: "Create a new direct or group swarm channel with the specified members.",
-    strict: true,
-    parameters: {
-      type: "object",
-      properties: {
-        member_agent_task_ids: {
-          type: "array",
-          items: { type: "string" },
-          description: "Task IDs of the swarm agents that should join the new channel."
-        },
-        title: {
-          type: ["string", "null"],
-          description: "Optional human-readable channel title."
-        }
-      },
-      required: ["member_agent_task_ids", "title"],
-      additionalProperties: false
-    }
-  },
-  {
-    type: "function",
-    name: SEND_CHANNEL_MESSAGE_TOOL_NAME,
-    description:
-      "Send a message to a swarm channel. If new messages arrived during your turn, they are returned instead and nothing is sent.",
-    strict: true,
-    parameters: {
-      type: "object",
-      properties: {
-        channel_id: {
-          type: "string",
-          description: "Swarm channel ID or alias like 'global'."
-        },
-        message: {
-          type: "string",
-          description: "Markdown message body."
-        }
-      },
-      required: ["channel_id", "message"],
-      additionalProperties: false
-    }
-  },
-  {
-    type: "function",
-    name: SUBMIT_SWARM_OUTPUT_TOOL_NAME,
-    description: "For nested Agent Swarm leaders only: publish this subgroup's final synthesis to the parent swarm.",
-    strict: true,
-    parameters: {
-      type: "object",
-      properties: {
-        response: { type: "string", description: "The subgroup's synthesized result for its parent swarm." }
-      },
-      required: ["response"],
-      additionalProperties: false
-    }
-  },
-  {
-    type: "function",
     name: STOP_TASK_TOOL_NAME,
     description:
       "Pause the CURRENT recurring task and end this run. Use when the recurring automation should stop for now.",
@@ -1350,8 +1051,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
       required: ["seconds", "shell_sessions", "response", "notify"],
       additionalProperties: false
     }
-  },
-  buildSwarmPauseFunctionTool()
+  }
 ];
 
 export const TASK_TITLE_FUNCTION_TOOL: FunctionTool = {

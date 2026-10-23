@@ -1,13 +1,10 @@
 import { z } from "zod";
 import {
-  AGENT_SWARM_MAX_WORKERS,
-  AGENT_SWARM_MIN_WORKERS,
-  normalizeAgentSwarmAgentAllocations,
-  sumAgentSwarmAgentAllocations,
+  AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
+  AGENT_SWARM_MAX_TOKEN_BUDGET,
   isSkillEnabledByConfig,
   type TaskSource
 } from "@meowbert/shared";
-import { AGENT_SWARM_MAX_REVIEW_ROUNDS } from "@meowbert/shared/agent-swarm";
 import { config } from "../../lib/config.js";
 import { query, withTransaction } from "../../lib/db.js";
 import { getPromptEntitlementStatus } from "../../services/billing/entitlements.js";
@@ -19,7 +16,6 @@ import { enqueueRun } from "../../services/tasks/task-service/index.js";
 
 export const environmentParams = z.object({ envId: z.string().uuid() });
 export const taskParams = z.object({ taskId: z.string().uuid() });
-export const taskChannelParams = z.object({ taskId: z.string().uuid(), channelId: z.string().uuid() });
 export const taskMessageParams = z.object({ taskId: z.string().uuid(), messageId: z.string().uuid() });
 export const publicTaskShareParams = z.object({ shareId: z.string().uuid() });
 
@@ -162,78 +158,46 @@ export const taskParametersSchema = z
   .strict()
   .optional();
 
+// Agent Swarm parameters a request may override; values are clamped when the swarm is resolved.
+const agentSwarmAdvancedSchema = z.object({
+  maxLanesPerParent: z.number().int(),
+  maxDepth: z.number().int(),
+  maxRunningLanes: z.number().int(),
+  laneMaxSteps: z.number().int().nullable(),
+  reconNudgeSteps: z.number().int(),
+  forkCompactionThresholdTokens: z.number().int(),
+  laneSummaryMaxTokens: z.number().int(),
+  assemblyHintTokens: z.number().int(),
+  dormantLaneTurns: z.number().int(),
+  autoCheck: z.boolean(),
+  budgetReservePercent: z.number().int(),
+  laneWrapUpPercent: z.number().int()
+}).strict().partial();
+
+const workflowFields = {
+  routerId: z.string().min(1).max(240).nullable().optional(),
+  budgetsEnabled: z.boolean().optional(),
+  tokenBudget: z.number().int().positive().max(AGENT_SWARM_MAX_TOKEN_BUDGET).nullable().optional(),
+  timeBudgetMinutes: z.number().int().positive().max(AGENT_SWARM_MAX_TIME_BUDGET_MINUTES).nullable().optional(),
+  advanced: agentSwarmAdvancedSchema.nullable().optional(),
+  enableClarifyPhase: z.boolean().optional(),
+  enableReviewPhase: z.boolean().optional()
+};
+
 export const taskWorkflowCreateSchema = z
   .object({
     type: z.enum(["long_horizon", "deep_research", "quality_control", "agent_swarm"]),
-    workerCount: z.number().int().min(AGENT_SWARM_MIN_WORKERS).max(AGENT_SWARM_MAX_WORKERS).nullable().optional(),
-    reviewRounds: z.number().int().min(0).max(AGENT_SWARM_MAX_REVIEW_ROUNDS).nullable().optional(),
-    leaderAgentId: z.string().min(1).max(240).nullable().optional(),
-    modelAllocations: z.array(z.object({
-      agentId: z.string().min(1).max(240),
-      workerCount: z.number().int().min(1).max(AGENT_SWARM_MAX_WORKERS)
-    }).strict()).max(20).nullable().optional(),
-    tokenBudget: z.number().int().positive().max(100_000_000).nullable().optional(),
-    timeBudgetMinutes: z.number().int().positive().max(10_080).nullable().optional(),
-    disableSpawningAndBudgets: z.boolean().optional(),
-    enableClarifyPhase: z.boolean().optional(),
-    enableReviewPhase: z.boolean().optional()
+    ...workflowFields
   })
   .strict()
-  .superRefine((value, ctx) => {
-    if (value.type !== "agent_swarm" || !Array.isArray(value.modelAllocations) || value.modelAllocations.length === 0) {
-      return;
-    }
-
-    const workerCount = sumAgentSwarmAgentAllocations(normalizeAgentSwarmAgentAllocations(value.modelAllocations));
-    if (workerCount < AGENT_SWARM_MIN_WORKERS || workerCount > AGENT_SWARM_MAX_WORKERS) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["modelAllocations"],
-        message: `Agent Swarm allocations must assign ${AGENT_SWARM_MIN_WORKERS} to ${AGENT_SWARM_MAX_WORKERS} workers.`
-      });
-    }
-  })
   .optional();
 
 export const taskWorkflowPatchSchema = z
   .object({
     type: z.enum(["standard", "long_horizon", "deep_research", "quality_control", "agent_swarm"]),
-    workerCount: z.number().int().min(AGENT_SWARM_MIN_WORKERS).max(AGENT_SWARM_MAX_WORKERS).nullable().optional(),
-    reviewRounds: z.number().int().min(0).max(AGENT_SWARM_MAX_REVIEW_ROUNDS).nullable().optional(),
-    leaderAgentId: z.string().min(1).max(240).nullable().optional(),
-    modelAllocations: z.array(z.object({
-      agentId: z.string().min(1).max(240),
-      workerCount: z.number().int().min(1).max(AGENT_SWARM_MAX_WORKERS)
-    }).strict()).max(20).nullable().optional(),
-    tokenBudget: z.number().int().positive().max(100_000_000).nullable().optional(),
-    timeBudgetMinutes: z.number().int().positive().max(10_080).nullable().optional(),
-    disableSpawningAndBudgets: z.boolean().optional(),
-    enableClarifyPhase: z.boolean().optional(),
-    enableReviewPhase: z.boolean().optional()
+    ...workflowFields
   })
   .strict()
-  .superRefine((value, ctx) => {
-    if (value.type === "agent_swarm" && value.timeBudgetMinutes != null && value.tokenBudget == null
-      && value.disableSpawningAndBudgets !== true) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["tokenBudget"],
-        message: "An Agent Swarm time budget requires a token budget."
-      });
-    }
-    if (value.type !== "agent_swarm" || !Array.isArray(value.modelAllocations) || value.modelAllocations.length === 0) {
-      return;
-    }
-
-    const workerCount = sumAgentSwarmAgentAllocations(normalizeAgentSwarmAgentAllocations(value.modelAllocations));
-    if (workerCount < AGENT_SWARM_MIN_WORKERS || workerCount > AGENT_SWARM_MAX_WORKERS) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["modelAllocations"],
-        message: `Agent Swarm allocations must assign ${AGENT_SWARM_MIN_WORKERS} to ${AGENT_SWARM_MAX_WORKERS} workers.`
-      });
-    }
-  })
   .optional();
 
 export const taskParametersPatchBody = z

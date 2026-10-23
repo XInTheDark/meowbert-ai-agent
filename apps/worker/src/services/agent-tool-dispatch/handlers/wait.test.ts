@@ -45,26 +45,13 @@ describe("handleWaitTool", () => {
     expect(applyInfiniteWait).not.toHaveBeenCalled();
   });
 
-  it.each(["default", "infinite_auto", "agent_swarm_worker"] as const)("waits within a %s run when shell conditions are supplied", async (runMode) => {
+  it.each(["default", "infinite_auto", "agent_swarm_leader"] as const)("waits within a %s run when shell conditions are supplied", async (runMode) => {
     const ctx = context({ runMode });
     expect((await handleWaitTool(call({ seconds: 10, shell_sessions: [condition] }), ctx, state)).waitRequest).toBeUndefined();
     expect(waitForConditions).toHaveBeenCalledWith(expect.objectContaining({
       seconds: 10, shellSessions: [condition], environmentId: "project-1", taskDir: "/task"
     }));
     expect(applyInfiniteWait).not.toHaveBeenCalled();
-  });
-
-  it("requires shell conditions for Agent Swarm waits", async () => {
-    const ctx = context({
-      runMode: "agent_swarm_worker",
-      workflowContext: { workflowType: "agent_swarm" } as ToolDispatchContext["workflowContext"]
-    });
-    await handleWaitTool(call({ seconds: 10, shell_sessions: null }), ctx, state);
-    expect(finishBuiltinToolFailure).toHaveBeenCalledWith(ctx, expect.anything(), expect.stringContaining("require a shell session condition"));
-    expect(waitForConditions).not.toHaveBeenCalled();
-
-    await handleWaitTool(call({ seconds: 10, shell_sessions: [condition] }), ctx, state);
-    expect(waitForConditions).toHaveBeenCalledWith(expect.objectContaining({ shellSessions: [condition] }));
   });
 
   it("preserves saved infinite recurring time-only calls and notification behavior", async () => {

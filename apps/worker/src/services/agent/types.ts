@@ -52,7 +52,7 @@ export interface TaskRow {
   thread_selected_text: string | null;
   workflow_type: TaskWorkflowType | null;
   workflow_parent_task_id: string | null;
-  workflow_internal_role: "leader" | "worker" | "reviewer" | null;
+  workflow_internal_role: "leader" | "worker" | "reviewer" | "lane" | null;
   interactive_canvas_id: string | null;
   interactive_canvas_intent: "create" | "update" | "view" | null;
 }

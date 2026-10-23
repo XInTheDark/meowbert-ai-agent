@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import {
   buildDefaultTaskSchedulerSettings,
   normalizePlatformAgentPresets,
-  validatePlatformAgentPresetGraph,
+  validatePlatformAgentPresetReferences,
   normalizePlatformModelMetadata,
   normalizePlatformModelRouters,
   normalizePlatformSpecializedModels,
@@ -189,9 +189,15 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
   const normalizedModelMetadata = normalizePlatformModelMetadata(input.modelMetadata);
   const normalizedModelRouters = normalizePlatformModelRouters(input.modelRouters);
   const normalizedAgentPresets = normalizePlatformAgentPresets(input.agentPresets);
-  const presetGraphErrors = validatePlatformAgentPresetGraph(normalizedAgentPresets);
-  if (presetGraphErrors.length > 0) {
-    throw new InvalidAdminSettingsError(presetGraphErrors.join(" "));
+  const routerIds = new Set(normalizedModelRouters.map((router) => router.id));
+  const presetErrors = [
+    ...validatePlatformAgentPresetReferences(normalizedAgentPresets),
+    ...normalizedAgentPresets
+      .filter((preset) => preset.routerId && !routerIds.has(preset.routerId))
+      .map((preset) => `Agent Swarm preset ${preset.id} references unknown model router ${preset.routerId}.`)
+  ];
+  if (presetErrors.length > 0) {
+    throw new InvalidAdminSettingsError(presetErrors.join(" "));
   }
   const normalizedSpecializedModels = normalizePlatformSpecializedModels(input.specializedModels);
   const normalizedModelSliderAgentIds = normalizeModelSliderAgentIds(input.modelSliderAgentIds);

@@ -37,9 +37,6 @@ describe("TaskParametersDropdown", () => {
           mode="create"
           workflowConfig={{
             type: "standard",
-            workerCount: 3,
-            reviewRounds: 0,
-            modelAllocations: [],
             tokenBudget: null
           }}
           onWorkflowChange={onWorkflowChange}
@@ -63,13 +60,8 @@ describe("TaskParametersDropdown", () => {
     const swarmButton = Array.from(container.querySelectorAll(".chat-tools-item"))
       .find((element) => element.textContent?.includes("Agent Swarm"));
     await act(async () => click(swarmButton ?? null));
-    const fields = Array.from(container.querySelectorAll(".task-parameters-field"));
-    expect(fields.find((field) => field.textContent?.includes("Token budget"))?.querySelector("input")?.value).toBe("10000000");
-    expect(fields.find((field) => field.textContent?.includes("Time budget"))?.querySelector("input")?.value).toBe("");
-    await act(async () => click(container.querySelector(".task-parameters-actions .btn.primary")));
-    expect(onWorkflowChange).toHaveBeenCalledWith(expect.objectContaining({
-      type: "agent_swarm", tokenBudget: 10_000_000, timeBudgetMinutes: null
-    }));
+    expect(container.textContent).not.toContain("Token budget");
+    expect(onWorkflowChange).toHaveBeenCalledWith(expect.objectContaining({ type: "agent_swarm" }));
   });
 
   it("shows confirmation warning dialog when changing workflow type in edit mode", async () => {
@@ -83,9 +75,6 @@ describe("TaskParametersDropdown", () => {
           taskType="standard"
           workflowConfig={{
             type: "standard",
-            workerCount: 3,
-            reviewRounds: 0,
-            modelAllocations: [],
             tokenBudget: null
           }}
           onWorkflowChange={onWorkflowChange}
@@ -132,9 +121,6 @@ describe("TaskParametersDropdown", () => {
           taskType="standard"
           workflowConfig={{
             type: "standard",
-            workerCount: 3,
-            reviewRounds: 0,
-            modelAllocations: [],
             tokenBudget: null
           }}
           onWorkflowChange={onWorkflowChange}
@@ -167,8 +153,8 @@ describe("TaskParametersDropdown", () => {
           taskParameters={buildDefaultTaskParameters()}
           onChange={vi.fn()}
           mode="create"
-          workflowConfig={{ type: "agent_swarm", workerCount: 0, reviewRounds: 0,
-            leaderAgentId: "leader", modelAllocations: [], tokenBudget: 80_000, timeBudgetMinutes: 45 }}
+          workflowConfig={{ type: "agent_swarm", routerId: null, budgetsEnabled: true,
+            tokenBudget: 80_000, timeBudgetMinutes: 45 }}
           onWorkflowChange={onWorkflowChange}
         />
       );
@@ -185,23 +171,19 @@ describe("TaskParametersDropdown", () => {
     const timeInput = fields.find((field) => field.textContent?.includes("Time budget"))?.querySelector("input");
     expect(tokenInput?.value).toBe("80000");
     expect(timeInput?.value).toBe("45");
-
-    await act(async () => click(container.querySelector(".task-parameters-actions .btn.primary")));
-    expect(onWorkflowChange).toHaveBeenCalledWith(expect.objectContaining({
-      type: "agent_swarm", workerCount: 0, tokenBudget: 80_000, timeBudgetMinutes: 45
-    }));
   });
 
-  it("disables clearing the budget for an existing Agent Swarm", async () => {
+  it("switches Agent Swarm budgets off and hides the budget fields", async () => {
+    const onWorkflowChange = vi.fn();
     await act(async () => {
       root.render(
         <TaskParametersDropdown
           taskParameters={buildDefaultTaskParameters()}
           onChange={vi.fn()}
-          mode="edit"
-          workflowConfig={{ type: "agent_swarm", workerCount: 0, reviewRounds: 0,
-            leaderAgentId: "leader", modelAllocations: [], tokenBudget: 80_000, timeBudgetMinutes: 45 }}
-          onWorkflowChange={vi.fn()}
+          mode="create"
+          workflowConfig={{ type: "agent_swarm", routerId: null, budgetsEnabled: true,
+            tokenBudget: 80_000, timeBudgetMinutes: 45 }}
+          onWorkflowChange={onWorkflowChange}
         />
       );
     });
@@ -210,8 +192,9 @@ describe("TaskParametersDropdown", () => {
     const swarmButton = Array.from(container.querySelectorAll(".chat-tools-item"))
       .find((element) => element.textContent?.includes("Agent Swarm"));
     await act(async () => click(swarmButton ?? null));
+    await act(async () => click(container.querySelector('.task-parameters-toggle input[type="checkbox"]')));
 
-    const checkbox = container.querySelector<HTMLInputElement>('.task-parameters-toggle input[type="checkbox"]');
-    expect(checkbox?.disabled).toBe(true);
+    expect(onWorkflowChange).toHaveBeenCalledWith(expect.objectContaining({ type: "agent_swarm", budgetsEnabled: false }));
+    expect(container.textContent).not.toContain("Token budget");
   });
 });

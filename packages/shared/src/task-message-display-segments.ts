@@ -39,7 +39,7 @@ function isFinalResponseItem(value: unknown): boolean {
   return isRecord(value) && value.type === "function_call" && value.name === "final_response";
 }
 
-// A final_response the worker rejected (for example, a swarm leader delivering before its final review)
+// A final_response the worker rejected (for example, a Long Horizon agent delivering before review approval)
 // never reached the user, so its text must not render as the answer.
 function collectRejectedCallIds(items: unknown[]): Set<string> {
   const rejected = new Set<string>();

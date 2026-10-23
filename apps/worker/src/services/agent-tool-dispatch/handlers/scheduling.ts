@@ -1,10 +1,8 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import {
-  SWARM_PAUSE_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   SCHEDULE_TASK_TOOL_NAME,
   STOP_TASK_TOOL_NAME,
-  swarmPauseArgumentsSchema,
   editCurrentTaskScheduleArgumentsSchema,
   scheduleTaskArgumentsSchema,
   stopTaskArgumentsSchema
@@ -15,7 +13,6 @@ import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExe
 import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
-import { withSwarmPause } from "./workflows.js";
 
 export async function handleScheduleTask(
   outputItem: ResponseFunctionToolCall,
@@ -132,70 +129,6 @@ export async function handleEditCurrentTaskSchedule(
     rethrowIfTaskCancelled(err);
     const message = err instanceof Error ? err.message : String(err);
     return finishBuiltinToolFailure(ctx, execution, `Failed to edit task schedule: ${message}`);
-  }
-}
-
-// A top leader that pauses before starting any worker or child node stalls the swarm, usually
-// because it answered in plain text and thinks it is done.
-function isUnstartedTopLeader(ctx: ToolDispatchContext): boolean {
-  const context = ctx.workflowContext;
-  return ctx.runMode === "agent_swarm_leader"
-    && context?.workflowType === "agent_swarm"
-    && context.taskId === context.workflowTaskId
-    && !context.swarm?.workersStartedAt
-    && (context.swarm?.pendingNestedSwarmNodeIds?.length ?? 0) === 0;
-}
-
-export async function handleSwarmPauseTool(
-  outputItem: ResponseFunctionToolCall,
-  ctx: ToolDispatchContext,
-  state: ToolDispatchState
-): Promise<ToolCallResult> {
-  await ctx.assertNotCancelled();
-  const parsed = parseToolArguments(
-    SWARM_PAUSE_TOOL_NAME,
-    outputItem.arguments,
-    swarmPauseArgumentsSchema
-  );
-  if (!parsed.ok) {
-    return toolErrorResult(parsed.error);
-  }
-  const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
-    inputLabel: "Swarm pause",
-    inputText: parsed.value.status
-  });
-
-  if (ctx.runMode !== "agent_swarm_leader" && ctx.runMode !== "agent_swarm_worker") {
-    return finishBuiltinToolFailure(
-      ctx,
-      execution,
-      "swarm_pause can only be used during Agent Swarm runs."
-    );
-  }
-
-  if (isUnstartedTopLeader(ctx)) {
-    return finishBuiltinToolFailure(
-      ctx,
-      execution,
-      "Nothing would wake you: no worker has been assigned yet, and the user has not received an answer. Your plain text is not delivered. Assign your workers with assign_worker."
-    );
-  }
-
-  try {
-    if (!ctx.workflowActions?.pauseSwarmAgent) {
-      return await finishBuiltinToolFailure(ctx, execution, "swarm_pause is not available for this run.");
-    }
-    const { escalation } = await ctx.workflowActions.pauseSwarmAgent({
-      ...(parsed.value.target_swarm ? { targetSwarm: parsed.value.target_swarm } : {}),
-      status: parsed.value.status,
-      waitingForTaskIds: parsed.value.wait_for_task_ids
-    });
-    const finished = await finishBuiltinToolSuccess(ctx, execution, { acknowledged: true, paused: true });
-    return withSwarmPause(finished, parsed.value.status, escalation);
-  } catch (err) {
-    rethrowIfTaskCancelled(err);
-    const message = err instanceof Error ? err.message : String(err);
-    return finishBuiltinToolFailure(ctx, execution, `Failed to apply swarm wait: ${message}`);
   }
 }
 

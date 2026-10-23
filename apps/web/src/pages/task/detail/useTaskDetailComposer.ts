@@ -47,10 +47,6 @@ export function buildWorkflowComposerConfigFromTaskDetail(
         : researchMode === "deep_research"
           ? "deep_research"
           : "long_horizon",
-      workerCount: 3,
-      reviewRounds: 0,
-      leaderAgentId: null,
-      modelAllocations: [],
       tokenBudget: typeof workflow.config?.tokenBudget === "number" ? workflow.config.tokenBudget : null,
       timeBudgetMinutes: typeof workflow.config?.timeBudgetMinutes === "number" ? workflow.config.timeBudgetMinutes : null,
       enableClarifyPhase: workflow.config?.enableClarifyPhase !== false,
@@ -58,60 +54,9 @@ export function buildWorkflowComposerConfigFromTaskDetail(
     };
   }
 
-  if (workflow?.type === "agent_swarm") {
-    return {
-      type: "agent_swarm",
-      workerCount: typeof workflow.agentSwarm?.workerCount === "number"
-        ? workflow.agentSwarm.workerCount
-        : typeof workflow.config?.workerCount === "number"
-          ? workflow.config.workerCount
-          : 3,
-      reviewRounds: typeof workflow.config?.reviewRounds === "number" ? workflow.config.reviewRounds : 0,
-      leaderAgentId: typeof workflow.config?.leaderAgentId === "string" ? workflow.config.leaderAgentId : null,
-      modelAllocations: Array.isArray(workflow.config?.modelAllocations) ? workflow.config.modelAllocations : [],
-      tokenBudget: typeof workflow.config?.tokenBudget === "number" ? workflow.config.tokenBudget : null,
-      timeBudgetMinutes: typeof workflow.config?.timeBudgetMinutes === "number" ? workflow.config.timeBudgetMinutes : null,
-      // An existing swarm without a token budget has no quota and cannot spawn nodes.
-      disableSpawningAndBudgets: typeof workflow.config?.tokenBudget !== "number",
-      enableClarifyPhase: true,
-      enableReviewPhase: true
-    };
-  }
-
-  if (taskType === "long_horizon") {
-    return {
-      type: "long_horizon",
-      workerCount: 3,
-      reviewRounds: 0,
-      leaderAgentId: null,
-      modelAllocations: [],
-      tokenBudget: null,
-      timeBudgetMinutes: null,
-      enableClarifyPhase: true,
-      enableReviewPhase: true
-    };
-  }
-
-  if (taskType === "agent_swarm") {
-    return {
-      type: "agent_swarm",
-      workerCount: 3,
-      reviewRounds: 0,
-      leaderAgentId: null,
-      modelAllocations: [],
-      tokenBudget: null,
-      timeBudgetMinutes: null,
-      enableClarifyPhase: true,
-      enableReviewPhase: true
-    };
-  }
-
+  // A swarm keeps its own settings; fields left out of a change keep their current values.
   return {
-    type: "standard",
-    workerCount: 3,
-    reviewRounds: 0,
-    leaderAgentId: null,
-    modelAllocations: [],
+    type: taskType === "long_horizon" || taskType === "agent_swarm" ? taskType : "standard",
     tokenBudget: null,
     timeBudgetMinutes: null,
     enableClarifyPhase: true,

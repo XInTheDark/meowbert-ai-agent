@@ -31,20 +31,14 @@ import { TASK_SCHEDULING_TOOL_GROUP_ID, withToolGroups } from "../agent-tools/in
 import { resolveAgentTaskInputDir } from "./task-input-dir.js";
 import {
   buildWorkflowPromptContext,
-  clearSwarmPauseOnRunStart,
-  shouldAllowSwarmChannelTools,
   shouldAllowWorkflowFinalResponse,
   shouldAllowWorkflowRequestClarification,
   shouldAllowWorkflowStartLongHorizon,
   shouldAllowWorkflowSubmitResponse,
   shouldAllowWorkflowSubmitReview,
-  requiresSwarmFinalReview,
-  resolveAgentSwarmReviewRounds,
   loadWorkflowRunContext
 } from "../task-workflows/service.js";
-import { hasSwarmLeadership } from "../task-workflows/swarm-target.js";
 import { shouldExposeStopTaskForRecurringRun } from "../tasks/recurring-run-utils.js";
-import { resolveWorkflowWritableSharedPaths } from "./task-write-scope.js";
 import { loadProjectContextPromptData } from "./project-context.js";
 import type { AgentExecutionContext, AgentRunControlState, WorkflowCapabilityState } from "./execution-types.js";
 import type { PreparedAgentRunContext } from "./runtime.js";
@@ -201,8 +195,7 @@ async function resolveWorkflowCapabilities(
     allowWorkflowStartLongHorizon: shouldAllowWorkflowStartLongHorizon(workflowContext, job.mode ?? "default"),
     allowWorkflowRequestClarification: shouldAllowWorkflowRequestClarification(workflowContext, job.mode ?? "default"),
     allowWorkflowSubmitResponse: shouldAllowWorkflowSubmitResponse(workflowContext, job.mode ?? "default"),
-    allowWorkflowSubmitReview: shouldAllowWorkflowSubmitReview(workflowContext, job.mode ?? "default"),
-    allowSwarmTools: shouldAllowSwarmChannelTools(workflowContext)
+    allowWorkflowSubmitReview: shouldAllowWorkflowSubmitReview(workflowContext, job.mode ?? "default")
   };
 }
 
@@ -222,13 +215,7 @@ function buildRunSystemPrompt(input: {
     ? input.workflow.allowWorkflowFinalResponse
     : input.job.mode !== "infinite_auto";
   const allowWaitInPrompt = input.prepared.snapshot.task.allow_waiting !== false
-    && (!input.workflow.workflowContext || (
-      input.workflow.workflowContext.workflowType === "agent_swarm"
-      && getPersistentRuntimeEnabled(input.prepared.runtimeEnvironmentPayload)
-    ));
-  const allowSwarmPauseInPrompt = input.workflow.workflowContext
-    ? input.workflow.workflowContext.workflowType === "agent_swarm"
-    : false;
+    && !input.workflow.workflowContext;
   const interactiveCanvas = input.prepared.snapshot.interactive_canvas;
 
   const prompt = buildSystemPrompt(
@@ -250,23 +237,6 @@ function buildRunSystemPrompt(input: {
       allowStopTask: input.allowStopTask,
       allowWaitTool: allowWaitInPrompt,
       persistentRuntimeEnabled: getPersistentRuntimeEnabled(input.prepared.runtimeEnvironmentPayload),
-      allowSwarmPauseTool: allowSwarmPauseInPrompt,
-      allowSwarmManageTool: input.workflow.allowSwarmTools
-        && Boolean(input.workflow.workflowContext && hasSwarmLeadership(input.workflow.workflowContext)),
-      allowSwarmReviewTool: input.workflow.workflowContext?.workflowType === "agent_swarm"
-        && input.workflow.workflowContext.currentAgent?.role === "leader"
-        && input.workflow.allowSwarmTools
-        && (input.workflow.workflowContext.swarm?.completedReviewRounds ?? 0)
-          < resolveAgentSwarmReviewRounds(input.workflow.workflowContext),
-      allowSwarmFinalReviewTool: input.workflow.workflowContext?.workflowType === "agent_swarm"
-        && input.workflow.workflowContext.currentAgent?.role === "leader"
-        && input.workflow.allowSwarmTools
-        && requiresSwarmFinalReview(input.workflow.workflowContext)
-        && !input.workflow.workflowContext.swarm?.finalReview?.approved,
-      allowSwarmOutputTool: input.workflow.workflowContext?.workflowType === "agent_swarm"
-        && input.workflow.allowSwarmTools
-        && Array.isArray(input.workflow.workflowContext.currentAgent?.state_json?.swarmLeaderNodeIds)
-        && input.workflow.workflowContext.currentAgent!.state_json.swarmLeaderNodeIds.some((nodeId) => nodeId !== "node-0"),
       qualityReviewSpecialist: input.prepared.isQualityReviewSpecialist,
       allowScheduleTools: input.allowScheduleTools,
       allowSubtaskTools: input.allowSubtaskTools,
@@ -280,7 +250,6 @@ function buildRunSystemPrompt(input: {
       taskFilesystemReadOnly: input.prepared.snapshot.task.is_thread,
       taskInputDir: input.taskInputDir,
       liveSyncFiles: input.prepared.liveSyncFiles,
-      writableSharedPaths: resolveWorkflowWritableSharedPaths(input.workflow.workflowContext),
       recurringStateFilePath: input.recurringStateFilePath,
       recurringSchedule: input.scheduleInfo
         ? {
@@ -314,8 +283,7 @@ function buildRunSystemPrompt(input: {
             allowStartLongHorizonTask: input.workflow.allowWorkflowStartLongHorizon,
             allowRequestClarification: input.workflow.allowWorkflowRequestClarification,
             allowSubmitResponse: input.workflow.allowWorkflowSubmitResponse,
-            allowSubmitReview: input.workflow.allowWorkflowSubmitReview,
-            allowSwarmTools: input.workflow.allowSwarmTools
+            allowSubmitReview: input.workflow.allowWorkflowSubmitReview
           }
         : null,
       projectContext: input.projectContextPromptData,
@@ -365,13 +333,6 @@ export async function initializeAgentExecution(
     phase: "success",
     status: "running"
   });
-  if (job.mode === "agent_swarm_leader" || job.mode === "agent_swarm_worker") {
-    await clearSwarmPauseOnRunStart(job.taskId);
-    await debugLogger.log("Cleared stale swarm pause state.", {
-      stage: "init.swarm_pause",
-      phase: "success"
-    });
-  }
 
   const scheduleInfo = await debugLogger.stage({
     stage: "init.schedule",
@@ -418,8 +379,7 @@ export async function initializeAgentExecution(
       allowWorkflowStartLongHorizon: resolvedWorkflow.allowWorkflowStartLongHorizon,
       allowWorkflowRequestClarification: resolvedWorkflow.allowWorkflowRequestClarification,
       allowWorkflowSubmitResponse: resolvedWorkflow.allowWorkflowSubmitResponse,
-      allowWorkflowSubmitReview: resolvedWorkflow.allowWorkflowSubmitReview,
-      allowSwarmTools: resolvedWorkflow.allowSwarmTools
+      allowWorkflowSubmitReview: resolvedWorkflow.allowWorkflowSubmitReview
     })
   });
   const taskInputDir = resolveAgentTaskInputDir({

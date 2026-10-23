@@ -4468,67 +4468,6 @@ a.managed-task-card:hover {
   font-size: 0.78rem;
 }
 
-.agent-swarm-agent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.agent-swarm-agent-list-header,
-.agent-swarm-agent-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.agent-swarm-agent-list-header {
-  font-size: 0.76rem;
-  color: var(--text-muted);
-}
-
-.agent-swarm-agent-list-header strong {
-  color: var(--text);
-  font-size: 0.78rem;
-}
-
-.agent-swarm-agent-row {
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  background: var(--surface-soft);
-  padding: 0.45rem 0.5rem 0.45rem 0.65rem;
-}
-
-.agent-swarm-agent-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.agent-swarm-agent-copy strong,
-.agent-swarm-agent-copy span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-swarm-agent-copy strong {
-  color: var(--text);
-  font-size: 0.82rem;
-}
-
-.agent-swarm-agent-copy span {
-  color: var(--text-muted);
-  font-size: 0.74rem;
-}
-
-.agent-swarm-agent-controls {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 0.25rem;
-}
-
 @keyframes send-btn-dot-pulse {
   0%,
   80%,

@@ -129,26 +129,4 @@ describe("buildAgentTurnRequest", () => {
     expect(promptEnvelope.conversationDeltas).toEqual([]);
   });
 
-  it("passes agent swarm tools through to the model request when enabled", () => {
-    const promptEnvelope = createPromptEnvelope("Base prompt.");
-    const request = buildAgentTurnRequest({
-      taskId: "task-1",
-      runToolOptions: createBaseToolOptions(),
-      activeSkillTools: [],
-      promptEnvelope,
-      availability: {
-        allowSwarmTools: true
-      }
-    });
-
-    const toolNames = request.responseTools
-      .filter((tool) => tool.type === "function")
-      .map((tool) => tool.name);
-
-    expect(toolNames).not.toContain("refresh_inbox");
-    expect(toolNames).toContain(LIST_CHANNELS_TOOL_NAME);
-    expect(toolNames).toContain(READ_CHANNEL_TOOL_NAME);
-    expect(toolNames).toContain(CREATE_CHANNEL_TOOL_NAME);
-    expect(toolNames).toContain(SEND_CHANNEL_MESSAGE_TOOL_NAME);
-  });
 });

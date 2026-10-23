@@ -1,7 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { GitBranch } from "lucide-react";
+import type { FormEvent } from "react";
 import { DraftNumberInput } from "../../../components/forms/DraftNumberInput";
-import { AgentSwarmGenerator } from "./AgentSwarmGenerator";
 
 interface ModelSettingsTabProps {
   usageRateMultiplier: number;
@@ -23,9 +21,7 @@ interface ModelSettingsTabProps {
 }
 
 export function ModelSettingsTab(props: ModelSettingsTabProps) {
-  const [generatorOpen, setGeneratorOpen] = useState(false);
   return (
-    <>
     <form className="stack-form" style={{ marginTop: "1rem" }} onSubmit={(event) => void props.onSubmit(event)}>
       <div className="stack-form" style={{ gap: "0.6rem" }}>
         <strong>Estimated cost usage</strong>
@@ -96,12 +92,7 @@ export function ModelSettingsTab(props: ModelSettingsTabProps) {
       </label>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap" }}>
-          <strong>Agent presets (JSON array)</strong>
-          <button type="button" className="btn ghost" onClick={() => setGeneratorOpen(true)}>
-            <GitBranch size={15} /> Agent swarm generator
-          </button>
-        </div>
+        <strong>Agent presets (JSON array)</strong>
         <textarea
           aria-label="Agent presets (JSON array)"
           spellCheck={false}
@@ -110,7 +101,7 @@ export function ModelSettingsTab(props: ModelSettingsTabProps) {
           rows={12}
         />
         <p className="hint-text" style={{ marginTop: 0 }}>
-          Node types are unavailable by default. Set <code>spawnableAsNode</code> to true on a flat Agent Swarm preset or an individual agent preset to make it available to Swarm leaders. Nested presets seed the starting topology.
+          An Agent Swarm preset sets <code>mode</code> to <code>agent_swarm</code> and names a single-agent <code>leaderAgentId</code>. It can also set <code>routerId</code>, <code>budgetsEnabled</code>, <code>tokenBudget</code>, <code>timeBudgetMinutes</code> and an <code>advanced</code> object with lane limits.
         </p>
       </div>
 
@@ -122,9 +113,5 @@ export function ModelSettingsTab(props: ModelSettingsTabProps) {
         </button>
       </div>
     </form>
-    {generatorOpen ? <AgentSwarmGenerator agentPresetsDraft={props.agentPresetsDraft}
-      onInsert={props.onAgentPresetsDraftChange}
-      onClose={() => setGeneratorOpen(false)} /> : null}
-    </>
   );
 }

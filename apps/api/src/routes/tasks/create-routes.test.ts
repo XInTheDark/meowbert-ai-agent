@@ -8,9 +8,8 @@ const mocks = vi.hoisted(() => ({
   getPromptEntitlementStatus: vi.fn(),
   recordPromptUsageIfRequired: vi.fn(),
   requireVisiblePlatformAgentSelectionForUser: vi.fn(),
-  requireVisiblePlatformAgentAllocationsForUser: vi.fn(),
   getVisiblePlatformAgentsForUser: vi.fn(),
-  createAgentSwarmWorkflowTask: vi.fn(),
+  createAgentSwarmTask: vi.fn(),
   createLongHorizonWorkflowTask: vi.fn(),
   createTaskWithInitialMessage: vi.fn()
 }));
@@ -24,13 +23,12 @@ vi.mock("../../services/billing/entitlements.js", () => ({
 }));
 vi.mock("../../services/platform/platform-agents.js", () => ({
   requireVisiblePlatformAgentSelectionForUser: mocks.requireVisiblePlatformAgentSelectionForUser,
-  requireVisiblePlatformAgentAllocationsForUser: mocks.requireVisiblePlatformAgentAllocationsForUser,
   getVisiblePlatformAgentsForUser: mocks.getVisiblePlatformAgentsForUser
 }));
 vi.mock("../../services/tasks/task-workflows.js", () => ({
-  createAgentSwarmWorkflowTask: mocks.createAgentSwarmWorkflowTask,
   createLongHorizonWorkflowTask: mocks.createLongHorizonWorkflowTask
 }));
+vi.mock("../../services/agent-swarm/creation.js", () => ({ createAgentSwarmTask: mocks.createAgentSwarmTask }));
 vi.mock("../../services/tasks/task-service/index.js", () => ({ createTaskWithInitialMessage: mocks.createTaskWithInitialMessage }));
 
 import { registerTaskCreateRoutes } from "./create-routes.js";
@@ -46,62 +44,60 @@ describe("create task with an Agent Swarm preset", () => {
       defaultAgentId: "luna-xhigh",
       presets: [
         { id: "luna-xhigh", name: "Luna", description: "Luna", requiresSuperAdmin: false, payload: {} },
-        { id: "solo-swarm", name: "Solo Swarm", description: "Leader only", requiresSuperAdmin: false,
-          payload: {}, mode: "agent_swarm", leaderAgentId: "luna-xhigh", modelAllocations: [], reviewRounds: 0 }
+        { id: "research", name: "Research", description: "Swarm", requiresSuperAdmin: false, payload: {},
+          mode: "agent_swarm", leaderAgentId: "luna-xhigh", routerId: null, budgetsEnabled: false, tokenBudget: 20_000_000,
+          advanced: { maxDepth: 1, maxLanesPerParent: 4 } }
       ]
     });
-    mocks.createAgentSwarmWorkflowTask.mockResolvedValue({
+    mocks.createAgentSwarmTask.mockResolvedValue({
       taskId: "task-1", runId: "run-1", userMessageId: "message-1", reusedExisting: false
     });
   });
 
-  it("uses the preset's empty roster even when the composer sends a worker count", async () => {
+  async function postTask(payload: Record<string, unknown>) {
     const app = Fastify();
     app.decorate("authenticate", async (request) => {
       request.user = { id: "user-1", email: "user@example.com" };
     });
     await app.register(registerTaskCreateRoutes);
+    const response = await app.inject({
+      method: "POST", url: "/api/projects/11111111-1111-4111-8111-111111111111/tasks", payload
+    });
+    await app.close();
+    return response;
+  }
 
-    const response = await app.inject({ method: "POST", url: "/api/projects/11111111-1111-4111-8111-111111111111/tasks", payload: {
-      message: "Research this", agent: { id: "solo-swarm" },
-      workflow: { type: "agent_swarm", workerCount: 2, tokenBudget: 80_000 }
-    } });
+  it("starts a swarm with the composer's overrides on top of the preset's defaults", async () => {
+    mocks.requireVisiblePlatformAgentSelectionForUser.mockResolvedValue({ id: "research" });
+
+    const response = await postTask({
+      message: "Research this", agent: { id: "research" },
+      workflow: { type: "agent_swarm", budgetsEnabled: true, advanced: { maxLanesPerParent: 40 } }
+    });
 
     expect(response.statusCode, response.body).toBe(201);
-    expect(mocks.createAgentSwarmWorkflowTask).toHaveBeenCalledWith(expect.objectContaining({
-      workerCount: 0,
-      agentAllocations: [],
-      leaderAgentId: "luna-xhigh",
-      tokenBudget: 80_000,
-      compiledSwarm: expect.objectContaining({
-        nodes: [expect.objectContaining({ workerLeafIds: [] })],
-        leaves: [expect.objectContaining({ agentId: "luna-xhigh" })]
+    expect(mocks.createAgentSwarmTask).toHaveBeenCalledWith(expect.objectContaining({
+      message: "Research this",
+      settings: expect.objectContaining({
+        leaderAgentId: "luna-xhigh",
+        budgetsEnabled: true,
+        tokenBudget: 20_000_000,
+        advanced: expect.objectContaining({ maxDepth: 1, maxLanesPerParent: 16 })
       })
     }));
-    expect(mocks.requireVisiblePlatformAgentAllocationsForUser).not.toHaveBeenCalled();
-    await app.close();
   });
 
-  it("keeps explicit allocations for a custom Swarm with a regular agent selected", async () => {
-    mocks.requireVisiblePlatformAgentSelectionForUser.mockResolvedValue({ id: "luna-xhigh" });
-    mocks.requireVisiblePlatformAgentAllocationsForUser.mockResolvedValue([{ agentId: "luna-xhigh", workerCount: 2 }]);
-    const app = Fastify();
-    app.decorate("authenticate", async (request) => {
-      request.user = { id: "user-1", email: "user@example.com" };
+  it("rejects a swarm whose leader the user cannot run", async () => {
+    mocks.requireVisiblePlatformAgentSelectionForUser.mockResolvedValue({ id: "research" });
+    mocks.getVisiblePlatformAgentsForUser.mockResolvedValue({
+      defaultAgentId: "research",
+      presets: [{ id: "research", name: "Research", description: "Swarm", requiresSuperAdmin: false, payload: {},
+        mode: "agent_swarm", leaderAgentId: "restricted" }]
     });
-    await app.register(registerTaskCreateRoutes);
 
-    const response = await app.inject({ method: "POST", url: "/api/projects/11111111-1111-4111-8111-111111111111/tasks", payload: {
-      message: "Research this", agent: { id: "luna-xhigh" },
-      workflow: { type: "agent_swarm", workerCount: 2, leaderAgentId: "luna-xhigh",
-        modelAllocations: [{ agentId: "luna-xhigh", workerCount: 2 }] }
-    } });
+    const response = await postTask({ message: "Research this", agent: { id: "research" } });
 
-    expect(response.statusCode, response.body).toBe(201);
-    expect(mocks.createAgentSwarmWorkflowTask).toHaveBeenCalledWith(expect.objectContaining({
-      workerCount: 2,
-      agentAllocations: [{ agentId: "luna-xhigh", workerCount: 2 }]
-    }));
-    await app.close();
+    expect(response.statusCode).toBe(400);
+    expect(mocks.createAgentSwarmTask).not.toHaveBeenCalled();
   });
 });

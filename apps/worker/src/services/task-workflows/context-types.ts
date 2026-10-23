@@ -1,31 +1,4 @@
-import type { TaskWorkflowType } from "@meowbert/shared";
-import type { WorkflowAgentRecord, WorkflowAgentRole } from "./shared.js";
-
-export interface SwarmChannelSummary {
-  id: string;
-  kind: "global" | "direct" | "group";
-  title: string | null;
-  created_at: string;
-  latest_message_no: number;
-  unread_count: number;
-  member_task_ids: string[];
-}
-
-export interface SwarmInboxRefreshResult {
-  delivered: boolean;
-  latestWorkflowMessageNo: number;
-  unreadMessageCount: number;
-  bundleText: string;
-  channels: Array<{
-    channelId: string;
-    title: string | null;
-    kind: "global" | "direct" | "group";
-    unreadCount: number;
-    deliveredCount: number;
-    overflowCount: number;
-    latestMessageNo: number;
-  }>;
-}
+import type { WorkflowAgentRecord } from "./shared.js";
 
 export interface WorkflowPromptContext {
   roleSummary: string;
@@ -39,7 +12,7 @@ export interface WorkflowPromptContext {
 
 export interface LoadedWorkflowRunContext {
   workflowTaskId: string;
-  workflowType: TaskWorkflowType;
+  workflowType: "long_horizon";
   phase: string;
   config: Record<string, unknown>;
   taskId: string;
@@ -71,30 +44,6 @@ export interface LoadedWorkflowRunContext {
       rejectedCount: number;
       totalCount: number;
       majority: number;
-    } | null;
-  };
-  swarm?: {
-    sharedDir: string;
-    channels: SwarmChannelSummary[];
-    peerTaskDirs: Array<{ taskId: string; title: string | null; role: WorkflowAgentRole; slotIndex: number; taskDir: string }>;
-    globalChannelId: string | null;
-    latestWorkflowMessageNo: number;
-    leaderGlobalMessageCount: number;
-    activeWorkerCount: number;
-    workerGlobalReportTaskIds: string[];
-    workerGlobalReportLabels: string[];
-    missingWorkerGlobalReportTaskIds: string[];
-    missingWorkerGlobalReportLabels: string[];
-    // Workers whose last step could not be funded because their node's shared pool is spent.
-    outOfBudgetWorkerTaskIds: string[];
-    workersStartedAt: string | null;
-    completedReviewRounds: number;
-    pendingNestedSwarmNodeIds?: string[];
-    finalReview: {
-      reviewerTaskId: string;
-      reviewerLabel: string;
-      approved: boolean;
-      summary: string;
     } | null;
   };
 }

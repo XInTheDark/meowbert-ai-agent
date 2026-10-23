@@ -1,61 +1,13 @@
 import type { PoolClient } from "pg";
 import type { TaskWorkflowType, TaskExecutionJob } from "@meowbert/shared";
+import { assertNotLegacyAgentSwarmTaskInTx } from "../../agent-swarm/legacy.js";
 
-async function reactivateAgentSwarmWorkflowCycleInTx(
-  client: PoolClient,
-  workflowTaskId: string,
-  stateJson: Record<string, unknown> | null
-): Promise<void> {
-  const latestMessageRes = await client.query<{ latest_message_no: number }>(
-    `SELECT COALESCE(MAX(message_no), 0)::int AS latest_message_no
-       FROM task_workflow_messages
-      WHERE workflow_task_id = $1`,
-    [workflowTaskId]
-  );
-  const latestMessageNo = Number(latestMessageRes.rows[0]?.latest_message_no ?? 0) || 0;
-  const nextState = {
-    ...(stateJson ?? {}),
-    cycleStartMessageNo: latestMessageNo,
-    leaderKickoffMessageNo: null,
-    workersStartedAt: null,
-    startedSwarmWorkerTaskIds: [],
-    reviewRounds: [],
-    finalReview: null
-  };
+class AgentSwarmLaneMessageError extends Error {
+  readonly statusCode = 409;
 
-  await client.query(
-    `UPDATE task_workflows
-        SET phase = 'active',
-            state_json = $2::jsonb,
-            updated_at = now()
-      WHERE task_id = $1`,
-    [workflowTaskId, JSON.stringify(nextState)]
-  );
-  await client.query(`DELETE FROM task_workflow_swarm_pauses WHERE workflow_task_id = $1`, [workflowTaskId]);
-  await client.query(`DELETE FROM task_workflow_swarm_stalls WHERE workflow_task_id = $1`, [workflowTaskId]);
-
-  await client.query(
-    `UPDATE task_runs tr
-        SET ended_at = now(),
-            exit_reason = COALESCE(exit_reason, 'cancelled')
-       FROM tasks t
-      WHERE tr.task_id = t.id
-        AND tr.ended_at IS NULL
-        AND (t.id = $1 OR t.workflow_parent_task_id = $1)`,
-    [workflowTaskId]
-  );
-
-  await client.query(
-    `UPDATE tasks
-        SET status = 'awaiting_input',
-            cancellation_requested = false,
-            resume_after_interrupt = false,
-            completed_at = NULL,
-            updated_at = now()
-      WHERE id = $1
-         OR workflow_parent_task_id = $1`,
-    [workflowTaskId]
-  );
+  constructor() {
+    super("Lanes take direction from their leader. Send your message to the swarm task instead.");
+  }
 }
 
 export async function decideTaskDispatchModeInTx(
@@ -118,7 +70,7 @@ export async function resolveUserTriggeredRunModeInTx(
 ): Promise<NonNullable<TaskExecutionJob["mode"]>> {
   const taskRes = await client.query<{
     workflow_type: TaskWorkflowType | null;
-    workflow_internal_role: "reviewer" | "leader" | "worker" | null;
+    workflow_internal_role: "reviewer" | "leader" | "worker" | "lane" | null;
     workflow_parent_task_id: string | null;
     status: string;
   }>(
@@ -137,8 +89,15 @@ export async function resolveUserTriggeredRunModeInTx(
     throw new Error(`Task not found: ${taskId}`);
   }
 
+  if (task.workflow_type === "agent_swarm") {
+    await assertNotLegacyAgentSwarmTaskInTx(client, taskId);
+    if (task.workflow_internal_role === "lane") {
+      throw new AgentSwarmLaneMessageError();
+    }
+    return "agent_swarm_leader";
+  }
+
   let workflowPhase: string | null = null;
-  let workflowStateJson: Record<string, unknown> | null = null;
   if (task.workflow_type) {
     const workflowRes = await client.query<{
       phase: string;
@@ -153,7 +112,6 @@ export async function resolveUserTriggeredRunModeInTx(
     );
 
     workflowPhase = workflowRes.rows[0]?.phase ?? null;
-    workflowStateJson = workflowRes.rows[0]?.state_json ?? null;
     const reviewMode = workflowRes.rows[0]?.config_json?.reviewMode;
 
     if (task.workflow_type === "long_horizon" && task.workflow_internal_role === "reviewer") {
@@ -167,20 +125,6 @@ export async function resolveUserTriggeredRunModeInTx(
     }
 
     return "long_horizon_main";
-  }
-
-  if (task.workflow_type === "agent_swarm") {
-    if (workflowPhase === "completed" || (task.status !== "running" && task.status !== "starting" && task.status !== "queued")) {
-      await reactivateAgentSwarmWorkflowCycleInTx(
-        client,
-        task.workflow_parent_task_id ?? taskId,
-        workflowStateJson
-      );
-    }
-
-    return task.workflow_internal_role === "worker"
-      ? "agent_swarm_worker"
-      : "agent_swarm_leader";
   }
 
   const scheduleRes = await client.query<{ mode: "scheduled" | "infinite"; run_timeout_seconds: number | null }>(

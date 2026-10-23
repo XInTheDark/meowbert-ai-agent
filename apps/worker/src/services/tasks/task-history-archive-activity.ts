@@ -76,8 +76,7 @@ export async function completeArchiveRun(
             message_count = $6,
             event_count = $7,
             revision_count = $8,
-            workflow_message_count = $9,
-            error_summary = $10,
+            error_summary = $9,
             completed_at = now()
       WHERE id = $1`,
     [
@@ -89,7 +88,6 @@ export async function completeArchiveRun(
       metrics?.messageCount ?? null,
       metrics?.eventCount ?? null,
       metrics?.revisionCount ?? null,
-      metrics?.workflowMessageCount ?? null,
       result.status === "archived" ? null : result.reason ?? "Archive was skipped."
     ]
   );

@@ -60,8 +60,8 @@
 
 ### Agent Swarm preset contract
 
-- Every Agent Swarm task parameter the composer can set (roster, review rounds, token/time budget, disable spawning and budgets, and any you add) must also be configurable on an `agent_swarm` agent preset, so a swarm in the models list can carry its own defaults.
-- When adding or changing one, update together: `PlatformAgentPreset` and its normalizer in `packages/shared/src/agent-presets.ts`, the admin preset schema in `apps/api/src/routes/admin-core-routes.ts`, the admin JSON draft parser and the swarm generator under `apps/web/src/pages/admin/settings/`, `resolveAgentSwarmTaskSettings` in `apps/api/src/services/tasks/agent-swarm-task-settings.ts`, and the composer prefill in `apps/web/src/task/agentSwarmPresetWorkflow.ts`.
+- Every Agent Swarm task parameter the composer can set (router, budgets switch, token/time budget, every `advanced` lane limit, and any you add) must also be configurable on an `agent_swarm` agent preset, so a swarm in the models list can carry its own defaults.
+- When adding or changing one, update together: the types, defaults, ranges and normalizer in `packages/shared/src/agent-swarm-config.ts`, `PlatformAgentPreset` and its normalizer in `packages/shared/src/agent-presets.ts`, the admin preset schema in `apps/api/src/routes/admin-core-routes.ts`, the admin JSON draft parser in `apps/web/src/pages/admin/settings/adminSettingsDrafts.ts`, `resolveAgentSwarmSettings` in `apps/api/src/services/agent-swarm/settings.ts`, and the composer prefill in `apps/web/src/task/agentSwarmPresetWorkflow.ts`.
 
 ### Filesystem cost contract
 

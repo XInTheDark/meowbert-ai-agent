@@ -22,7 +22,6 @@ const lifecycleIds = {
   message: "44444444-4444-4444-4444-444444444444",
   event: "55555555-5555-5555-5555-555555555555",
   revision: "66666666-6666-6666-6666-666666666666",
-  workflowMessage: "77777777-7777-7777-7777-777777777777",
   contextItem: "88888888-8888-8888-8888-888888888888",
   note: "99999999-9999-9999-9999-999999999999"
 } as const;
@@ -80,9 +79,6 @@ function createLifecycleArchiveClient(executedSql: string[] = []): TaskHistoryAr
       }
       if (text.includes("FROM task_media_blobs WHERE task_id = $1")) {
         return { rows: [{ sha256: "abc123", mime_type: "image/png", bytes: Buffer.from("png-bytes") } as T], rowCount: 1 };
-      }
-      if (text.includes("SELECT m.id, m.content_markdown")) {
-        return { rows: [{ id: lifecycleIds.workflowMessage, content_markdown: "Swarm output" } as T], rowCount: 1 };
       }
       return { rows: [], rowCount: 1 };
     }
@@ -171,8 +167,7 @@ describe("archiveTaskHistory", () => {
       expect(archived.metrics).toMatchObject({
         messageCount: 1,
         eventCount: 1,
-        revisionCount: 1,
-        workflowMessageCount: 1
+        revisionCount: 1
       });
       expect(archived.metrics?.originalSizeBytes).toBeGreaterThan(archived.metrics?.compressedSizeBytes ?? 0);
 

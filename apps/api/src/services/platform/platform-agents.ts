@@ -1,9 +1,7 @@
 import {
   findPlatformAgentPresetById,
   getVisiblePlatformAgentPresets,
-  normalizeAgentSwarmAgentAllocations,
   resolveDefaultPlatformAgentId,
-  type AgentSwarmAgentAllocation,
   type PlatformAgentPreset
 } from "@meowbert/shared";
 import { getAdminSettings, isSuperAdmin } from "../admin/admin-settings.js";
@@ -86,27 +84,6 @@ export async function requireVisiblePlatformAgentSelectionForUser(
   }
 
   return { id: normalizedId };
-}
-
-export async function requireVisiblePlatformAgentAllocationsForUser(
-  userId: string,
-  input: unknown
-): Promise<AgentSwarmAgentAllocation[]> {
-  const normalizedAllocations = normalizeAgentSwarmAgentAllocations(input);
-  if (normalizedAllocations.length === 0) {
-    return [];
-  }
-
-  const { presets } = await resolveVisiblePlatformAgentContext(userId);
-  const visiblePresetIds = new Set(presets.map((preset) => preset.id));
-
-  for (const allocation of normalizedAllocations) {
-    if (!visiblePresetIds.has(allocation.agentId)) {
-      throw new Error(`Agent not found: ${allocation.agentId}`);
-    }
-  }
-
-  return normalizedAllocations;
 }
 
 export async function filterVisiblePlatformAgentSelectionForUser(
