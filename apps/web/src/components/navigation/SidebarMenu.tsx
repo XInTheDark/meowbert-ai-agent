@@ -34,7 +34,7 @@ export function SidebarMenu({
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [style, setStyle] = useState<{ left: number; bottom: number } | null>(null);
+  const [style, setStyle] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const compact = useCompactViewport();
 
   const close = (): void => {
@@ -55,10 +55,16 @@ export function SidebarMenu({
       const menuWidth = menuRef.current?.offsetWidth ?? 240;
       const rawLeft = align === "end" ? rect.right - menuWidth : rect.left;
       const maxLeft = window.innerWidth - menuWidth - 8;
-      setStyle({
-        left: Math.max(8, Math.min(rawLeft, maxLeft)),
-        bottom: Math.max(8, window.innerHeight - rect.top + 6)
-      });
+      const left = Math.max(8, Math.min(rawLeft, maxLeft));
+      const menuHeight = menuRef.current?.scrollHeight ?? 0;
+      const spaceAbove = rect.top - 14;
+      const spaceBelow = window.innerHeight - rect.bottom - 14;
+      // Open upward by default; flip below when the trigger is too close to the top.
+      if (spaceAbove >= menuHeight || spaceAbove >= spaceBelow) {
+        setStyle({ left, bottom: window.innerHeight - rect.top + 6, maxHeight: Math.max(120, spaceAbove) });
+      } else {
+        setStyle({ left, top: rect.bottom + 6, maxHeight: Math.max(120, spaceBelow) });
+      }
     }
 
     reposition();
@@ -135,7 +141,7 @@ export function SidebarMenu({
               ref={menuRef}
               role="menu"
               aria-label={label}
-              style={style ? { left: style.left, bottom: style.bottom } : { visibility: "hidden" }}
+              style={style ? { left: style.left, top: style.top, bottom: style.bottom, maxHeight: style.maxHeight } : { visibility: "hidden" }}
             >
               {children(close)}
             </div>,
