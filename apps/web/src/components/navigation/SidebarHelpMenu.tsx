@@ -11,7 +11,6 @@ import { SidebarMenu } from "./SidebarMenu";
 import type { PlatformCapabilities } from "../../desktop/platform";
 
 interface SidebarHelpMenuProps {
-  isRail: boolean;
   hasHelpUnread: boolean;
   hasUnseen: boolean;
   hasUnreadAnnouncements: boolean;
@@ -30,7 +29,6 @@ interface SidebarHelpMenuProps {
 }
 
 export function SidebarHelpMenu({
-  isRail,
   hasHelpUnread,
   hasUnseen,
   hasUnreadAnnouncements,
@@ -50,12 +48,12 @@ export function SidebarHelpMenu({
   return (
     <SidebarMenu
       label="Help and resources"
-      triggerClassName={`sidebar-help-trigger${isRail ? " rail" : ""}`}
+      triggerClassName="sidebar-help-trigger"
       hasUnread={hasHelpUnread}
       trigger={
         <>
-          <CircleQuestionMark size={isRail ? 18 : 16} />
-          {isRail ? null : <span>Help</span>}
+          <CircleQuestionMark size={16} />
+          <span>Help</span>
         </>
       }
     >

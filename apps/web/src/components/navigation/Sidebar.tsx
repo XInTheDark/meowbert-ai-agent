@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { PanelLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
 import type { ThemeMode } from "../../lib/types";
@@ -9,6 +9,7 @@ import { SidebarNewTask } from "./SidebarNewTask";
 import { SidebarWorkspaceNav } from "./SidebarWorkspaceNav";
 import { SidebarFooter } from "./SidebarFooter";
 import { useSidebarNavigation } from "./useSidebarNavigation";
+import { useSidebarVisibility } from "./useSidebarVisibility";
 
 interface SidebarProps {
   themeMode: ThemeMode;
@@ -20,7 +21,7 @@ interface SidebarProps {
 
 export function Sidebar({ themeMode, setThemeMode, onLogout, mobileOpen, onMobileClose }: SidebarProps) {
   const navigate = useNavigate();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { pinned, peeking, startPeek, endPeek, setPinned } = useSidebarVisibility();
   const {
     workspaces,
     environments,
@@ -29,57 +30,61 @@ export function Sidebar({ themeMode, setThemeMode, onLogout, mobileOpen, onMobil
   } = useWorkspaceApp();
 
   const { recentEnvironments, workspaceSettingsExpanded, prefetchProject, workspaceNavItems } = useSidebarNavigation();
-  const isRail = isCollapsed && !mobileOpen;
-
-  useEffect(() => {
-    if (mobileOpen) {
-      setIsCollapsed(false);
-    }
-  }, [mobileOpen]);
-
+  const sidebarClassName = ["sidebar", pinned ? "" : "floating", peeking ? "peek" : "", mobileOpen ? "mobile-open" : ""]
+    .filter(Boolean).join(" ");
 
   return (
     <>
-      <aside className={`sidebar ${isRail ? "collapsed" : ""} ${mobileOpen ? "mobile-open" : ""}`.trim()}>
-        <SidebarBrandHeader isRail={isRail} onCollapse={() => setIsCollapsed(true)} />
+      {pinned ? null : (
+        <button
+          className="btn ghost icon-btn sidebar-reveal-btn"
+          type="button"
+          onClick={() => setPinned(true)}
+          onMouseEnter={startPeek}
+          onMouseLeave={endPeek}
+          title="Show Sidebar"
+          aria-label="Show Sidebar"
+        >
+          <PanelLeft size={18} />
+        </button>
+      )}
+      <aside className={sidebarClassName} onMouseEnter={pinned ? undefined : startPeek} onMouseLeave={pinned ? undefined : endPeek}>
+        <SidebarBrandHeader onHide={() => setPinned(false)} />
 
-        {isRail ? null : (
-          <div className="sidebar-workspace-switcher">
-            <WorkspaceSwitcher
-              activeWorkspaceId={activeWorkspaceId}
-              workspaces={workspaces}
-              onSelectWorkspace={(workspaceId) => {
-                saveLastWorkspaceId(workspaceId);
-                navigate(`/app/${workspaceId}/projects`);
-                onMobileClose();
-              }}
-              onCreateWorkspace={() => {
-                navigate(`/app/${activeWorkspaceId}/manage?create=1`);
-                onMobileClose();
-              }}
-              onManageWorkspaces={() => {
-                navigate(`/app/${activeWorkspaceId}/manage`);
-                onMobileClose();
-              }}
-            />
-          </div>
-        )}
+        <div className="sidebar-workspace-switcher">
+          <WorkspaceSwitcher
+            activeWorkspaceId={activeWorkspaceId}
+            workspaces={workspaces}
+            onSelectWorkspace={(workspaceId) => {
+              saveLastWorkspaceId(workspaceId);
+              navigate(`/app/${workspaceId}/projects`);
+              onMobileClose();
+            }}
+            onCreateWorkspace={() => {
+              navigate(`/app/${activeWorkspaceId}/manage?create=1`);
+              onMobileClose();
+            }}
+            onManageWorkspaces={() => {
+              navigate(`/app/${activeWorkspaceId}/manage`);
+              onMobileClose();
+            }}
+          />
+        </div>
 
         <SidebarNewTask projectId={activeEnvironmentId} workspaceId={activeWorkspaceId} projects={environments}
-          isRail={isRail} onNavigate={onMobileClose} />
+          onNavigate={onMobileClose} />
 
         <SidebarWorkspaceNav
           workspaceNavItems={workspaceNavItems}
           recentEnvironments={recentEnvironments}
           activeWorkspaceId={activeWorkspaceId}
-          isRail={isRail}
           workspaceSettingsExpanded={workspaceSettingsExpanded}
           prefetchProject={prefetchProject}
           onMobileClose={onMobileClose}
         />
 
         <SidebarFooter themeMode={themeMode} setThemeMode={setThemeMode} onLogout={onLogout}
-          isRail={isRail} onExpand={() => setIsCollapsed(false)} onMobileClose={onMobileClose} />
+          onMobileClose={onMobileClose} />
       </aside>
     </>
   );

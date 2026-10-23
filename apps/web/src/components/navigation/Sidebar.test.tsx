@@ -130,35 +130,36 @@ describe("Sidebar", () => {
     expect(container.querySelector('a[href="/app/ws1/projects/p1/canvases"]')).toBeNull();
   });
 
-  it("keeps workspace destinations and New Task reachable in the collapsed rail", () => {
+  it("starts hidden and peeks while the reveal button is hovered", () => {
     renderSidebar();
-    const expandedCount = container.querySelectorAll(".nav-link").length;
+    const sidebar = container.querySelector(".sidebar");
+    expect(sidebar?.className).toContain("floating");
+    expect(sidebar?.className).not.toContain("peek");
 
-    clickByLabel("Collapse Sidebar");
+    const reveal = container.querySelector('[aria-label="Show Sidebar"]');
+    act(() => {
+      reveal?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
 
-    expect(container.querySelector(".sidebar")?.className).toContain("collapsed");
-    // Project shortcuts move behind All Projects; workspace actions retain labels.
-    const railLinks = Array.from(container.querySelectorAll(".nav-link"));
-    expect(railLinks.map((link) => link.getAttribute("aria-label"))).toEqual([
-      "New Task",
-      "All Projects",
-      "Search",
-      "Notifications",
-      "Subscription",
-      "Workspace Settings"
-    ]);
-    expect(railLinks.length).toBe(expandedCount - 2);
-    expect(railLinks.every((link) => link.querySelector("svg"))).toBe(true);
-    expect(container.querySelector('[aria-label="Expand Sidebar"]')).not.toBeNull();
+    expect(sidebar?.className).toContain("peek");
   });
 
-  it("restores the expanded sidebar from the rail", () => {
+  it("pins the sidebar open and remembers the choice", () => {
     renderSidebar();
-    clickByLabel("Collapse Sidebar");
-    clickByLabel("Expand Sidebar");
+    clickByLabel("Show Sidebar");
 
-    expect(container.querySelector(".sidebar")?.className).not.toContain("collapsed");
-    expect(container.querySelector(".sidebar-brand-title")).not.toBeNull();
+    expect(container.querySelector(".sidebar")?.className).not.toContain("floating");
+    expect(container.querySelector('[aria-label="Show Sidebar"]')).toBeNull();
+
+    act(() => {
+      root.unmount();
+    });
+    root = createRoot(container);
+    renderSidebar();
+    expect(container.querySelector(".sidebar")?.className).not.toContain("floating");
+
+    clickByLabel("Hide Sidebar");
+    expect(container.querySelector(".sidebar")?.className).toContain("floating");
   });
 
   it("collapses the footer to an account and a help control", () => {

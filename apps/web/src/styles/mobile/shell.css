@@ -162,6 +162,11 @@
     transform: translateX(0);
   }
 
+  /* The drawer opens from the app bar, so pinning the sidebar has no meaning here. */
+  .sidebar-collapse-btn {
+    display: none;
+  }
+
   .sidebar-backdrop.visible {
     display: block;
     position: fixed;

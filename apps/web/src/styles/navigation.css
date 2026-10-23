@@ -29,6 +29,53 @@
   color: var(--text-muted);
 }
 
+.sidebar-reveal-btn {
+  display: none;
+}
+
+/* Desktop: an unpinned sidebar leaves the layout and slides in over the page while hovered. */
+@media (min-width: 1121px) {
+  .product-shell:has(> .sidebar.floating) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Sits above the floating sidebar, lined up with its brand row, so it can still be clicked to pin. */
+  .sidebar-reveal-btn {
+    display: inline-flex;
+    position: fixed;
+    top: 18px;
+    left: .75rem;
+    z-index: 60;
+    color: var(--text-muted);
+  }
+
+  .sidebar.floating {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  }
+
+  .sidebar.floating.peek {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform 0.2s ease, visibility 0s;
+  }
+
+  .sidebar.floating .sidebar-brand-main {
+    padding-left: 2.25rem;
+  }
+
+  .sidebar.floating .sidebar-collapse-btn {
+    display: none;
+  }
+}
+
 .task-workflow-strip.sidebar-open {
   border-color: color-mix(in srgb, var(--brand) 42%, var(--border));
   background: color-mix(in srgb, var(--brand) 6%, var(--surface));
@@ -62,13 +109,7 @@
   gap: .75rem;
   width: 248px;
 }
-.sidebar.collapsed {
-  width: 60px;
-  padding: var(--space-sm) var(--space-xs);
-  justify-items: center;
-}
-
-.sidebar.collapsed .sidebar-section {
+.sidebar-section {
   background: transparent;
   border: none;
   padding: 0;
@@ -453,10 +494,6 @@
   padding-top: var(--space-xs);
 }
 
-.sidebar-footer.rail {
-  justify-items: center;
-  width: 100%;
-}
 .sidebar-menu-trigger {
   position: relative;
   display: flex;
@@ -479,12 +516,6 @@
 .sidebar-menu-trigger.open {
   border-color: var(--border-subtle);
   background: var(--surface-control);
-}
-
-.sidebar-menu-trigger.rail {
-  width: auto;
-  justify-content: center;
-  padding: var(--space-xs);
 }
 
 .sidebar-avatar {

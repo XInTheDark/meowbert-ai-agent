@@ -8,22 +8,21 @@ interface SidebarWorkspaceNavProps {
   workspaceNavItems: NavItem[];
   recentEnvironments: Environment[];
   activeWorkspaceId: string | null;
-  isRail: boolean;
   workspaceSettingsExpanded: boolean;
   prefetchProject: (projectId: string) => void;
   onMobileClose: () => void;
 }
 
 export function SidebarWorkspaceNav(props: SidebarWorkspaceNavProps) {
-  const { workspaceNavItems, recentEnvironments, activeWorkspaceId, isRail, onMobileClose } = props;
+  const { workspaceNavItems, recentEnvironments, activeWorkspaceId, onMobileClose } = props;
   return (
     <div className="sidebar-navigation">
       <nav className="sidebar-nav" aria-label="Workspace">
         {workspaceNavItems.slice(0, 3).map((item) => (
-          <SidebarNavItem key={item.to} item={item} collapsed={isRail} onNavigate={onMobileClose} />
+          <SidebarNavItem key={item.to} item={item} onNavigate={onMobileClose} />
         ))}
       </nav>
-      {!isRail && recentEnvironments.length > 0 ? (
+      {recentEnvironments.length > 0 ? (
         <nav className="sidebar-nav sidebar-projects" aria-label="Projects">
           <div className="sidebar-section-label">Projects</div>
           {recentEnvironments.map((project) => (
@@ -32,16 +31,16 @@ export function SidebarWorkspaceNav(props: SidebarWorkspaceNavProps) {
               icon: Folder, label: project.name,
               extraClassName: "project-link",
               onPrefetch: () => props.prefetchProject(project.id)
-            }} collapsed={false} onNavigate={onMobileClose} />
+            }} onNavigate={onMobileClose} />
           ))}
         </nav>
       ) : null}
       <nav className="sidebar-nav sidebar-management" aria-label="Workspace management">
         {workspaceNavItems.slice(3).map((item) => (
           <Fragment key={item.to}>
-            <SidebarNavItem item={item} collapsed={isRail} onNavigate={onMobileClose} />
+            <SidebarNavItem item={item} onNavigate={onMobileClose} />
             {item.to === `/app/${activeWorkspaceId}/settings` ? (
-              props.workspaceSettingsExpanded && !isRail ? (
+              props.workspaceSettingsExpanded ? (
                 <>
                   <NavLink to={`/app/${activeWorkspaceId}/memory`}
                     className={({ isActive }) => `nav-link nested-link ${isActive ? "active" : ""}`} onClick={onMobileClose}>

@@ -8,18 +8,16 @@ export function SidebarNewTask(props: {
   projectId: string | null;
   workspaceId: string | null;
   projects: Environment[];
-  isRail: boolean;
   onNavigate: () => void;
 }) {
   const base = `/app/${props.workspaceId}/projects`;
   if (props.projectId) {
     return <SidebarNavItem item={{ to: `${base}/${props.projectId}/tasks/new`, icon: Plus,
-      label: "New Task", extraClassName: "sidebar-new-task-link" }}
-      collapsed={props.isRail} onNavigate={props.onNavigate} />;
+      label: "New Task", extraClassName: "sidebar-new-task-link" }} onNavigate={props.onNavigate} />;
   }
   return (
     <SidebarMenu label="New Task" triggerClassName="sidebar-new-task-link"
-      trigger={<><Plus size={18} />{props.isRail ? null : <span>New Task</span>}</>}>
+      trigger={<><Plus size={18} /><span>New Task</span></>}>
       {(close) => (
         <>
           <div className="sidebar-menu-header"><strong>Choose a project</strong></div>

@@ -13,11 +13,9 @@ export interface NavItem {
 
 export function SidebarNavItem({
   item,
-  collapsed,
   onNavigate
 }: {
   item: NavItem;
-  collapsed: boolean;
   onNavigate: () => void;
 }) {
   const Icon = item.icon;
@@ -35,11 +33,9 @@ export function SidebarNavItem({
       onClick={onNavigate}
       onPointerEnter={item.onPrefetch}
       onFocus={item.onPrefetch}
-      title={collapsed ? item.label : undefined}
-      aria-label={collapsed ? item.label : undefined}
     >
       <Icon size={18} />
-      {collapsed ? null : <span>{item.label}</span>}
+      <span>{item.label}</span>
     </NavLink>
   );
 }

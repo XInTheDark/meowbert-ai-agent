@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { ChevronRight } from "lucide-react";
 import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
 import { useAppRuntime } from "../../contexts/AppRuntimeContext";
 import { useOnboarding } from "../../onboarding/OnboardingManager";
@@ -16,12 +15,10 @@ interface SidebarFooterProps {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
   onLogout: () => void;
-  isRail: boolean;
-  onExpand: () => void;
   onMobileClose: () => void;
 }
 
-export function SidebarFooter({ themeMode, setThemeMode, onLogout, isRail, onExpand, onMobileClose }: SidebarFooterProps) {
+export function SidebarFooter({ themeMode, setThemeMode, onLogout, onMobileClose }: SidebarFooterProps) {
   const [hasUnseen, setHasUnseen] = useState(() => hasUnseenChangelog());
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -51,20 +48,18 @@ export function SidebarFooter({ themeMode, setThemeMode, onLogout, isRail, onExp
 
   return (
     <>
-        <div className={`sidebar-footer${isRail ? " rail" : ""}`}>
+        <div className="sidebar-footer">
           <SidebarAccountMenu
             user={user}
             activeWorkspaceId={activeWorkspaceId}
             themeMode={themeMode}
             setThemeMode={setThemeMode}
-            isRail={isRail}
             capabilities={capabilities}
             activeServerProfile={activeServerProfile}
             onLogout={onLogout}
             onMobileClose={onMobileClose}
           />
           <SidebarHelpMenu
-            isRail={isRail}
             hasHelpUnread={hasHelpUnread}
             hasUnseen={hasUnseen}
             hasUnreadAnnouncements={hasUnreadAnnouncements}
@@ -84,17 +79,6 @@ export function SidebarFooter({ themeMode, setThemeMode, onLogout, isRail, onExp
             onRestartTutorial={restartTutorial}
             onMobileClose={onMobileClose}
           />
-          {isRail ? (
-            <button
-              className="btn ghost icon-btn sidebar-expand-btn"
-              type="button"
-              onClick={onExpand}
-              title="Expand Sidebar"
-              aria-label="Expand Sidebar"
-            >
-              <ChevronRight size={18} />
-            </button>
-          ) : null}
         </div>
       {announcementsOpen && (
         <AnnouncementsModal

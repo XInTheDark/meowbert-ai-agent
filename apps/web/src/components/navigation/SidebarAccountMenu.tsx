@@ -10,7 +10,6 @@ interface SidebarAccountMenuProps {
   activeWorkspaceId: string | null;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
-  isRail: boolean;
   capabilities: PlatformCapabilities;
   activeServerProfile: ServerProfile | null;
   onLogout: () => void;
@@ -34,7 +33,6 @@ export function SidebarAccountMenu({
   activeWorkspaceId,
   themeMode,
   setThemeMode,
-  isRail,
   capabilities,
   activeServerProfile,
   onLogout,
@@ -45,18 +43,16 @@ export function SidebarAccountMenu({
   return (
     <SidebarMenu
       label={user?.display_name || user?.email || "Account"}
-      triggerClassName={`sidebar-account-trigger${isRail ? " rail" : ""}`}
+      triggerClassName="sidebar-account-trigger"
       trigger={
         <>
           <span className="sidebar-avatar" aria-hidden="true">
             {accountInitials(user?.display_name, user?.email)}
           </span>
-          {isRail ? null : (
-            <span className="sidebar-account-identity">
-              <strong>{user?.display_name || "User"}</strong>
-              <span className="muted-text">{user?.email}</span>
-            </span>
-          )}
+          <span className="sidebar-account-identity">
+            <strong>{user?.display_name || "User"}</strong>
+            <span className="muted-text">{user?.email}</span>
+          </span>
         </>
       }
     >
