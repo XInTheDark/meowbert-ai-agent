@@ -41,12 +41,10 @@ import {
 import { buildTimedRunFinalizationMessage } from "../tasks/recurring-run-utils.js";
 import type { AgentExecutionContext, AgentStepAvailability, WorkflowActions } from "./execution-types.js";
 import type { Tool } from "openai/resources/responses/responses";
-import { appendSwarmMergeMessage } from "../agent-swarm/merge-message.js";
-import { appendSwarmNotes } from "../agent-swarm/notes-delivery.js";
-import { flushAutoNotes } from "../agent-swarm/auto-notes.js";
 import { buildForkCompactor } from "../agent-swarm/fork-compaction.js";
 import { isLaneFinalStep, resolveLaneToolChoice } from "../agent-swarm/forced-submit.js";
-import { LANE_PLAIN_TEXT_NOTE, LANE_STEP_LIMIT_NOTE } from "../agent-swarm/prompt.js";
+import { buildForcedSubmitNote, LANE_PLAIN_TEXT_NOTE, LANE_STEP_LIMIT_NOTE } from "../agent-swarm/prompt.js";
+import { afterSwarmModelTurn, prepareSwarmStep } from "../agent-swarm/loop-hooks.js";
 import type { SwarmDispatchContext } from "../agent-swarm/dispatch-context.js";
 
 const STEPS_REMAIN_THRESHOLD = 2;
@@ -116,7 +114,7 @@ function resolveModelToolChoice(
   step: number
 ): ModelToolChoice {
   if (isSwarmLane(execution)) {
-    return resolveLaneToolChoice({ step, maxRunSteps: execution.maxRunSteps });
+    return resolveLaneToolChoice({ step, maxRunSteps: execution.maxRunSteps, forced: execution.swarm!.forcedSubmitReason !== null });
   }
   if (availability.requireWorkflowToolAction) {
     return "required";
@@ -152,6 +150,11 @@ async function maybeApplySubscriptionQuota(execution: AgentExecutionContext): Pr
 }
 
 function maybeAppendWindingDownNotice(execution: AgentExecutionContext, availability: AgentStepAvailability): void {
+  const forcedSubmitReason = execution.swarm?.lane ? execution.swarm.forcedSubmitReason : null;
+  if (forcedSubmitReason) {
+    execution.state.dispatchState.conversationItems.push({ role: "user", content: buildForcedSubmitNote(forcedSubmitReason) });
+    return;
+  }
   if (!availability.isWindingDown && !execution.runControl.timedRunFinalizing) {
     return;
   }
@@ -453,7 +456,7 @@ async function requestModelTurn(input: {
         : undefined,
       allowPersistentShellSessions: getPersistentRuntimeEnabled(execution.prepared.runtimeEnvironmentPayload),
       useClaudeWebSearch: execution.prepared.runtimeModelType === "claude",
-      allowSwarmTools: execution.swarm !== null
+      swarmTools: execution.swarm ? (execution.swarm.lane?.kind === "check" ? "check" : "all") : undefined
     },
     codeMode: isCodeModeEnabled(execution)
   });
@@ -903,8 +906,7 @@ async function processModelTurnResult(
     buildDispatchContext(execution, turn, step),
     execution.state.dispatchState
   );
-  const lane = execution.swarm?.lane;
-  if (lane) await flushAutoNotes(lane, execution.swarm!.activity);
+  await afterSwarmModelTurn(execution);
   if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
   if (execution.state.dispatchState.pendingContextV2Reset) {
     await resetV2ContextWindow(execution, "manual");
@@ -995,8 +997,7 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
   const availability = resolveStepAvailability(execution, step);
   await appendSubagentInbox(execution);
   await appendProjectMasterInbox(execution);
-  await appendSwarmMergeMessage(execution, execution.swarm);
-  await appendSwarmNotes(execution, execution.swarm);
+  await prepareSwarmStep(execution);
   maybeAppendWindingDownNotice(execution, availability);
   await maybeRunAutoCompaction(execution, step);
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);

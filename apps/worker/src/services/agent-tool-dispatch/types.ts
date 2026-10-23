@@ -14,6 +14,7 @@ import type { ContextManagementV2State } from "../context-management-v2/index.js
 import type { ProjectMasterTaskAgent } from "../project-master/task-agent.js";
 import type { SwarmDispatchContext } from "../agent-swarm/dispatch-context.js";
 import type { SwarmLaneResult } from "../agent-swarm/lane-store.js";
+import type { SwarmParkReason } from "../agent-swarm/park.js";
 
 export interface ToolDispatchContext {
   subagentRuntime?: SubagentRuntime;
@@ -102,7 +103,7 @@ export interface ToolDispatchState {
   organization?: ConversationOrganizationState;
   subagentWaitDeadline?: string;
   // A swarm call that ends the run: the caller parks until its lanes finish, or a lane submits.
-  swarmPark?: { reason: "lanes" };
+  swarmPark?: { reason: SwarmParkReason };
   swarmSubmit?: SwarmLaneResult;
   repeatedToolCall?: { name: string; parameters: string; count: number };
   conversationItems: ResponseInputItem[];

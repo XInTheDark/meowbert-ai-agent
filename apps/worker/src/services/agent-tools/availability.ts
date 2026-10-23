@@ -1,7 +1,7 @@
 import { ORGANIZATION_TOOLS, ORGANIZATION_TOOL_NAMES, withOrganizationFinalResponse, withOrganizationHistory } from "./conversation-organization.js";
 import { buildCreateTaskFunctionTool, PROJECT_MASTER_TOOL_NAMES } from "./project-master.js";
 import { SUBAGENT_TOOL_NAMES } from "./subagents.js";
-import { SWARM_FUNCTION_TOOLS } from "./swarm.js";
+import { buildSwarmFunctionTools } from "./swarm.js";
 import type { FunctionTool, Tool } from "openai/resources/responses/responses";
 import type { TaskMessageToolOptions } from "../agent/types.js";
 import { isToolGroupLoaded } from "./tool-groups.js";
@@ -235,7 +235,7 @@ export function buildResponseTools(
       }),
     ...CONTEXT_V2_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
     ...COMPUTER_RESPONSE_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
-    ...(availability.allowSwarmTools === true ? SWARM_FUNCTION_TOOLS : []),
+    ...(availability.swarmTools ? buildSwarmFunctionTools(availability.swarmTools) : []),
     ...skillTools
   ];
 

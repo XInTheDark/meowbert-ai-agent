@@ -3,7 +3,8 @@ import { handleConversationOrganization } from "./handlers/conversation-organiza
 import { handleSubagentTool } from "./handlers/subagents.js";
 import { handleProjectMasterTool } from "./handlers/project-master.js";
 import { handleSwarmTool } from "./handlers/swarm/index.js";
-import { SHARE_TOOL_NAME, SPLIT_TOOL_NAME, SUBMIT_TOOL_NAME } from "../agent-tools/swarm.js";
+import { isSwarmToolName } from "../agent-tools/swarm.js";
+import { interceptFinalResponseForCheck } from "./handlers/swarm/check.js";
 import { recordWebSearchCall } from "../agent-swarm/auto-notes.js";
 import { assertSubagentsFinished } from "../subagents/mail.js";
 import type {
@@ -125,6 +126,9 @@ async function dispatchFunctionToolCall(
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ToolCallResult> {
+  if (isSwarmToolName(outputItem.name)) {
+    return handleSwarmTool(outputItem, ctx, state);
+  }
   switch (outputItem.name) {
     case EXEC_TOOL_NAME:
       return handleExec(outputItem, ctx, state, dispatchFunctionToolCall);
@@ -142,10 +146,6 @@ async function dispatchFunctionToolCall(
     case "list_subagents":
     case "interrupt_subagent":
       return handleSubagentTool(outputItem, ctx, state);
-    case SPLIT_TOOL_NAME:
-    case SHARE_TOOL_NAME:
-    case SUBMIT_TOOL_NAME:
-      return handleSwarmTool(outputItem, ctx, state);
     case "create_task":
     case "message_task":
     case "cancel_task":
@@ -181,7 +181,7 @@ async function dispatchFunctionToolCall(
       ) {
         return toolErrorResult("Long Horizon review approval is required before final_response. Continue the workflow with its available action.");
       }
-      return handleFinalResponse(outputItem, state);
+      return await interceptFinalResponseForCheck(outputItem, ctx, state) ?? handleFinalResponse(outputItem, state);
 
     case MARK_ARTIFACT_TOOL_NAME:
       return handleMarkArtifact(outputItem, ctx, state);

@@ -23,7 +23,7 @@ function leaderTurn() {
     runToolOptions: toolOptions,
     activeSkillTools: [],
     promptEnvelope: envelope,
-    availability: { allowFinalResponse: true, allowWaitTool: true, allowSwarmTools: true, contextManagementVersion: "v2" }
+    availability: { allowFinalResponse: true, allowWaitTool: true, swarmTools: "all", contextManagementVersion: "v2" }
   });
   sealPromptEnvelope(envelope);
   // Something raised after the first request is queued for the conversation, never the prefix.

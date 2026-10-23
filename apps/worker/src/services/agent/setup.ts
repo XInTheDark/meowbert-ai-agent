@@ -46,7 +46,7 @@ import { isTaskDebugModeEnabled, type TaskDebugLogger } from "../runtime/debug-t
 import { loadSwarmRunContext, type SwarmRunContext } from "../agent-swarm/config.js";
 import { prepareLaneRun } from "../agent-swarm/lane-setup.js";
 import { clearSwarmPark } from "../agent-swarm/park.js";
-import { loadSwarmGuide } from "../agent-swarm/prompt.js";
+import { loadCheckPrompt, loadSwarmGuide } from "../agent-swarm/prompt.js";
 import { resolveLaneMaxSteps } from "../agent-swarm/forced-submit.js";
 import type { ContextManagementState } from "../context-management-v2/index.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
@@ -363,7 +363,7 @@ async function resolveRunConversation(input: {
 
 // The stable prefix of an ordinary run, plus the window notes and live state at the start of its
 // conversation. Swarm agents get the swarm guide, which covers the lane role too, so lanes forked
-// from this prefix inherit it unchanged.
+// from this prefix inherit it unchanged; Check lanes are fresh reviewers and get the Check prompt.
 async function buildRunPromptEnvelope(input: {
   systemPrompt: string;
   prepared: PreparedAgentRunContext;
@@ -378,7 +378,9 @@ async function buildRunPromptEnvelope(input: {
   if (organization) appendPromptEnvelopeDelta(promptEnvelope, { reason: "conversation-organization", content: conversationOrganizationPrompt(organization) });
   if (prepared.isProjectMaster) appendPromptEnvelopeDelta(promptEnvelope, { reason: "project-master", content: buildProjectMasterPrompt() });
   const workflowPrompt = input.workflow.workflowPromptContext;
-  const guide = input.swarm ? loadSwarmGuide() : workflowPrompt?.guide;
+  const guide = input.swarm
+    ? input.swarm.lane?.kind === "check" ? loadCheckPrompt() : loadSwarmGuide()
+    : workflowPrompt?.guide;
   if (guide) {
     appendPromptEnvelopeDelta(promptEnvelope, { reason: "workflow-guide", role: "developer", content: guide });
   }

@@ -5,7 +5,8 @@ import {
   resetStaleArchivingTasks
 } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
-import { query, withTransaction } from "../../lib/db.js";
+import { pool, query, withTransaction } from "../../lib/db.js";
+import { expireSwarmLanes } from "../agent-swarm/dormancy.js";
 import { removeTasksScratch } from "./task-scratch.js";
 
 const taskHistoryDeps = {
@@ -29,6 +30,7 @@ export async function archiveTaskHistory(taskId: string) {
   const result = await archiveSharedTaskHistory(taskId, taskHistoryDeps);
   if (result.status === "archived") {
     await removeArchivedTaskScratch(taskId);
+    await expireSwarmLanes(pool, taskId);
   }
   return result;
 }

@@ -31,7 +31,7 @@ vi.mock("../../lib/queue.js", () => ({ taskQueue: { add: vi.fn(), getJob: vi.fn(
 vi.mock("../runtime/events.js", () => ({ emitTaskEvent: vi.fn() }));
 
 const { pool } = await import("../../lib/db.js");
-const { createForkedLanes } = await import("./lane-creation.js");
+const { createCheckLane, createForkedLanes } = await import("./lane-creation.js");
 const { finishLaneRun } = await import("./lane-completion.js");
 const { parkSwarmRun } = await import("./park.js");
 const { appendSwarmMergeMessage } = await import("./merge-message.js");
@@ -41,6 +41,10 @@ const { recoverSwarmsOnce } = await import("./recovery.js");
 const { loadSwarmRunContext } = await import("./config.js");
 const { loadLane } = await import("./lane-store.js");
 const { prepareLaneRun } = await import("./lane-setup.js");
+const { loadAutoCheckFiles, loadBranchUserMessages } = await import("./check.js");
+const { resumeLane, steerLane, stopLane } = await import("./lane-control.js");
+const { appendLaneInbox } = await import("./lane-inbox.js");
+const { listDormantLanesInTx } = await import("./dormancy.js");
 
 type SwarmRunContext = NonNullable<Awaited<ReturnType<typeof loadSwarmRunContext>>>;
 
@@ -74,21 +78,23 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     return { taskId, runId, workspaceId, environmentId, triggerSource: "web", mode };
   }
 
-  async function split(swarm: SwarmRunContext, parentTaskId: string, titles: string[]) {
+  const seedCapabilities = {
+    runtime: { model: "test-model", payload: {}, provider: { kind: "platform" as const, baseUrl: "http://provider" } },
+    runToolOptions: { webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false, computerUse: false, enabledSkills: [], enabledSources: [] },
+    loadedToolGroups: [],
+    spinePath: null
+  };
+
+  async function split(swarm: SwarmRunContext, parentTaskId: string, titles: string[], kind: "split" | "diverge" = "split") {
     return createForkedLanes({
       swarm,
       parentTaskId,
-      kind: "split",
+      kind,
       seed: {
         envelope: { baseVersion: "test", baseFrames: [], deltas: [] },
         tools: { response: [], codeMode: [] },
         items: [{ role: "user", content: "Find the programs." }],
-        capabilities: {
-          runtime: { model: "test-model", payload: {}, provider: { kind: "platform", baseUrl: "http://provider" } },
-          runToolOptions: { webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false, computerUse: false, enabledSkills: [], enabledSources: [] },
-          loadedToolGroups: [],
-          spinePath: null
-        }
+        capabilities: seedCapabilities
       },
       lanes: titles.map((title, index) => ({ label: String.fromCharCode(65 + index), title, direction: null, weight: 1 })),
       envRoot: "/env",
@@ -105,7 +111,6 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
       runId: run.id,
       status,
       result: { summary, decisions: null, findings: null, files: [] },
-      steps: 3,
       maxRunningLanes: 32
     });
   }
@@ -121,10 +126,23 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     } as never as Parameters<typeof appendSwarmMergeMessage>[0] & { state: { dispatchState: { conversationItems: Array<{ role: string; content: string }> } } };
   }
 
+  async function userMessage(taskId: string, text: string) {
+    await pool.query("INSERT INTO task_messages (task_id, role, content_json) VALUES ($1, 'user', $2::jsonb)", [taskId, JSON.stringify({ text })]);
+  }
+
   async function laneStatuses(parentTaskId: string): Promise<string[]> {
     const rows = await pool.query<{ status: string }>(
       "SELECT status FROM task_swarm_lanes WHERE parent_task_id = $1 ORDER BY created_at, task_id", [parentTaskId]);
     return rows.rows.map((row) => row.status);
+  }
+
+  async function withClient<T>(fn: (client: import("pg").PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect();
+    try {
+      return await fn(client);
+    } finally {
+      client.release();
+    }
   }
 
   async function pendingRuns(taskId: string): Promise<number> {
@@ -269,5 +287,119 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
 
     await recoverSwarmsOnce();
     expect(await pendingRuns(swarm.swarmTaskId)).toBe(1);
+  });
+
+  it("keeps diverge lanes blind to each other until their siblings have finished", async () => {
+    const swarm = await createSwarm();
+    await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    const [value, undercut] = await split(swarm, swarm.swarmTaskId, ["Value", "Undercut"], "diverge");
+    await insertSwarmNote({
+      swarmTaskId: swarm.swarmTaskId, authorTaskId: undercut.taskId, scopeParentTaskId: swarm.swarmTaskId, kind: "shared", content: "Go per-seat."
+    });
+    const valueContext = await laneContext(value.taskId);
+    const execution = executionFor(await startRun(value.taskId, "agent_swarm_lane"));
+    await appendSwarmNotes(execution, valueContext);
+    expect(execution.state.dispatchState.conversationItems).toHaveLength(0);
+
+    await submit(undercut.taskId);
+    await appendSwarmNotes(execution, valueContext);
+    expect(execution.state.dispatchState.conversationItems[0].content).toContain("Go per-seat.");
+  });
+
+  it("checks automatically once per user turn that used lanes", async () => {
+    const swarm = await createSwarm();
+    await userMessage(swarm.swarmTaskId, "Find the programs.");
+    expect(await loadAutoCheckFiles(swarm.swarmTaskId)).toBeNull();
+
+    await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    const [lane] = await split(swarm, swarm.swarmTaskId, ["EU"]);
+    await submit(lane.taskId);
+    expect(await loadAutoCheckFiles(swarm.swarmTaskId)).toEqual([]);
+
+    const check = await createCheckLane({
+      swarm,
+      parentTaskId: swarm.swarmTaskId,
+      seed: { capabilities: seedCapabilities },
+      focus: null,
+      envRoot: "/env",
+      buildBrief: () => "Check the table."
+    });
+    await submit(check.taskId);
+    expect(await loadAutoCheckFiles(swarm.swarmTaskId)).toBeNull();
+
+    await userMessage(swarm.swarmTaskId, "Thanks, one more thing.");
+    expect(await loadAutoCheckFiles(swarm.swarmTaskId)).toBeNull();
+  });
+
+  it("keeps a merged lane resumable for the configured user turns, then expires it", async () => {
+    const swarm = await createSwarm({ dormantLaneTurns: 1 });
+    const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    const [lane] = await split(swarm, swarm.swarmTaskId, ["EIC"]);
+    await submit(lane.taskId);
+    await appendSwarmMergeMessage(executionFor(leaderJob), swarm);
+    const dormant = () => withClient((client) => listDormantLanesInTx(client, {
+      parentTaskId: swarm.swarmTaskId, swarmTaskId: swarm.swarmTaskId, dormantLaneTurns: 1
+    }));
+    expect((await dormant()).map((row) => row.task_id)).toEqual([lane.taskId]);
+
+    await userMessage(swarm.swarmTaskId, "Go deeper on the EIC.");
+    await resumeLane({ swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: lane.taskId, message: "Go deeper on the EIC." });
+    expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["running"]);
+    const laneExecution = executionFor((await pool.query("SELECT id FROM task_runs WHERE task_id = $1 AND ended_at IS NULL", [lane.taskId]))
+      .rows.map((row) => ({ ...leaderJob, taskId: lane.taskId, runId: row.id, mode: "agent_swarm_lane" as const }))[0]);
+    await appendLaneInbox(laneExecution, await laneContext(lane.taskId));
+    expect(laneExecution.state.dispatchState.conversationItems[0].content).toContain("Go deeper on the EIC.");
+
+    await submit(lane.taskId);
+    await appendSwarmMergeMessage(executionFor(leaderJob), swarm);
+    await userMessage(swarm.swarmTaskId, "Another question.");
+    await userMessage(swarm.swarmTaskId, "And another.");
+    expect(await dormant()).toEqual([]);
+    expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["expired"]);
+    await expect(resumeLane({ swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: lane.taskId, message: "Again." }))
+      .rejects.toThrow(/can no longer be resumed/);
+  });
+
+  it("stops a lane and its sub-lanes: queued ones end at once, working ones are told to submit", async () => {
+    const swarm = await createSwarm({ maxRunningLanes: 1 });
+    await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    const [eu, national] = await split(swarm, swarm.swarmTaskId, ["EU", "National"]);
+    expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["running", "queued"]);
+    await expect(steerLane({ swarm, parentTaskId: eu.taskId, laneTaskId: national.taskId, message: "Hurry." }))
+      .rejects.toThrow(/not one of your lanes/);
+
+    await stopLane({ swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: national.taskId, discard: false });
+    expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["running", "stopped"]);
+
+    const euJob = (await pool.query("SELECT id FROM task_runs WHERE task_id = $1 AND ended_at IS NULL", [eu.taskId]))
+      .rows.map((row) => ({ taskId: eu.taskId, runId: row.id as string, workspaceId, environmentId, triggerSource: "web" as const, mode: "agent_swarm_lane" as const }))[0];
+    const [eic] = await split(await laneContext(eu.taskId), eu.taskId, ["EIC"]);
+    await parkSwarmRun({ job: euJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes" });
+    expect(await laneStatuses(eu.taskId)).toEqual(["running"]);
+
+    await stopLane({ swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: eu.taskId, discard: false });
+    const stops = await pool.query<{ lane_task_id: string }>(
+      "SELECT lane_task_id FROM task_swarm_lane_inbox WHERE kind = 'stop' AND swarm_task_id = $1 ORDER BY created_at, lane_task_id",
+      [swarm.swarmTaskId]
+    );
+    expect(stops.rows.map((row) => row.lane_task_id).sort()).toEqual([eu.taskId, eic.taskId].sort());
+
+    const eicContext = await laneContext(eic.taskId);
+    const eicRun = (await pool.query("SELECT id FROM task_runs WHERE task_id = $1 AND ended_at IS NULL", [eic.taskId])).rows[0];
+    await appendLaneInbox(executionFor({ ...euJob, taskId: eic.taskId, runId: eicRun.id }), eicContext);
+    expect(eicContext.forcedSubmitReason).toMatch(/stopped/);
+  });
+
+  it("gives a Check lane what the user wrote on the current branch, without the assistant's turns", async () => {
+    const swarm = await createSwarm();
+    const insert = async (role: string, text: string, parent: string | null) => (await pool.query<{ id: string }>(
+      "INSERT INTO task_messages (task_id, role, content_json, parent_message_id) VALUES ($1, $2, $3::jsonb, $4) RETURNING id",
+      [swarm.swarmTaskId, role, JSON.stringify({ text }), parent])).rows[0].id;
+    const first = await insert("user", "Find the grants.", null);
+    const reply = await insert("assistant", "My reasoning about grants.", first);
+    await insert("user", "An abandoned edit.", reply);
+    const second = await insert("user", "Only EU ones.", reply);
+
+    expect(await loadBranchUserMessages(swarm.swarmTaskId, second)).toEqual(["Find the grants.", "Only EU ones."]);
   });
 });

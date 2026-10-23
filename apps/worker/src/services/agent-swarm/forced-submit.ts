@@ -2,10 +2,11 @@ import type { ModelToolChoice } from "../agent/model.js";
 import { SUBMIT_TOOL_NAME } from "../agent-tools/swarm.js";
 import type { SwarmLaneResult } from "./lane-store.js";
 
-// A lane always returns something. On its last allowed step the runtime forces the submit call;
+// A lane always returns something. On its last allowed step, or when the runtime makes it stop (a
+// stop from its parent, its budget share, the swarm deadline), the next call is forced to submit;
 // the tools array is unchanged, so the cached prefix still holds.
-export function resolveLaneToolChoice(input: { step: number; maxRunSteps: number }): ModelToolChoice {
-  return input.step >= input.maxRunSteps - 1 ? { type: "function", name: SUBMIT_TOOL_NAME } : "required";
+export function resolveLaneToolChoice(input: { step: number; maxRunSteps: number; forced: boolean }): ModelToolChoice {
+  return input.forced || isLaneFinalStep(input) ? { type: "function", name: SUBMIT_TOOL_NAME } : "required";
 }
 
 export function isLaneFinalStep(input: { step: number; maxRunSteps: number }): boolean {

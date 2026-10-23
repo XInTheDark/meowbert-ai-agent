@@ -5,19 +5,19 @@ import type { AgentExecutionContext } from "../agent/execution-types.js";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { buildUnsubmittedLaneResult } from "./forced-submit.js";
 import { finishLaneRun } from "./lane-completion.js";
-import { countActiveChildrenInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
-import { parkSwarmRun } from "./park.js";
+import { countActiveChildrenInTx, dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
+import { parkSwarmRun, type SwarmParkReason } from "./park.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
 
 type AppendAssistantMessage = (text: string) => Promise<void>;
 
-async function park(execution: AgentExecutionContext): Promise<void> {
+async function park(execution: AgentExecutionContext, reason: SwarmParkReason): Promise<void> {
   const swarm = execution.swarm!;
   await parkSwarmRun({
     job: { ...execution.job, branchMessageId: execution.state.currentLeafMessageId ?? undefined },
     swarmTaskId: swarm.swarmTaskId,
     maxRunningLanes: swarm.settings.advanced.maxRunningLanes,
-    reason: "lanes"
+    reason
   });
   await emitTaskEvent(execution.job.taskId, "status", { status: "queued", waitingForLanes: true });
 }
@@ -30,7 +30,7 @@ export async function finalizeSwarmRun(execution: AgentExecutionContext, appendA
   const dispatch = execution.state.dispatchState;
   if (dispatch.swarmPark) {
     await appendAssistantMessage("");
-    await park(execution);
+    await park(execution, dispatch.swarmPark.reason);
     return true;
   }
   if (swarm.lane) {
@@ -43,7 +43,6 @@ export async function finalizeSwarmRun(execution: AgentExecutionContext, appendA
       result: submitted ?? buildUnsubmittedLaneResult(execution.runControl.reachedMaxRunSteps
         ? "The lane reached its step limit without submitting."
         : "The lane stopped before submitting."),
-      steps: execution.state.stepCount,
       maxRunningLanes: swarm.settings.advanced.maxRunningLanes
     });
     return true;
@@ -56,7 +55,7 @@ export async function finalizeSwarmRun(execution: AgentExecutionContext, appendA
 export async function parkLeaderIfLanesActive(execution: AgentExecutionContext): Promise<boolean> {
   if (!execution.swarm || execution.swarm.lane) return false;
   if (await countActiveChildrenInTx(pool, execution.job.taskId) === 0) return false;
-  await park(execution);
+  await park(execution, "lanes");
   return true;
 }
 
@@ -73,7 +72,6 @@ export async function finishFailedLaneRun(job: TaskExecutionJob, errorMessage: s
       runId: job.runId,
       status: "failed",
       result: buildUnsubmittedLaneResult(`The lane failed: ${errorMessage}`),
-      steps: 0,
       maxRunningLanes,
       errorSummary: errorMessage
     });
@@ -85,7 +83,8 @@ export async function finishFailedLaneRun(job: TaskExecutionJob, errorMessage: s
     // An interrupt that resumes the lane is not a stop.
     const task = await client.query<{ status: string }>("SELECT status FROM tasks WHERE id = $1 FOR UPDATE", [lane.task_id]);
     if (task.rows[0]?.status !== "cancelled") return;
-    await setLaneStatusInTx(client, lane.task_id, "stopped", { result: buildUnsubmittedLaneResult("The lane was cancelled.") });
+    await setLaneStatusInTx(client, lane.task_id, "stopped", { result: buildUnsubmittedLaneResult("Stopped and discarded.") });
+    await dropDiscardedResultInTx(client, lane);
     await startQueuedLanesInTx(client, lane.swarm_task_id, maxRunningLanes);
     await wakeParentIfBarrierMetInTx(client, lane.parent_task_id);
   });

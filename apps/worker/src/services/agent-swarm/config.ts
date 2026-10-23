@@ -2,7 +2,7 @@ import { normalizeAgentSwarmSettings, type AgentSwarmSettings } from "@meowbert/
 import { pool, query } from "../../lib/db.js";
 import type { TaskRow } from "../agent/types.js";
 import { createSwarmActivity, type SwarmActivity } from "./auto-notes.js";
-import { listAncestorLaneIds, loadLane, type SwarmLaneRow } from "./lane-store.js";
+import { listAncestorLanes, loadLane, type SwarmLaneRow } from "./lane-store.js";
 
 // What a run needs to know about the swarm it belongs to. The leader has no lane row.
 export interface SwarmRunContext {
@@ -11,6 +11,10 @@ export interface SwarmRunContext {
   lane: SwarmLaneRow | null;
   // Lanes above this one, nearest first; their notes reach this lane.
   ancestorLaneIds: string[];
+  // This lane or one above it answers a diverge question, so it cannot diverge again.
+  withinDiverge: boolean;
+  // Set when the runtime makes the lane submit now (stop, budget, deadline); the reason is shown to it.
+  forcedSubmitReason: string | null;
   // Files and pages this run touched since its last step, for automatic notes.
   activity: SwarmActivity;
 }
@@ -26,11 +30,14 @@ export async function loadSwarmRunContext(
   const isLane = task.workflow_internal_role === "lane";
   const lane = isLane ? await loadLane(pool, task.id) : null;
   if (isLane && !lane) return null;
+  const ancestors = lane ? await listAncestorLanes(pool, lane) : [];
   return {
     swarmTaskId,
     settings: normalizeAgentSwarmSettings(swarm.rows[0].config_json),
     lane,
-    ancestorLaneIds: lane ? await listAncestorLaneIds(pool, lane) : [],
+    ancestorLaneIds: ancestors.map((ancestor) => ancestor.task_id),
+    withinDiverge: lane?.kind === "diverge" || ancestors.some((ancestor) => ancestor.kind === "diverge"),
+    forcedSubmitReason: null,
     activity: createSwarmActivity()
   };
 }

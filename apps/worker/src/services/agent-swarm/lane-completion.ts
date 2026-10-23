@@ -11,7 +11,6 @@ export async function finishLaneRun(input: {
   runId: string;
   status: "done" | "failed";
   result: SwarmLaneResult;
-  steps: number;
   maxRunningLanes: number;
   errorSummary?: string;
 }): Promise<{ parentWoken: boolean }> {
@@ -34,7 +33,11 @@ export async function finishLaneRun(input: {
       "UPDATE tasks SET status = $2, completed_at = now(), updated_at = now() WHERE id = $1 AND NOT cancellation_requested",
       [lane.task_id, taskStatus]
     );
-    await setLaneStatusInTx(client, lane.task_id, input.status, { result: input.result, addSteps: input.steps });
+    await setLaneStatusInTx(client, lane.task_id, input.status, { result: input.result });
+    // Outcome logging: how much a Check lane found.
+    if (input.result.findings) {
+      await client.query("UPDATE task_swarm_lanes SET check_findings = $2 WHERE task_id = $1", [lane.task_id, input.result.findings.length]);
+    }
     await startQueuedLanesInTx(client, lane.swarm_task_id, input.maxRunningLanes);
     return { taskStatus, parentWoken: await wakeParentIfBarrierMetInTx(client, lane.parent_task_id) };
   });

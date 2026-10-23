@@ -1,4 +1,5 @@
 import { createDefaultEnvironmentJsonPayload, type PlatformModelRouter } from "@meowbert/shared";
+import type { SwarmToolSet } from "./swarm.js";
 
 export const RUN_SHELL_TOOL_NAME = "run_shell";
 export const SHELL_SESSION_TOOL_NAME = "shell_session";
@@ -102,6 +103,6 @@ export interface ResponseToolAvailability {
   contextManagementVersion?: "v1" | "v2";
   contextRecoveryPhase?: "normal" | "needs_note" | "needs_reset";
   allowPersistentShellSessions?: boolean;
-  // Agent Swarm leaders; lanes reuse the tools array they were forked with.
-  allowSwarmTools?: boolean;
+  // Agent Swarm leaders and Check lanes; forked lanes reuse the tools array they were forked with.
+  swarmTools?: SwarmToolSet;
 }
