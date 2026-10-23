@@ -24,29 +24,46 @@
   white-space: nowrap;
 }
 
-.sidebar-collapse-btn {
+/* Plain icon buttons: the shared .btn padding would squeeze the icon out of a 2rem box. */
+.sidebar-toggle-btn {
   flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
   color: var(--text-muted);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.sidebar-toggle-btn:hover {
+  color: var(--text);
 }
 
 .sidebar-reveal-btn {
   display: none;
 }
 
-/* Desktop: an unpinned sidebar leaves the layout and slides in over the page while hovered. */
+/* Desktop: an unpinned sidebar leaves the layout and fades in over the page while hovered. */
 @media (min-width: 1121px) {
   .product-shell:has(> .sidebar.floating) {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* Leave the top-left corner to the reveal button. */
+  .product-shell:has(> .sidebar.floating) > .main-column:not(.task-detail-route) {
+    padding-top: max(var(--page-pad), 3.5rem);
+  }
+
+  .product-shell:has(> .sidebar.floating) .chat-task-topbar {
+    padding-left: 3.25rem;
+  }
+
   /* Sits above the floating sidebar, lined up with its brand row, so it can still be clicked to pin. */
   .sidebar-reveal-btn {
-    display: inline-flex;
+    display: inline-grid;
     position: fixed;
-    top: 18px;
-    left: .75rem;
+    top: 14px;
+    left: .5rem;
     z-index: 60;
-    color: var(--text-muted);
   }
 
   .sidebar.floating {
@@ -55,16 +72,17 @@
     bottom: 0;
     left: 0;
     z-index: 50;
+    padding-top: .75rem;
     box-shadow: var(--shadow-lg);
-    transform: translateX(-100%);
+    opacity: 0;
     visibility: hidden;
-    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    transition: opacity 0.15s ease, visibility 0s linear 0.15s;
   }
 
   .sidebar.floating.peek {
-    transform: translateX(0);
+    opacity: 1;
     visibility: visible;
-    transition: transform 0.2s ease, visibility 0s;
+    transition: opacity 0.15s ease, visibility 0s;
   }
 
   .sidebar.floating .sidebar-brand-main {
@@ -97,8 +115,7 @@
   flex-direction: column;
   align-content: start;
   overflow-y: auto; /* Fixed width when expanded */
-  transition: width 0.2s ease, transform 0.2s ease;
-  overflow-x: hidden; /* Prevent horizontal scroll when collapsing */
+  overflow-x: hidden;
   flex-shrink: 0; /* Prevent sidebar from shrinking */
   min-width: 0;
   background: var(--bg-soft);
@@ -109,35 +126,6 @@
   gap: .75rem;
   width: 248px;
 }
-.sidebar-section {
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-.sidebar.collapsed .sidebar-brand-block {
-  justify-content: center;
-  padding: 0;
-}
-
-.sidebar.collapsed .sidebar-nav,
-.sidebar.collapsed .sidebar-active-project {
-  width: 100%;
-}
-
-.sidebar.collapsed .nav-link {
-  justify-content: center;
-  padding: 0.5rem 0;
-  gap: 0;
-}
-
-.sidebar-rail-divider {
-  height: 1px;
-  margin: var(--space-2xs) auto;
-  width: 60%;
-  background: var(--border-subtle);
-}
-
 .sidebar-section {
   border: 1px solid var(--border);
   display: grid;

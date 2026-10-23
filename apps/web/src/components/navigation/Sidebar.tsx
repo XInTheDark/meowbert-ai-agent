@@ -37,7 +37,7 @@ export function Sidebar({ themeMode, setThemeMode, onLogout, mobileOpen, onMobil
     <>
       {pinned ? null : (
         <button
-          className="btn ghost icon-btn sidebar-reveal-btn"
+          className="icon-btn sidebar-toggle-btn sidebar-reveal-btn"
           type="button"
           onClick={() => setPinned(true)}
           onMouseEnter={startPeek}

@@ -15,7 +15,7 @@ export function SidebarBrandHeader({ onHide }: SidebarBrandHeaderProps) {
         </div>
       </div>
       <button
-        className="btn ghost icon-btn sidebar-collapse-btn"
+        className="icon-btn sidebar-toggle-btn sidebar-collapse-btn"
         type="button"
         onClick={onHide}
         title="Hide Sidebar"
