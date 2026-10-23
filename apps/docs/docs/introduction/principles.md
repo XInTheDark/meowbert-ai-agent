@@ -15,7 +15,7 @@ The only outside service it needs is the model provider you choose, and that can
 
 ## You choose the model
 
-Meowbert talks to models through the **OpenAI Responses API**. Any provider or gateway that implements it works: OpenAI itself, API gateways and proxies, or a local model server with Responses support. You can offer several models side by side, set different reasoning effort for each, and mix them in one [Agent Swarm](/core-workflows/task-workflows).
+Meowbert talks to models through the **OpenAI Responses API**. Any provider or gateway that implements it works: OpenAI itself, API gateways and proxies, or a local model server with Responses support. You can offer several models side by side and set different reasoning effort for each. An [Agent Swarm](/core-workflows/task-workflows) can also run some of its lanes on other models through a model router.
 
 Users can also bring their own key or sign in with a ChatGPT subscription, if you allow it. See [Bring Your Own Provider](/core-workflows/byo-providers).
 

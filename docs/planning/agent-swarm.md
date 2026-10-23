@@ -1,6 +1,6 @@
 # Agent Swarm: Planning & Specs
 
-Status: settled design, not yet implemented. Replaces the current Agent Swarm (leader + workers + channels) entirely. No backward compatibility.
+Status: implemented (section 21, phases 1 to 6). Replaces the previous Agent Swarm (leader + workers + channels) entirely. No backward compatibility. Section 22 records choices made where this doc left a detail open.
 
 - Part I explains what we are building and why.
 - Part II specifies what changes in the code, including tearing down the current feature.
@@ -776,3 +776,18 @@ Test behaviour, not prompt text.
 6. **Docs**: user docs and self-hosting docs; CHANGELOG with permission.
 
 Run `npm run test`, `npm run lint` and `npm run build` after each phase.
+
+## 22. Implementation notes
+
+Details this doc left open, and how they were settled:
+
+- **Steer, resume and stop** go through a lane inbox (`task_swarm_lane_inbox`, migration 141), claimed at the lane's next step boundary and appended through the run inbox. A `stop` entry turns the next request into the forced submit.
+- **New lanes skip earlier notes.** A lane's note cursor starts at the swarm's latest note, since a fork already knows everything before it.
+- **Diverge blindness.** A diverge lane with an active sibling receives notes in order up to the first sibling note and holds the rest until its siblings finish. Ancestors of a running lane are parked, so nothing they share waits behind it in practice. Anything below a diverge lane cannot diverge either.
+- **Automatic Check runs once per user turn**: when lanes were created or merged since the user's last message and no Check lane was started since then. The reply after the findings is delivered as it is.
+- **Check lanes** are fresh tasks with a seed that carries only the runtime (no history), get only `submit` as a swarm tool, are paid from the reserve rather than a share, and are not resumed. Their finding count is kept on the Check lane itself.
+- **Shares.** The leader gives out the budget minus reserve, spend and what running lanes still hold. A lane gives out its share minus its spend and what it gave earlier, keeping the reserve fraction for its own merge. Given budget is not returned while a lane runs.
+- **Dormancy** is computed from the conversation on read; lanes past it are marked `expired` when the leader's turn lists them, and all of a swarm's lanes expire when its history is archived.
+- **Stops from the task page** use the same signals as the tool: an inbox stop for working lanes, the cancellation flag otherwise. The worker's swarm recovery ends flagged lanes that have no run and resumes their parent.
+- **Lane tracks** are placed under the first leader message written after the lanes were created, which is the message that holds the fork call.
+

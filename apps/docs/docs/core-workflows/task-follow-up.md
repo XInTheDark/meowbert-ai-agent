@@ -36,7 +36,7 @@ Workspace owners can turn this feature on or off under **Workspace settings → 
 
 ## Workflow panel
 
-If the task uses **Long Horizon**, **Deep Research**, **Quality control**, or **Agent Swarm**, Task Detail also shows a dedicated workflow panel above the main conversation.
+If the task uses **Long Horizon**, **Deep Research**, **Quality control**, or **Agent Swarm**, Task Detail also shows a dedicated workflow strip above the main conversation.
 
 ### Long Horizon, Deep Research, and Quality control panel
 
@@ -51,16 +51,13 @@ You can open the full plan, full submission, and full review text from the panel
 
 For Deep Research tasks, the panel is labeled **Deep Research**. A rejected verdict means the reviewer found a source-quality, scope, or answer-structure problem that the task must correct before delivery. For Quality control tasks, it is labeled **Quality control** and a rejected verdict means the reviewer found writing, formatting, or design problems.
 
-### Agent Swarm panel
+### Agent Swarm
 
-The panel shows:
+The strip shows how many lanes are working, how much of the budget is used when budgets are on, and the **dormant** lanes: lanes that finished but keep their context for a few turns, each with a one-line summary.
 
-- the worker list,
-- the channel list,
-- live channel popups,
-- live worker POV popups.
+In the conversation, each set of lanes appears under the leader message that started them, one row per lane with its status and latest note. Open a lane to read its own conversation in the side panel, or stop it so it reports what it has now.
 
-This makes it much easier to inspect the ongoing swarm discussion without digging through raw logs.
+You can keep messaging the leader while lanes work. It can answer from their progress, steer or stop a lane, or start more. To follow up on one lane's part after a reply, just ask: the leader resumes the dormant lane that did that part.
 
 ## Sending a follow-up message
 

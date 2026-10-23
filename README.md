@@ -7,7 +7,7 @@
 ## Why Meowbert
 
 - **Yours, end to end.** The web app, API, database, and every agent sandbox run on your own hardware. No telemetry, no hosted service in the middle.
-- **Any model.** Connect OpenAI, a gateway, or a local model server. Offer several models, set reasoning effort per model, and combine them in an **Agent Swarm**.
+- **Any model.** Connect OpenAI, a gateway, or a local model server. Offer several models and set reasoning effort per model.
 - **A real computer for the agent.** Each task gets a fresh container with a shell, git, Python, Node, a browser, and Office and PDF tools. It's locked down by default, with optional [gVisor](https://gvisor.dev) isolation.
 - **Work that lasts.** Projects keep their files, memory, and task history. Come back to any task weeks later and pick up where you left off, or branch it to try something else.
 - **Runs while you're away.** Schedule tasks, let them loop for hours, and get results in Telegram, Discord, email, or a push notification. A **Project Master** keeps track of what's running and follows up.
@@ -18,7 +18,7 @@
 | | |
 | --- | --- |
 | **Tasks** | Conversations with an agent that can act. Follow up, branch, fork, pause, resume, share, and export. |
-| **Workflows** | Standard tasks, Long Horizon planning with review, Deep Research, Quality control, and multi-model Agent Swarms. |
+| **Workflows** | Standard tasks, Long Horizon planning with review, Deep Research, Quality control, and Agent Swarms that split big work across parallel lanes and check the result. |
 | **Scheduling** | Cron-scheduled, infinite, and timed tasks, with step and time budgets. |
 | **Projects** | Persistent files, instructions, memory, a file browser, and live shells. |
 | **Skills** | Word, PowerPoint, and PDF authoring, browser automation, image generation, interactive canvases, web research, and your own custom skills. |

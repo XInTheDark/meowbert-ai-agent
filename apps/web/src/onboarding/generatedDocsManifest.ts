@@ -89,7 +89,7 @@ export const onboardingDocsManifest: Record<string, OnboardingDocsEntry> = {
   "task-workflows": {
     id: "task-workflows",
     title: "Long Horizon, Deep Research, Quality control & Agent Swarm",
-    summary: "When one agent is not enough, use Long Horizon, Deep Research, Quality control, or an Agent Swarm of several models working together.",
+    summary: "When one agent is not enough, use Long Horizon, Deep Research, Quality control, or an Agent Swarm whose leader splits the work across copies of itself.",
     checklistLabel: "Workflows & Agent Swarm",
     docsPath: "/core-workflows/task-workflows"
   },

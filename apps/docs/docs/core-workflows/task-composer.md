@@ -75,15 +75,19 @@ If the reviewer finds a problem, the task revises the result and submits it agai
 
 ### Agent Swarm
 
-Choose **Agent Swarm** when you want multiple agents to collaborate through shared chat channels before a final answer is delivered.
+Choose **Agent Swarm** when the leader should be able to split the work across copies of itself, get several independent answers to a judgment call, and have its reply checked before delivery. Picking a swarm in the model list sets this up for you.
 
-You can set the **worker count** from **2 to 16**. A leader is added automatically.
+The form starts from the swarm's own settings:
+
+- **Lane model router**, shown when your server has one, lets the leader run some lanes on other models.
+- **Budgets**, off by default, give the leader and its lanes one shared token budget and an optional time budget.
+- **Advanced...** holds the lane limits, such as how many lanes run at once and whether replies are checked automatically.
 
 This works well when:
 
-- you want parallel investigation,
-- you want different perspectives,
-- or you want agents to challenge each other instead of relying on a single chain of thought.
+- the work has parts that can be done at the same time,
+- you want independent answers compared instead of one chain of thought,
+- or you want a fresh reviewer to read the reply before you get it.
 
 See [Long Horizon, Deep Research, Quality control & Agent Swarm](/core-workflows/task-workflows) for the full breakdown.
 
@@ -156,7 +160,7 @@ If the task also includes live-synced source files, the agent gets dedicated syn
 
 When a workspace has Memory enabled, new task drafts start with **Memory** turned on by default, but you can disable it for any specific run.
 
-These tool selections also carry into workflow runs. For example, if you start an Agent Swarm with Web Search and Memory enabled, the swarm agents receive those same selected capabilities.
+These tool selections also carry into workflow runs. For example, if you start an Agent Swarm with Web Search and Memory enabled, the leader and its lanes receive those same selected capabilities.
 
 Workspace owners connect sources from **Connectors → Sources**. Server admins can configure the provider settings by following [Sources (Admin Setup)](/reference/sources-admin-setup).
 

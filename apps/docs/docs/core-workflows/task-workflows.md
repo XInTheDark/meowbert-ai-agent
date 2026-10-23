@@ -1,6 +1,6 @@
 ---
 title: Long Horizon, Deep Research, Quality control & Agent Swarm
-summary: When one agent is not enough, use Long Horizon, Deep Research, Quality control, or an Agent Swarm of several models working together.
+summary: When one agent is not enough, use Long Horizon, Deep Research, Quality control, or an Agent Swarm whose leader splits the work across copies of itself.
 onboardingId: task-workflows
 checklistLabel: Workflows & Agent Swarm
 ---
@@ -14,7 +14,7 @@ When a task needs more structure, Meowbert offers four workflow modes in the Tas
 - **Long Horizon** — for tasks that need a durable plan plus explicit review before they are allowed to finish.
 - **Deep Research** — for source-aware research that should investigate both broadly and deeply before answering.
 - **Quality control (Experimental)** — for tasks whose final writing, formatting, and visual presentation need a dedicated review pass.
-- **Agent Swarm** — for tasks that benefit from multiple agents discussing the work together before a final answer is delivered.
+- **Agent Swarm** — for big tasks the leader can split across copies of itself, answer several ways at once, and have checked before delivery.
 
 You choose the workflow before sending the task.
 
@@ -104,78 +104,63 @@ The workflow panel uses the **Quality control** label and shows the same plan, s
 
 ## Agent Swarm
 
-Use **Agent Swarm** when one agent should not be the only voice working on the task.
+Use **Agent Swarm** when a task is big enough that one agent working alone would be slow, lose detail, or settle on its first idea.
 
-### What happens
+An Agent Swarm is one agent, the **leader**, that can make copies of itself. You talk to the leader exactly as you would to a standard task. Most turns stay ordinary turns: a request like "rewrite this email to sound less defensive" is simply answered. When the work warrants it, the leader makes one of three moves.
 
-1. Meowbert creates **one leader** plus **2 to 16 workers**.
-2. The leader starts the shared discussion.
-3. Workers collaborate through shared swarm channels.
-4. The leader is responsible for the final user-facing answer, but only after the swarm has discussed the work.
+### What the leader can do
 
-Before delivery, one worker gives the proposed answer a final read. If the swarm has a Quality Control worker, it does that pass; otherwise the leader asks another worker. If it needs changes, the leader addresses them and gets a new final pass.
+- **Split.** The leader hands different parts of the work to **lanes**, copies of itself that start with everything it knows. Lanes work at the same time, and lanes building one thing share short notes with each other so they stay consistent. For example, a lane researching EU grants that finds a rule ruling out your company shares it, and the other lanes take it into account at their next step.
+- **Diverge.** For a judgment call, the leader asks several lanes the same question. They answer without seeing each other, so they don't just agree with the first idea. The leader then compares their reasoning: where they agree, where they disagree, and ideas only one lane had. It builds its answer from the strongest one.
+- **Check.** Before a reply that used lanes is delivered, a fresh reviewer that has seen none of the leader's reasoning reads what you asked and the draft, and looks for what is wrong. The leader fixes what it finds and then replies.
 
-This is intentionally different from subtasks. Subtasks are independent. An Agent Swarm is a shared discussion.
+Lanes can split their own part again when it turns out to be bigger than expected.
 
-### How the leader works
+Some examples:
 
-The leader coordinates; the workers do the work. It doesn't write the answer itself and then ask the workers to check it. Instead it:
-
-1. **Brainstorms** when there is more than one good approach, asking every worker for a short, independent proposal and then posting the chosen plan.
-2. **Splits the work** so each worker owns a clear piece, or has several workers answer independently when the result is a judgment call that can't be checked by running something.
-3. **Cross-checks**, having workers test or review each other's parts and following up on disagreements.
-4. **Delivers** once a worker has given the final draft a last review.
-
-Some examples with three workers:
-
-| Request | How the swarm splits it |
+| Request | What the swarm does |
 | --- | --- |
-| "Build a 3D character controller in one HTML file" | Each worker proposes an approach; the leader picks one. One worker owns the page, scene, and camera, another writes movement and collision, and the third tests the page and reports bugs to the owners. |
-| "Should we move our API from REST to GraphQL?" | Each worker researches and recommends independently. The leader compares the answers, sends disagreements back for another look, and writes one answer with the trade-offs. |
-| "Fix the failing tests in this repo" | Failing tests are split by area so nobody edits the same files. One worker reruns the whole suite at the end. |
+| "Find every EU and Portuguese funding program a 10-person climate-tech startup could apply to in 2027" | The leader looks around, then splits into one lane per family of programs. Lanes share eligibility rules they discover. A reviewer spot-checks deadlines before the table is delivered. |
+| "Propose pricing for our B2B analytics tool" | The leader diverges into three independent proposals, compares their key decisions, settles the one real disagreement with a focused lane, and builds from the best proposal. |
+| "Turn these research notes into a 40-page market report" | The leader writes a short outline of terms and shared numbers first, then splits the sections across lanes. The reviewer looks for seams between sections. |
 
-When the swarm has a budget, the leader plans for the team the task needs rather than the workers it starts with. If the plan has more parts than workers, it brings in extra agents for them instead of doing those parts itself.
+Small models make weaker leaders. Use a swarm whose leader runs on a strong model.
 
-Small models make weaker leaders. If the leader keeps doing the work alone, use a swarm whose leader runs on a stronger model, and keep the smaller models as workers.
+### Talking to the swarm while it works
+
+The leader stays available while lanes work. Send a message at any time: the leader can tell you how far each lane has got, steer a lane, stop one, or start more.
+
+After a reply, lanes stay **dormant** for a few turns with everything they found. When you ask a follow-up such as "go deeper on the EIC programs", the leader picks up the lane that already did that part instead of starting over.
 
 ### Why use it
 
 Agent Swarm is useful when:
 
-- the task is ambiguous and you want multiple viewpoints,
-- you want parallel investigation plus debate,
-- verification matters and it is healthy for agents to challenge each other,
-- you want to inspect how different workers approached the same problem.
+- the work has parts that can be done at the same time, such as research across many sources or sections of a long document,
+- you want to see where an answer is uncertain, not just one confident path,
+- you want a reply checked by a reviewer that does not share the author's blind spots.
+
+For tightly connected, step-by-step work, a standard task is usually better.
 
 ### Configuring the swarm
 
-In the composer, you can choose the **worker count**:
+Pick an Agent Swarm in the model list, or choose **Agent Swarm** in the Task Parameters menu. The swarm's settings start from its preset, and you can change them for this task:
 
-- minimum: **2**
-- maximum: **16**
-
-The leader is added automatically.
-
-By default, a swarm has a token budget (and an optional time budget), and the leader can bring in extra agents as the work grows. Turn on **Disable spawning and budgets** to keep the swarm to the agents you picked, with no token or time budget.
-
-The leader and its workers share one token budget, so nobody has to hand out tokens to individual workers. A small part is held back for the leader to write up the answer. When the budget is nearly spent, every agent is told to report what it has found and start wrapping up. Once it runs out, the workers stop and the leader delivers its answer from what they reported. Extra agents the leader brings in get their own share of the budget, and the leader can give them more if they run out.
+- **Lane model router**, when your server has model routers: the leader can run some lanes on other models, for example a reviewer on a different model. Without one, every lane uses the leader's model.
+- **Budgets** are off by default. Turn them on to give the leader and all lanes one shared token budget and an optional time budget. A part is held back for putting the answer together and checking it. Each lane gets a share; near the end of its share it is told to wrap up, and at the end it reports what it has. Every lane always reports something.
+- **Advanced...** holds the limits: how many lanes a parent can start, how deep lanes can split, how many run at once, steps per lane, automatic Check, how many turns lanes stay dormant, and a few more.
 
 ### Tool access
 
-Whatever tools you enable in the composer apply to the swarm too. If you enable Web Search, Memory, Computer Use, Subtasks, or Skills, the swarm agents receive those same selected capabilities for their runs.
+Whatever tools you enable in the composer apply to the swarm too. If you enable Web Search, Memory, Computer Use, Subtasks, or Skills, the leader and its lanes receive those same selected capabilities.
 
 ### What you see in Task Detail
 
-The workflow panel shows:
+Under the leader message that started lanes, a compact block shows one row per lane: what it owns, its status, its latest note and its steps. Sub-lanes are listed under their lane. Open a lane to read its own conversation in the side panel, or stop it to make it report what it has now.
 
-- the worker list,
-- the channel list,
-- live channel popups,
-- each worker's live POV using the normal task detail renderer.
+The header shows how many lanes are working, budget use when budgets are on, and the dormant lanes with a one-line summary each.
 
-This makes it much easier to inspect who said what and what each worker is currently doing.
-
-In the conversation, once the leader delivers its final answer, the work leading up to it folds into one **Worked for…** row above the answer. Open it to see the activity and the leader's interim messages. Files the swarm produced and any error notices stay visible.
+In the conversation, once the leader delivers its final answer, the work leading up to it, lane blocks included, folds into one **Worked for…** row above the answer. Files and any error notices stay visible.
 
 ## Choosing the right mode
 
@@ -205,9 +190,9 @@ Use **Quality control** when:
 
 Use **Agent Swarm** when:
 
-- you want discussion between multiple agents,
-- you want disagreement and verification,
-- the task benefits from several concurrent perspectives.
+- the work has independent parts that can run in parallel,
+- you want independent answers compared rather than one path,
+- you want a fresh reviewer to check the reply before it is delivered.
 
 ## Important limits
 

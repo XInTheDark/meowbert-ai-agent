@@ -244,7 +244,7 @@
                 <p>
                   Meowbert connects to models through the OpenAI Responses API, so it works with OpenAI, API
                   gateways, and local model servers that support it. Admins can offer several models with different
-                  reasoning effort, and an Agent Swarm has several models discuss a task before answering.
+                  reasoning effort, and an Agent Swarm can run parts of a task on different models.
                 </p>
                 <ul class="ticks">
                   <li>Reasoning effort set per model</li>
@@ -267,13 +267,14 @@
               </div>
               <h3>Agent Swarm</h3>
               <p>
-                A leader and 2 to 16 workers discuss the task in shared channels, check each other's work, and
-                agree on an answer. Another worker reads the final answer before it's sent.
+                One agent that copies itself when the work is big: it splits the parts across lanes that share
+                what they find, compares independent answers to judgment calls, and has a fresh reviewer check the
+                reply before it's sent.
               </p>
               <ul class="ticks">
-                <li>The leader can bring in more agents as the work grows</li>
-                <li>Watch each worker and every channel live</li>
-                <li>Token and time budgets, or none</li>
+                <li>Talk to the leader while its lanes work</li>
+                <li>Open any lane to watch it live, or stop it</li>
+                <li>Finished lanes stay ready for follow-ups</li>
               </ul>
             </article>
             <article class="card">
