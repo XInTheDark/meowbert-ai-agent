@@ -5,6 +5,7 @@ import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
 import { buildUnsubmittedLaneResult } from "./forced-submit.js";
 import { dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
+import { endCancelledIdleLeaders } from "./cancelled-leaders.js";
 
 const RECOVERY_BATCH_SIZE = 100;
 
@@ -132,6 +133,7 @@ async function endCancelledIdleLanes(): Promise<void> {
 }
 
 export async function recoverSwarmsOnce(): Promise<void> {
+  await endCancelledIdleLeaders(RECOVERY_BATCH_SIZE);
   await endCancelledIdleLanes();
   await wakeParkedParents();
   await wakeParentsWithUnmergedResults();

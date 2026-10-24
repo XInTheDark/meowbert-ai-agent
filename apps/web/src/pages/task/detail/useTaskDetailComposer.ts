@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { normalizeAgentSwarmSettings } from "@meowbert/shared/agent-swarm-config";
 import type { ApiClient } from "../../../lib/api";
 import type {
   TaskDetail,
@@ -54,7 +55,18 @@ export function buildWorkflowComposerConfigFromTaskDetail(
     };
   }
 
-  // A swarm keeps its own settings; fields left out of a change keep their current values.
+  if (workflow?.type === "agent_swarm") {
+    const settings = normalizeAgentSwarmSettings(workflow.config);
+    return {
+      type: "agent_swarm",
+      routerId: settings.routerId,
+      budgetsEnabled: settings.budgetsEnabled,
+      tokenBudget: settings.tokenBudget,
+      timeBudgetMinutes: settings.timeBudgetMinutes,
+      advanced: settings.advanced
+    };
+  }
+
   return {
     type: taskType === "long_horizon" || taskType === "agent_swarm" ? taskType : "standard",
     tokenBudget: null,

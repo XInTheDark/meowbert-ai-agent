@@ -1,6 +1,6 @@
 import { ChevronLeft, X } from "lucide-react";
 import type { ApiClient } from "../../../lib/api";
-import type { TaskWorkflowOverview } from "../../../lib/types";
+import type { LongHorizonWorkflowOverview } from "../../../lib/types";
 import { formatDateTime } from "../../../lib/utils";
 import type { TaskDetailWorkflowSidebarController } from "./useTaskDetailWorkflowSidebar";
 import type { TaskWorkflowSidebarPanel } from "./taskWorkflowSidebarTypes";
@@ -11,17 +11,17 @@ import { TaskWorkflowTextPanel } from "./TaskWorkflowTextPanel";
 interface TaskWorkflowSidebarProps {
   api: ApiClient;
   taskId: string;
-  workflow: TaskWorkflowOverview;
+  workflow: LongHorizonWorkflowOverview;
   sidebar: TaskDetailWorkflowSidebarController;
 }
 
-function getWorkflowTitle(workflow: TaskWorkflowOverview): string {
+function getWorkflowTitle(workflow: LongHorizonWorkflowOverview): string {
   if (workflow.config.reviewMode === "quality_control") return "Quality Control";
   if (workflow.config.researchMode === "deep_research") return "Deep Research";
   return "Long Horizon";
 }
 
-function resolvePanelHeaderInfo(panel: TaskWorkflowSidebarPanel | null, workflow: TaskWorkflowOverview) {
+function resolvePanelHeaderInfo(panel: TaskWorkflowSidebarPanel | null, workflow: LongHorizonWorkflowOverview) {
   if (!panel || panel.kind === "overview") {
     return {
       title: getWorkflowTitle(workflow),
@@ -56,7 +56,7 @@ function resolvePanelHeaderInfo(panel: TaskWorkflowSidebarPanel | null, workflow
 
 function WorkflowSidebarHeader(props: {
   panel: TaskWorkflowSidebarPanel | null;
-  workflow: TaskWorkflowOverview;
+  workflow: LongHorizonWorkflowOverview;
   canGoBack: boolean;
   onBack: () => void;
   onClose: () => void;
@@ -102,7 +102,7 @@ function WorkflowSidebarHeader(props: {
 function WorkflowPanelContent(props: {
   api: ApiClient;
   taskId: string;
-  workflow: TaskWorkflowOverview;
+  workflow: LongHorizonWorkflowOverview;
   sidebar: TaskDetailWorkflowSidebarController;
   panel: TaskWorkflowSidebarPanel;
 }) {

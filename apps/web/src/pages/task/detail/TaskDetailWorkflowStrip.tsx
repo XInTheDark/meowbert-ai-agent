@@ -57,6 +57,7 @@ function WorkflowIcon({ workflow }: { workflow: TaskWorkflowOverview }) {
 }
 
 export function TaskDetailWorkflowStrip(props: TaskDetailWorkflowStripProps) {
+  if (props.workflow.type !== "long_horizon") return null;
   const title = getWorkflowTitle(props.workflow);
   const phase = props.workflow.phase;
   const isSidebarOpen = props.sidebar.isWorkflowSidebarOpen;

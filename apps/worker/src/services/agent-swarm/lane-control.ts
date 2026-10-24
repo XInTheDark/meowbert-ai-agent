@@ -3,6 +3,7 @@ import { withTransaction } from "../../lib/db.js";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import type { SwarmRunContext } from "./config.js";
 import { isLaneResumableInTx } from "./dormancy.js";
+import { addResumeShareInTx } from "./budget-shares.js";
 import { buildUnsubmittedLaneResult } from "./forced-submit.js";
 import { insertLaneInboxInTx } from "./lane-inbox.js";
 import {
@@ -108,8 +109,7 @@ export async function resumeLane(input: {
   parentTaskId: string;
   laneTaskId: string;
   message: string;
-  // Applied in the same transaction, for budgets; may refuse with a SwarmToolError.
-  addShare?: (client: PoolClient, lane: SwarmLaneRow) => Promise<void>;
+  extraTokens?: number | null;
 }): Promise<SwarmLaneRow> {
   return withTransaction(async (client) => {
     const lane = await loadOwnLaneInTx(client, input.swarm, input.parentTaskId, input.laneTaskId);
@@ -117,7 +117,7 @@ export async function resumeLane(input: {
     if (!await isLaneResumableInTx(client, lane, input.swarm.settings.advanced.dormantLaneTurns)) {
       throw new SwarmToolError("This lane can no longer be resumed. Split a new lane instead.");
     }
-    await input.addShare?.(client, lane);
+    await addResumeShareInTx(client, input.swarm, input.parentTaskId, lane.task_id, input.extraTokens ?? null);
     await insertLaneInboxInTx(client, { laneTaskId: lane.task_id, swarmTaskId: lane.swarm_task_id, kind: "resume", body: input.message });
     await setLaneStatusInTx(client, lane.task_id, "queued");
     await client.query("UPDATE tasks SET status = 'queued', completed_at = NULL, updated_at = now() WHERE id = $1", [lane.task_id]);

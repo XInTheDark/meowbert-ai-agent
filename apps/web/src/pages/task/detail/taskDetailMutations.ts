@@ -21,7 +21,16 @@ export interface TaskFollowUpResponse {
   activeLeafMessageId?: string;
 }
 
-function buildWorkflowPayload(workflow: TaskWorkflowComposerConfig): Record<string, unknown> {
+function buildWorkflowPayload(workflow: TaskWorkflowComposerConfig, previous?: TaskWorkflowOverview | null): Record<string, unknown> {
+  if (workflow.type === "agent_swarm" && previous?.type === "agent_swarm") {
+    const changes = Object.fromEntries(
+      Object.entries(workflow).filter(([key, value]) => ["routerId", "budgetsEnabled", "tokenBudget", "timeBudgetMinutes"].includes(key)
+        && value !== undefined && value !== previous.config[key])
+    );
+    const advanced = Object.fromEntries(Object.entries(workflow.advanced ?? {}).filter(([key, value]) =>
+      value !== (previous.config.advanced as Record<string, unknown> | undefined)?.[key]));
+    return { type: "agent_swarm", ...changes, ...(Object.keys(advanced).length ? { advanced } : {}) };
+  }
   return {
     type: workflow.type,
     ...(workflow.type === "agent_swarm" ? {
@@ -179,6 +188,7 @@ export async function updateTaskParameters(
     allowWaiting?: boolean;
     schedule?: TaskParameters["schedule"];
     workflow?: TaskWorkflowComposerConfig;
+    previousWorkflow?: TaskWorkflowOverview | null;
     tools?: TaskToolOptions;
   }
 ): Promise<{
@@ -203,7 +213,7 @@ export async function updateTaskParameters(
     ...(typeof parameters.timeLimitSeconds !== "undefined" ? { timeLimitSeconds: parameters.timeLimitSeconds } : {}),
     ...(typeof parameters.allowWaiting !== "undefined" ? { allowWaiting: parameters.allowWaiting } : {}),
     ...(parameters.schedule ? { schedule: buildTaskSchedulePayload(parameters.schedule) } : {}),
-    ...(parameters.workflow ? { workflow: buildWorkflowPayload(parameters.workflow) } : {}),
+    ...(parameters.workflow ? { workflow: buildWorkflowPayload(parameters.workflow, parameters.previousWorkflow) } : {}),
     ...(parameters.tools ? {
       tools: {
         webSearch: parameters.tools.webSearch,

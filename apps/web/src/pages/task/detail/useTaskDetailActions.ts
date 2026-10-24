@@ -301,7 +301,8 @@ function useTaskParameterAction(input: UseTaskDetailActionsInput) {
       timeLimitSeconds: input.taskParameters.timeLimitSeconds,
       allowWaiting: input.taskParameters.allowWaiting,
       ...(shouldClearSchedule ? { schedule: buildDefaultTaskParameters().schedule } : {}),
-      workflow: nextWorkflow
+      workflow: nextWorkflow,
+      previousWorkflow: input.taskDetail?.workflow
     });
     input.invalidateCurrentTaskCache();
     input.setTaskDetail((current) => current ? {

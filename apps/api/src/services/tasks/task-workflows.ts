@@ -623,7 +623,10 @@ export async function getTaskWorkflowOverview(taskId: string): Promise<TaskWorkf
   );
 
   if ((workflowRes.rowCount ?? 0) === 0) {
-    return null;
+    const swarm = await query<{ config_json: Record<string, unknown> }>(
+      "SELECT config_json FROM task_swarms WHERE task_id = $1", [taskId]
+    );
+    return swarm.rows[0] ? { type: "agent_swarm", phase: "working", config: swarm.rows[0].config_json } : null;
   }
 
   const workflow = workflowRes.rows[0];

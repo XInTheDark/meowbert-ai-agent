@@ -63,7 +63,8 @@ export async function allocateForkSharesInTx(
   return allocateLaneShares(await loadGivableTokensInTx(client, swarm, parentTaskId), weights);
 }
 
-// A resume can give a lane more budget, out of what its parent has left.
+// Reclaim a dormant lane's unused share before reactivating it, plus any requested extra tokens.
+// Nested parents already hold all their children's shares; the leader releases dormant shares.
 export async function addResumeShareInTx(
   client: PoolClient,
   swarm: SwarmRunContext,
@@ -71,13 +72,18 @@ export async function addResumeShareInTx(
   laneTaskId: string,
   extraTokens: number | null
 ): Promise<void> {
-  if (!swarm.settings.budgetsEnabled || !extraTokens) return;
+  if (!swarm.settings.budgetsEnabled) return;
   const givable = await loadGivableTokensInTx(client, swarm, parentTaskId);
-  if (extraTokens > givable) {
+  const lane = await client.query<{ unused: string }>(
+    "SELECT GREATEST(share_tokens - spent_tokens, 0)::text AS unused FROM task_swarm_lanes WHERE task_id = $1",
+    [laneTaskId]
+  );
+  const restored = swarm.lane ? 0 : Number(lane.rows[0]?.unused ?? 0);
+  if (restored + (extraTokens ?? 0) > givable) {
     throw new SwarmToolError(`You have ${Math.max(0, Math.floor(givable)).toLocaleString("en-US")} tokens left to give.`);
   }
   await client.query(
     "UPDATE task_swarm_lanes SET share_tokens = COALESCE(share_tokens, 0) + $2, wrap_up_notified = false, updated_at = now() WHERE task_id = $1",
-    [laneTaskId, extraTokens]
+    [laneTaskId, extraTokens ?? 0]
   );
 }

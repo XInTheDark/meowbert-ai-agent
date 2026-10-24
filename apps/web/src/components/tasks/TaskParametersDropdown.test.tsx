@@ -4,6 +4,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS } from "@meowbert/shared/agent-swarm-config";
+import { normalizeAgentSwarmSettings } from "@meowbert/shared/agent-swarm-config";
+import type { ApiClient } from "../../lib/api";
+import type { TaskDetail, TaskWorkflowComposerConfig } from "../../lib/types";
+import { buildWorkflowComposerConfigFromTaskDetail } from "../../pages/task/detail/useTaskDetailComposer";
+import { updateTaskParameters } from "../../pages/task/detail/taskDetailMutations";
 import { buildDefaultTaskParameters } from "../../task/taskParameters";
 import { TaskParametersDropdown } from "./TaskParametersDropdown";
 
@@ -197,6 +202,40 @@ describe("TaskParametersDropdown", () => {
 
     expect(onWorkflowChange).toHaveBeenCalledWith(expect.objectContaining({ type: "agent_swarm", budgetsEnabled: false }));
     expect(container.textContent).not.toContain("Token budget");
+  });
+
+  it("edits a saved swarm lane limit without changing its budgets or other settings", async () => {
+    const settings = normalizeAgentSwarmSettings({ budgetsEnabled: true, tokenBudget: 1_000_000,
+      timeBudgetMinutes: 45, routerId: "router-v1", advanced: { maxDepth: 3, autoCheck: false, maxRunningLanes: 4 } });
+    const taskDetail = { task: { task_type: "agent_swarm" },
+      workflow: { type: "agent_swarm", phase: "working", config: settings } } as unknown as TaskDetail;
+    const patch = vi.fn().mockResolvedValue({});
+    const api = { patch } as unknown as ApiClient;
+    const onWorkflowChange = vi.fn(async (workflow: TaskWorkflowComposerConfig) => {
+      await updateTaskParameters(api, "swarm-1", { workflow, previousWorkflow: taskDetail.workflow });
+    });
+    await act(async () => root.render(<TaskParametersDropdown
+      taskParameters={buildDefaultTaskParameters()} onChange={vi.fn()} mode="edit" taskType="agent_swarm"
+      workflowConfig={buildWorkflowComposerConfigFromTaskDetail(taskDetail)} onWorkflowChange={onWorkflowChange}
+    />));
+    await act(async () => click(container.querySelector('[title="Task parameters"]')));
+    const swarmButton = Array.from(container.querySelectorAll(".chat-tools-item"))
+      .find((element) => element.textContent?.includes("Agent Swarm"));
+    await act(async () => click(swarmButton ?? null));
+    const fields = Array.from(container.querySelectorAll(".task-parameters-field"));
+    expect(fields.find((field) => field.textContent?.includes("Token budget"))?.querySelector("input")?.value).toBe("1000000");
+    expect(fields.find((field) => field.textContent?.includes("Lane depth"))?.querySelector("input")?.value).toBe("3");
+    const running = fields.find((field) => field.textContent?.includes("Lanes running at once"))?.querySelector("input") as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(running, "5");
+      running.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => running.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(onWorkflowChange).toHaveBeenCalledWith(expect.objectContaining({ budgetsEnabled: true, tokenBudget: 1_000_000,
+      timeBudgetMinutes: 45, routerId: "router-v1", advanced: expect.objectContaining({ maxDepth: 3, autoCheck: false, maxRunningLanes: 5 }) }));
+    expect(patch).toHaveBeenCalledWith("/api/tasks/swarm-1/parameters", {
+      workflow: { type: "agent_swarm", advanced: { maxRunningLanes: 5 } }
+    });
   });
 
   it("offers the platform's routers and applies an advanced lane limit for an Agent Swarm", async () => {

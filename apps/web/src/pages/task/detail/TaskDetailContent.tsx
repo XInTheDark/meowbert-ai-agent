@@ -134,7 +134,7 @@ function TaskTopbar({ model }: ModelProps) {
       onOpenSearch={undefined}
       onDeletePermanently={() => void model.actions.handleDeletePermanently()}
       isDeletingPermanently={model.actions.isDeletingPermanently}
-      workflowStrip={taskDetail.workflow ? (
+      workflowStrip={taskDetail.workflow?.type === "long_horizon" ? (
         <TaskDetailWorkflowStrip
           workflow={taskDetail.workflow}
           sidebar={model.view.workflowSidebar}
@@ -395,7 +395,7 @@ function TaskThreadsSidebar({ model }: ModelProps) {
 
 function TaskWorkflowRightSidebar({ model }: ModelProps) {
   const workflow = model.context.data.taskDetail?.workflow;
-  if (!workflow || !model.view.workflowSidebar.isWorkflowSidebarOpen || model.controllers.inspectorSelection) {
+  if (workflow?.type !== "long_horizon" || !model.view.workflowSidebar.isWorkflowSidebarOpen || model.controllers.inspectorSelection) {
     return null;
   }
   return (

@@ -103,4 +103,10 @@ describe("workflow task creation retries", () => {
       }
     });
   });
+
+  it("returns saved swarm settings when there is no Long Horizon workflow", async () => {
+    const config = { budgetsEnabled: true, tokenBudget: 1_000_000, advanced: { maxDepth: 3, autoCheck: false } };
+    query.mockResolvedValueOnce(buildRowsResult([])).mockResolvedValueOnce(buildRowsResult([{ config_json: config }]));
+    expect(await getTaskWorkflowOverview("swarm-1")).toEqual({ type: "agent_swarm", phase: "working", config });
+  });
 });

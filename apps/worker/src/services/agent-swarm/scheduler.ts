@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import type { TaskExecutionJob } from "@meowbert/shared";
 import { enqueueSubagentRun } from "../subagents/dispatch.js";
 
 // Every transaction that changes lanes takes the swarm row first, then task rows from parent to child,
@@ -20,10 +21,14 @@ export async function startQueuedLanesInTx(client: PoolClient, swarmTaskId: stri
   );
   const capacity = maxRunningLanes - Number(running.rows[0]?.count ?? 0);
   if (capacity <= 0) return [];
-  const queued = await client.query<{ task_id: string; workspace_id: string; environment_id: string; initiator_user_id: string | null }>(
-    `SELECT lane.task_id, task.workspace_id, task.environment_id, task.initiator_user_id
+  const queued = await client.query<{
+    task_id: string; workspace_id: string; environment_id: string; initiator_user_id: string | null;
+    resume_job_json: TaskExecutionJob | null;
+  }>(
+    `SELECT lane.task_id, task.workspace_id, task.environment_id, task.initiator_user_id, park.resume_job_json
        FROM task_swarm_lanes lane
        JOIN tasks task ON task.id = lane.task_id
+       LEFT JOIN task_swarm_parks park ON park.task_id = lane.task_id
       WHERE lane.swarm_task_id = $1
         AND lane.status = 'queued'
         AND NOT task.cancellation_requested
@@ -45,8 +50,10 @@ export async function startQueuedLanesInTx(client: PoolClient, swarmTaskId: stri
       environmentId: lane.environment_id,
       triggerSource: "web",
       mode: "agent_swarm_lane",
-      selectionUserId: lane.initiator_user_id ?? undefined
+      selectionUserId: lane.initiator_user_id ?? undefined,
+      ...(lane.resume_job_json ? { ...lane.resume_job_json, branchMessageId: undefined } : {})
     });
+    await client.query("DELETE FROM task_swarm_parks WHERE task_id = $1", [lane.task_id]);
     await client.query(
       `UPDATE task_swarm_lanes SET status = 'running', started_at = COALESCE(started_at, now()), updated_at = now()
         WHERE task_id = $1`,

@@ -1,10 +1,10 @@
-import type { TaskWorkflowOverview } from "../../../lib/types";
+import type { LongHorizonWorkflowOverview } from "../../../lib/types";
 
 export type LongHorizonReviewItem =
-  TaskWorkflowOverview["longHorizon"]["reviews"][number];
+  LongHorizonWorkflowOverview["longHorizon"]["reviews"][number];
 
 export type LongHorizonReviewerItem =
-  TaskWorkflowOverview["longHorizon"]["reviewers"][number];
+  LongHorizonWorkflowOverview["longHorizon"]["reviewers"][number];
 
 export type TaskWorkflowSidebarPanel =
   | {

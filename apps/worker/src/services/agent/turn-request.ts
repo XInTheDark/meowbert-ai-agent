@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { buildResponseTools, RUN_SHELL_MAX_TIMEOUT_SECONDS, type ResponseToolAvailability } from "../agent-tools/index.js";
 import { buildCodeModeToolsPrompt, CODE_MODE_TOOLS_PROMPT_REASON } from "../code-mode/code-mode-prompt.js";
 import { buildCodeModeToolSet } from "../code-mode/code-mode-tools.js";
+import { isToolGroupTool } from "../agent-tools/tool-groups.js";
 import type { TaskMessageToolOptions } from "./types.js";
 import {
   appendPromptEnvelopeDelta,
@@ -36,8 +37,25 @@ function resolveTurnTools(input: {
   codeMode?: boolean;
   fixedTools?: { response: Tool[]; codeMode: FunctionTool[] };
 }): { responseTools: Tool[]; nestedTools: FunctionTool[] } {
-  if (input.fixedTools) return { responseTools: input.fixedTools.response, nestedTools: input.fixedTools.codeMode };
   const tools = buildResponseTools(input.runToolOptions, input.activeSkillTools, input.availability);
+  if (input.fixedTools) {
+    const inheritedNames = new Set([...input.fixedTools.response, ...input.fixedTools.codeMode]
+      .filter((tool): tool is FunctionTool => tool.type === "function").map((tool) => tool.name));
+    const skillNames = new Set(input.activeSkillTools.map((tool) => tool.name));
+    const additions = tools.filter((tool): tool is FunctionTool => tool.type === "function"
+      && !inheritedNames.has(tool.name) && (skillNames.has(tool.name) || isToolGroupTool(tool.name)));
+    if (additions.length === 0) {
+      return { responseTools: input.fixedTools.response, nestedTools: input.fixedTools.codeMode };
+    }
+    const added = input.codeMode === true
+      ? buildCodeModeToolSet(additions, input.availability.runShellMaxTimeoutSeconds ?? RUN_SHELL_MAX_TIMEOUT_SECONDS)
+      : { responseTools: additions, nestedTools: [] };
+    return {
+      responseTools: [...input.fixedTools.response, ...added.responseTools.filter((tool) =>
+        tool.type !== "function" || !inheritedNames.has(tool.name))],
+      nestedTools: [...input.fixedTools.codeMode, ...added.nestedTools]
+    };
+  }
   return input.codeMode === true
     ? buildCodeModeToolSet(tools, input.availability.runShellMaxTimeoutSeconds ?? RUN_SHELL_MAX_TIMEOUT_SECONDS)
     : { responseTools: tools, nestedTools: [] };
@@ -52,7 +70,7 @@ export function buildAgentTurnRequest(input: {
   promptEnvelope: PromptEnvelope;
   availability: ResponseToolAvailability;
   codeMode?: boolean;
-  // A swarm lane offers exactly the tools it was forked with.
+  // Preserve the fork's tools, adding skills and tool groups enabled inside the lane.
   fixedTools?: { response: Tool[]; codeMode: FunctionTool[] };
 }): AgentTurnRequest {
   const { responseTools, nestedTools } = resolveTurnTools(input);

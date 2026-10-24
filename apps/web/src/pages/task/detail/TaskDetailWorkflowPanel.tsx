@@ -286,7 +286,7 @@ function LongHorizonPanel(props: {
 }
 
 export function TaskDetailWorkflowPanel(props: TaskDetailWorkflowPanelProps) {
-  if (!props.workflow) {
+  if (props.workflow?.type !== "long_horizon") {
     return null;
   }
 

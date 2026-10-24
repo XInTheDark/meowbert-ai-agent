@@ -40,6 +40,32 @@ describe("buildPromptCacheKey", () => {
 });
 
 describe("buildAgentTurnRequest", () => {
+  it.each([false, true])("adds tools enabled within a forked lane (code mode: %s)", (codeMode) => {
+    const promptEnvelope = createPromptEnvelope("Forked prompt.");
+    const skillTool: FunctionTool = {
+      type: "function", name: "slides__draw", description: "Draw a slide.", strict: false,
+      parameters: { type: "object", properties: {}, required: [] }
+    };
+    const base = { taskId: "lane", runToolOptions: { ...createBaseToolOptions(), scheduleTask: true },
+      promptEnvelope, availability: { allowScheduleTools: true, loadedToolGroups: [] as string[] }, codeMode };
+    const parent = buildAgentTurnRequest({ ...base, activeSkillTools: [] });
+    sealPromptEnvelope(promptEnvelope);
+    const fixedTools = { response: parent.responseTools, codeMode: parent.codeModeTools };
+    const snapshot = structuredClone(fixedTools);
+    const first = buildAgentTurnRequest({ ...base, fixedTools, activeSkillTools: [] });
+    expect(first.responseTools).toEqual(parent.responseTools);
+    expect(first.promptCacheKey).toBe(parent.promptCacheKey);
+
+    const later = buildAgentTurnRequest({ ...base, fixedTools, activeSkillTools: [skillTool],
+      availability: { allowScheduleTools: true, loadedToolGroups: ["task-scheduling"] } });
+    const tools = codeMode ? later.codeModeTools : later.responseTools;
+    const names = tools.filter((tool) => tool.type === "function").map((tool) => tool.name);
+    expect(names).toEqual(expect.arrayContaining(["slides__draw", "schedule_task", "edit_current_task_schedule"]));
+    expect(new Set(names).size).toBe(names.length);
+    expect(fixedTools).toEqual(snapshot);
+    if (codeMode) expect(later.responseTools).toEqual(first.responseTools);
+  });
+
   it("injects enabled skill tools into the next model tool array", () => {
     const promptEnvelope = createPromptEnvelope("Base prompt.");
     const skillTool: FunctionTool = {

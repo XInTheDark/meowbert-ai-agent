@@ -172,5 +172,6 @@ export function TaskWorkflowOverviewPanel(props: {
   workflow: TaskWorkflowOverview;
   sidebar: TaskDetailWorkflowSidebarController;
 }) {
+  if (props.workflow.type !== "long_horizon") return null;
   return <LongHorizonOverview workflow={props.workflow} sidebar={props.sidebar} />;
 }

@@ -375,7 +375,11 @@ export interface LongHorizonWorkflowOverview {
   };
 }
 
-export type TaskWorkflowOverview = LongHorizonWorkflowOverview;
+export type TaskWorkflowOverview = LongHorizonWorkflowOverview | {
+  type: "agent_swarm";
+  phase: string;
+  config: Record<string, unknown>;
+};
 
 export interface TaskArtifact {
   id: string;
