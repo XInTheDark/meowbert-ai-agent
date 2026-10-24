@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { AGENT_SWARM_DEFAULT_TOKEN_BUDGET } from "@meowbert/shared/agent-swarm-config";
 import { AgentSwarmAdvancedFields } from "./AgentSwarmAdvancedFields";
+import { AgentSwarmEffortSlider } from "./AgentSwarmEffortSlider";
 import {
   MAX_AGENT_SWARM_TIME_BUDGET_MINUTES,
   MAX_AGENT_SWARM_TOKEN_BUDGET,
@@ -69,6 +70,11 @@ export function AgentSwarmParametersForm({ controller, header }: ControllerProps
     <div className="task-parameters-form">
       {header}
       <SwarmRouterField controller={controller} />
+      <AgentSwarmEffortSlider
+        value={controller.draft.agentSwarmSpawnEffort}
+        disabled={controller.isApplying}
+        onChange={controller.applySwarmEffort}
+      />
       <SwarmBudgetFields controller={controller} />
       <AgentSwarmAdvancedFields
         draft={controller.draft.agentSwarmAdvanced}

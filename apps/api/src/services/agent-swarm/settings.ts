@@ -8,6 +8,7 @@ import {
 // to the preset; null is an explicit value.
 export interface AgentSwarmWorkflowRequest {
   routerId?: string | null;
+  spawnEffort?: number;
   budgetsEnabled?: boolean;
   tokenBudget?: number | null;
   timeBudgetMinutes?: number | null;
@@ -18,6 +19,7 @@ export interface AgentSwarmWorkflowRequest {
 export interface AgentSwarmSettingsDefaults {
   leaderAgentId?: string | null;
   routerId?: string | null;
+  spawnEffort?: number;
   budgetsEnabled?: boolean;
   tokenBudget?: number | null;
   timeBudgetMinutes?: number | null;
@@ -49,6 +51,7 @@ export function resolveAgentSwarmSettings(
   return normalizeAgentSwarmSettings({
     leaderAgentId: preset?.leaderAgentId ?? null,
     routerId: pick(request, preset, "routerId"),
+    spawnEffort: pick(request, preset, "spawnEffort"),
     budgetsEnabled: pick(request, preset, "budgetsEnabled"),
     tokenBudget: pick(request, preset, "tokenBudget"),
     timeBudgetMinutes: pick(request, preset, "timeBudgetMinutes"),

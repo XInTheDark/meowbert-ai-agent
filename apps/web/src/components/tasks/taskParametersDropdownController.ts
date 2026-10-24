@@ -4,7 +4,8 @@ import {
   AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
   AGENT_SWARM_MAX_TOKEN_BUDGET,
   normalizeAgentSwarmTimeBudgetMinutes,
-  normalizeAgentSwarmTokenBudget
+  normalizeAgentSwarmTokenBudget,
+  normalizeAgentSwarmSpawnEffort
 } from "@meowbert/shared/agent-swarm-config";
 import { buildDefaultTaskParameters, hasCustomTaskParameters, normalizeTaskParameters } from "../../task/taskParameters";
 import {
@@ -153,6 +154,7 @@ function useTaskParameterDraft(resolved: TaskParameters) {
   const [longHorizonEnableClarifyPhase, setLongHorizonEnableClarifyPhase] = useState(true);
   const [longHorizonEnableReviewPhase, setLongHorizonEnableReviewPhase] = useState(true);
   const [agentSwarmBudgetsEnabled, setAgentSwarmBudgetsEnabled] = useState(false);
+  const [agentSwarmSpawnEffort, setAgentSwarmSpawnEffort] = useState(3);
   const [agentSwarmTokenBudget, setAgentSwarmTokenBudget] = useState("");
   const [agentSwarmTimeBudgetMinutes, setAgentSwarmTimeBudgetMinutes] = useState("");
   const [agentSwarmAdvanced, setAgentSwarmAdvanced] = useState<AgentSwarmAdvancedDraft>(() => formatAgentSwarmAdvancedDraft());
@@ -164,6 +166,7 @@ function useTaskParameterDraft(resolved: TaskParameters) {
     longHorizonEnableClarifyPhase, setLongHorizonEnableClarifyPhase,
     longHorizonEnableReviewPhase, setLongHorizonEnableReviewPhase,
     agentSwarmBudgetsEnabled, setAgentSwarmBudgetsEnabled,
+    agentSwarmSpawnEffort, setAgentSwarmSpawnEffort,
     agentSwarmTokenBudget, setAgentSwarmTokenBudget,
     agentSwarmTimeBudgetMinutes, setAgentSwarmTimeBudgetMinutes,
     agentSwarmAdvanced, setAgentSwarmAdvanced,
@@ -194,6 +197,9 @@ function useDraftSynchronization(
     draft.setLongHorizonEnableClarifyPhase(props.workflowConfig?.enableClarifyPhase !== false);
     draft.setLongHorizonEnableReviewPhase(props.workflowConfig?.enableReviewPhase !== false);
     draft.setAgentSwarmBudgetsEnabled(props.workflowConfig?.type === "agent_swarm" && props.workflowConfig.budgetsEnabled === true);
+    draft.setAgentSwarmSpawnEffort(normalizeAgentSwarmSpawnEffort(
+      props.workflowConfig?.type === "agent_swarm" ? props.workflowConfig.spawnEffort : undefined
+    ));
     draft.setAgentSwarmTokenBudget(String(props.workflowConfig?.type === "agent_swarm" && props.workflowConfig.tokenBudget
       ? props.workflowConfig.tokenBudget : AGENT_SWARM_DEFAULT_TOKEN_BUDGET));
     draft.setAgentSwarmTimeBudgetMinutes(props.workflowConfig?.type === "agent_swarm" && props.workflowConfig.timeBudgetMinutes
@@ -205,6 +211,7 @@ function useDraftSynchronization(
     draft.resolved,
     isOpen,
     props.workflowConfig?.budgetsEnabled,
+    props.workflowConfig?.spawnEffort,
     props.workflowConfig?.tokenBudget,
     props.workflowConfig?.timeBudgetMinutes,
     props.workflowConfig?.enableClarifyPhase,
@@ -284,6 +291,7 @@ function useWorkflowActions(
       ...(isSwarm
         ? {
             ...(next.routerId !== undefined ? { routerId: next.routerId } : {}),
+            ...(next.spawnEffort !== undefined ? { spawnEffort: normalizeAgentSwarmSpawnEffort(next.spawnEffort) } : {}),
             budgetsEnabled: next.budgetsEnabled === true,
             ...(next.advanced ? { advanced: next.advanced } : {})
           }
@@ -410,10 +418,12 @@ export function useTaskParametersDropdown(props: TaskParametersDropdownProps) {
   const applySwarmUpdate = (overrides: Partial<TaskWorkflowComposerConfig>): void => {
     const current = props.workflowConfig?.type === "agent_swarm" ? props.workflowConfig : undefined;
     const routerId = "routerId" in overrides ? overrides.routerId : current?.routerId;
+    const spawnEffort = "spawnEffort" in overrides ? overrides.spawnEffort : current?.spawnEffort;
     const advanced = overrides.advanced ?? current?.advanced;
     void workflow.updateAgentSwarm({
       type: "agent_swarm",
       ...(routerId !== undefined ? { routerId } : {}),
+      ...(spawnEffort !== undefined ? { spawnEffort: normalizeAgentSwarmSpawnEffort(spawnEffort) } : {}),
       ...(advanced ? { advanced } : {}),
       budgetsEnabled: overrides.budgetsEnabled ?? draft.agentSwarmBudgetsEnabled,
       tokenBudget: "tokenBudget" in overrides
@@ -445,6 +455,12 @@ export function useTaskParametersDropdown(props: TaskParametersDropdownProps) {
       const current = props.workflowConfig?.advanced;
       if (current && JSON.stringify(current) === JSON.stringify(parsed.advanced)) return;
       applySwarmUpdate({ advanced: parsed.advanced });
+    },
+    applySwarmEffort(value: number) {
+      const next = normalizeAgentSwarmSpawnEffort(value);
+      draft.setAgentSwarmSpawnEffort(next);
+      if (props.workflowConfig?.type === "agent_swarm" && props.workflowConfig.spawnEffort === next) return;
+      applySwarmUpdate({ spawnEffort: next });
     },
     applySwarmBudget(key: "tokenBudget" | "timeBudgetMinutes", rawValue: string) {
       const trimmed = rawValue.trim();

@@ -13,6 +13,7 @@ export type AgentSummaryMode = "standard" | "agent_swarm" | "quality_control_rev
 export interface AgentSwarmPresetSummary {
   leaderAgentId: string | null;
   routerId: string | null;
+  spawnEffort: number;
   // The platform's model routers, offered in the composer.
   routerOptions?: string[];
   budgetsEnabled: boolean;

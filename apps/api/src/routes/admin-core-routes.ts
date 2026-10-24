@@ -3,6 +3,8 @@ import { loadAgentSwarmOutcomes } from "../services/agent-swarm/outcomes.js";
 import { z } from "zod";
 import {
   normalizeAgentSwarmAdvancedSettings,
+  AGENT_SWARM_SPAWN_EFFORT_MAX,
+  AGENT_SWARM_SPAWN_EFFORT_MIN,
   AGENT_SWARM_ADVANCED_RANGES,
   AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
   AGENT_SWARM_MAX_TOKEN_BUDGET
@@ -52,6 +54,7 @@ const agentPresetSchema = z.object({
   mode: z.enum(["standard", "agent_swarm", "quality_control_reviewer"]).optional(),
   leaderAgentId: z.string().min(1).max(240).optional(),
   routerId: z.string().min(1).max(240).nullable().optional(),
+  spawnEffort: z.number().int().min(AGENT_SWARM_SPAWN_EFFORT_MIN).max(AGENT_SWARM_SPAWN_EFFORT_MAX).optional(),
   budgetsEnabled: z.boolean().optional(),
   tokenBudget: z.number().int().positive().max(AGENT_SWARM_MAX_TOKEN_BUDGET).optional(),
   timeBudgetMinutes: z.number().int().positive().max(AGENT_SWARM_MAX_TIME_BUDGET_MINUTES).optional(),

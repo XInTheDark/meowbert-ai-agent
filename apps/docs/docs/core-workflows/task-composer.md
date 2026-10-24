@@ -80,6 +80,7 @@ Choose **Agent Swarm** when the leader should be able to split the work across c
 The form starts from the swarm's own settings:
 
 - **Lane model router**, shown when your server has one, lets the leader run some lanes on other models.
+- **Effort** controls how readily the leader delegates: lower values wait longer and keep the fan-out shallower; higher values nudge earlier and allow a wider, deeper split within the Advanced limits. **Balanced** keeps the normal defaults.
 - **Budgets**, off by default, give the leader and its lanes one shared token budget and an optional time budget.
 - **Advanced...** holds the lane limits, such as how many lanes run at once and whether replies are checked automatically.
 

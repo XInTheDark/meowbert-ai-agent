@@ -1,4 +1,5 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
+import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
 import { divergeArgumentsSchema } from "../../../agent-tools/swarm.js";
 import type { NewLane } from "../../../agent-swarm/lane-creation.js";
 import { buildLaneModelRoute } from "../../../agent-swarm/model-route.js";
@@ -19,7 +20,7 @@ export async function handleDiverge(call: ResponseFunctionToolCall, ctx: ToolDis
     const positionError = checkForkCallPosition(call, ctx, state);
     if (positionError) return toolErrorResult(positionError);
     const requested = withUndirectedLane(args.lanes, { title: "Undirected answer", direction: null, model: null, effort: null });
-    const maxLanes = ctx.swarm!.run.settings.advanced.maxLanesPerParent;
+    const maxLanes = resolveAgentSwarmSpawnLimits(ctx.swarm!.run.settings).maxLanesPerParent;
     if (requested.length > maxLanes) {
       return toolErrorResult(`Diverge into at most ${maxLanes} lanes, counting the undirected lane that is always included.`);
     }

@@ -1,5 +1,34 @@
 # Changelog
 
+## Oct 24, 2026
+
+### AI and agents
+
+- **Agent Swarm has been rebuilt around lanes** — Swarms can now split work into persistent lanes, fork context, park and resume work, leave notes, and coordinate through explicit diverge, check, steer, and stop actions. A model router can choose models per lane, while the swarm shares its budget across the leader and workers. The composer, lane tracks, task view, admin editor, and docs all support the new workflow.
+- **Swarms keep their settings and stop cleanly** — Task runs now preserve the swarm settings they were created with, enforce lane and depth limits throughout the lifecycle, and keep progressing when a worker disappears or reaches its limit.
+- **Choose how aggressively a swarm spawns work** — The new **Effort** profile in the task composer and Agent Swarm presets ranges from **Minimal** to **Maximum**, tuning lane fan-out, depth, and recon nudges while leaving budgets and concurrency limits intact. **Balanced** keeps the normal defaults.
+- **More reliable swarm turns** — Swarms can use their full configured output budget, read the latest channel messages, and report turns that finish without a tool call.
+
+### Threads and outlines
+
+- **Start a thread from the work already in front of you** — Messages and task outline items can now open a focused thread, and an empty outline can generate its first outline directly.
+- **Threads keep your place** — Opening the thread panel no longer jumps the conversation or loses the reading position.
+
+### Mobile
+
+- **A native-feeling mobile layout** — The main app, admin panel, canvases, context pages, and forms now adapt to phone-sized screens with mobile navigation and touch-friendly controls. Typing on mobile is smoother too.
+
+### Connected sources
+
+- **Search linked Google Drive folders** — Live-sync can search folder contents by text, with parallel and cached traversal, configurable depth, and clearer handling of larger folder trees.
+
+### Operations and polish
+
+- **Find wasted agent turns** — Admins now have a debug view for investigating turns that consumed work without producing a useful result.
+- **Sidebar and menus behave better** — Desktop navigation stays out of the way until needed, menus flip below their trigger when space is tight, and the sidebar toggle no longer distorts or overlaps the page.
+- **Pinned Node.js base images** — Docker builds now use Node.js 22.23.4 consistently.
+- **Warm code-mode tools are documented correctly** — The worker tells the model which tools are already available instead of making it discover them through an exec step.
+
 ## Oct 18, 2026
 
 ### Canvas

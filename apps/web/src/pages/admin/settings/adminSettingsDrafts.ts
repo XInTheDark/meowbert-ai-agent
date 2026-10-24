@@ -2,7 +2,10 @@ import {
   AGENT_SWARM_ADVANCED_RANGES,
   AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
   AGENT_SWARM_MAX_TOKEN_BUDGET,
+  AGENT_SWARM_SPAWN_EFFORT_MAX,
+  AGENT_SWARM_SPAWN_EFFORT_MIN,
   normalizeAgentSwarmAdvancedSettings,
+  normalizeAgentSwarmSpawnEffort,
   type AgentSwarmAdvancedSettings
 } from "@meowbert/shared/agent-swarm-config";
 import { apiBaseUrl } from "../../../lib/api";
@@ -20,6 +23,7 @@ interface AgentPresetDraft {
   mode?: "standard" | "agent_swarm" | "quality_control_reviewer";
   leaderAgentId?: string;
   routerId?: string | null;
+  spawnEffort?: number;
   budgetsEnabled?: boolean;
   tokenBudget?: number;
   timeBudgetMinutes?: number;
@@ -280,10 +284,15 @@ function parseSwarmFields(id: string, record: Record<string, unknown>): Pick<
   if (record.budgetsEnabled !== undefined && typeof record.budgetsEnabled !== "boolean") {
     throw new Error(`Agent preset ${id} budgetsEnabled must be a boolean when provided.`);
   }
+  if (record.spawnEffort !== undefined && (!isWholeNumber(record.spawnEffort)
+    || record.spawnEffort < AGENT_SWARM_SPAWN_EFFORT_MIN || record.spawnEffort > AGENT_SWARM_SPAWN_EFFORT_MAX)) {
+    throw new Error(`Agent preset ${id} spawnEffort must be a whole number from ${AGENT_SWARM_SPAWN_EFFORT_MIN} to ${AGENT_SWARM_SPAWN_EFFORT_MAX}.`);
+  }
   const routerId = typeof record.routerId === "string" ? record.routerId.trim() || null : record.routerId;
   return {
     ...(routerId !== undefined ? { routerId } : {}),
     ...(typeof record.budgetsEnabled === "boolean" ? { budgetsEnabled: record.budgetsEnabled } : {}),
+    ...(record.spawnEffort !== undefined ? { spawnEffort: normalizeAgentSwarmSpawnEffort(record.spawnEffort) } : {}),
     ...(typeof record.tokenBudget === "number" ? { tokenBudget: record.tokenBudget } : {}),
     ...(typeof record.timeBudgetMinutes === "number" ? { timeBudgetMinutes: record.timeBudgetMinutes } : {}),
     ...(record.advanced !== undefined ? { advanced: parseSwarmAdvanced(id, record.advanced) } : {})

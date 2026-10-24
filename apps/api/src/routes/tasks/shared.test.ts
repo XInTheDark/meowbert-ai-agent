@@ -54,9 +54,9 @@ describe("taskParametersPatchBody", () => {
 
   it("accepts workflow patch with agent_swarm type and rejects the old roster fields", () => {
     const swarmParsed = taskParametersPatchBody.parse({
-      workflow: { type: "agent_swarm", routerId: "router-1", advanced: { maxDepth: 1, laneMaxSteps: null } }
+      workflow: { type: "agent_swarm", routerId: "router-1", spawnEffort: 5, advanced: { maxDepth: 1, laneMaxSteps: null } }
     });
-    expect(swarmParsed.workflow).toMatchObject({ type: "agent_swarm", routerId: "router-1", advanced: { maxDepth: 1 } });
+    expect(swarmParsed.workflow).toMatchObject({ type: "agent_swarm", routerId: "router-1", spawnEffort: 5, advanced: { maxDepth: 1 } });
     expect(() => taskParametersPatchBody.parse({ workflow: { type: "agent_swarm", workerCount: 4 } })).toThrow();
   });
 });

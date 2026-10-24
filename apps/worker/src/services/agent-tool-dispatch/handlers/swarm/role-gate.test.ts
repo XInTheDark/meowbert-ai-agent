@@ -41,6 +41,14 @@ describe("swarm tool roles", () => {
     expect(checkSwarmToolRole("submit", context({ kind: "check" }))).toBeNull();
   });
 
+  it("lets high effort use the next depth when the baseline allows it", () => {
+    const swarm = context({ depth: 2 });
+    swarm.settings.spawnEffort = 5;
+    expect(checkSwarmToolRole("split", swarm)).toBeNull();
+    swarm.lane = { ...swarm.lane!, depth: 3 };
+    expect(checkSwarmToolRole("split", swarm)).toMatch(/Maximum depth/);
+  });
+
   it("lets the leader and split lanes diverge, but never a diverge answer or anything inside one", () => {
     expect(checkSwarmToolRole("diverge", context(null))).toBeNull();
     expect(checkSwarmToolRole("diverge", context({ depth: 1 }))).toBeNull();

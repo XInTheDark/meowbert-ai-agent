@@ -56,6 +56,7 @@ An Agent Swarm preset names a single-agent preset as its leader; the leader's la
   "mode": "agent_swarm",
   "leaderAgentId": "default",
   "routerId": null,
+  "spawnEffort": 3,
   "budgetsEnabled": false,
   "advanced": { "maxLanesPerParent": 8, "maxDepth": 2, "maxRunningLanes": 32 }
 }
@@ -65,6 +66,7 @@ An Agent Swarm preset names a single-agent preset as its leader; the leader's la
 | --- | --- | --- | --- |
 | `leaderAgentId` | required | a standard preset | The leader. Lanes run on its model unless a router pick says otherwise. Use a strong model. |
 | `routerId` | `null` | a model router ID | Lets the leader pick each lane's model from the router's targets. Without one, every lane uses the leader's model. |
+| `spawnEffort` | 3 (Balanced) | 1 to 5 | Convenience profile for delegation. 1 is Minimal and waits longer with smaller, shallower splits; 5 is Maximum and nudges earlier with wider, deeper splits. The profile scales the spawn-related Advanced values; it does not change budgets or `maxRunningLanes`. |
 | `budgetsEnabled` | `false` | | Turns the shared token and time budget on. |
 | `tokenBudget` | 10,000,000 when budgets are on | 1 to 100,000,000 | Weighted tokens shared by the leader and all lanes. |
 | `timeBudgetMinutes` | none | 1 to 10,080 | When it runs out, lanes report what they have and the leader delivers. |
@@ -81,7 +83,7 @@ An Agent Swarm preset names a single-agent preset as its leader; the leader's la
 | `advanced.budgetReservePercent` | 15 | 5 to 50 | Part of the budget held back for putting the answer together and checking it. |
 | `advanced.laneWrapUpPercent` | 80 | 50 to 95 | Share of its budget at which a lane is told to wrap up. |
 
-Missing `advanced` fields use the defaults. A router pick that changes a lane's model gives up prompt caching for that lane, so routers are best used for the occasional independent reviewer or second opinion.
+Missing `advanced` fields use the defaults. The Advanced spawn values are the baseline for the Effort profile: the profile scales fan-out, depth and the recon nudge while leaving `maxRunningLanes` and budgets unchanged. A router pick that changes a lane's model gives up prompt caching for that lane, so routers are best used for the occasional independent reviewer or second opinion.
 
 **Admin Panel → Model → Agent Swarm outcomes** shows, for each leader model, how many lanes its swarms start per turn, the mix of split, diverge and check lanes, how many lanes are stopped or fail, and how many problems Check finds. Use it to see whether a leader model splits work well.
 

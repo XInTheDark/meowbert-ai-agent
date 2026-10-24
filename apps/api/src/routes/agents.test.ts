@@ -146,6 +146,7 @@ describe("agentRoutes", () => {
         leaderAgentId: "luna-xhigh",
         routerId: null,
         routerOptions: ["router-v1"],
+        spawnEffort: 3,
         budgetsEnabled: false,
         tokenBudget: 20_000_000,
         timeBudgetMinutes: null,

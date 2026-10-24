@@ -1,6 +1,7 @@
 import { normalizeAgentPresetPayload } from "./responses-settings.js";
 import {
   normalizeAgentSwarmAdvancedSettings,
+  normalizeAgentSwarmSpawnEffort,
   normalizeAgentSwarmTimeBudgetMinutes,
   normalizeAgentSwarmTokenBudget,
   type AgentSwarmAdvancedSettings
@@ -26,6 +27,7 @@ export interface PlatformAgentPreset {
   // (see agent-swarm-config.ts and the preset contract in AGENTS.md).
   leaderAgentId?: string;
   routerId?: string | null;
+  spawnEffort?: number;
   budgetsEnabled?: boolean;
   tokenBudget?: number;
   timeBudgetMinutes?: number;
@@ -114,6 +116,7 @@ function clonePreset(preset: PlatformAgentPreset): PlatformAgentPreset {
     ...(preset.mode ? { mode: preset.mode } : {}),
     ...(preset.leaderAgentId ? { leaderAgentId: preset.leaderAgentId } : {}),
     ...(preset.routerId !== undefined ? { routerId: preset.routerId } : {}),
+    ...(typeof preset.spawnEffort === "number" ? { spawnEffort: preset.spawnEffort } : {}),
     ...(typeof preset.budgetsEnabled === "boolean" ? { budgetsEnabled: preset.budgetsEnabled } : {}),
     ...(typeof preset.tokenBudget === "number" ? { tokenBudget: preset.tokenBudget } : {}),
     ...(typeof preset.timeBudgetMinutes === "number" ? { timeBudgetMinutes: preset.timeBudgetMinutes } : {}),
@@ -125,12 +128,13 @@ function clonePreset(preset: PlatformAgentPreset): PlatformAgentPreset {
 // composer can show them when the user switches budgets on.
 function swarmPresetFields(raw: Record<string, unknown>): Pick<
   PlatformAgentPreset,
-  "routerId" | "budgetsEnabled" | "tokenBudget" | "timeBudgetMinutes" | "advanced"
+  "routerId" | "spawnEffort" | "budgetsEnabled" | "tokenBudget" | "timeBudgetMinutes" | "advanced"
 > {
   const tokenBudget = normalizeAgentSwarmTokenBudget(raw.tokenBudget);
   const timeBudgetMinutes = normalizeAgentSwarmTimeBudgetMinutes(raw.timeBudgetMinutes);
   return {
     routerId: normalizeId(raw.routerId),
+    spawnEffort: normalizeAgentSwarmSpawnEffort(raw.spawnEffort),
     budgetsEnabled: raw.budgetsEnabled === true,
     ...(tokenBudget !== null ? { tokenBudget } : {}),
     ...(timeBudgetMinutes !== null ? { timeBudgetMinutes } : {}),

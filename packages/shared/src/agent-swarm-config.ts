@@ -10,6 +10,9 @@ export const AGENT_SWARM_MINIMUM_STEP_TOKENS = 8_192;
 export const AGENT_SWARM_MINIMUM_LANE_STEPS = 4;
 // Lane levels below the leader can never exceed this, whatever a preset says.
 export const AGENT_SWARM_MAX_DEPTH = 3;
+export const AGENT_SWARM_SPAWN_EFFORT_MIN = 1;
+export const AGENT_SWARM_SPAWN_EFFORT_MAX = 5;
+export const DEFAULT_AGENT_SWARM_SPAWN_EFFORT = 3;
 
 export interface AgentSwarmAdvancedSettings {
   maxLanesPerParent: number;
@@ -30,10 +33,17 @@ export interface AgentSwarmSettings {
   // The leader's agent preset; null runs the leader on the task's selected agent.
   leaderAgentId: string | null;
   routerId: string | null;
+  spawnEffort: number;
   budgetsEnabled: boolean;
   tokenBudget: number | null;
   timeBudgetMinutes: number | null;
   advanced: AgentSwarmAdvancedSettings;
+}
+
+export interface AgentSwarmSpawnLimits {
+  maxLanesPerParent: number;
+  maxDepth: number;
+  reconNudgeSteps: number;
 }
 
 type IntegerAdvancedField = Exclude<keyof AgentSwarmAdvancedSettings, "laneMaxSteps" | "autoCheck">;
@@ -90,6 +100,38 @@ function normalizePositiveBudget(value: unknown, max: number): number | null {
   return Math.min(max, Math.max(1, Math.floor(value)));
 }
 
+export function normalizeAgentSwarmSpawnEffort(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_AGENT_SWARM_SPAWN_EFFORT;
+  }
+  return Math.min(AGENT_SWARM_SPAWN_EFFORT_MAX, Math.max(AGENT_SWARM_SPAWN_EFFORT_MIN, Math.floor(value)));
+}
+
+// Effort scales only delegation behavior. The balanced profile is exactly the existing behavior;
+// budgets, lane steps and the provider concurrency cap stay independent safety controls.
+const SPAWN_EFFORT_MULTIPLIERS: Record<number, { fanOut: number; depth: number; nudge: number }> = {
+  1: { fanOut: 0.5, depth: 0.5, nudge: 2 },
+  2: { fanOut: 0.75, depth: 0.5, nudge: 1.5 },
+  3: { fanOut: 1, depth: 1, nudge: 1 },
+  4: { fanOut: 1.25, depth: 1.25, nudge: 0.75 },
+  5: { fanOut: 1.5, depth: 1.5, nudge: 0.5 }
+};
+
+function scaleInteger(value: number, multiplier: number, range: { min: number; max: number }): number {
+  return Math.min(range.max, Math.max(range.min, Math.round(value * multiplier)));
+}
+
+export function resolveAgentSwarmSpawnLimits(settings: Pick<AgentSwarmSettings, "spawnEffort" | "advanced">): AgentSwarmSpawnLimits {
+  const multipliers = SPAWN_EFFORT_MULTIPLIERS[normalizeAgentSwarmSpawnEffort(settings.spawnEffort)];
+  return {
+    maxLanesPerParent: scaleInteger(settings.advanced.maxLanesPerParent, multipliers.fanOut, AGENT_SWARM_ADVANCED_RANGES.maxLanesPerParent),
+    maxDepth: scaleInteger(settings.advanced.maxDepth, multipliers.depth, AGENT_SWARM_ADVANCED_RANGES.maxDepth),
+    reconNudgeSteps: settings.advanced.reconNudgeSteps === 0
+      ? 0
+      : scaleInteger(settings.advanced.reconNudgeSteps, multipliers.nudge, AGENT_SWARM_ADVANCED_RANGES.reconNudgeSteps)
+  };
+}
+
 function normalizeId(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -134,6 +176,7 @@ export function normalizeAgentSwarmSettings(raw: unknown): AgentSwarmSettings {
   return {
     leaderAgentId: normalizeId(source.leaderAgentId),
     routerId: normalizeId(source.routerId),
+    spawnEffort: normalizeAgentSwarmSpawnEffort(source.spawnEffort),
     budgetsEnabled,
     tokenBudget: budgetsEnabled
       ? normalizeAgentSwarmTokenBudget(source.tokenBudget) ?? AGENT_SWARM_DEFAULT_TOKEN_BUDGET

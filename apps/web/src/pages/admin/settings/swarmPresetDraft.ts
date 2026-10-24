@@ -1,6 +1,8 @@
 import {
   AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
   AGENT_SWARM_MAX_TOKEN_BUDGET,
+  DEFAULT_AGENT_SWARM_SPAWN_EFFORT,
+  normalizeAgentSwarmSpawnEffort,
   normalizeAgentSwarmAdvancedSettings
 } from "@meowbert/shared/agent-swarm-config";
 import {
@@ -18,6 +20,7 @@ export interface SwarmPresetForm {
   description: string;
   leaderAgentId: string;
   routerId: string;
+  spawnEffort: number;
   budgetsEnabled: boolean;
   tokenBudget: string;
   timeBudgetMinutes: string;
@@ -40,7 +43,7 @@ const numberText = (value: unknown): string => (typeof value === "number" ? Stri
 
 export function buildEmptySwarmPresetForm(): SwarmPresetForm {
   return {
-    id: "", name: "", description: "", leaderAgentId: "", routerId: "", budgetsEnabled: false,
+    id: "", name: "", description: "", leaderAgentId: "", routerId: "", spawnEffort: DEFAULT_AGENT_SWARM_SPAWN_EFFORT, budgetsEnabled: false,
     tokenBudget: "", timeBudgetMinutes: "", advanced: formatAgentSwarmAdvancedDraft()
   };
 }
@@ -54,6 +57,7 @@ export function listSwarmPresetForms(presetsJson: string): SwarmPresetForm[] {
       description: text(record.description),
       leaderAgentId: text(record.leaderAgentId),
       routerId: text(record.routerId),
+      spawnEffort: normalizeAgentSwarmSpawnEffort(record.spawnEffort),
       budgetsEnabled: record.budgetsEnabled === true,
       tokenBudget: numberText(record.tokenBudget),
       timeBudgetMinutes: numberText(record.timeBudgetMinutes),
@@ -99,6 +103,7 @@ function buildPresetRecord(form: SwarmPresetForm, existing: PresetRecord | undef
     mode: "agent_swarm",
     leaderAgentId: form.leaderAgentId,
     routerId: form.routerId || null,
+    spawnEffort: normalizeAgentSwarmSpawnEffort(form.spawnEffort),
     budgetsEnabled: form.budgetsEnabled,
     ...(tokenBudget !== null ? { tokenBudget } : {}),
     ...(timeBudgetMinutes !== null ? { timeBudgetMinutes } : {}),

@@ -302,6 +302,7 @@ describe("normalizeTaskInputDraft", () => {
       workflow: {
         type: "agent_swarm",
         routerId: " auto ",
+        spawnEffort: 5,
         budgetsEnabled: true,
         advanced: { maxLanesPerParent: 40, autoCheck: false }
       }
@@ -310,6 +311,7 @@ describe("normalizeTaskInputDraft", () => {
     expect(normalized.workflow).toMatchObject({
       type: "agent_swarm",
       routerId: "auto",
+      spawnEffort: 5,
       budgetsEnabled: true,
       advanced: { maxLanesPerParent: 16, maxDepth: 2, autoCheck: false }
     });

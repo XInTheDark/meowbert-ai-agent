@@ -543,6 +543,7 @@ export interface TaskWorkflowComposerConfig {
   enableReviewPhase?: boolean;
   // Agent Swarm settings, prefilled from the selected swarm preset.
   routerId?: string | null;
+  spawnEffort?: number;
   budgetsEnabled?: boolean;
   advanced?: AgentSwarmAdvancedSettings;
 }

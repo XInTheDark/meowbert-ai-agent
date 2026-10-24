@@ -1,3 +1,4 @@
+import { normalizeAgentSwarmSpawnEffort } from "@meowbert/shared/agent-swarm-config";
 import type { AgentSummary } from "../components/tasks/AgentDropdown";
 import type { TaskWorkflowComposerConfig } from "../lib/types";
 import { buildDefaultTaskWorkflowComposerConfig } from "./taskInputDrafts";
@@ -8,6 +9,7 @@ export function buildSwarmPresetWorkflow(swarm: NonNullable<AgentSummary["swarm"
   return {
     type: "agent_swarm",
     routerId: swarm.routerId,
+    spawnEffort: normalizeAgentSwarmSpawnEffort(swarm.spawnEffort),
     budgetsEnabled: swarm.budgetsEnabled,
     tokenBudget: swarm.tokenBudget,
     timeBudgetMinutes: swarm.timeBudgetMinutes,

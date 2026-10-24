@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
   DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS,
+  DEFAULT_AGENT_SWARM_SPAWN_EFFORT,
   isPlatformAgentPresetPickerVisible,
   resolveDefaultPlatformAgentId,
   resolvePlatformAgentPresetMode,
@@ -19,6 +20,7 @@ function buildSwarmAgentSummary(preset: PlatformAgentPreset, routerOptions: stri
   return {
     leaderAgentId: preset.leaderAgentId ?? null,
     routerId: preset.routerId ?? null,
+    spawnEffort: preset.spawnEffort ?? DEFAULT_AGENT_SWARM_SPAWN_EFFORT,
     routerOptions,
     budgetsEnabled: preset.budgetsEnabled === true,
     tokenBudget: preset.tokenBudget ?? null,

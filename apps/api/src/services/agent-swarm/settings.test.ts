@@ -20,13 +20,14 @@ const preset: PlatformAgentPreset = {
 describe("resolveAgentSwarmSettings", () => {
   it("uses the preset where the request is silent and the request where it speaks", () => {
     const settings = resolveAgentSwarmSettings(
-      { routerId: null, timeBudgetMinutes: null, advanced: { maxRunningLanes: 4, laneMaxSteps: null } },
+      { routerId: null, spawnEffort: 5, timeBudgetMinutes: null, advanced: { maxRunningLanes: 4, laneMaxSteps: null } },
       preset
     );
 
     expect(settings).toEqual({
       leaderAgentId: "luna",
       routerId: null,
+      spawnEffort: 5,
       budgetsEnabled: true,
       tokenBudget: 20_000_000,
       timeBudgetMinutes: null,

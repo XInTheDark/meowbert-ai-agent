@@ -147,6 +147,7 @@ For tightly connected, step-by-step work, a standard task is usually better.
 Pick an Agent Swarm in the model list, or choose **Agent Swarm** in the Task Parameters menu. The swarm's settings start from its preset, and you can change them for this task:
 
 - **Lane model router**, when your server has model routers: the leader can run some lanes on other models, for example a reviewer on a different model. Without one, every lane uses the leader's model.
+- **Effort** is the quick delegation control. Balanced keeps the normal behavior; lower values make the leader wait longer before splitting, while higher values encourage earlier and wider delegation. The setting scales the spawn-related Advanced limits without changing budgets or the provider concurrency cap.
 - **Budgets** are off by default. Turn them on to give the leader and all lanes one shared token budget and an optional time budget. A part is held back for putting the answer together and checking it. Each lane gets a share; near the end of its share it is told to wrap up, and at the end it reports what it has. Every lane always reports something.
 - **Advanced...** holds the limits: how many lanes a parent can start, how deep lanes can split, how many run at once, steps per lane, automatic Check, how many turns lanes stay dormant, and a few more.
 

@@ -12,6 +12,7 @@ const swarmAgent: AgentSummary = {
   swarm: {
     leaderAgentId: "luna",
     routerId: "auto",
+    spawnEffort: 5,
     budgetsEnabled: true,
     tokenBudget: 20_000_000,
     timeBudgetMinutes: 60,
@@ -31,6 +32,7 @@ describe("resolveWorkflowForAgentChange", () => {
     expect(workflow).toMatchObject({
       type: "agent_swarm",
       routerId: "auto",
+      spawnEffort: 5,
       budgetsEnabled: true,
       tokenBudget: 20_000_000,
       timeBudgetMinutes: 60,

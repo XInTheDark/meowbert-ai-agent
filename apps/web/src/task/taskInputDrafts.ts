@@ -1,5 +1,6 @@
 import {
   normalizeAgentSwarmAdvancedSettings,
+  normalizeAgentSwarmSpawnEffort,
   normalizeAgentSwarmTimeBudgetMinutes,
   normalizeAgentSwarmTokenBudget
 } from "@meowbert/shared/agent-swarm-config";
@@ -248,6 +249,7 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
         enableClarifyPhase?: unknown;
         enableReviewPhase?: unknown;
         routerId?: unknown;
+        spawnEffort?: unknown;
         budgetsEnabled?: unknown;
         advanced?: unknown;
       };
@@ -268,6 +270,7 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
         ...(workflowType === "agent_swarm"
           ? {
               routerId: typeof workflow.routerId === "string" && workflow.routerId.trim() ? workflow.routerId.trim() : null,
+              spawnEffort: normalizeAgentSwarmSpawnEffort(workflow.spawnEffort),
               budgetsEnabled: workflow.budgetsEnabled === true,
               advanced: normalizeAgentSwarmAdvancedSettings(workflow.advanced)
             }

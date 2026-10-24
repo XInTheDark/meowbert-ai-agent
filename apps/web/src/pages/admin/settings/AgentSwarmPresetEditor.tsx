@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AgentSwarmAdvancedFields } from "../../../components/tasks/AgentSwarmAdvancedFields";
+import { AgentSwarmEffortSlider } from "../../../components/tasks/AgentSwarmEffortSlider";
 import {
   applySwarmPresetForm,
   buildEmptySwarmPresetForm,
@@ -74,6 +75,7 @@ export function AgentSwarmPresetEditor(props: AgentSwarmPresetEditorProps) {
           </select>
         </label>
       ) : null}
+      <AgentSwarmEffortSlider value={form.spawnEffort} onChange={(value) => set("spawnEffort", value)} />
       <label className="task-parameters-toggle">
         <input type="checkbox" checked={form.budgetsEnabled} onChange={(event) => set("budgetsEnabled", event.target.checked)} />
         <span><strong>Budgets</strong><small>Share one token and time budget across the leader and its lanes.</small></span>

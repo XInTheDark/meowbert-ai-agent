@@ -241,7 +241,7 @@ describe("TaskParametersDropdown", () => {
   it("offers the platform's routers and applies an advanced lane limit for an Agent Swarm", async () => {
     const onWorkflowChange = vi.fn();
     const swarm = {
-      leaderAgentId: "luna", routerId: null, routerOptions: ["router-v1"], budgetsEnabled: false,
+      leaderAgentId: "luna", routerId: null, routerOptions: ["router-v1"], spawnEffort: 3, budgetsEnabled: false,
       tokenBudget: null, timeBudgetMinutes: null, advanced: DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS
     };
     await act(async () => {
@@ -269,6 +269,14 @@ describe("TaskParametersDropdown", () => {
       routerSelect.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(onWorkflowChange).toHaveBeenLastCalledWith(expect.objectContaining({ routerId: "router-v1" }));
+
+    const effortInput = container.querySelector('input[type="range"]') as HTMLInputElement;
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setValue.call(effortInput, "5");
+      effortInput.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onWorkflowChange).toHaveBeenLastCalledWith(expect.objectContaining({ spawnEffort: 5 }));
 
     const fields = Array.from(container.querySelectorAll(".task-parameters-field"));
     const depthInput = fields.find((field) => field.textContent?.includes("Lane depth"))?.querySelector("input") as HTMLInputElement;

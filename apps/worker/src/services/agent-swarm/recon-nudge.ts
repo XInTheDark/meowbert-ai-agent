@@ -1,4 +1,5 @@
 import { appendPromptEnvelopeDelta } from "../agent/prompt-envelope.js";
+import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
 import type { AgentExecutionContext } from "../agent/execution-types.js";
 import { RECON_NUDGE_NOTE } from "./prompt.js";
 import { isUserTurnRun } from "./turn-notes.js";
@@ -19,13 +20,14 @@ export function shouldNudgeRecon(input: {
 
 export async function maybeAppendReconNudge(execution: AgentExecutionContext, hasActiveLanes: () => Promise<boolean>): Promise<void> {
   const swarm = execution.swarm;
-  if (!swarm || swarm.lane || execution.state.stepCount !== swarm.settings.advanced.reconNudgeSteps) return;
+  const reconNudgeSteps = swarm ? resolveAgentSwarmSpawnLimits(swarm.settings).reconNudgeSteps : 0;
+  if (!swarm || swarm.lane || execution.state.stepCount !== reconNudgeSteps) return;
   if (!shouldNudgeRecon({
     isLeader: true,
     isUserTurn: isUserTurnRun(execution),
     hasActiveLanes: await hasActiveLanes(),
     stepCount: execution.state.stepCount,
-    reconNudgeSteps: swarm.settings.advanced.reconNudgeSteps
+    reconNudgeSteps
   })) return;
   appendPromptEnvelopeDelta(execution.promptEnvelope, { reason: "swarm-recon-nudge", content: RECON_NUDGE_NOTE });
 }

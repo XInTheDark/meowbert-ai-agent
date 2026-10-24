@@ -1,4 +1,5 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
+import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
 import { splitArgumentsSchema } from "../../../agent-tools/swarm.js";
 import type { NewLane } from "../../../agent-swarm/lane-creation.js";
 import { buildLaneModelRoute } from "../../../agent-swarm/model-route.js";
@@ -12,7 +13,7 @@ export async function handleSplit(call: ResponseFunctionToolCall, ctx: ToolDispa
   return runSwarmToolCall(call, ctx, splitArgumentsSchema, async (args) => {
     const positionError = checkForkCallPosition(call, ctx, state);
     if (positionError) return toolErrorResult(positionError);
-    const maxLanes = ctx.swarm!.run.settings.advanced.maxLanesPerParent;
+    const maxLanes = resolveAgentSwarmSpawnLimits(ctx.swarm!.run.settings).maxLanesPerParent;
     if (args.lanes.length > maxLanes) return toolErrorResult(`Split into at most ${maxLanes} lanes.`);
 
     const lanes: NewLane[] = args.lanes.map((lane, index) => ({

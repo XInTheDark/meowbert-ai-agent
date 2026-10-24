@@ -24,7 +24,7 @@ export interface TaskFollowUpResponse {
 function buildWorkflowPayload(workflow: TaskWorkflowComposerConfig, previous?: TaskWorkflowOverview | null): Record<string, unknown> {
   if (workflow.type === "agent_swarm" && previous?.type === "agent_swarm") {
     const changes = Object.fromEntries(
-      Object.entries(workflow).filter(([key, value]) => ["routerId", "budgetsEnabled", "tokenBudget", "timeBudgetMinutes"].includes(key)
+      Object.entries(workflow).filter(([key, value]) => ["routerId", "spawnEffort", "budgetsEnabled", "tokenBudget", "timeBudgetMinutes"].includes(key)
         && value !== undefined && value !== previous.config[key])
     );
     const advanced = Object.fromEntries(Object.entries(workflow.advanced ?? {}).filter(([key, value]) =>
@@ -35,6 +35,7 @@ function buildWorkflowPayload(workflow: TaskWorkflowComposerConfig, previous?: T
     type: workflow.type,
     ...(workflow.type === "agent_swarm" ? {
       ...(workflow.routerId !== undefined ? { routerId: workflow.routerId } : {}),
+      ...(workflow.spawnEffort !== undefined ? { spawnEffort: workflow.spawnEffort } : {}),
       budgetsEnabled: workflow.budgetsEnabled === true,
       tokenBudget: workflow.tokenBudget,
       timeBudgetMinutes: workflow.timeBudgetMinutes,

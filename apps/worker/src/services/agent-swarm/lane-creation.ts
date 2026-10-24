@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { PoolClient } from "pg";
-import { createTaskMessageMetadata, type ChosenModelRoute } from "@meowbert/shared";
+import { createTaskMessageMetadata, resolveAgentSwarmSpawnLimits, type ChosenModelRoute } from "@meowbert/shared";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { withTransaction } from "../../lib/db.js";
 import type { SwarmRunContext } from "./config.js";
@@ -42,7 +42,7 @@ async function prepareLaneCreationInTx(client: PoolClient, swarm: SwarmRunContex
   );
   if (parent.rows[0]?.cancellation_requested) throw new Error("TASK_CANCELLED");
   const active = await countActiveChildrenInTx(client, parentTaskId);
-  const maxLanes = swarm.settings.advanced.maxLanesPerParent;
+  const maxLanes = resolveAgentSwarmSpawnLimits(swarm.settings).maxLanesPerParent;
   if (active + count > maxLanes) {
     throw new SwarmToolError(`A parent can run at most ${maxLanes} lanes at once; ${active} are still active.`);
   }

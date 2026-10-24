@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
   AGENT_SWARM_MAX_TOKEN_BUDGET,
+  AGENT_SWARM_SPAWN_EFFORT_MAX,
+  AGENT_SWARM_SPAWN_EFFORT_MIN,
   isSkillEnabledByConfig,
   type TaskSource
 } from "@meowbert/shared";
@@ -176,6 +178,7 @@ const agentSwarmAdvancedSchema = z.object({
 
 const workflowFields = {
   routerId: z.string().min(1).max(240).nullable().optional(),
+  spawnEffort: z.number().int().min(AGENT_SWARM_SPAWN_EFFORT_MIN).max(AGENT_SWARM_SPAWN_EFFORT_MAX).optional(),
   budgetsEnabled: z.boolean().optional(),
   tokenBudget: z.number().int().positive().max(AGENT_SWARM_MAX_TOKEN_BUDGET).nullable().optional(),
   timeBudgetMinutes: z.number().int().positive().max(AGENT_SWARM_MAX_TIME_BUDGET_MINUTES).nullable().optional(),

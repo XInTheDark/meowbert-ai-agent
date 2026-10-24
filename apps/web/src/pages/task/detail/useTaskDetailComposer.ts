@@ -60,6 +60,7 @@ export function buildWorkflowComposerConfigFromTaskDetail(
     return {
       type: "agent_swarm",
       routerId: settings.routerId,
+      spawnEffort: settings.spawnEffort,
       budgetsEnabled: settings.budgetsEnabled,
       tokenBudget: settings.tokenBudget,
       timeBudgetMinutes: settings.timeBudgetMinutes,

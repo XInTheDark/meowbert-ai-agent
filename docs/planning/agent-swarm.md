@@ -279,6 +279,7 @@ An `agent_swarm` preset in the admin model settings:
   "mode": "agent_swarm",
   "leaderAgentId": "gpt-5-5",
   "routerId": null,
+  "spawnEffort": 3,
   "budgetsEnabled": false,
   "tokenBudget": null,
   "timeBudgetMinutes": null,
@@ -303,6 +304,7 @@ An `agent_swarm` preset in the admin model settings:
 |---|---|---|---|
 | `leaderAgentId` | required | a standard (non-swarm) preset | The leader's agent preset. Lanes inherit its model unless a router pick says otherwise. |
 | `routerId` | `null` | an existing model router or null | When set, the leader picks lane models from this router's targets. When null, every lane uses the root model. |
+| `spawnEffort` | 3 (Balanced) | 1 to 5 | Convenience delegation profile. It scales fan-out, depth and the recon nudge; 3 preserves the normal defaults. It does not change budgets or the running-lane cap. |
 | `budgetsEnabled` | `false` | boolean | Turns token/time budgets on. |
 | `tokenBudget` | `null` | 1 to 100,000,000 weighted tokens | Used only when budgets are on. When on and null, defaults to 10,000,000. |
 | `timeBudgetMinutes` | `null` | 1 to 10,080 | Used only when budgets are on. Null means no time budget. |
@@ -326,6 +328,7 @@ Removed from swarm presets: `modelAllocations`, `reviewRounds`, `disableSpawning
 When the selected agent is a swarm preset, the Task Parameters menu shows:
 
 - Router (only if the platform has routers), prefilled from the preset.
+- Effort, a 1-to-5 delegation profile with Balanced preserving the normal behavior.
 - A Budgets switch, prefilled from the preset (off by default), with token and time fields when on.
 - An **Advanced...** section, collapsed, containing every `advanced` field above, prefilled from the preset.
 
