@@ -60,7 +60,7 @@ export const DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS: AgentSwarmAdvancedSettings =
   maxRunningLanes: 32,
   laneMaxSteps: null,
   reconNudgeSteps: 12,
-  forkCompactionThresholdTokens: 60_000,
+  forkCompactionThresholdTokens: 200_000,
   laneSummaryMaxTokens: 1_500,
   assemblyHintTokens: 15_000,
   dormantLaneTurns: 3,

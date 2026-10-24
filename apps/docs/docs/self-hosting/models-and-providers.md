@@ -73,7 +73,7 @@ An Agent Swarm preset names a single-agent preset as its leader; the leader's la
 | `advanced.maxRunningLanes` | 32 | 1 to 128 | Lanes running at once across the swarm; the rest wait their turn. Keep it within your provider's rate limits. |
 | `advanced.laneMaxSteps` | task setting | 1 to 500 or `null` | Steps per lane run. |
 | `advanced.reconNudgeSteps` | 12 | 0 to 100 | Solo leader steps before it is reminded once that it can split; 0 turns this off. |
-| `advanced.forkCompactionThresholdTokens` | 60,000 | 10,000 to 400,000 | Above this context size, lanes start from one shared compacted copy of the leader's conversation. |
+| `advanced.forkCompactionThresholdTokens` | 200,000 | 10,000 to 400,000 | Above this context size, lanes start from one shared compacted copy of the leader's conversation. |
 | `advanced.laneSummaryMaxTokens` | 1,500 | 256 to 8,000 | Cap on the summary a lane reports. |
 | `advanced.assemblyHintTokens` | 15,000 | 1,000 to 200,000 | When the parts lanes wrote are larger, the leader is told to join them in a separate lane. |
 | `advanced.dormantLaneTurns` | 3 | 0 to 20 | User messages a finished lane stays resumable; 0 turns this off. |
