@@ -28,9 +28,11 @@ vi.mock("../task-workflows/service.js", () => ({
 import { appendMessage, recordRunCompletion, setTaskStatusForRun } from "../agent-db/index.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { enqueueWorkflowTaskRun, markWorkflowCompleted } from "../task-workflows/service.js";
-import { finalizeAgentRun } from "./finalize.js";
+import { finalizeAgentRun } from "@meowbert/run-executor/agent/finalize";
 import { completeTaskRun } from "../tasks/complete-task-run.js";
 import { applyInfiniteWait, pauseTimedScheduleAfterCompletion } from "../task-schedules/service.js";
+import { createTestRunControl } from "../run-host/test-run-environment.test-fixtures.js";
+import { cloudRunFeatures } from "../run-host/cloud-run-features.js";
 
 function createExecution() {
   const cancellationMonitor = {
@@ -39,28 +41,34 @@ function createExecution() {
     stop: vi.fn()
   };
 
+  const job = {
+    taskId: "task-1",
+    runId: "run-1",
+    mode: "long_horizon_main",
+    triggerSource: "web",
+    selectionUserId: null
+  };
+  const snapshot = {
+    task: {
+      workspace_id: "workspace-1",
+      environment_id: "environment-1",
+      connector_context_id: null,
+      parent_task_id: null
+    }
+  };
+
   return {
-    job: {
-      taskId: "task-1",
-      runId: "run-1",
-      mode: "long_horizon_main",
-      triggerSource: "web",
-      selectionUserId: null
-    },
+    job,
     prepared: {
+      features: cloudRunFeatures,
+      control: createTestRunControl({ job: job as never, snapshot: snapshot as never }),
       isSubtask: false,
       taskDir: "/tmp/task-1",
       cancellationMonitor,
       runtimeAgentId: "default",
       runtimeCompatibilityModes: [],
       runPersistedItems: [],
-      snapshot: {
-        task: {
-          workspace_id: "workspace-1",
-          environment_id: "environment-1",
-          connector_context_id: null
-        }
-      }
+      snapshot
     },
     debugLogger: {
       log: vi.fn(async () => {}),
@@ -73,7 +81,7 @@ function createExecution() {
         phase: "working"
       }
     },
-    runControl: {
+    runTiming: {
       isTimedInfiniteRun: false,
       reachedMaxRunSteps: false,
       timedRunFinalizing: false,
@@ -112,9 +120,9 @@ describe("finalizeAgentRun", () => {
     execution.workflow.workflowContext = null;
     execution.state.workflowPauseRequest = null;
     execution.state.finalResponseFromTool = { response: "Timed run finished.", notify: true };
-    execution.runControl.isTimedInfiniteRun = true;
-    execution.runControl.runTimedOut = true;
-    execution.runControl.timedRunFinalizing = true;
+    execution.runTiming.isTimedInfiniteRun = true;
+    execution.runTiming.runTimedOut = true;
+    execution.runTiming.timedRunFinalizing = true;
     execution.assertRunNotAborted.mockRejectedValue(new Error("RUN_TIME_LIMIT_REACHED"));
 
     await finalizeAgentRun(execution);
@@ -191,7 +199,7 @@ describe("finalizeAgentRun", () => {
     execution.job.mode = "default";
     execution.workflow.workflowContext = null;
     execution.state.waitRequest = null;
-    execution.runControl.reachedMaxRunSteps = true;
+    execution.runTiming.reachedMaxRunSteps = true;
 
     await finalizeAgentRun(execution as never);
 
@@ -218,7 +226,7 @@ describe("finalizeAgentRun", () => {
     execution.job.mode = "default";
     execution.workflow.workflowContext = null;
     execution.state.waitRequest = null;
-    execution.runControl.reachedMaxRunSteps = false;
+    execution.runTiming.reachedMaxRunSteps = false;
 
     await finalizeAgentRun(execution as never);
 

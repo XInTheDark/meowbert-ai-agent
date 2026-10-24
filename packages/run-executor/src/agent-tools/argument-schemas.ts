@@ -1,0 +1,366 @@
+import { z } from "zod";
+import {
+  TASK_HISTORY_SCOPE_VALUES as taskHistoryScopeValues,
+  TASK_HISTORY_SORT_BY_VALUES as taskHistorySortByValues,
+  TASK_HISTORY_SORT_DIR_VALUES as taskHistorySortDirValues,
+  TASK_HISTORY_STATUS_VALUES as taskHistoryStatusValues,
+  TASK_HISTORY_TASK_TYPE_VALUES as taskHistoryTaskTypeValues,
+  taskHistoryScopeSchema,
+  taskHistorySortBySchema,
+  taskHistorySortDirSchema,
+  taskHistoryStatusSchema,
+  taskHistoryTaskTypeSchema
+} from "@meowbert/shared/task-history-search";
+import {
+  LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES,
+  LIVE_SYNC_FOLDER_SEARCH_MATCHES,
+  LIVE_SYNC_FOLDER_SEARCH_MAX_DEPTH,
+  LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
+  LIVE_SYNC_FOLDER_SEARCH_ORDERS
+} from "@meowbert/shared/live-sync-folder-search";
+import {
+  RUN_SHELL_MAX_TIMEOUT_SECONDS,
+  RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS,
+  RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS,
+  RUN_SHELL_MIN_TIMEOUT_SECONDS,
+  VIEW_PDF_MAX_PAGE_WINDOW
+} from "./shared.js";
+
+function normalizeRunShellTimeoutMaxSeconds(maxTimeoutSeconds: number): number {
+  if (!Number.isFinite(maxTimeoutSeconds)) {
+    return RUN_SHELL_MAX_TIMEOUT_SECONDS;
+  }
+
+  const floored = Math.floor(maxTimeoutSeconds);
+  return Math.min(RUN_SHELL_MAX_TIMEOUT_SECONDS, Math.max(RUN_SHELL_MIN_TIMEOUT_SECONDS, floored));
+}
+
+export function createRunShellArgumentsSchema(maxTimeoutSeconds = RUN_SHELL_MAX_TIMEOUT_SECONDS) {
+  const normalizedMax = normalizeRunShellTimeoutMaxSeconds(maxTimeoutSeconds);
+  return z.object({
+    command: z.string().min(1).nullable().optional(),
+    timeout_seconds: z
+      .number()
+      .int()
+      .min(RUN_SHELL_MIN_TIMEOUT_SECONDS)
+      .max(normalizedMax)
+      .nullable()
+      .optional(),
+    session_id: z.string().uuid().nullable().optional(),
+    force: z.boolean().nullable().optional(),
+    // Kept parseable only so old saved tool calls receive a clear replacement error.
+    background: z.boolean().nullable().optional(),
+    background_id: z.string().min(1).nullable().optional(),
+    wait_seconds: z.number().int().min(0).max(normalizedMax).nullable().optional(),
+    limit_start: z
+      .number()
+      .int()
+      .min(0)
+      .nullable()
+      .optional()
+      .default(RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS),
+    limit_end: z
+      .number()
+      .int()
+      .min(0)
+      .nullable()
+      .optional()
+      .default(RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS),
+    stop: z.boolean().nullable().optional()
+  }).strict();
+}
+
+export const runShellArgumentsSchema = createRunShellArgumentsSchema();
+export const shellSessionArgumentsSchema = z.object({
+  action: z.enum(["start", "status", "stop", "input", "interrupt", "eof", "resize", "list"]),
+  session_id: z.string().uuid().nullable(),
+  command: z.string().min(1).nullable(),
+  lifetime_seconds: z.number().int().min(1).max(1_209_600).nullable().optional(),
+  lifetime: z.number().int().min(1).max(1_209_600).nullable().optional(),
+  tail_lines: z.number().int().min(1).max(2_000).nullable(),
+  save_output_path: z.string().min(1).nullable(),
+  mode: z.enum(["terminal", "pipe"]).nullable().optional(),
+  data: z.string().refine((data) => Buffer.byteLength(data, "utf8") <= 65_536, "Input must not exceed 64 KiB.").nullable().optional(),
+  cols: z.number().int().min(1).max(1000).nullable().optional(),
+  rows: z.number().int().min(1).max(1000).nullable().optional()
+}).strict().superRefine((value, context) => {
+  if (value.action === "input" && value.data == null) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "data is required for input." });
+  }
+  if (value.action === "resize" && (value.cols == null || value.rows == null)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "cols and rows are required for resize." });
+  }
+  if (value.action !== "start" && value.action !== "list" && !value.session_id) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "session_id is required for an existing session." });
+  }
+});
+export const refreshGhTokenArgumentsSchema = z.object({});
+
+export const contextCheckpointAndCompactArgumentsSchema = z.object({
+  checkpoint: z.string().min(1)
+}).strict();
+
+export const contextCheckpointAndTrimArgumentsSchema = z.object({
+  checkpoint: z.string().min(1),
+  tool_summary: z.string().min(1),
+  count: z.number().int().positive()
+}).strict();
+
+export const contextEmptyArgumentsSchema = z.object({}).strict();
+export const historyListWindowsArgumentsSchema = z.object({
+  limit: z.number().int().min(1).max(100).nullable(),
+  recent_first: z.boolean().nullable()
+}).strict();
+export const historyListItemsArgumentsSchema = z.object({
+  limit: z.number().int().min(1).max(100).nullable(),
+  recent_first: z.boolean().nullable(),
+  tool_namespace: z.string().nullable(),
+  role: z.enum(["user", "assistant", "tool", "system", "developer"]).nullable(),
+  tool_name: z.string().nullable(),
+  window_id: z.string().uuid().nullable(),
+  max_chars_per_item: z.number().int().min(1).max(100_000).nullable()
+}).strict();
+export const historyReadItemArgumentsSchema = z.object({
+  item_id: z.string().uuid(),
+  offset_chars: z.number().int().min(0).nullable(),
+  limit_chars: z.number().int().min(1).max(100_000).nullable(),
+  window_id: z.string().uuid()
+}).strict();
+export const historySearchContentsArgumentsSchema = z.object({
+  query: z.string().min(1),
+  limit: z.number().int().min(1).max(100).nullable(),
+  recent_first: z.boolean().nullable(),
+  tool_namespace: z.string().nullable(),
+  role: z.enum(["user", "assistant", "tool", "system", "developer"]).nullable(),
+  tool_name: z.string().nullable(),
+  window_id: z.string().uuid().nullable()
+}).strict();
+export const notesListFilesArgumentsSchema = z.object({
+  prefix: z.string().nullable(),
+  max_results: z.number().int().min(1).max(100).nullable(),
+  file_order_by: z.enum(["name", "created_at", "updated_at"]).nullable(),
+  file_order: z.enum(["ascending", "descending"]).nullable()
+}).strict();
+export const notesReadFileArgumentsSchema = z.object({
+  path: z.string().min(1),
+  start_line: z.number().int().nullable(),
+  stop_line: z.number().int().nullable()
+}).strict();
+export const notesSearchContentsArgumentsSchema = z.object({
+  query: z.string().min(1),
+  max_matches_per_file: z.number().int().min(1).max(100).nullable(),
+  recent_file_first: z.boolean().nullable(),
+  max_files: z.number().int().min(1).max(100).nullable(),
+  path_prefix: z.string().nullable()
+}).strict();
+export const notesMutationArgumentsSchema = z.object({
+  text: z.string(),
+  path: z.string().min(1)
+}).strict();
+
+export const finalResponseArgumentsSchema = z.object({
+  summary: z.string().nullable().optional(),
+  outline_review: z.enum(["updated", "unchanged", "not_applicable"]).nullable().optional(),
+  response: z.string().min(1),
+  notify: z.boolean().nullable().optional(),
+  partial: z.boolean().nullable().optional()
+});
+
+export const markArtifactArgumentsSchema = z.object({
+  file_paths: z.array(z.string().min(1)).min(1).max(50),
+  remove: z.boolean().nullable().optional()
+});
+
+export const createProjectCanvasArgumentsSchema = z.object({
+  name: z.string().min(1).max(120),
+  entry_path: z.string().min(1).max(240).nullable().optional()
+}).strict();
+
+export const showCanvasArgumentsSchema = z.object({
+  path: z.string().min(1).max(1000),
+  title: z.string().max(200).nullable().optional(),
+  display: z.enum(["inline", "panel"]).nullable().optional(),
+  height: z.number().int().min(120).max(1600).nullable().optional()
+}).strict();
+
+export const taskTitleArgumentsSchema = z.object({
+  title: z.string().min(1).max(240)
+});
+
+export const requestClarificationArgumentsSchema = z.object({
+  question: z.string().min(1).max(2_000)
+}).strict();
+
+export const viewImageArgumentsSchema = z.object({
+  file_path: z.string().min(1),
+  detail: z.enum(["default", "full"]).nullable().optional()
+});
+
+export const viewPdfArgumentsSchema = z.object({
+  file_path: z.string().min(1),
+  pages: z
+    .object({
+      start: z.number().int().min(1),
+      end: z.number().int().min(1)
+    })
+    .strict()
+    .refine((value) => value.end >= value.start, {
+      message: "pages.end must be greater than or equal to pages.start"
+    })
+    .refine((value) => value.end - value.start + 1 <= VIEW_PDF_MAX_PAGE_WINDOW, {
+      message: `pages may include at most ${VIEW_PDF_MAX_PAGE_WINDOW} pages`
+    })
+    .nullable()
+    .optional()
+});
+
+export const searchWebArgumentsSchema = z.object({
+  query: z.string().min(1)
+});
+
+export const memorySearchArgumentsSchema = z.object({
+  query: z.string().min(1),
+  limit: z.number().int().min(1).max(20).nullable().optional(),
+  scope: z.enum(["all", "workspace", "current_project"]).nullable().optional(),
+  paths: z.array(z.string().min(1)).max(10).nullable().optional()
+}).strict();
+
+export const listLiveSyncFilesArgumentsSchema = z.object({});
+
+export const liveSyncStatusArgumentsSchema = z.object({
+  path: z.string().min(1)
+});
+
+export const liveSyncMutationArgumentsSchema = z.object({
+  path: z.string().min(1),
+  force: z.boolean().nullable().optional()
+});
+
+const liveSyncSearchTimestampSchema = z.string().refine((value) => Number.isFinite(Date.parse(value)), "Expected an ISO 8601 timestamp.");
+
+export const searchLiveSyncFolderArgumentsSchema = z.object({
+  path: z.string().min(1),
+  depth: z.number().int().min(0).max(LIVE_SYNC_FOLDER_SEARCH_MAX_DEPTH).nullable().optional(),
+  query: z.string().max(500).nullable().optional(),
+  match: z.enum(LIVE_SYNC_FOLDER_SEARCH_MATCHES).nullable().optional(),
+  file_types: z.array(z.enum(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES)).max(LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES.length).nullable().optional(),
+  modified_after: liveSyncSearchTimestampSchema.nullable().optional(),
+  modified_before: liveSyncSearchTimestampSchema.nullable().optional(),
+  extra_query: z.string().max(1000).nullable().optional(),
+  order_by: z.enum(LIVE_SYNC_FOLDER_SEARCH_ORDERS).nullable().optional(),
+  limit: z.number().int().min(1).max(LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT).nullable().optional()
+});
+
+// query and limit are legacy aliases kept so replayed search_task_history calls still parse.
+export const queryTasksArgumentsSchema = z.object({
+  q: z.string().max(320).nullable().optional(),
+  query: z.string().max(320).nullable().optional(),
+  status: z.array(taskHistoryStatusSchema).max(taskHistoryStatusValues.length).nullable().optional(),
+  scope: taskHistoryScopeSchema.nullable().optional(),
+  taskType: z.union([
+    z.array(taskHistoryTaskTypeSchema).max(taskHistoryTaskTypeValues.length),
+    taskHistoryTaskTypeSchema,
+    z.literal("all")
+  ]).nullable().optional(),
+  folder: z.string().max(64).nullable().optional(),
+  sortBy: taskHistorySortBySchema.nullable().optional(),
+  sortDir: taskHistorySortDirSchema.nullable().optional(),
+  page: z.number().int().min(1).nullable().optional(),
+  pageSize: z.number().int().min(1).max(100).nullable().optional(),
+  limit: z.number().int().min(1).max(100).nullable().optional()
+});
+
+export const viewTaskHistoryArgumentsSchema = z.object({
+  task_id: z.string().uuid(),
+  max_messages: z.number().int().min(1).max(50).nullable().optional()
+});
+
+export const enableSkillArgumentsSchema = z.object({
+  skill: z.string().min(1)
+});
+
+const enabledToolsSchema = z
+  .object({
+    web_search: z.boolean().nullable().optional(),
+    memory_search: z.boolean().nullable().optional(),
+    schedule_task: z.boolean().nullable().optional(),
+    subtasks: z.boolean().nullable().optional(),
+    computer_use: z.boolean().nullable().optional(),
+    enabled_skills: z.array(z.string()).nullable().optional()
+  })
+  .strict()
+  .nullable();
+
+export const scheduleTaskArgumentsSchema = z.object({
+  message: z.string().min(1),
+  mode: z.enum(["scheduled", "infinite"]),
+  repeat: z.string().min(1).nullable(),
+  timezone: z.string().min(1).nullable(),
+  enabled_tools: enabledToolsSchema
+});
+
+export const editCurrentTaskScheduleArgumentsSchema = z.object({
+  repeat: z.string().min(1).nullable(),
+  timezone: z.string().min(1).nullable(),
+  enabled_tools: enabledToolsSchema
+});
+
+export const createSubtaskArgumentsSchema = z.object({
+  message: z.string().min(1),
+  title: z.string().min(1).max(240).nullable(),
+  enabled_tools: enabledToolsSchema
+});
+
+export const startSubtaskArgumentsSchema = z.object({
+  task_ids: z.array(z.string().uuid()).min(1).max(50),
+  timeout_seconds: z.number().int().min(30).max(86400).nullable()
+});
+
+export const waitArgumentsSchema = z.object({
+  seconds: z.number().int().min(1).max(604800),
+  shell_sessions: z.array(z.object({
+    session_id: z.string().uuid(),
+    on_output: z.boolean(),
+    on_exit: z.boolean()
+  }).strict().refine((condition) => condition.on_output || condition.on_exit, {
+    message: "Each shell session must enable on_output or on_exit."
+  })).min(1).max(8).nullable().optional(),
+  response: z.string().min(1).nullable().optional(),
+  notify: z.boolean().nullable().optional()
+}).strict();
+
+export const stopTaskArgumentsSchema = z.object({
+  response: z.string().min(1),
+  notify: z.boolean().nullable().optional()
+});
+
+export const startLongHorizonTaskArgumentsSchema = z.object({
+  plan: z.string().min(1)
+});
+
+export const submitResponseArgumentsSchema = z.object({
+  message: z.string().min(1)
+});
+
+export const submitReviewArgumentsSchema = z.object({
+  review: z.string().min(1),
+  approved: z.boolean()
+});
+
+export {
+  taskHistoryScopeValues,
+  taskHistorySortByValues,
+  taskHistorySortDirValues,
+  taskHistoryStatusValues,
+  taskHistoryTaskTypeValues
+};
+
+// view_task_history once the conversation is organized into turns and topics.
+export const organizationHistoryArgumentsSchema = z.object({
+  task_id: z.string().uuid().nullable().optional(),
+  max_messages: z.number().int().min(1).max(50).nullable().optional(),
+  view: z.enum(["messages", "navigation"]).nullable().optional(),
+  cursor: z.string().uuid().nullable().optional(),
+  branch_leaf_id: z.string().uuid().nullable().optional(),
+  message_ids: z.array(z.string().uuid()).min(1).max(50).nullable().optional()
+});

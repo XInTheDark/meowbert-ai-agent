@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./openai-client.js", () => ({
+vi.mock("@meowbert/run-executor/agent/openai-client", () => ({
   getOpenAiClient: vi.fn()
 }));
 
@@ -9,23 +9,44 @@ vi.mock("../runtime/events.js", () => ({
 }));
 
 vi.mock("../../lib/db.js", () => ({
-  query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 })
+  query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+  withTransaction: vi.fn()
 }));
 
-vi.mock("../../lib/config.js", () => ({
-  config: {
-    openai: {
-      baseUrl: "https://example.com/v1",
-      defaultModel: "gpt-default",
-      fastModel: "gpt-fast"
+vi.mock("../../lib/config.js", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/config.js")>("../../lib/config.js");
+  return {
+    config: {
+      ...actual.config,
+      openai: {
+        ...actual.config.openai,
+        baseUrl: "https://example.com/v1",
+        defaultModel: "gpt-default",
+        fastModel: "gpt-fast"
+      }
     }
-  }
-}));
+  };
+});
 
-import { getOpenAiClient } from "./openai-client.js";
+import { getOpenAiClient } from "@meowbert/run-executor/agent/openai-client";
 import { emitTaskEvent } from "../runtime/events.js";
 import { query } from "../../lib/db.js";
-import { createModelResponse, createModelResponseWithRetry, maybeAutoGenerateTaskTitle } from "./model.js";
+import { createModelResponse, createModelResponseWithRetry, maybeAutoGenerateTaskTitle } from "@meowbert/run-executor/agent/model";
+import type { OpenAiProviderConfig } from "@meowbert/run-executor/agent/openai-client";
+import type { NetworkRequestLogCallback } from "./network-request-log.js";
+import { createTestModelGateway, createTestRunControl } from "../run-host/test-run-environment.test-fixtures.js";
+
+const testControl = createTestRunControl({ taskId: "task-123" });
+
+// Sends a request built for a provider and model through a gateway for that route.
+function viaGateway<T extends { provider: OpenAiProviderConfig; model: string; onNetworkRequest?: NetworkRequestLogCallback }>(input: T) {
+  const { provider, model, onNetworkRequest, ...request } = input;
+  return {
+    ...request,
+    models: createTestModelGateway({ provider, model, quickModel: model, onNetworkRequest }),
+    chatGptCodex: provider.chatGptCodex === true
+  };
+}
 
 describe("createModelResponse", () => {
   const mockedGetOpenAiClient = vi.mocked(getOpenAiClient);
@@ -61,7 +82,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -77,7 +98,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(createMock).toHaveBeenCalledWith(
@@ -101,7 +122,7 @@ describe("createModelResponse", () => {
     });
     mockedGetOpenAiClient.mockReturnValue({ responses: { create: createMock } } as never);
 
-    await expect(createModelResponse({
+    await expect(createModelResponse(viaGateway({
       provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
       model: "gpt-test",
       prefixItems: [],
@@ -109,7 +130,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    })).rejects.toThrow("Model response contained a function call without a call_id.");
+    }))).rejects.toThrow("Model response contained a function call without a call_id.");
   });
 
   it("sends prefix items before conversation items", async () => {
@@ -124,7 +145,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -145,7 +166,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     expect(createMock).toHaveBeenCalledTimes(1);
     const request = createMock.mock.calls[0]?.[0] as { input?: Array<{ role?: string; content?: unknown }>; instructions?: unknown };
@@ -172,7 +193,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -198,7 +219,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     const request = createMock.mock.calls[0]?.[0] as { input?: Array<{ role?: string; content?: unknown }> };
     expect(request.input).toEqual([
@@ -229,7 +250,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -255,7 +276,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     const request = createMock.mock.calls[0]?.[0] as { input?: Array<{ role?: string; content?: unknown }> };
     expect(request.input).toEqual([
@@ -302,7 +323,7 @@ describe("createModelResponse", () => {
       output: "{\"ok\":true}"
     } as const;
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -318,7 +339,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     const request = createMock.mock.calls[0]?.[0] as { input?: unknown[] };
     expect(request.input).toEqual([
@@ -360,7 +381,7 @@ describe("createModelResponse", () => {
       content: "continue"
     } as const;
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -377,7 +398,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     const request = createMock.mock.calls[0]?.[0] as { input?: unknown[] };
     expect(request.input).toEqual([
@@ -400,7 +421,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -449,7 +470,7 @@ describe("createModelResponse", () => {
         } as never
       ],
       toolChoice: "auto"
-    });
+    }));
 
     const request = createMock.mock.calls[0]?.[0] as { tools?: Array<Record<string, unknown>> };
     expect(request.tools?.some((tool) => tool.type === "custom")).toBe(false);
@@ -479,7 +500,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -524,7 +545,7 @@ describe("createModelResponse", () => {
         } as never
       ],
       toolChoice: "auto"
-    });
+    }));
 
     const request = createMock.mock.calls[0]?.[0] as {
       tools?: Array<{ type?: string; name?: string }>;
@@ -548,7 +569,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -565,7 +586,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     expect(createMock).toHaveBeenCalledWith(
       expect.any(Object),
@@ -589,7 +610,7 @@ describe("createModelResponse", () => {
     } as never);
 
     const controller = new AbortController();
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -607,7 +628,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     expect(createMock).toHaveBeenCalledWith(
       expect.any(Object),
@@ -629,7 +650,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -648,7 +669,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     const request = createMock.mock.calls[0]?.[0] as {
       user?: string;
@@ -687,8 +708,8 @@ describe("createModelResponse", () => {
       toolChoice: "auto" as const
     };
 
-    await createModelResponse({ ...baseInput, promptCacheKey: "task:abc" });
-    await createModelResponse(baseInput);
+    await createModelResponse(viaGateway({ ...baseInput, promptCacheKey: "task:abc" }));
+    await createModelResponse(viaGateway(baseInput));
 
     const keyedOptions = createMock.mock.calls[0]?.[1] as { headers?: Record<string, string> };
     const unkeyedOptions = createMock.mock.calls[1]?.[1] as { headers?: Record<string, string> };
@@ -721,8 +742,8 @@ describe("createModelResponse", () => {
       cacheKeepaliveSeconds: 1800
     };
 
-    await createModelResponse({ ...baseInput, promptCacheKey: "task:abc" });
-    await createModelResponse(baseInput);
+    await createModelResponse(viaGateway({ ...baseInput, promptCacheKey: "task:abc" }));
+    await createModelResponse(viaGateway(baseInput));
 
     const keyedOptions = createMock.mock.calls[0]?.[1] as { headers?: Record<string, string> };
     const unkeyedOptions = createMock.mock.calls[1]?.[1] as { headers?: Record<string, string> };
@@ -745,7 +766,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -763,7 +784,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     const request = createMock.mock.calls[0]?.[0] as {
       prompt_cache_key?: string;
@@ -798,10 +819,9 @@ describe("createModelResponse", () => {
     } as never);
 
     await maybeAutoGenerateTaskTitle({
-      provider: {
-        apiKey: "test",
-        baseUrl: "https://example.com/v1"
-      },
+      control: createTestRunControl({ taskId: "task-1" }),
+      models: createTestModelGateway({ quickModel: "gpt-title" }),
+      chatGptCodex: false,
       taskId: "task-1",
       currentTitle: "New Task",
       source: "web",
@@ -834,8 +854,7 @@ describe("createModelResponse", () => {
         path: "/workspace/.memory/projects/project/MEMORY.md",
         content: "Project memory mentions model routing.",
         truncated: false
-      },
-      model: "gpt-title"
+      }
     });
 
     const request = createMock.mock.calls[0]?.[0] as { input?: Array<{ role?: string; content?: string }> };
@@ -862,7 +881,7 @@ describe("createModelResponse", () => {
     } as never);
 
     await expect(
-      createModelResponse({
+      createModelResponse(viaGateway({
         provider: {
           apiKey: "test",
           baseUrl: "https://example.com/v1"
@@ -878,7 +897,7 @@ describe("createModelResponse", () => {
         modelPayload: {},
         tools: [],
         toolChoice: "auto"
-      })
+      }))
     ).rejects.toThrow("provider rejected request");
   });
 
@@ -896,7 +915,7 @@ describe("createModelResponse", () => {
 
     const onNetworkRequest = vi.fn().mockResolvedValue(undefined);
 
-    await createModelResponseWithRetry("task-123", {
+    await createModelResponseWithRetry(testControl, "task-123", viaGateway({
       provider: {
         apiKey: "test-secret",
         baseUrl: "https://example.com/v1",
@@ -927,7 +946,7 @@ describe("createModelResponse", () => {
       tools: [],
       toolChoice: "auto",
       onNetworkRequest
-    });
+    }));
 
     expect(onNetworkRequest).toHaveBeenCalledWith(expect.objectContaining({
       phase: "start",
@@ -982,7 +1001,7 @@ describe("createModelResponse", () => {
 
     const onNetworkRequest = vi.fn().mockResolvedValue(undefined);
 
-    await createModelResponseWithRetry("task-123", {
+    await createModelResponseWithRetry(testControl, "task-123", viaGateway({
       provider: {
         apiKey: "test-secret",
         baseUrl: "https://chatgpt.com/backend-api/codex",
@@ -1016,7 +1035,7 @@ describe("createModelResponse", () => {
       tools: [],
       toolChoice: "auto",
       onNetworkRequest
-    });
+    }));
 
     const request = onNetworkRequest.mock.calls[0]?.[0]?.request;
     expect(request.headers).toEqual(expect.objectContaining({
@@ -1075,7 +1094,7 @@ describe("createModelResponse", () => {
     } as never);
 
     const onNetworkRequest = vi.fn().mockResolvedValue(undefined);
-    const responsePromise = createModelResponseWithRetry("task-123", {
+    const responsePromise = createModelResponseWithRetry(testControl, "task-123", viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -1092,7 +1111,7 @@ describe("createModelResponse", () => {
       tools: [],
       toolChoice: "auto",
       onNetworkRequest
-    });
+    }));
 
     await vi.advanceTimersByTimeAsync(0);
 
@@ -1123,7 +1142,7 @@ describe("createModelResponse", () => {
     }));
 
     await vi.advanceTimersByTimeAsync(15_000);
-    await expect(responsePromise).resolves.toEqual({
+    await expect(responsePromise.then((result) => result.response)).resolves.toEqual({
       error: null,
       output: [],
       output_text: "ok"
@@ -1148,8 +1167,9 @@ describe("createModelResponse", () => {
 
     const onRetryMessage = vi.fn().mockResolvedValue(undefined);
     const responsePromise = createModelResponseWithRetry(
+      testControl,
       "task-123",
-      {
+      viaGateway({
         provider: {
           apiKey: "test",
           baseUrl: "https://example.com/v1"
@@ -1165,7 +1185,7 @@ describe("createModelResponse", () => {
         modelPayload: {},
         tools: [],
         toolChoice: "auto"
-      },
+      }),
       onRetryMessage
     );
 
@@ -1183,7 +1203,7 @@ describe("createModelResponse", () => {
 
     await vi.advanceTimersByTimeAsync(15_000);
 
-    await expect(responsePromise).resolves.toEqual({
+    await expect(responsePromise.then((result) => result.response)).resolves.toEqual({
       error: null,
       output: [],
       output_text: "ok"
@@ -1207,7 +1227,7 @@ describe("createModelResponse", () => {
     }));
     mockedGetOpenAiClient.mockReturnValue({ responses: { create: createMock } } as never);
 
-    const responsePromise = createModelResponseWithRetry("task-123", {
+    const responsePromise = createModelResponseWithRetry(testControl, "task-123", viaGateway({
       provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
       model: "gpt-test",
       prefixItems: [],
@@ -1215,10 +1235,10 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     await vi.advanceTimersByTimeAsync(15_000);
-    const response = await responsePromise;
+    const { response } = await responsePromise;
 
     expect(createMock).toHaveBeenCalledTimes(2);
     expect(response.output[0]).toMatchObject({ type: "function_call", call_id: "call_cut", status: "incomplete" });
@@ -1248,7 +1268,7 @@ describe("createModelResponse", () => {
       conversationItems[0] = { role: "system", content: "image omitted after provider error" };
       return true;
     });
-    const responsePromise = createModelResponseWithRetry("task-123", {
+    const responsePromise = createModelResponseWithRetry(testControl, "task-123", viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -1260,11 +1280,11 @@ describe("createModelResponse", () => {
       tools: [],
       toolChoice: "auto",
       onConsecutiveErrorRecovery
-    });
+    }));
 
     await vi.advanceTimersByTimeAsync(45_000);
 
-    await expect(responsePromise).resolves.toEqual({
+    await expect(responsePromise.then((result) => result.response)).resolves.toEqual({
       error: null,
       output: [],
       output_text: "ok"
@@ -1303,7 +1323,7 @@ describe("createModelResponse", () => {
       return true;
     });
 
-    const responsePromise = createModelResponseWithRetry("task-123", {
+    const responsePromise = createModelResponseWithRetry(testControl, "task-123", viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -1315,9 +1335,9 @@ describe("createModelResponse", () => {
       tools: [],
       toolChoice: "auto",
       onConsecutiveErrorRecovery
-    });
+    }));
 
-    await expect(responsePromise).resolves.toEqual({
+    await expect(responsePromise.then((result) => result.response)).resolves.toEqual({
       error: null,
       output: [],
       output_text: "ok"
@@ -1337,7 +1357,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await expect(createModelResponseWithRetry("task-123", {
+    await expect(createModelResponseWithRetry(testControl, "task-123", viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -1353,7 +1373,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    })).rejects.toThrow("Your input exceeds the context window of this model.");
+    }))).rejects.toThrow("Your input exceeds the context window of this model.");
 
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(mockedEmitTaskEvent).not.toHaveBeenCalledWith("task-123", "error", expect.objectContaining({
@@ -1374,8 +1394,9 @@ describe("createModelResponse", () => {
     } as never);
 
     await expect(createModelResponseWithRetry(
+      testControl,
       "task-123",
-      {
+      viaGateway({
         provider: {
           apiKey: "test",
           baseUrl: "https://example.com/v1"
@@ -1393,7 +1414,7 @@ describe("createModelResponse", () => {
         tools: [],
         toolChoice: "auto"
       }
-    )).rejects.toThrow("TASK_CANCELLED");
+    ))).rejects.toThrow("TASK_CANCELLED");
 
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(mockedEmitTaskEvent).not.toHaveBeenCalledWith("task-123", "error", expect.objectContaining({
@@ -1413,7 +1434,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -1429,7 +1450,7 @@ describe("createModelResponse", () => {
       modelPayload: {},
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1451,7 +1472,7 @@ describe("createModelResponse", () => {
       }
     } as never);
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -1463,7 +1484,7 @@ describe("createModelResponse", () => {
       tools: [],
       toolChoice: "auto",
       parallelToolCalls: false
-    });
+    }));
 
     expect(createMock).toHaveBeenNthCalledWith(
       1,
@@ -1473,7 +1494,7 @@ describe("createModelResponse", () => {
       expect.any(Object)
     );
 
-    await createModelResponse({
+    await createModelResponse(viaGateway({
       provider: {
         apiKey: "test",
         baseUrl: "https://example.com/v1"
@@ -1484,7 +1505,7 @@ describe("createModelResponse", () => {
       modelPayload: { parallel_tool_calls: false },
       tools: [],
       toolChoice: "auto"
-    });
+    }));
 
     expect(createMock).toHaveBeenNthCalledWith(
       2,

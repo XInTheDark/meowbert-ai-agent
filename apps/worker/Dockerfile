@@ -21,15 +21,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m pip install --no-cache-dir --break-system-packages pypdf
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/package.json
+COPY packages/run-executor/package.json packages/run-executor/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY stubs stubs
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-  npm ci --workspace packages/shared --workspace apps/worker --include-workspace-root=false
+  npm ci --workspace packages/shared --workspace packages/run-executor --workspace apps/worker --include-workspace-root=false
 COPY packages/shared/tsconfig.json packages/shared/tsconfig.json
 COPY packages/shared/src packages/shared/src
+COPY packages/run-executor/tsconfig.json packages/run-executor/tsconfig.json
+COPY packages/run-executor/src packages/run-executor/src
 COPY apps/worker/tsconfig.json apps/worker/tsconfig.json
 COPY apps/worker/src apps/worker/src
-RUN npm run build --workspace packages/shared && npm run build --workspace apps/worker
+RUN npm run build --workspace packages/shared && npm run build --workspace packages/run-executor && npm run build --workspace apps/worker
 COPY prompt-texts prompt-texts
 COPY skills skills
 RUN if [ -f /app/skills/deep-ai-search/package-lock.json ]; then \

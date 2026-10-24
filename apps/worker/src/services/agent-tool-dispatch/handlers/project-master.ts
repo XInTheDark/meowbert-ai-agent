@@ -4,7 +4,7 @@ import {
   createTaskSchema,
   listenToTasksSchema,
   messageTaskSchema
-} from "../../agent-tools/project-master.js";
+} from "@meowbert/run-executor/agent-tools/project-master";
 import {
   cancelManagedTask,
   createManagedTask,
@@ -13,11 +13,11 @@ import {
 } from "../../project-master/api-client.js";
 import { listenToNewTask, setTaskListening } from "../../project-master/listeners.js";
 import { createScheduledManagedTask } from "../../project-master/scheduled-tasks.js";
-import { buildChosenModelRoute } from "../../project-master/task-agent.js";
-import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
-import type { ToolCallResult } from "../tool-call-result.js";
-import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
-import { rethrowIfTaskCancelled } from "../utils.js";
+import { buildChosenModelRoute } from "@meowbert/run-executor/project-master/task-agent";
+import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "@meowbert/run-executor/agent-tool-dispatch/events";
+import type { ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
+import { rethrowIfTaskCancelled } from "@meowbert/run-executor/agent-tool-dispatch/utils";
 
 async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDispatchContext) {
   const args: unknown = JSON.parse(call.arguments);

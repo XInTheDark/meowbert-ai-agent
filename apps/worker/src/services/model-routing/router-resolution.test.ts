@@ -4,7 +4,7 @@ vi.mock("../../lib/db.js", () => ({
   query: vi.fn()
 }));
 
-vi.mock("../agent/openai-client.js", () => ({
+vi.mock("@meowbert/run-executor/agent/openai-client", () => ({
   getOpenAiClient: vi.fn()
 }));
 
@@ -13,7 +13,7 @@ vi.mock("../runtime/events.js", () => ({
 }));
 
 import { query } from "../../lib/db.js";
-import { getOpenAiClient } from "../agent/openai-client.js";
+import { getOpenAiClient } from "@meowbert/run-executor/agent/openai-client";
 import { emitTaskEvent } from "../runtime/events.js";
 import {
   mapReasoningScoreToEffort,

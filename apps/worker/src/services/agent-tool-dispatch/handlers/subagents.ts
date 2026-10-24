@@ -1,13 +1,13 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import { spawnSubagentSchema, subagentMessageSchema, subagentTargetSchema, subagentWaitSchema } from "../../agent-tools/subagents.js";
+import { spawnSubagentSchema, subagentMessageSchema, subagentTargetSchema, subagentWaitSchema } from "@meowbert/run-executor/agent-tools/subagents";
 import { spawnSubagent } from "../../subagents/spawn.js";
 import { chooseSubagentRuntime } from "../../subagents/runtime.js";
 import { hasSubagentMail, listSubagents, sendSubagentMessage } from "../../subagents/mail.js";
 import { interruptSubagent } from "../../subagents/interrupt.js";
-import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
-import type { ToolCallResult } from "../tool-call-result.js";
-import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
-import { rethrowIfTaskCancelled } from "../utils.js";
+import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "@meowbert/run-executor/agent-tool-dispatch/events";
+import type { ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
+import { rethrowIfTaskCancelled } from "@meowbert/run-executor/agent-tool-dispatch/utils";
 
 async function runSubagentTool(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState) {
   const args: unknown = JSON.parse(call.arguments);

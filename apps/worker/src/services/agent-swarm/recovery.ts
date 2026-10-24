@@ -3,7 +3,7 @@ import { query, withTransaction } from "../../lib/db.js";
 import { enqueueSubagentRun } from "../subagents/dispatch.js";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
-import { buildUnsubmittedLaneResult } from "./forced-submit.js";
+import { buildUnsubmittedLaneResult } from "@meowbert/run-executor/agent-swarm/forced-submit";
 import { dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
 import { endCancelledIdleLeaders } from "./cancelled-leaders.js";
 

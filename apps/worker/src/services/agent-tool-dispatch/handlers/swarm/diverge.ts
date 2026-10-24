@@ -1,11 +1,11 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
-import { divergeArgumentsSchema } from "../../../agent-tools/swarm.js";
+import { divergeArgumentsSchema } from "@meowbert/run-executor/agent-tools/swarm";
 import type { NewLane } from "../../../agent-swarm/lane-creation.js";
 import { buildLaneModelRoute } from "../../../agent-swarm/model-route.js";
-import { buildDivergeBrief } from "../../../agent-swarm/prompt.js";
-import { toolErrorResult, type ToolCallResult } from "../../tool-call-result.js";
-import type { ToolDispatchContext, ToolDispatchState } from "../../types.js";
+import { buildDivergeBrief } from "@meowbert/run-executor/agent-swarm/prompt";
+import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { checkForkCallPosition, forkLanesFromCall, laneLabel } from "./fork-call.js";
 import { runSwarmToolCall } from "./swarm-tool-call.js";
 

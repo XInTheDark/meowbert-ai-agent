@@ -59,11 +59,13 @@ export async function computeEstimatedCostUsageForModel(
   return platformUsageRecorder.computeCost(model, counts);
 }
 
-export async function getUserMonthlySubscriptionQuotaStatus(userId: string): Promise<{
-  used: number;
-  limit: number;
-  exceeded: boolean;
-}> {
+interface UserUsagePlan {
+  monthlyUsed: number;
+  monthlyLimit: number;
+  usageLimits: UsageLimit[];
+}
+
+async function loadUserUsagePlan(userId: string): Promise<UserUsagePlan> {
   const bounds = currentUtcMonthBounds();
 
   const [usageResult, limitResult, usageLimitsResult] = await Promise.all([
@@ -99,8 +101,6 @@ export async function getUserMonthlySubscriptionQuotaStatus(userId: string): Pro
     )
   ]);
 
-  const used = toSafeInteger(usageResult.rows[0]?.total);
-  const limit = toSafeInteger(limitResult.rows[0]?.total);
   const usageLimits = normalizeUsageLimits(usageLimitsResult.rows.flatMap((row) => {
     const limits = normalizeUsageLimits(row.usage_limits_json);
     if (limits.length > 0) {
@@ -110,23 +110,40 @@ export async function getUserMonthlySubscriptionQuotaStatus(userId: string): Pro
     const legacyQuota = toSafeInteger(row.monthly_token_quota);
     return legacyQuota > 0 ? [{ weightedTokens: legacyQuota, durationDays: 30 }] : [];
   }));
+  return {
+    monthlyUsed: toSafeInteger(usageResult.rows[0]?.total),
+    monthlyLimit: toSafeInteger(limitResult.rows[0]?.total),
+    usageLimits
+  };
+}
+
+async function loadRollingUsage(userId: string, durationDays: number, now: Date): Promise<number> {
+  const windowStart = new Date(now.getTime() - durationDays * 24 * 60 * 60 * 1000);
+  const rollingUsage = await query<{ total: string }>(
+    `SELECT COALESCE(SUM(weighted_tokens), 0)::text AS total
+       FROM user_token_usage_events
+      WHERE user_id = $1
+        AND provider_kind = 'platform'
+        AND occurred_at >= $2::timestamptz
+        AND occurred_at < $3::timestamptz`,
+    [userId, windowStart.toISOString(), now.toISOString()]
+  );
+  return toSafeInteger(rollingUsage.rows[0]?.total);
+}
+
+export async function getUserMonthlySubscriptionQuotaStatus(userId: string): Promise<{
+  used: number;
+  limit: number;
+  exceeded: boolean;
+}> {
+  const { monthlyUsed: used, monthlyLimit: limit, usageLimits } = await loadUserUsagePlan(userId);
   const now = new Date();
 
   for (const usageLimit of usageLimits) {
-    const windowStart = new Date(now.getTime() - usageLimit.durationDays * 24 * 60 * 60 * 1000);
-    const rollingUsage = await query<{ total: string }>(
-      `SELECT COALESCE(SUM(weighted_tokens), 0)::text AS total
-         FROM user_token_usage_events
-        WHERE user_id = $1
-          AND provider_kind = 'platform'
-          AND occurred_at >= $2::timestamptz
-          AND occurred_at < $3::timestamptz`,
-      [userId, windowStart.toISOString(), now.toISOString()]
-    );
-
-    if (toSafeInteger(rollingUsage.rows[0]?.total) >= usageLimit.weightedTokens) {
+    const rollingUsed = await loadRollingUsage(userId, usageLimit.durationDays, now);
+    if (rollingUsed >= usageLimit.weightedTokens) {
       return {
-        used: toSafeInteger(rollingUsage.rows[0]?.total),
+        used: rollingUsed,
         limit: usageLimit.weightedTokens,
         exceeded: true
       };
@@ -138,6 +155,21 @@ export async function getUserMonthlySubscriptionQuotaStatus(userId: string): Pro
     limit,
     exceeded: usageLimits.length === 0 && limit > 0 && used >= limit
   };
+}
+
+// How many weighted tokens the user can still spend before any of their limits; null when no
+// limit applies.
+export async function getUserUsageHeadroom(userId: string): Promise<number | null> {
+  const { monthlyUsed, monthlyLimit, usageLimits } = await loadUserUsagePlan(userId);
+  if (usageLimits.length === 0) {
+    return monthlyLimit > 0 ? monthlyLimit - monthlyUsed : null;
+  }
+  const now = new Date();
+  let headroom = Number.POSITIVE_INFINITY;
+  for (const usageLimit of usageLimits) {
+    headroom = Math.min(headroom, usageLimit.weightedTokens - await loadRollingUsage(userId, usageLimit.durationDays, now));
+  }
+  return headroom;
 }
 
 export async function recordPlatformTokenUsageEvent(

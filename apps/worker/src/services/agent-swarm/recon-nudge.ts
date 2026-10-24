@@ -1,7 +1,7 @@
-import { appendPromptEnvelopeDelta } from "../agent/prompt-envelope.js";
+import { appendPromptEnvelopeDelta } from "@meowbert/run-executor/agent/prompt-envelope";
 import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
-import type { AgentExecutionContext } from "../agent/execution-types.js";
-import { RECON_NUDGE_NOTE } from "./prompt.js";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
+import { RECON_NUDGE_NOTE } from "@meowbert/run-executor/agent-swarm/prompt";
 import { isUserTurnRun } from "./turn-notes.js";
 
 // Leaders tend to do everything alone. After `reconNudgeSteps` solo steps in a turn, one note asks

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createSwarmActivity, formatActivityNotes, recordFilesWritten, recordSearchQuery, recordWebSearchCall } from "./auto-notes.js";
-import { resolveLaneMaxSteps, resolveLaneToolChoice } from "./forced-submit.js";
+import { createSwarmActivity, formatActivityNotes, recordFilesWritten, recordSearchQuery, recordWebSearchCall } from "@meowbert/run-executor/agent-swarm/activity";
+import { resolveLaneMaxSteps, resolveLaneToolChoice } from "@meowbert/run-executor/agent-swarm/forced-submit";
 import { buildMergeMessage } from "./merge-message.js";
 import { takeUntilBlockedNote } from "./notes-store.js";
 import { shouldNudgeRecon } from "./recon-nudge.js";

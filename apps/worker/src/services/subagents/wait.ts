@@ -1,7 +1,7 @@
 import type { TaskExecutionJob } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { enqueueSubagentRun } from "./dispatch.js";
-import type { SubagentWait } from "./types.js";
+import type { SubagentWait } from "@meowbert/run-executor/subagents/types";
 
 export async function parkForSubagentMail(job: TaskExecutionJob, deadline: string): Promise<void> {
   await withTransaction(async (client) => {

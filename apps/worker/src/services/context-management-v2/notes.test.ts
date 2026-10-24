@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("../../lib/db.js", () => ({withTransaction: vi.fn()}));
 import { withTransaction } from "../../lib/db.js";
 import { writeContextNote } from "./notes.js";
-import type { ContextManagementV2State } from "./types.js";
+import type { ContextManagementV2State } from "@meowbert/run-executor/context-management-v2/types";
 
 beforeEach(() => { vi.resetAllMocks(); });
 

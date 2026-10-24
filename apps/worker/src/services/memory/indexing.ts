@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { WORKSPACE_MEMORY_DIRNAME } from "@meowbert/shared";
-import { getOpenAiClient } from "../agent/openai-client.js";
+import { getOpenAiClient } from "@meowbert/run-executor/agent/openai-client";
 import { buildChunkContext, chunkMemoryFile } from "./chunking.js";
 import {
   MEMORY_BINARY_SAMPLE_BYTES,

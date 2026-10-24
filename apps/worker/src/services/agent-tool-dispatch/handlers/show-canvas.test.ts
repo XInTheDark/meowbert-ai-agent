@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
@@ -12,15 +12,16 @@ const mocks = vi.hoisted(() => ({
   finishBuiltinToolFailure: vi.fn(async (_ctx: unknown, _execution: unknown, error: string) => ({ output: { error } }))
 }));
 
-vi.mock("../../../lib/db.js", () => ({ query: mocks.query }));
+vi.mock("../../../lib/db.js", () => ({ query: mocks.query, withTransaction: vi.fn(), withConnection: vi.fn(), pool: {} }));
 vi.mock("../../runtime/events.js", () => ({ emitTaskEvent: mocks.emitTaskEvent }));
-vi.mock("../events.js", () => ({
+vi.mock("@meowbert/run-executor/agent-tool-dispatch/events", () => ({
   startBuiltinToolExecution: vi.fn(async () => ({})),
   finishBuiltinToolSuccess: mocks.finishBuiltinToolSuccess,
   finishBuiltinToolFailure: mocks.finishBuiltinToolFailure
 }));
 
-import { handleShowCanvas } from "./show-canvas.js";
+import { handleShowCanvas } from "@meowbert/run-executor/agent-tool-dispatch/handlers/show-canvas";
+import { createTestRunControl } from "../../run-host/test-run-environment.test-fixtures.js";
 
 let root: string;
 
@@ -38,6 +39,7 @@ afterEach(async () => {
 function createContext(shellEnvOverrides: Record<string, string> = {}): ToolDispatchContext {
   const checkOutput = JSON.stringify({ ok: false, loaded: true, blank: true, errors: [], failed_requests: [], hints: ["blank"] });
   return {
+    control: createTestRunControl(),
     taskId: "task-1",
     taskDir: path.join(root, "task"),
     taskScratchDir: path.join(root, "scratch"),
@@ -84,7 +86,7 @@ describe("handleShowCanvas", () => {
     expect(result.output).toMatchObject({
       inline_artifact: { relative_path: "dist/index.html", canvas_id: "canvas-1", display: "panel" }
     });
-    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining("entry_path = $2"), ["canvas-1", "dist/index.html", "task-1"]);
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining("entry_path = $2"), ["canvas-1", "dist/index.html", "task-1", "env-1"]);
     expect(ctx.shellEnvOverrides.CANVAS_ENTRY_PATH).toBe("dist/index.html");
   });
 

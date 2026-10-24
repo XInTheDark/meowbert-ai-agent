@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { appendMessage, setTaskBranchSelection } from "../agent-db/index.js";
-import { appendBuiltinToolMessage, finishBuiltinToolSuccess, type BuiltinToolExecution } from "./events.js";
-import { recordFunctionCallResult } from "./state.js";
-import type { ToolDispatchState } from "./types.js";
-import type { ToolDispatchContext } from "./types.js";
+import { appendBuiltinToolMessage, finishBuiltinToolSuccess, type BuiltinToolExecution } from "@meowbert/run-executor/agent-tool-dispatch/events";
+import { recordFunctionCallResult } from "@meowbert/run-executor/agent-tool-dispatch/state";
+import type { ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
+import type { ToolDispatchContext } from "@meowbert/run-executor/agent-tool-dispatch/types";
+import { createTestRunControl } from "../run-host/test-run-environment.test-fixtures.js";
 
 vi.mock("../agent-db/index.js", () => ({
   appendMessage: vi.fn(),
@@ -39,6 +40,7 @@ describe("appendBuiltinToolMessage", () => {
     vi.mocked(appendMessage).mockResolvedValueOnce("tool-message-1");
     const setCurrentLeafMessageId = vi.fn();
     const context = {
+      control: createTestRunControl({ selectionUserId: "user-1" }),
       taskId: "task-1",
       selectionUserId: "user-1",
       getCurrentLeafMessageId: () => "previous-leaf",
@@ -54,6 +56,7 @@ describe("appendBuiltinToolMessage", () => {
   it("keeps command metadata while omitting the command from the model output", async () => {
     vi.mocked(appendMessage).mockResolvedValueOnce("tool-message-2");
     const context = {
+      control: createTestRunControl(),
       taskId: "task-1",
       getCurrentLeafMessageId: () => null,
       setCurrentLeafMessageId: () => {}

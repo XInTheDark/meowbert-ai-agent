@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentTurnRequest } from "../agent/turn-request.js";
-import { appendPromptEnvelopeDelta, createPromptEnvelope, sealPromptEnvelope } from "../agent/prompt-envelope.js";
-import { SWARM_TOOL_NAMES } from "../agent-tools/swarm.js";
+import { buildAgentTurnRequest } from "@meowbert/run-executor/agent/turn-request";
+import { appendPromptEnvelopeDelta, createPromptEnvelope, sealPromptEnvelope } from "@meowbert/run-executor/agent/prompt-envelope";
+import { SWARM_TOOL_NAMES } from "@meowbert/run-executor/agent-tools/swarm";
 import { restoreForkEnvelope, snapshotForkEnvelope } from "./fork-seed.js";
 
 const toolOptions = {

@@ -1,16 +1,16 @@
 import type { ChosenModelRoute, PlatformModelRouter, PlatformModelRouterTarget, PlatformUsageBilling } from "@meowbert/shared";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { findPlatformModelRouterById } from "@meowbert/shared";
-import type { TaskMessageRow } from "../agent/types.js";
+import type { TaskMessageRow } from "@meowbert/run-executor/agent/types";
 import type { MemoryMainFile } from "../memory/index.js";
-import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
-import type { OpenAiProviderConfig } from "../agent/openai-client.js";
-import { getOpenAiClient } from "../agent/openai-client.js";
+import type { WorkspaceImageDetail } from "@meowbert/run-executor/workspaces/workspace-model-settings";
+import type { OpenAiProviderConfig } from "@meowbert/run-executor/agent/openai-client";
+import { getOpenAiClient } from "@meowbert/run-executor/agent/openai-client";
 import { platformUsageRecorder } from "../tasks/platform-usage.js";
-import { deepMergeJsonObjects } from "../agent/utils.js";
-import { buildTaskDecisionContext } from "../agent/task-decision-context.js";
+import { deepMergeJsonObjects } from "@meowbert/run-executor/agent/utils";
+import { buildTaskDecisionContext } from "@meowbert/run-executor/agent/task-decision-context";
 import { query } from "../../lib/db.js";
-import { extractObjectWithToolCall } from "../../lib/openai-tool-output.js";
+import { createClientResponseRequester, extractObjectWithToolCall } from "@meowbert/run-executor/lib/openai-tool-output";
 import { emitTaskEvent } from "../runtime/events.js";
 
 type RoutedReasoningEffort = "low" | "medium" | "high" | "xhigh";
@@ -505,7 +505,7 @@ async function requestRouterDecision(
   let resolution: ModelRouterResolution;
   try {
     const extraction = await extractObjectWithToolCall<RouterToolResult>({
-      client,
+      request: createClientResponseRequester(client),
       model: router.routingModel,
       toolName: ROUTER_TOOL_NAME,
       toolDescription: "Select the best runtime model for the next assistant run.",

@@ -1,9 +1,9 @@
 import type { PoolClient } from "pg";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import type { AgentExecutionContext } from "../agent/execution-types.js";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { appendRunInboxItems } from "../agent/run-inbox.js";
 import type { SwarmRunContext } from "./config.js";
-import { buildLaneInboxMessage, LANE_STOP_REASON } from "./prompt.js";
+import { buildLaneInboxMessage, LANE_STOP_REASON } from "@meowbert/run-executor/agent-swarm/prompt";
 
 export type LaneInboxKind = "steer" | "resume" | "stop";
 

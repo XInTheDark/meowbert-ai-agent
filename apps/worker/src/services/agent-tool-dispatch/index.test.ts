@@ -4,18 +4,20 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ResponseInputItem, ResponseOutputItem } from "openai/resources/responses/responses";
 import { PDFDocument } from "pdf-lib";
-import { dispatchResponseOutput, type ToolDispatchContext, type ToolDispatchState } from "./index.js";
+import { dispatchResponseOutput, type ToolDispatchContext, type ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/index";
 import { appendMessage, consumeCommandInterruptForStep, queryTasks } from "../agent-db/index.js";
 import {
   executeShellCommand,
-} from "../runtime/shell.js";
+} from "@meowbert/run-executor/runtime/shell";
 import { markTaskArtifacts, unmarkTaskArtifacts } from "../agent/artifacts.js";
-import { getAvailableSkills } from "../agent/skill-registry.js";
+import { getAvailableSkills } from "@meowbert/run-executor/agent/skill-registry";
 import { searchMemoryIndex } from "../memory/index.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { requestDesktopComputerAction } from "../computer/computer-use.js";
-import { pdfToolTestUtils } from "./pdf.js";
-import { VIEW_IMAGE_MAX_BYTES, VIEW_PDF_MAX_INPUT_BYTES } from "./view-limits.js";
+import { pdfToolTestUtils } from "@meowbert/run-executor/agent-tool-dispatch/pdf";
+import { VIEW_IMAGE_MAX_BYTES, VIEW_PDF_MAX_INPUT_BYTES } from "@meowbert/run-executor/agent-tool-dispatch/view-limits";
+import { createTestRunControl, testExecutorSettings } from "../run-host/test-run-environment.test-fixtures.js";
+import { noRunFeatures } from "@meowbert/run-executor/agent/ports/run-features";
 
 vi.mock("../agent-db/index.js", () => ({
   appendMessage: vi.fn(async () => "msg-1"),
@@ -94,7 +96,7 @@ vi.mock("../computer/computer-use.js", () => ({
   }))
 }));
 
-vi.mock("../runtime/shell.js", () => ({
+vi.mock("@meowbert/run-executor/runtime/shell", () => ({
   executeShellCommand: vi.fn(async () => ({
       command: "true",
       stdout: "",
@@ -108,11 +110,11 @@ vi.mock("../runtime/shell.js", () => ({
 
 }));
 
-vi.mock("../agent/skill-registry.js", () => ({
+vi.mock("@meowbert/run-executor/agent/skill-registry", () => ({
   getAvailableSkills: vi.fn(() => [])
 }));
 
-vi.mock("../agent/mcp-client.js", () => ({
+vi.mock("@meowbert/run-executor/agent/mcp-client", () => ({
   callMcpTool: async () => "",
   parseSkillToolName: () => null
 }));
@@ -200,6 +202,9 @@ vi.mock("../tasks/subtasks.js", () => ({
 
 function createBaseContext(): ToolDispatchContext {
   return {
+    control: createTestRunControl({ taskDir: "/tmp/task" }),
+    settings: testExecutorSettings,
+    features: noRunFeatures,
     runId: "run-1",
     taskId: "task-1",
     workspaceId: "ws-1",
@@ -326,6 +331,45 @@ describe("dispatchResponseOutput", () => {
     const outputItem = state.runPersistedItems.find((item) => item.type === "function_call_output");
     expect(outputItem).toBeDefined();
     expect(JSON.parse((outputItem as { output: string }).output)).not.toHaveProperty("command");
+  });
+
+  it("records a tool call as started before it runs and clears the record once it finishes", async () => {
+    vi.clearAllMocks();
+    const ctx = createBaseContext();
+    const recordToolCallStart = vi.fn(async () => {});
+    const recordToolCallResult = vi.fn(async () => {});
+    ctx.control = { ...ctx.control, recordToolCallStart, recordToolCallResult };
+    const args = JSON.stringify({ command: "git push" });
+
+    await dispatchResponseOutput([
+      { id: "fc_push", type: "function_call", name: "run_shell", call_id: "call_push", arguments: args, status: "completed" }
+    ], ctx, { conversationItems: [], runPersistedItems: [], commandStep: 0 });
+
+    expect(recordToolCallStart).toHaveBeenCalledWith({ callId: "call_push", name: "run_shell", arguments: args });
+    expect(recordToolCallStart.mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(executeShellCommand).mock.invocationCallOrder[0]);
+    expect(recordToolCallResult).toHaveBeenCalledWith(expect.objectContaining({ callId: "call_push" }));
+  });
+
+  it("keeps the record of a tool call the run was cancelled during", async () => {
+    vi.clearAllMocks();
+    vi.mocked(executeShellCommand).mockRejectedValueOnce(new Error("TASK_CANCELLED"));
+    const ctx = createBaseContext();
+    const recordToolCallResult = vi.fn(async () => {});
+    ctx.control = { ...ctx.control, recordToolCallResult };
+
+    await expect(dispatchResponseOutput([
+      {
+        id: "fc_push",
+        type: "function_call",
+        name: "run_shell",
+        call_id: "call_push",
+        arguments: JSON.stringify({ command: "git push" }),
+        status: "completed"
+      }
+    ], ctx, { conversationItems: [], runPersistedItems: [], commandStep: 0 })).rejects.toThrow("TASK_CANCELLED");
+
+    expect(recordToolCallResult).not.toHaveBeenCalled();
   });
 
   it("truncates run_shell output at the requested character limit and reports its full length", async () => {
@@ -568,6 +612,7 @@ describe("dispatchResponseOutput", () => {
 
     const ctx = createBaseContext();
     ctx.actorUserId = "user-1";
+    ctx.control = createTestRunControl({ actorUserId: "user-1" });
     ctx.runToolOptions.computerUse = true;
     const state: ToolDispatchState = {
       conversationItems: [],

@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ContextManagementV2State } from "../context-management-v2/types.js";
+import type { ContextManagementV2State } from "@meowbert/run-executor/context-management-v2/types";
 
 const mocks = vi.hoisted(() => ({
-  appendMessage: vi.fn(async () => "checkpoint-msg-1"),
-  setTaskBranchSelection: vi.fn(async () => {}),
-  linkContextNodeToVisibleMessage: vi.fn(async (input: { state: ContextManagementV2State; visibleMessageId: string }) => ({
+  linkContextNodeToVisibleMessage: vi.fn(async (_store: unknown, input: { state: ContextManagementV2State; visibleMessageId: string }) => ({
     ...input.state,
     contextNodeId: "visible-checkpoint-node"
   })),
@@ -14,20 +12,21 @@ const mocks = vi.hoisted(() => ({
   contextWindowGuidance: "window guidance"
 }));
 
-vi.mock("../agent-db/index.js", () => ({
-  appendMessage: mocks.appendMessage,
-  setTaskBranchSelection: mocks.setTaskBranchSelection
-}));
-
-vi.mock("../context-management-v2/index.js", () => ({
+vi.mock("@meowbert/run-executor/context-management-v2/window", () => ({
   buildV2WindowDeveloperItems: mocks.buildV2WindowDeveloperItems,
-  CONTEXT_WINDOW_GUIDANCE: mocks.contextWindowGuidance,
   linkContextNodeToVisibleMessage: mocks.linkContextNodeToVisibleMessage,
   recordContextItems: mocks.recordContextItems,
   startNewContextWindow: mocks.startNewContextWindow
 }));
 
-import { resetV2ContextWindow, selectContextOverflowRecoveryItems } from "./context-window.js";
+vi.mock("@meowbert/run-executor/context-management-v2/prompts", () => ({
+  CONTEXT_WINDOW_GUIDANCE: mocks.contextWindowGuidance
+}));
+
+import { resetV2ContextWindow, selectContextOverflowRecoveryItems } from "@meowbert/run-executor/agent/context-window";
+import { createFakeRunControl, type FakeRunControl } from "../run-host/test-run-environment.test-fixtures.js";
+
+let control: FakeRunControl;
 
 const currentState: ContextManagementV2State = {
   version: "v2",
@@ -55,6 +54,8 @@ const nextState: ContextManagementV2State = {
 describe("resetV2ContextWindow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    control = createFakeRunControl();
+    control.appendMessage.mockResolvedValue("checkpoint-msg-1");
     mocks.startNewContextWindow.mockResolvedValue(nextState);
   });
 
@@ -73,38 +74,35 @@ describe("resetV2ContextWindow", () => {
         lastActualContextUsage: { inputTokens: 120, estimatedInputTokens: 120 },
         hasActualContextUsage: true
       },
-      prepared: { runtimeAgentId: "main" }
+      prepared: { runtimeAgentId: "main", control }
     } as never;
 
     await resetV2ContextWindow(execution, "manual");
 
-    expect(mocks.appendMessage).toHaveBeenCalledWith(
-      "task-1",
-      "system",
-      {
+    expect(control.appendMessage).toHaveBeenCalledWith({
+      role: "system",
+      content: {
         kind: "context_checkpoint",
         action: "rollover",
         reason: "manual",
         checkpoint: "Context window rollover (manual). Conversation items archived to context history.",
         response_items: [{ role: "assistant", content: "old" }]
       },
-      {
-        parentMessageId: "message-2"
-      }
-    );
-    expect(mocks.setTaskBranchSelection).toHaveBeenCalledWith("task-1", "user-1", "checkpoint-msg-1");
-    expect(mocks.startNewContextWindow).toHaveBeenCalledWith({
+      parentMessageId: "message-2"
+    });
+    expect(control.selectBranch).toHaveBeenCalledWith("checkpoint-msg-1");
+    expect(mocks.startNewContextWindow).toHaveBeenCalledWith(control.context, {
       state: currentState,
       branchLeafMessageId: "checkpoint-msg-1",
       reason: "manual"
     });
-    expect(mocks.linkContextNodeToVisibleMessage).toHaveBeenCalledWith({
+    expect(mocks.linkContextNodeToVisibleMessage).toHaveBeenCalledWith(control.context, {
       state: nextState,
       visibleMessageId: "checkpoint-msg-1"
     });
     expect(execution.state.currentLeafMessageId).toBe("checkpoint-msg-1");
     expect(execution.state.contextManagement).toBe(nextState);
-    expect(mocks.buildV2WindowDeveloperItems).toHaveBeenCalledWith({
+    expect(mocks.buildV2WindowDeveloperItems).toHaveBeenCalledWith(control.context, {
       state: nextState,
       agentName: "main"
     });
@@ -136,7 +134,7 @@ describe("resetV2ContextWindow", () => {
         lastActualContextUsage: null,
         hasActualContextUsage: false
       },
-      prepared: { runtimeAgentId: "main" }
+      prepared: { runtimeAgentId: "main", control }
     } as never;
 
     const recoveryItems = selectContextOverflowRecoveryItems(seedItems as never);
@@ -150,6 +148,6 @@ describe("resetV2ContextWindow", () => {
     expect((execution.state.dispatchState.conversationItems[2] as { content: string }).content).toContain(
       "[id: 123e4567-e89b-12d3-a456-426614174000]"
     );
-    expect(mocks.recordContextItems).toHaveBeenCalledWith(nextState, recoveryItems);
+    expect(mocks.recordContextItems).toHaveBeenCalledWith(control.context, nextState, recoveryItems);
   });
 });

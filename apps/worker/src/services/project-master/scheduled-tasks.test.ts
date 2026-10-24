@@ -10,7 +10,7 @@ vi.mock("../task-schedules/service.js", () => ({
 
 import { query } from "../../lib/db.js";
 import { createRecurringTaskFromTool } from "../task-schedules/service.js";
-import type { ToolDispatchContext } from "../agent-tool-dispatch/types.js";
+import type { ToolDispatchContext } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { createScheduledManagedTask } from "./scheduled-tasks.js";
 
 const ctx = {

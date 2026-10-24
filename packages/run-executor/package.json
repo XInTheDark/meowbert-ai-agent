@@ -1,0 +1,31 @@
+{
+  "name": "@meowbert/run-executor",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@jitl/quickjs-ng-wasmfile-release-sync": "0.32.0",
+    "@meowbert/shared": "0.1.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "file-type": "21.3.3",
+    "openai": "6.33.0",
+    "quickjs-emscripten-core": "0.32.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.11",
+    "pdf-lib": "1.17.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

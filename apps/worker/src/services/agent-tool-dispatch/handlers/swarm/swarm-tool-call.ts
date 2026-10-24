@@ -1,8 +1,8 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import type { ZodType } from "zod";
 import { SwarmToolError } from "../../../agent-swarm/tool-error.js";
-import { toolErrorResult, type ToolCallResult } from "../../tool-call-result.js";
-import type { ToolDispatchContext } from "../../types.js";
+import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { checkSwarmToolRole } from "./role-gate.js";
 
 // The shared shape of the swarm tools that act on lanes: role check, arguments, then an action whose

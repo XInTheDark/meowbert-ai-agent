@@ -1,8 +1,8 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import { stopLaneArgumentsSchema } from "../../../agent-tools/swarm.js";
+import { stopLaneArgumentsSchema } from "@meowbert/run-executor/agent-tools/swarm";
 import { stopLane } from "../../../agent-swarm/lane-control.js";
-import type { ToolCallResult } from "../../tool-call-result.js";
-import type { ToolDispatchContext } from "../../types.js";
+import type { ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { runSwarmToolCall } from "./swarm-tool-call.js";
 
 export async function handleStopLane(call: ResponseFunctionToolCall, ctx: ToolDispatchContext): Promise<ToolCallResult> {

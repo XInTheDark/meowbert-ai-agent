@@ -1,6 +1,6 @@
 import { withTransaction } from "../../lib/db.js";
 import { accessibleNodesCte } from "./lineage.js";
-import type { ContextManagementV2State } from "./types.js";
+import type { ContextWindowRef } from "@meowbert/run-executor/agent/ports/run-control";
 
 const MAX_NOTE_BYTES = 1_000_000;
 
@@ -12,7 +12,7 @@ function validatePath(path: string): string {
   return normalized;
 }
 
-export async function writeContextNote(input: { state: ContextManagementV2State; path: string; text: string; append: boolean }): Promise<{ path: string; bytes: number }> {
+export async function writeContextNote(input: { state: ContextWindowRef; path: string; text: string; append: boolean }): Promise<{ path: string; bytes: number }> {
   const path = validatePath(input.path);
   return withTransaction(async (client) => {
     await client.query("SELECT id FROM task_context_nodes WHERE id = $1 FOR UPDATE", [input.state.contextNodeId]);

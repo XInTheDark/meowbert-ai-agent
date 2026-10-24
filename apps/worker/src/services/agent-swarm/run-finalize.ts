@@ -1,12 +1,13 @@
 import { normalizeAgentSwarmSettings, type TaskExecutionJob } from "@meowbert/shared";
 import { pool, withTransaction } from "../../lib/db.js";
 import { emitTaskEvent } from "../runtime/events.js";
-import type { AgentExecutionContext } from "../agent/execution-types.js";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
-import { buildUnsubmittedLaneResult } from "./forced-submit.js";
+import { buildUnsubmittedLaneResult } from "@meowbert/run-executor/agent-swarm/forced-submit";
 import { finishLaneRun } from "./lane-completion.js";
 import { countActiveChildrenInTx, dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
-import { parkSwarmRun, type SwarmParkReason } from "./park.js";
+import { parkSwarmRun } from "./park.js";
+import type { SwarmParkReason } from "@meowbert/run-executor/agent-swarm/lane-types";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
 
 type AppendAssistantMessage = (text: string) => Promise<void>;
@@ -40,7 +41,7 @@ export async function finalizeSwarmRun(execution: AgentExecutionContext, appendA
       lane: swarm.lane,
       runId: execution.job.runId,
       status: submitted ? "done" : "failed",
-      result: submitted ?? buildUnsubmittedLaneResult(execution.runControl.reachedMaxRunSteps
+      result: submitted ?? buildUnsubmittedLaneResult(execution.runTiming.reachedMaxRunSteps
         ? "The lane reached its step limit without submitting."
         : "The lane stopped before submitting."),
       maxRunningLanes: swarm.settings.advanced.maxRunningLanes

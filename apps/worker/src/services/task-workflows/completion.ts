@@ -1,6 +1,6 @@
 import { withTransaction } from "../../lib/db.js";
 import { isTaskRunLatestAttempt } from "../agent-db/index.js";
-import type { LoadedWorkflowRunContext } from "./context-types.js";
+import type { LoadedWorkflowRunContext } from "@meowbert/run-executor/task-workflows/context-types";
 
 // Marks a Long Horizon workflow completed once its main agent delivers. Returns false when it was
 // already completed or a newer attempt of the run has started.

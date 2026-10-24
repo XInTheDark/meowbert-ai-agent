@@ -6,20 +6,7 @@ import {
 import { query, withTransaction } from "../../lib/db.js";
 import { taskQueue } from "../../lib/queue.js";
 
-export type WorkflowAgentRole = "main" | "reviewer";
-export type LongHorizonPhase = "clarify" | "working" | "reviewing" | "approved" | "completed";
-
-export interface WorkflowAgentRecord {
-  id: string;
-  role: WorkflowAgentRole;
-  slot_index: number;
-  task_id: string;
-  title: string | null;
-  status: string;
-  task_root_path: string;
-  last_inbox_refresh_message_no: number;
-  state_json: Record<string, unknown>;
-}
+export type { LongHorizonPhase, WorkflowAgentRecord, WorkflowAgentRole } from "@meowbert/run-executor/task-workflows/context-types";
 
 export function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

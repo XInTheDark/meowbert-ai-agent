@@ -1,7 +1,7 @@
 import { query } from "../../lib/db.js";
-import type { AgentExecutionContext } from "../agent/execution-types.js";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import type { SwarmRunContext } from "./config.js";
-import { buildLaneWrapUpNote, LEADER_BUDGET_SPENT_NOTE, LEADER_DEADLINE_NOTE } from "./prompt.js";
+import { buildLaneWrapUpNote, LEADER_BUDGET_SPENT_NOTE, LEADER_DEADLINE_NOTE } from "@meowbert/run-executor/agent-swarm/prompt";
 
 // Budget enforcement while a swarm runs; shares are handed out in budget-shares.ts. Only when
 // budgets are on: otherwise a swarm is bounded by fan-out, depth, the running-lane cap and step limits.

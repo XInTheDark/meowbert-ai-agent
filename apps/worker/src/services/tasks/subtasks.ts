@@ -4,7 +4,7 @@ import { config } from "../../lib/config.js";
 import { query, withTransaction } from "../../lib/db.js";
 import { taskQueue } from "../../lib/queue.js";
 import { isCancellationRequested } from "../agent-db/index.js";
-import type { TaskMessageToolOptions } from "../agent/types.js";
+import type { TaskMessageToolOptions } from "@meowbert/run-executor/agent/types";
 
 const SUBTASK_MAX_DEPTH = 3;
 const START_SUBTASK_DEFAULT_TIMEOUT_SECONDS = 60 * 60;

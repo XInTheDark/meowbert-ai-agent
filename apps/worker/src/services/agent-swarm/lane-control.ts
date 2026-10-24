@@ -4,7 +4,7 @@ import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import type { SwarmRunContext } from "./config.js";
 import { isLaneResumableInTx } from "./dormancy.js";
 import { addResumeShareInTx } from "./budget-shares.js";
-import { buildUnsubmittedLaneResult } from "./forced-submit.js";
+import { buildUnsubmittedLaneResult } from "@meowbert/run-executor/agent-swarm/forced-submit";
 import { insertLaneInboxInTx } from "./lane-inbox.js";
 import {
   ACTIVE_LANE_STATUSES,

@@ -45,7 +45,7 @@ function embedText(text: string): number[] {
   ];
 }
 
-vi.mock("../agent/openai-client.js", () => ({
+vi.mock("@meowbert/run-executor/agent/openai-client", () => ({
   getOpenAiClient: (provider: { baseUrl: string }) => ({
     embeddings: {
       create: async ({ input }: { input: string | string[] }) => {

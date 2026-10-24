@@ -1,14 +1,18 @@
 import { createHash, randomUUID } from "node:crypto";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import {
-  PROJECT_MEMORY_PARENT_DIRNAME,
-  WORKSPACE_MEMORY_DIRNAME,
-  WORKSPACE_MEMORY_MAIN_FILENAME,
-  createDefaultProjectMemoryMainFileContent,
-  createDefaultWorkspaceMemoryMainFileContent
-} from "@meowbert/shared";
 import { config } from "../../lib/config.js";
+import { getWorkspaceMemoryDir } from "@meowbert/run-executor/memory/main-files";
+
+export {
+  buildWorkspaceMemoryEnvVars,
+  ensureProjectMemoryDir,
+  ensureWorkspaceMemoryDir,
+  MEMORY_MAIN_FILE_PROMPT_MAX_CHARS,
+  readProjectMemoryMainFile,
+  readWorkspaceMemoryMainFile,
+  type MemoryMainFile
+} from "@meowbert/run-executor/memory/main-files";
 
 export const MEMORY_TABLE_NAME = "memory_chunks_v2";
 export const LEGACY_MEMORY_TABLE_NAMES = ["memory_chunks_v1"];
@@ -22,7 +26,6 @@ export const MEMORY_EMBED_BATCH_SIZE = 64;
 export const MEMORY_INDEX_DEBOUNCE_MS = 500;
 export const MEMORY_INDEX_MIN_ROWS = 32;
 export const MEMORY_OPTIMIZE_MIN_INTERVAL_MS = 60_000;
-export const MEMORY_MAIN_FILE_PROMPT_MAX_CHARS = 12_000;
 const MEMORY_CACHE_LAYOUT_VERSION = "v1";
 const MEMORY_CACHE_INDEX_DIRNAME = "memory-index";
 
@@ -72,12 +75,6 @@ export interface MemorySearchResult {
   items: MemorySearchResultItem[];
 }
 
-export interface MemoryMainFile {
-  path: string;
-  content: string;
-  truncated: boolean;
-}
-
 export type MemorySearchScope = "all" | "workspace" | "current_project";
 
 export interface WorkspaceMemoryPaths {
@@ -89,7 +86,7 @@ export interface WorkspaceMemoryPaths {
 }
 
 export interface ResolvedMemoryEmbeddingConfig {
-  provider: import("../agent/openai-client.js").OpenAiProviderConfig;
+  provider: import("@meowbert/run-executor/agent/openai-client").OpenAiProviderConfig;
   model: string;
   buildPromptTemplate: string | null;
   queryPromptTemplate: string | null;
@@ -118,73 +115,6 @@ export interface MemoryIndexRow {
   vector: number[];
 }
 
-function getWorkspaceMemoryMainFilePath(memoryDir: string): string {
-  return path.resolve(memoryDir, WORKSPACE_MEMORY_MAIN_FILENAME);
-}
-
-async function ensureWorkspaceMemoryMainFile(memoryDir: string): Promise<string> {
-  const mainFilePath = getWorkspaceMemoryMainFilePath(memoryDir);
-  const existing = await fsPromises.readFile(mainFilePath, "utf8").catch(() => null);
-  if (existing === null) {
-    await fsPromises.writeFile(mainFilePath, createDefaultWorkspaceMemoryMainFileContent(), "utf8");
-  }
-  return mainFilePath;
-}
-
-function getProjectMemoryDir(memoryDir: string, projectId: string): string {
-  return path.resolve(memoryDir, PROJECT_MEMORY_PARENT_DIRNAME, projectId);
-}
-
-async function ensureProjectMemoryMainFile(
-  projectMemoryDir: string,
-  projectName?: string | null
-): Promise<string> {
-  const mainFilePath = path.resolve(projectMemoryDir, WORKSPACE_MEMORY_MAIN_FILENAME);
-  const existing = await fsPromises.readFile(mainFilePath, "utf8").catch(() => null);
-  if (existing === null) {
-    await fsPromises.writeFile(mainFilePath, createDefaultProjectMemoryMainFileContent(projectName), "utf8");
-  }
-  return mainFilePath;
-}
-
-async function readMemoryMainFile(mainFilePath: string): Promise<MemoryMainFile> {
-  const content = await fsPromises.readFile(mainFilePath, "utf8").catch(() => "");
-  if (content.length <= MEMORY_MAIN_FILE_PROMPT_MAX_CHARS) {
-    return {
-      path: mainFilePath,
-      content,
-      truncated: false
-    };
-  }
-
-  return {
-    path: mainFilePath,
-    content: `${content.slice(0, MEMORY_MAIN_FILE_PROMPT_MAX_CHARS)}
-
-[Truncated for task prompt injection.]`,
-    truncated: true
-  };
-}
-
-export async function readWorkspaceMemoryMainFile(workspaceRoot: string): Promise<MemoryMainFile> {
-  const { memoryDir } = getWorkspaceMemoryPaths(workspaceRoot);
-  await fsPromises.mkdir(memoryDir, { recursive: true });
-  const mainFilePath = await ensureWorkspaceMemoryMainFile(memoryDir);
-  return readMemoryMainFile(mainFilePath);
-}
-
-export async function readProjectMemoryMainFile(input: {
-  workspaceRoot: string;
-  projectId: string;
-  projectName?: string | null;
-}): Promise<MemoryMainFile> {
-  const { memoryDir } = getWorkspaceMemoryPaths(input.workspaceRoot);
-  const projectMemoryDir = getProjectMemoryDir(memoryDir, input.projectId);
-  await fsPromises.mkdir(projectMemoryDir, { recursive: true });
-  const mainFilePath = await ensureProjectMemoryMainFile(projectMemoryDir, input.projectName);
-  return readMemoryMainFile(mainFilePath);
-}
-
 export function getWorkspaceMemoryPaths(workspaceRoot: string): WorkspaceMemoryPaths {
   const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
   const cacheDir = path.resolve(
@@ -194,7 +124,7 @@ export function getWorkspaceMemoryPaths(workspaceRoot: string): WorkspaceMemoryP
   );
   const indexDir = path.resolve(cacheDir, MEMORY_CACHE_INDEX_DIRNAME);
   return {
-    memoryDir: path.resolve(resolvedWorkspaceRoot, WORKSPACE_MEMORY_DIRNAME),
+    memoryDir: getWorkspaceMemoryDir(resolvedWorkspaceRoot),
     indexDir,
     dbDir: path.resolve(indexDir, "lancedb"),
     statusPath: path.resolve(indexDir, MEMORY_STATUS_FILENAME),
@@ -305,45 +235,3 @@ export async function writeMemoryManifest(
   await writeJsonFileAtomic(paths.manifestPath, manifest);
 }
 
-export function buildWorkspaceMemoryEnvVars(
-  workspaceRoot: string,
-  memoryEnabled: boolean,
-  projectId?: string | null
-): Record<string, string> {
-  if (!memoryEnabled) {
-    return {};
-  }
-
-  const { memoryDir } = getWorkspaceMemoryPaths(workspaceRoot);
-  const envVars: Record<string, string> = {
-    MEMORY_DIR: memoryDir,
-    MEOWBERT_MEMORY_DIR: memoryDir
-  };
-
-  if (projectId && projectId.trim().length > 0) {
-    const projectMemoryDir = getProjectMemoryDir(memoryDir, projectId);
-    envVars.PROJECT_MEMORY_DIR = projectMemoryDir;
-    envVars.MEOWBERT_PROJECT_MEMORY_DIR = projectMemoryDir;
-  }
-
-  return envVars;
-}
-
-export async function ensureWorkspaceMemoryDir(workspaceRoot: string): Promise<string> {
-  const { memoryDir } = getWorkspaceMemoryPaths(workspaceRoot);
-  await fsPromises.mkdir(memoryDir, { recursive: true });
-  await ensureWorkspaceMemoryMainFile(memoryDir);
-  return memoryDir;
-}
-
-export async function ensureProjectMemoryDir(input: {
-  workspaceRoot: string;
-  projectId: string;
-  projectName?: string | null;
-}): Promise<string> {
-  const { memoryDir } = getWorkspaceMemoryPaths(input.workspaceRoot);
-  const projectMemoryDir = getProjectMemoryDir(memoryDir, input.projectId);
-  await fsPromises.mkdir(projectMemoryDir, { recursive: true });
-  await ensureProjectMemoryMainFile(projectMemoryDir, input.projectName);
-  return projectMemoryDir;
-}

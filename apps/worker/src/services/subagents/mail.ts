@@ -1,7 +1,7 @@
 import { query, withTransaction } from "../../lib/db.js";
 import { requireSubagentTarget } from "./access.js";
 import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
-import type { SubagentCaller } from "./types.js";
+import type { SubagentCaller } from "@meowbert/run-executor/subagents/types";
 
 export async function sendSubagentMessage(input: SubagentCaller & {
   target: string; message: string; followup: boolean; deliveryKey: string;

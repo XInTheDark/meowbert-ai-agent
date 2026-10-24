@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import type { TaskMessageRow } from "../agent/types.js";
+import type { TaskMessageRow } from "@meowbert/run-executor/agent/types";
 
 vi.mock("../../lib/config.js", () => ({ config: {} }));
 vi.mock("../runtime/events.js", () => ({ emitTaskEvent: vi.fn() }));
 
-import { getMessagesAfterLatestCompaction, getMessagesForV2ActiveWindow, getVisibleMessagesForContextClear } from "./history.js";
+import { getMessagesAfterLatestCompaction, getMessagesForV2ActiveWindow, getVisibleMessagesForContextClear } from "@meowbert/run-executor/context-compaction/history";
 
 function message(id: string, role: TaskMessageRow["role"], content: Record<string, unknown>): TaskMessageRow {
   return {

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { isProjectContextPath } from "@meowbert/shared/project-context";
 import { query } from "../../lib/db.js";
-import type { TaskLiveSyncFileSummary } from "../agent/live-sync-types.js";
+import type { TaskLiveSyncFileSummary } from "@meowbert/run-executor/agent/live-sync-types";
 
 function normalizeRelativePath(value: string): string {
   const normalized = value.trim().replace(/\\/g, "/");

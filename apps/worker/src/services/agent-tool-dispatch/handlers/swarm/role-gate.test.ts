@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS, normalizeAgentSwarmSettings } from "@meowbert/shared";
-import { createSwarmActivity } from "../../../agent-swarm/auto-notes.js";
+import { createSwarmActivity } from "@meowbert/run-executor/agent-swarm/activity";
 import type { SwarmRunContext } from "../../../agent-swarm/config.js";
 import type { SwarmLaneRow } from "../../../agent-swarm/lane-store.js";
 import { checkSwarmToolRole } from "./role-gate.js";

@@ -1,6 +1,6 @@
 import { query } from "../../lib/db.js";
-import type { OpenAiProviderConfig } from "./openai-client.js";
-import { CHATGPT_CODEX_ORIGINATOR } from "./chatgpt-request.js";
+import type { OpenAiProviderConfig } from "@meowbert/run-executor/agent/openai-client";
+import { CHATGPT_CODEX_ORIGINATOR } from "@meowbert/run-executor/agent/chatgpt-request";
 
 export const OPENAI_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 export const OPENAI_OAUTH_TOKEN_URL = "https://auth.openai.com/oauth/token";

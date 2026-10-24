@@ -1,6 +1,6 @@
 import { config } from "../../lib/config.js";
 import { query } from "../../lib/db.js";
-import type { EnvironmentRow, TaskMessageRow, TaskRow, TaskSnapshot } from "../agent/types.js";
+import type { EnvironmentRow, TaskMessageRow, TaskRow, TaskSnapshot } from "@meowbert/run-executor/agent/types";
 import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
 import {
   resolveWorkspaceClaudeCacheKeepalive,
@@ -11,7 +11,7 @@ import {
   resolveWorkspaceModelRequestTimeoutMs,
   resolveWorkspaceSendMetadataToModel,
   resolveWorkspaceShellToolMaxTimeoutMs
-} from "../workspaces/workspace-model-settings.js";
+} from "@meowbert/run-executor/workspaces/workspace-model-settings";
 import {
   getWorkspaceThoughtPersistenceEnabled,
   DEFAULT_MEMORY_ENABLED,

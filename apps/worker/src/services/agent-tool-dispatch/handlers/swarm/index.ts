@@ -8,9 +8,9 @@ import {
   STEER_TOOL_NAME,
   STOP_LANE_TOOL_NAME,
   SUBMIT_TOOL_NAME
-} from "../../../agent-tools/swarm.js";
-import { toolErrorResult, type ToolCallResult } from "../../tool-call-result.js";
-import type { ToolDispatchContext, ToolDispatchState } from "../../types.js";
+} from "@meowbert/run-executor/agent-tools/swarm";
+import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { handleCheck } from "./check.js";
 import { handleDiverge } from "./diverge.js";
 import { handleResume } from "./resume.js";

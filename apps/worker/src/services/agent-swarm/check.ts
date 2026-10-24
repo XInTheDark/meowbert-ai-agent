@@ -1,8 +1,8 @@
 import type { ChosenModelRoute } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
-import type { SwarmDispatchContext } from "./dispatch-context.js";
+import type { SwarmDispatchContext } from "@meowbert/run-executor/agent-swarm/dispatch-context";
 import { createCheckLane, type CreatedLane } from "./lane-creation.js";
-import { buildCheckBrief } from "./prompt.js";
+import { buildCheckBrief } from "@meowbert/run-executor/agent-swarm/prompt";
 
 // Every message the user wrote on the current branch of the swarm's conversation, oldest first. The
 // Check lane gets these and the deliverable, never the author's reasoning.

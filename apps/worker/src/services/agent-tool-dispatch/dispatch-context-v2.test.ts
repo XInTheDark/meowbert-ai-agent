@@ -1,27 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ResponseOutputItem } from "openai/resources/responses/responses";
-import type { ContextManagementV2State } from "../context-management-v2/types.js";
-import type { ToolDispatchContext, ToolDispatchState } from "./types.js";
+import type { ContextManagementV2State } from "@meowbert/run-executor/context-management-v2/types";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 
 const mocks = vi.hoisted(() => ({
   handleApplyPatch: vi.fn(),
   recordContextItems: vi.fn(async () => {})
 }));
 
-vi.mock("../context-management-v2/index.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../context-management-v2/index.js")>();
+vi.mock("@meowbert/run-executor/context-management-v2/window", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@meowbert/run-executor/context-management-v2/window")>();
   return {
     ...actual,
     recordContextItems: mocks.recordContextItems
   };
 });
 
-vi.mock("./handlers/apply-patch.js", () => ({
+vi.mock("@meowbert/run-executor/agent-tool-dispatch/handlers/apply-patch", () => ({
   handleApplyPatch: mocks.handleApplyPatch
 }));
 
-import { GET_CONTEXT_REMAINING_TOOL_NAME } from "../agent-tools/index.js";
-import { dispatchResponseOutput } from "./dispatch.js";
+import { GET_CONTEXT_REMAINING_TOOL_NAME } from "@meowbert/run-executor/agent-tools/index";
+import { dispatchResponseOutput } from "@meowbert/run-executor/agent-tool-dispatch/dispatch";
+import { createTestRunControl } from "../run-host/test-run-environment.test-fixtures.js";
 
 const contextManagementV2: ContextManagementV2State = {
   version: "v2",
@@ -46,6 +47,7 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
       commandStep: 0
     };
     const ctx = {
+      control: createTestRunControl(),
       contextManagementV2,
       compatibilityModes: [],
       assertNotCancelled: async () => {}
@@ -59,7 +61,7 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
     } as unknown as ResponseOutputItem], ctx, state);
 
     expect(mocks.recordContextItems).toHaveBeenCalledTimes(2);
-    expect(mocks.recordContextItems.mock.calls[1]?.[1]).toEqual([
+    expect(mocks.recordContextItems.mock.calls[1]?.[2]).toEqual([
       expect.objectContaining({
         type: "custom_tool_call_output",
         call_id: "ctc_v2_apply_patch_1"
@@ -75,6 +77,7 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
       commandStep: 0
     };
     const ctx = {
+      control: createTestRunControl(),
       contextManagementV2,
       compatibilityModes: [],
       assertNotCancelled: async () => {}
@@ -88,13 +91,13 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
     } as unknown as ResponseOutputItem], ctx, state);
 
     expect(mocks.recordContextItems).toHaveBeenCalledTimes(2);
-    expect(mocks.recordContextItems.mock.calls[0]?.[1]).toEqual([
+    expect(mocks.recordContextItems.mock.calls[0]?.[2]).toEqual([
       expect.objectContaining({
         type: "custom_tool_call",
         call_id: "ctc_v2_1"
       })
     ]);
-    expect(mocks.recordContextItems.mock.calls[1]?.[1]).toEqual([
+    expect(mocks.recordContextItems.mock.calls[1]?.[2]).toEqual([
       expect.objectContaining({
         type: "custom_tool_call_output",
         call_id: "ctc_v2_1"
@@ -110,6 +113,7 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
       commandStep: 0
     };
     const ctx = {
+      control: createTestRunControl(),
       contextManagementV2,
       compatibilityModes: [],
       assertNotCancelled: async () => {}

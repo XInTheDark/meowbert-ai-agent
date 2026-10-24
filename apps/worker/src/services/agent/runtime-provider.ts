@@ -1,6 +1,6 @@
 import { readSelectedAiProvider, requireSelectedAiProvider } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
-import type { OpenAiProviderConfig } from "./openai-client.js";
+import type { OpenAiProviderConfig } from "@meowbert/run-executor/agent/openai-client";
 
 function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, "").toLowerCase();

@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { query } from "../../lib/db.js";
-import type { SubagentCaller, SubagentTask } from "./types.js";
+import type { SubagentCaller, SubagentTask } from "@meowbert/run-executor/subagents/types";
 
 export async function loadSubagentTask(taskId: string, client?: PoolClient): Promise<SubagentTask> {
   const sql = `SELECT t.*, COALESCE(s.root_task_id, t.id) AS root_task_id FROM tasks t

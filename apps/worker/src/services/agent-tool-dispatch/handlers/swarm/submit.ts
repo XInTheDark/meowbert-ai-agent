@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import { SUBMIT_TOOL_NAME, submitArgumentsSchema } from "../../../agent-tools/swarm.js";
+import { SUBMIT_TOOL_NAME, submitArgumentsSchema } from "@meowbert/run-executor/agent-tools/swarm";
 import type { SwarmLaneFile } from "../../../agent-swarm/lane-store.js";
-import { toolErrorResult, type ToolCallResult } from "../../tool-call-result.js";
-import type { ToolDispatchContext, ToolDispatchState } from "../../types.js";
+import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { checkSwarmToolRole } from "./role-gate.js";
 
 // About four characters per token; the summary goes into the parent's context, so it stays short.

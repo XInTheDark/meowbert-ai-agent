@@ -7,7 +7,7 @@ import {
   STEER_TOOL_NAME,
   STOP_LANE_TOOL_NAME,
   SUBMIT_TOOL_NAME
-} from "../../../agent-tools/swarm.js";
+} from "@meowbert/run-executor/agent-tools/swarm";
 import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
 import { swarmDepth, type SwarmRunContext } from "../../../agent-swarm/config.js";
 

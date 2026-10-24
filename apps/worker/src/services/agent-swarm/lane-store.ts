@@ -3,46 +3,15 @@ import type { ChosenModelRoute } from "@meowbert/shared";
 
 export type SwarmQueryable = Pick<PoolClient, "query">;
 
-export type SwarmLaneKind = "split" | "diverge" | "check";
-export type SwarmLaneStatus = "queued" | "running" | "waiting" | "done" | "failed" | "stopped" | "expired";
-
-// A lane that has not finished: its parent's barrier waits for it.
-export const ACTIVE_LANE_STATUSES: readonly SwarmLaneStatus[] = ["queued", "running", "waiting"];
-export const TERMINAL_LANE_STATUSES: readonly SwarmLaneStatus[] = ["done", "failed", "stopped"];
-
-export interface SwarmLaneFile {
-  path: string;
-  bytes: number | null;
-}
-
-export interface SwarmLaneResult {
-  summary: string;
-  decisions: Array<{ choice: string; reason: string; would_change_if: string }> | null;
-  findings: Array<{ severity: string; location: string; issue: string }> | null;
-  files: SwarmLaneFile[];
-}
-
-export interface SwarmLaneRow {
-  task_id: string;
-  swarm_task_id: string;
-  parent_task_id: string;
-  depth: number;
-  kind: SwarmLaneKind;
-  title: string;
-  direction: string | null;
-  status: SwarmLaneStatus;
-  fork_seed_id: string | null;
-  weight: string;
-  share_tokens: string | null;
-  spent_tokens: string;
-  steps: number;
-  note_cursor: string;
-  result_json: SwarmLaneResult | null;
-  merged_at: string | null;
-  created_at: string;
-  started_at: string | null;
-  ended_at: string | null;
-}
+export * from "@meowbert/run-executor/agent-swarm/lane-types";
+import {
+  ACTIVE_LANE_STATUSES,
+  TERMINAL_LANE_STATUSES,
+  type SwarmLaneKind,
+  type SwarmLaneResult,
+  type SwarmLaneRow,
+  type SwarmLaneStatus
+} from "@meowbert/run-executor/agent-swarm/lane-types";
 
 const LANE_COLUMNS = `task_id, swarm_task_id, parent_task_id, depth, kind, title, direction, status, fork_seed_id,
   weight, share_tokens, spent_tokens, steps, note_cursor, result_json, merged_at, created_at, started_at, ended_at`;

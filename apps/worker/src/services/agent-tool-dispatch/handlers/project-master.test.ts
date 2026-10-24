@@ -9,15 +9,15 @@ vi.mock("../../project-master/api-client.js", () => ({
 }));
 vi.mock("../../project-master/listeners.js", () => ({ listenToNewTask: vi.fn(), setTaskListening: vi.fn() }));
 vi.mock("../../project-master/scheduled-tasks.js", () => ({ createScheduledManagedTask: vi.fn() }));
-vi.mock("../events.js", () => ({
+vi.mock("@meowbert/run-executor/agent-tool-dispatch/events", () => ({
   startBuiltinToolExecution: vi.fn(async () => ({})),
   finishBuiltinToolSuccess: vi.fn(),
   finishBuiltinToolFailure: vi.fn()
 }));
 
 import { createScheduledManagedTask } from "../../project-master/scheduled-tasks.js";
-import { finishBuiltinToolSuccess } from "../events.js";
-import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
+import { finishBuiltinToolSuccess } from "@meowbert/run-executor/agent-tool-dispatch/events";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { handleProjectMasterTool } from "./project-master.js";
 
 const ctx = {

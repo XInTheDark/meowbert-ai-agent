@@ -1,7 +1,7 @@
 import { saveConversationSnapshots, remapConversationMap, remapConversationOutline, conversationMapSchema, type ConversationSnapshot, type TaskHistoryArchiveQueryable } from "@meowbert/shared";
 import { createTaskMessageMetadata, externalizeTaskMedia, rehydrateTaskMedia, touchTaskHistoryActivity } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
-import type { TaskMessageRow } from "../agent/types.js";
+import type { TaskMessageRow } from "@meowbert/run-executor/agent/types";
 
 export async function appendMessage(
   taskId: string,

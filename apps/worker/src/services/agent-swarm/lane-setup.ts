@@ -1,20 +1,12 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import {
-  recordContextItems,
-  resolveContextManagementState,
-  type ContextManagementV2State
-} from "../context-management-v2/index.js";
-import type { PromptEnvelope } from "../agent/prompt-envelope.js";
-import type { TaskMessageRow } from "../agent/types.js";
-import { loadForkSeed, restoreForkEnvelope, type ForkSeed } from "./fork-seed.js";
-import type { SwarmLaneRow } from "./lane-store.js";
+import { recordContextItems, resolveContextManagementState } from "@meowbert/run-executor/context-management-v2/window";
+import type { RunContextStore } from "@meowbert/run-executor/agent/ports/run-control";
+import type { TaskMessageRow } from "@meowbert/run-executor/agent/types";
+import { loadForkSeed } from "./fork-seed.js";
+import { restoreForkEnvelope, type ForkSeed, type LaneRunSetup } from "@meowbert/run-executor/agent-swarm/fork-types";
 
-export interface LaneRunSetup {
-  seed: ForkSeed;
-  promptEnvelope: PromptEnvelope;
-  contextManagement: ContextManagementV2State;
-  conversationItems: ResponseInputItem[];
-}
+export type { LaneRunSetup } from "@meowbert/run-executor/agent-swarm/fork-types";
+import type { SwarmLaneRow } from "./lane-store.js";
 
 // The lane's own result for the split call, written with its first message when it was forked.
 export function findLaneForkOutput(messages: TaskMessageRow[]): ResponseInputItem | null {
@@ -37,6 +29,7 @@ export function inheritedItems(seed: Pick<ForkSeed, "items" | "capabilities">, r
 // envelope and its window items exactly as stored, with no window notes prepended and no live state
 // appended, so the prefix stays identical across the lane's runs and to its parent's up to the fork.
 export async function prepareLaneRun(input: {
+  contextStore: RunContextStore;
   taskId: string;
   lane: Pick<SwarmLaneRow, "fork_seed_id">;
   messages: TaskMessageRow[];
@@ -45,7 +38,7 @@ export async function prepareLaneRun(input: {
 }): Promise<LaneRunSetup> {
   const seed = input.lane.fork_seed_id ? await loadForkSeed(input.lane.fork_seed_id) : null;
   if (!seed) throw new Error("This lane's fork is no longer available.");
-  const resolved = await resolveContextManagementState({
+  const resolved = await resolveContextManagementState(input.contextStore, {
     taskId: input.taskId,
     requestedVersion: "v2",
     runtimeModel: input.runtimeModel,
@@ -58,7 +51,7 @@ export async function prepareLaneRun(input: {
     const forkOutput = findLaneForkOutput(input.messages);
     if (!forkOutput) throw new Error("This lane has no fork result to start from.");
     conversationItems = [...inheritedItems(seed, input.runtimeModel), forkOutput];
-    await recordContextItems(resolved.state, conversationItems, { preserveItems: true });
+    await recordContextItems(input.contextStore, resolved.state, conversationItems, { preserveItems: true });
   }
   return {
     seed,

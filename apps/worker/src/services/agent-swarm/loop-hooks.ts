@@ -1,5 +1,5 @@
 import { pool } from "../../lib/db.js";
-import type { AgentExecutionContext } from "../agent/execution-types.js";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { flushAutoNotes } from "./auto-notes.js";
 import { applySwarmBudget, chargeSwarmStep } from "./budget.js";
 import { appendLaneInbox } from "./lane-inbox.js";

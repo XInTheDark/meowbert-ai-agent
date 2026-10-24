@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { resolveInternalApiBaseUrl, signInternalScopedAccessTicket } from "../agent/internal-api-proxy.js";
 import type { ChosenModelRoute } from "@meowbert/shared";
-import type { TaskMessageToolOptions } from "../agent/types.js";
+import type { TaskMessageToolOptions } from "@meowbert/run-executor/agent/types";
 
 export interface ProjectMasterCaller {
   taskId: string;

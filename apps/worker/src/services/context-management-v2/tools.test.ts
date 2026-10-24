@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ContextManagementV2State } from "./types.js";
+import type { ContextManagementV2State } from "@meowbert/run-executor/context-management-v2/types";
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(async () => ({ rows: [] })),

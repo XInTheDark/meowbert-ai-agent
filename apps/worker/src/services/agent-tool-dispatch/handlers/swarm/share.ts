@@ -1,8 +1,8 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import { SHARE_TOOL_NAME, shareArgumentsSchema } from "../../../agent-tools/swarm.js";
+import { SHARE_TOOL_NAME, shareArgumentsSchema } from "@meowbert/run-executor/agent-tools/swarm";
 import { insertSwarmNote } from "../../../agent-swarm/notes-store.js";
-import { toolErrorResult, type ToolCallResult } from "../../tool-call-result.js";
-import type { ToolDispatchContext } from "../../types.js";
+import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { checkSwarmToolRole } from "./role-gate.js";
 
 // Siblings share a parent, so the note is scoped to the lane's parent.

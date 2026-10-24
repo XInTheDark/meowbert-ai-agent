@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { withTransaction } from "../../lib/db.js";
-import { recordContextItems } from "../context-management-v2/index.js";
-import type { AgentExecutionContext } from "./execution-types.js";
+import { recordContextItems } from "@meowbert/run-executor/context-management-v2/window";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 
 // Appends messages that arrived from outside the run (subagent mail, task reports) at a model-turn
 // boundary. Pending tool calls are persisted first so the order survives a restart and replay.
@@ -35,6 +35,6 @@ export async function appendRunInboxItems(
   if (!result) return;
   state.currentLeafMessageId = result.leaf;
   state.dispatchState.runPersistedItems.splice(0);
-  if (state.contextManagement.version === "v2") await recordContextItems(state.contextManagement, result.items);
+  if (state.contextManagement.version === "v2") await recordContextItems(execution.prepared.control.context, state.contextManagement, result.items);
   state.dispatchState.conversationItems.push(...result.items);
 }

@@ -6,11 +6,12 @@ vi.mock("../agent-db/index.js", () => ({
 }));
 
 import { appendMessage } from "../agent-db/index.js";
+import { createTestRunControl } from "../run-host/test-run-environment.test-fixtures.js";
 import {
   assertContextTrimCountAvailable,
   checkpointAndTrimContext,
   persistContextCheckpoint
-} from "./index.js";
+} from "@meowbert/run-executor/context-management/index";
 
 function functionPair(callId: string, name: string): ResponseInputItem[] {
   return [
@@ -48,7 +49,7 @@ describe("context management", () => {
     let leafMessageId: string | null = "tool-message";
 
     await checkpointAndTrimContext({
-      taskId: "task-1",
+      control: createTestRunControl({ taskId: "task-1" }),
       checkpoint: "Continue from the retained state.",
       toolSummary: "The first tool succeeded and returned its expected result.",
       count: 1,
@@ -114,7 +115,7 @@ describe("context management", () => {
     const runPersistedItems: ResponseInputItem[] = [];
 
     await persistContextCheckpoint({
-      taskId: "task-compact",
+      control: createTestRunControl({ taskId: "task-compact" }),
       action: "compact",
       checkpoint: "The compacted run should continue with the remaining tests.",
       conversationItems,

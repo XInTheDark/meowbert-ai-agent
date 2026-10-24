@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { LoadedWorkflowRunContext } from "./context-types.js";
+import type { LoadedWorkflowRunContext } from "@meowbert/run-executor/task-workflows/context-types";
 
 vi.mock("../../lib/db.js", () => ({
   query: vi.fn()

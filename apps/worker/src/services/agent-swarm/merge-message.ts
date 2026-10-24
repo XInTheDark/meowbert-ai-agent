@@ -1,5 +1,5 @@
 import type { AgentSwarmSettings } from "@meowbert/shared";
-import type { AgentExecutionContext } from "../agent/execution-types.js";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { appendRunInboxItems } from "../agent/run-inbox.js";
 import type { SwarmRunContext } from "./config.js";
 import { TERMINAL_LANE_STATUSES, type SwarmLaneResult, type SwarmLaneRow } from "./lane-store.js";

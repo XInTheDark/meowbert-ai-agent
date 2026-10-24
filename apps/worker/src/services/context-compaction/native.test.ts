@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Response } from "openai/resources/responses/responses";
-import { getOpenAiClient, type OpenAiProviderConfig } from "../agent/openai-client.js";
+import { getOpenAiClient, type OpenAiProviderConfig } from "@meowbert/run-executor/agent/openai-client";
 import { emitTaskEvent } from "../runtime/events.js";
-import { compactWithNativeBackend } from "./native.js";
+import { compactWithNativeBackend } from "@meowbert/run-executor/context-compaction/native";
+import { createTestCompactionRuntime } from "../run-host/test-run-environment.test-fixtures.js";
 import {
   estimateTokensFromText,
   mapNativeCompactionOutputItemsToInputItems,
@@ -10,9 +11,9 @@ import {
   providerSupportsNativeCompaction,
   type CompactContextInput,
   type ContextUsageSnapshot
-} from "./shared.js";
+} from "@meowbert/run-executor/context-compaction/shared";
 
-vi.mock("../agent/openai-client.js", () => ({
+vi.mock("@meowbert/run-executor/agent/openai-client", () => ({
   getOpenAiClient: vi.fn()
 }));
 
@@ -125,7 +126,7 @@ function createCompactInput(
   conversationItems: CompactContextInput["conversationItems"] = [{ role: "user", content: "Compact this conversation." }]
 ): CompactContextInput {
   return {
-    provider,
+    ...createTestCompactionRuntime(provider, "task-native-compaction"),
     taskId: "task-native-compaction",
     step: 2,
     trigger: "manual",

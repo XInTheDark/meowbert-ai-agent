@@ -10,21 +10,22 @@ vi.mock("../runtime/events.js", () => ({
   publishTaskEvent: vi.fn(async () => {})
 }));
 
-vi.mock("../../lib/openai-tool-output.js", () => ({
+vi.mock("@meowbert/run-executor/lib/openai-tool-output", () => ({
   extractObjectWithToolCall: vi.fn(async () => ({
     ok: false,
     error: "summary model rejected the reduced compaction input"
   }))
 }));
 
-vi.mock("./native.js", () => ({
+vi.mock("@meowbert/run-executor/context-compaction/native", () => ({
   compactWithNativeBackend: vi.fn()
 }));
 
 import { appendMessage } from "../agent-db/index.js";
 import { emitTaskEvent } from "../runtime/events.js";
-import { extractObjectWithToolCall } from "../../lib/openai-tool-output.js";
-import { compactWithNativeBackend } from "./native.js";
+import { createTestCompactionRuntime } from "../run-host/test-run-environment.test-fixtures.js";
+import { extractObjectWithToolCall } from "@meowbert/run-executor/lib/openai-tool-output";
+import { compactWithNativeBackend } from "@meowbert/run-executor/context-compaction/native";
 import {
   compactContextNow,
   estimateContextTokens,
@@ -33,8 +34,8 @@ import {
   prepareConversationHistoryChunksForCompaction,
   recoverContextAfterContextWindowError,
   selectCompactionLiveTailItems
-} from "./index.js";
-import { stringifyContextEstimateValue } from "./token-estimation.js";
+} from "@meowbert/run-executor/context-compaction/index";
+import { stringifyContextEstimateValue } from "@meowbert/run-executor/context-compaction/token-estimation";
 
 function createPngDataUrl(width: number, height: number): string {
   const header = Buffer.alloc(24);
@@ -291,7 +292,7 @@ describe("compactContextNow", () => {
     const conversationItems: ResponseInputItem[] = [{ role: "user", content: "Only message" }];
 
     const result = await compactContextNow({
-      provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
+      ...createTestCompactionRuntime({ apiKey: "test", baseUrl: "https://example.com/v1" }, "task-single-item"),
       taskId: "task-single-item",
       step: 1,
       model: "gpt-test",
@@ -320,7 +321,7 @@ describe("compactContextNow", () => {
     const runPersistedItems: ResponseInputItem[] = [{ role: "assistant", content: "pending" }];
 
     const result = await compactContextNow({
-      provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
+      ...createTestCompactionRuntime({ apiKey: "test", baseUrl: "https://example.com/v1" }, "task-persist"),
       taskId: "task-persist",
       step: 2,
       model: "gpt-test",
@@ -362,7 +363,7 @@ describe("compactContextNow", () => {
     const conversationItems = [...sourceItems];
 
     const result = await compactContextNow({
-      provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
+      ...createTestCompactionRuntime({ apiKey: "test", baseUrl: "https://example.com/v1" }, "task-chunks"),
       taskId: "task-chunks",
       step: 4,
       model: "gpt-test",
@@ -400,7 +401,7 @@ describe("maybeAutoCompactContext", () => {
     const estimatedInputTokens = estimateContextTokens("system", conversationItems, "gpt-test");
 
     const result = await maybeAutoCompactContext({
-      provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
+      ...createTestCompactionRuntime({ apiKey: "test", baseUrl: "https://example.com/v1" }, "task-actual-usage"),
       taskId: "task-actual-usage",
       step: 1,
       model: "gpt-test",
@@ -444,7 +445,7 @@ describe("maybeAutoCompactContext", () => {
     });
 
     await expect(maybeAutoCompactContext({
-      provider: { apiKey: "test", baseUrl: "https://api.openai.com/v1" },
+      ...createTestCompactionRuntime({ apiKey: "test", baseUrl: "https://api.openai.com/v1" }, "task-native-loop-guard"),
       taskId: "task-native-loop-guard",
       step: 1,
       model: "gpt-test",
@@ -459,7 +460,7 @@ describe("maybeAutoCompactContext", () => {
 
     const compactedEstimate = estimateContextTokens("system", conversationItems, "gpt-test");
     const result = await maybeAutoCompactContext({
-      provider: { apiKey: "test", baseUrl: "https://api.openai.com/v1" },
+      ...createTestCompactionRuntime({ apiKey: "test", baseUrl: "https://api.openai.com/v1" }, "task-native-loop-guard"),
       taskId: "task-native-loop-guard",
       step: 2,
       model: "gpt-test",
@@ -494,10 +495,10 @@ describe("recoverContextAfterContextWindowError", () => {
     ];
 
     const result = await recoverContextAfterContextWindowError({
-      provider: {
+      ...createTestCompactionRuntime({
         apiKey: "test",
         baseUrl: "https://example.com/v1"
-      },
+      }, "task-1"),
       taskId: "task-1",
       step: 3,
       model: "gpt-test",

@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import type { AgentExecutionContext } from "../agent/execution-types.js";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { appendRunInboxItems } from "../agent/run-inbox.js";
 import type { SwarmRunContext } from "./config.js";
 import { listDormantLanesInTx, type DormantLane } from "./dormancy.js";

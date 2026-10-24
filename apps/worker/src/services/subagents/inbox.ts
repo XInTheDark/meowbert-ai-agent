@@ -1,5 +1,5 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import type { AgentExecutionContext } from "../agent/execution-types.js";
+import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { appendRunInboxItems } from "../agent/run-inbox.js";
 
 export async function appendSubagentInbox(execution: AgentExecutionContext): Promise<void> {

@@ -3,15 +3,9 @@ import { withTransaction } from "../../lib/db.js";
 import type { SwarmLaneRow } from "./lane-store.js";
 import { emitSwarmEvent } from "./events.js";
 import { lockSwarmInTx } from "./scheduler.js";
+import type { SwarmNote, SwarmNoteKind } from "@meowbert/run-executor/agent-swarm/lane-types";
 
-export type SwarmNoteKind = "shared" | "auto";
-
-export interface SwarmNote {
-  seq: string;
-  kind: SwarmNoteKind;
-  content: string;
-  author_title: string;
-}
+export type { SwarmNote, SwarmNoteKind } from "@meowbert/run-executor/agent-swarm/lane-types";
 
 const MAX_NOTES_PER_DELIVERY = 50;
 

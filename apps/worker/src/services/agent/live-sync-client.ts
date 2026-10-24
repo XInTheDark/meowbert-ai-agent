@@ -1,5 +1,5 @@
 import { resolveInternalApiBaseUrl, signInternalScopedAccessTicket } from "./internal-api-proxy.js";
-import type { TaskLiveSyncFolderSearchFilters, TaskLiveSyncFolderSearchResult, TaskLiveSyncStatus } from "./live-sync-types.js";
+import type { TaskLiveSyncFolderSearchFilters, TaskLiveSyncFolderSearchResult, TaskLiveSyncStatus } from "@meowbert/run-executor/agent/live-sync-types";
 
 function buildLiveSyncHeaders(input: {
   userId: string | null;

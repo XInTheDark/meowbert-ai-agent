@@ -1,6 +1,6 @@
 import { withTransaction } from "../../lib/db.js";
 import { requireSubagentTarget } from "./access.js";
-import type { SubagentCaller } from "./types.js";
+import type { SubagentCaller } from "@meowbert/run-executor/subagents/types";
 
 export async function interruptSubagent(caller: SubagentCaller, targetId: string): Promise<string> {
   const target = await requireSubagentTarget(caller, targetId);

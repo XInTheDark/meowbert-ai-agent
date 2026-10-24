@@ -1,15 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { query, withTransaction } from "../../lib/db.js";
-import { buildContextWindowPrompt, buildThreadHint } from "./prompts.js";
-import { mergeContextSeedItems } from "./history.js";
 import type {
-  ContextHistoryRow,
-  ContextManagementState,
-  ContextManagementV2State,
-  ContextNoteRow,
-  ContextWindowRow
-} from "./types.js";
+  ContextHistoryRecord,
+  ContextNotesSummary,
+  ContextWindowRef,
+  OpenedContextWindow
+} from "@meowbert/run-executor/agent/ports/run-control";
+import type { ContextHistoryRow, ContextNoteRow, ContextWindowRow } from "@meowbert/run-executor/context-management-v2/types";
 
 import { accessibleNodesCte } from "./lineage.js";
 export { accessibleNodesCte } from "./lineage.js";
@@ -35,18 +33,6 @@ function getHistoryMetadata(item: ResponseInputItem): {
     toolNamespace,
     toolName
   };
-}
-
-function addOpaqueItemMarker(item: ResponseInputItem, id: string): void {
-  const record = getRecord(item);
-  if (record.role !== "user" && record.role !== "system" && record.role !== "developer") return;
-  const marker = `[id: ${id}]`;
-  for (const field of ["content", "output"] as const) {
-    const value = record[field];
-    if (typeof value !== "string" || value.includes(marker)) continue;
-    record[field] = `${value}\n${marker}`;
-    return;
-  }
 }
 
 async function createWindow(input: {
@@ -125,7 +111,7 @@ async function resolveVisibleContextNode(taskId: string, visibleMessageId: strin
 }
 
 
-async function loadNotesHint(taskId: string, contextNodeId: string): Promise<string | null> {
+export async function loadContextNotesSummary(taskId: string, contextNodeId: string): Promise<ContextNotesSummary> {
   const result = await query<ContextNoteRow>(
     `${accessibleNodesCte(2)}, effective_notes AS (
        SELECT DISTINCT ON (note.path) note.path, note.content, note.created_at, note.updated_at
@@ -140,32 +126,19 @@ async function loadNotesHint(taskId: string, contextNodeId: string): Promise<str
       LIMIT 50`,
     [taskId, contextNodeId]
   );
-  const continuity = result.rows.find((note) => note.path === "continuity.md")?.content ?? null;
-  return buildThreadHint({
-    continuity,
+  return {
+    continuity: result.rows.find((note) => note.path === "continuity.md")?.content ?? null,
     index: result.rows.map((note) => ({
       path: note.path,
       size: Buffer.byteLength(note.content, "utf8"),
       updatedAt: note.updated_at
     }))
-  });
+  };
 }
 
-export async function resolveContextManagementState(input: {
-  taskId: string;
-  requestedVersion: "v1" | "v2";
-  runtimeModel: string;
-  branchLeafMessageId: string | null;
-  seedItems: ResponseInputItem[];
-  skipHistoryReplay?: boolean;
-}): Promise<{ state: ContextManagementState; conversationItems: ResponseInputItem[] }> {
-  const version = await resolveFrozenContextManagementVersion(input);
-
-  if (version !== "v2") {
-    return { state: { version: "v1" }, conversationItems: input.seedItems };
-  }
-
-  const visibleNodeId = await resolveVisibleContextNode(input.taskId, input.branchLeafMessageId);
+// The open window on the branch ending at `branchLeafMessageId`, created when it has none.
+export async function openContextWindow(taskId: string, branchLeafMessageId: string | null): Promise<OpenedContextWindow> {
+  const visibleNodeId = await resolveVisibleContextNode(taskId, branchLeafMessageId);
   const latest = await query<ContextWindowRow>(
     `${accessibleNodesCte(2)}
      SELECT context_window.id, context_window.context_node_id, context_window.parent_window_id, context_window.branch_leaf_message_id, context_window.ordinal
@@ -174,41 +147,26 @@ export async function resolveContextManagementState(input: {
       WHERE context_window.task_id = $1 AND context_window.closed_at IS NULL
       ORDER BY context_window.ordinal DESC
       LIMIT 1`,
-    [input.taskId, visibleNodeId]
+    [taskId, visibleNodeId]
   );
-  const contextNodeId = latest.rows[0]?.context_node_id ?? await createPrivateContextNode(input.taskId, visibleNodeId);
+  const contextNodeId = latest.rows[0]?.context_node_id ?? await createPrivateContextNode(taskId, visibleNodeId);
   const window = latest.rows[0] ?? await createWindow({
-    taskId: input.taskId,
+    taskId,
     parentWindowId: null,
     contextNodeId,
-    branchLeafMessageId: input.branchLeafMessageId,
+    branchLeafMessageId,
     reason: "initial"
   });
   const first = await query<{ id: string }>(
     "SELECT id FROM task_context_windows WHERE task_id = $1 ORDER BY ordinal ASC LIMIT 1",
-    [input.taskId]
+    [taskId]
   );
-  const state: ContextManagementV2State = {
-    version: "v2",
-    taskId: input.taskId,
+  return {
     firstWindowId: first.rows[0]?.id ?? window.id,
     windowId: window.id,
     contextNodeId: window.context_node_id,
-    previousWindowId: window.parent_window_id,
-    branchLeafMessageId: input.branchLeafMessageId,
-    reminderSent: false,
-    pendingReset: false,
-    recoveryPhase: "normal"
+    previousWindowId: window.parent_window_id
   };
-  if (input.skipHistoryReplay) {
-    return { state, conversationItems: [] };
-  }
-  const existing = await loadWindowItems(state.windowId);
-  const merged = mergeContextSeedItems(existing, input.seedItems);
-  if (merged.newItems.length > 0) {
-    await recordContextItems(state, merged.newItems);
-  }
-  return { state, conversationItems: merged.conversationItems };
 }
 
 export async function resolveFrozenContextManagementVersion(input: {
@@ -232,25 +190,22 @@ export async function resolveFrozenContextManagementVersion(input: {
   return session?.version ?? input.requestedVersion;
 }
 
-export async function loadWindowItems(windowId: string): Promise<ResponseInputItem[]> {
+export async function loadWindowItems(taskId: string, windowId: string): Promise<ResponseInputItem[]> {
   const result = await query<ContextHistoryRow>(
     `SELECT id, ordinal, role, item_type, tool_namespace, tool_name, payload_json, created_at
        FROM task_context_history_items
-      WHERE window_id = $1
+      WHERE window_id = $1 AND task_id = $2
       ORDER BY ordinal ASC`,
-    [windowId]
+    [windowId, taskId]
   );
   return result.rows.map((row) => row.payload_json);
 }
 
-// `preserveItems` stores items exactly as given, without history id markers; a swarm lane's inherited
-// history must stay byte-identical to its parent's request so it reads the parent's cached prefix.
-export async function recordContextItems(
-  state: ContextManagementV2State,
-  items: ResponseInputItem[],
-  options: { preserveItems?: boolean } = {}
+export async function recordContextHistoryRecords(
+  state: ContextWindowRef,
+  records: ContextHistoryRecord[]
 ): Promise<void> {
-  if (items.length === 0) return;
+  if (records.length === 0) return;
   await withTransaction(async (client) => {
     await client.query<{ id: string }>(
       `SELECT id FROM task_context_windows WHERE id = $1 FOR UPDATE`,
@@ -274,10 +229,8 @@ export async function recordContextItems(
       batch = [];
       batchBytes = 2;
     };
-    for (const item of items) {
+    for (const { id, item } of records) {
       ordinal += 1;
-      const id = randomUUID();
-      if (!options.preserveItems) addOpaqueItemMarker(item, id);
       const metadata = getHistoryMetadata(item);
       const row = JSON.stringify({
         id,
@@ -299,54 +252,47 @@ export async function recordContextItems(
   });
 }
 
-export async function buildV2WindowDeveloperItems(input: {
-  state: ContextManagementV2State;
-  agentName: string;
-}): Promise<ResponseInputItem[]> {
-  const hint = await loadNotesHint(input.state.taskId, input.state.contextNodeId);
-  return [{ role: "developer", content: buildContextWindowPrompt({ state: input.state, agentName: input.agentName, threadHint: hint }) }];
-}
-
-export async function startNewContextWindow(input: {
-  state: ContextManagementV2State;
-  branchLeafMessageId: string | null;
-  reason: string;
-}): Promise<ContextManagementV2State> {
-  await query("UPDATE task_context_windows SET closed_at = now() WHERE id = $1 AND closed_at IS NULL", [input.state.windowId]);
-  const contextNodeId = await createPrivateContextNode(input.state.taskId, input.state.contextNodeId);
+export async function startNewContextWindowRecord(
+  state: ContextWindowRef,
+  branchLeafMessageId: string | null,
+  reason: string
+): Promise<{ windowId: string; contextNodeId: string }> {
+  await query("UPDATE task_context_windows SET closed_at = now() WHERE id = $1 AND closed_at IS NULL", [state.windowId]);
+  const contextNodeId = await createPrivateContextNode(state.taskId, state.contextNodeId);
   const window = await createWindow({
-    taskId: input.state.taskId,
-    parentWindowId: input.state.windowId,
+    taskId: state.taskId,
+    parentWindowId: state.windowId,
     contextNodeId,
-    branchLeafMessageId: input.branchLeafMessageId,
-    reason: input.reason
+    branchLeafMessageId,
+    reason
   });
-  return {
-    ...input.state,
-    windowId: window.id,
-    contextNodeId: window.context_node_id,
-    previousWindowId: input.state.windowId,
-    branchLeafMessageId: input.branchLeafMessageId,
-    reminderSent: false,
-    pendingReset: false,
-    recoveryPhase: "normal"
-  };
+  return { windowId: window.id, contextNodeId: window.context_node_id };
 }
 
-export async function linkContextNodeToVisibleMessage(input: {
-  state: ContextManagementV2State;
-  visibleMessageId: string;
-}): Promise<ContextManagementV2State> {
+// The visible context node for a message, created under the window's node when it has none.
+// Throws unless the window and its context node both belong to the task.
+export async function assertContextWindowOfTask(state: ContextWindowRef): Promise<void> {
+  const result = await query<{ ok: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM task_context_windows WHERE id = $1 AND task_id = $3)
+        AND EXISTS (SELECT 1 FROM task_context_nodes WHERE id = $2 AND task_id = $3) AS ok`,
+    [state.windowId, state.contextNodeId, state.taskId]
+  );
+  if (result.rows[0]?.ok !== true) {
+    throw new Error("Context window does not belong to this task.");
+  }
+}
+
+export async function linkVisibleContextNode(state: ContextWindowRef, visibleMessageId: string): Promise<string> {
   const existing = await query<{ id: string }>(
     "SELECT id FROM task_context_nodes WHERE task_id = $1 AND visible_message_id = $2 LIMIT 1",
-    [input.state.taskId, input.visibleMessageId]
+    [state.taskId, visibleMessageId]
   );
-  if (existing.rows[0]) return { ...input.state, contextNodeId: existing.rows[0].id };
+  if (existing.rows[0]) return existing.rows[0].id;
   const nodeId = randomUUID();
   await query(
     `INSERT INTO task_context_nodes (id, task_id, parent_node_id, visible_message_id, kind)
      VALUES ($1, $2, $3, $4, 'visible')`,
-    [nodeId, input.state.taskId, input.state.contextNodeId, input.visibleMessageId]
+    [nodeId, state.taskId, state.contextNodeId, visibleMessageId]
   );
-  return { ...input.state, contextNodeId: nodeId };
+  return nodeId;
 }

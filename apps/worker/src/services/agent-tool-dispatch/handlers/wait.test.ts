@@ -1,25 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 
-vi.mock("../../runtime/wait.js", () => ({ waitForConditions: vi.fn() }));
+vi.mock("@meowbert/run-executor/agent-tool-dispatch/shell-wait", () => ({ waitForConditions: vi.fn() }));
 vi.mock("../../task-schedules/service.js", () => ({ applyInfiniteWait: vi.fn() }));
-vi.mock("../events.js", () => ({
+vi.mock("@meowbert/run-executor/agent-tool-dispatch/events", () => ({
   startBuiltinToolExecution: vi.fn(async () => ({ toolName: "wait" })),
   finishBuiltinToolSuccess: vi.fn(async (_ctx: unknown, _execution: unknown, output: unknown) => ({ output })),
   finishBuiltinToolFailure: vi.fn(async (_ctx: unknown, _execution: unknown, error: string) => ({ output: { error } }))
 }));
 
-import { waitForConditions } from "../../runtime/wait.js";
+import { waitForConditions } from "@meowbert/run-executor/agent-tool-dispatch/shell-wait";
 import { applyInfiniteWait } from "../../task-schedules/service.js";
-import { finishBuiltinToolSuccess, finishBuiltinToolFailure } from "../events.js";
-import { handleWaitTool } from "./wait.js";
+import { finishBuiltinToolSuccess, finishBuiltinToolFailure } from "@meowbert/run-executor/agent-tool-dispatch/events";
+import { handleWaitTool } from "@meowbert/run-executor/agent-tool-dispatch/handlers/wait";
+import { createTestRunControl } from "../../run-host/test-run-environment.test-fixtures.js";
 
 const condition = { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", on_output: true, on_exit: true };
 const state = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as ToolDispatchState;
 
 function context(overrides: Partial<ToolDispatchContext> = {}): ToolDispatchContext {
   return {
+    control: createTestRunControl({ environmentId: "project-1", taskDir: "/task" }),
     taskId: "task-1", environmentId: "project-1", taskDir: "/task", runMode: "default",
     persistentRuntimeEnabled: true, actorUserId: "user-1", assertNotCancelled: vi.fn(async () => {}),
     ...overrides
@@ -49,7 +51,7 @@ describe("handleWaitTool", () => {
     const ctx = context({ runMode });
     expect((await handleWaitTool(call({ seconds: 10, shell_sessions: [condition] }), ctx, state)).waitRequest).toBeUndefined();
     expect(waitForConditions).toHaveBeenCalledWith(expect.objectContaining({
-      seconds: 10, shellSessions: [condition], environmentId: "project-1", taskDir: "/task"
+      seconds: 10, shellSessions: [condition], readSession: expect.any(Function)
     }));
     expect(applyInfiniteWait).not.toHaveBeenCalled();
   });

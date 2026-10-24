@@ -10,7 +10,10 @@ vi.mock("../../lib/db.js", () => ({
   withTransaction: mocks.withTransaction
 }));
 
-import { recordContextItems, resolveContextManagementState } from "./service.js";
+import { createDbContextStore } from "./db-store.js";
+import { recordContextItems, resolveContextManagementState } from "@meowbert/run-executor/context-management-v2/window";
+
+const TASK_ID = "11111111-1111-1111-1111-111111111111";
 
 describe("Context Management V2 service", () => {
   beforeEach(() => {
@@ -38,8 +41,8 @@ describe("Context Management V2 service", () => {
       .mockResolvedValueOnce({ rows: [{ id: "window-1" }] })
       .mockResolvedValueOnce({ rows: [] });
 
-    await resolveContextManagementState({
-      taskId: "11111111-1111-1111-1111-111111111111",
+    await resolveContextManagementState(createDbContextStore(TASK_ID), {
+      taskId: TASK_ID,
       requestedVersion: "v2",
       runtimeModel: "gpt-test",
       branchLeafMessageId: null,
@@ -69,8 +72,8 @@ describe("Context Management V2 service", () => {
       }] })
       .mockResolvedValueOnce({ rows: [{ id: "window-1" }] });
 
-    const result = await resolveContextManagementState({
-      taskId: "11111111-1111-1111-1111-111111111111",
+    const result = await resolveContextManagementState(createDbContextStore(TASK_ID), {
+      taskId: TASK_ID,
       requestedVersion: "v2",
       runtimeModel: "gpt-test",
       branchLeafMessageId: null,
@@ -83,6 +86,17 @@ describe("Context Management V2 service", () => {
     expect(mocks.query.mock.calls.some(([sql]) => String(sql).includes("task_context_history_items"))).toBe(false);
   });
 
+  it("refuses to record history into another task's window", async () => {
+    mocks.query.mockResolvedValueOnce({ rows: [{ ok: false }] });
+    const store = createDbContextStore(TASK_ID);
+
+    await expect(store.recordItems(
+      { taskId: TASK_ID, windowId: "foreign-window", contextNodeId: "foreign-node" },
+      [{ id: "33333333-3333-3333-3333-333333333333", item: { role: "user", content: "x" } }]
+    )).rejects.toThrow("does not belong to this task");
+    expect(mocks.withTransaction).not.toHaveBeenCalled();
+  });
+
   it("writes large history in bounded batches with consecutive ordinals and replay markers", async () => {
     const transactionClient = {
       query: vi.fn()
@@ -91,11 +105,12 @@ describe("Context Management V2 service", () => {
         .mockResolvedValue({ rows: [] })
     };
     mocks.withTransaction.mockImplementationOnce(async (callback: (client: typeof transactionClient) => Promise<unknown>) => callback(transactionClient));
+    mocks.query.mockResolvedValueOnce({ rows: [{ ok: true }] });
     const items = Array.from({ length: 257 }, (_, index) => ({ role: "user" as const, content: `item ${index}` }));
 
-    await recordContextItems({
+    await recordContextItems(createDbContextStore(TASK_ID), {
       version: "v2",
-      taskId: "11111111-1111-1111-1111-111111111111",
+      taskId: TASK_ID,
       firstWindowId: "window-1",
       windowId: "window-1",
       contextNodeId: "22222222-2222-2222-2222-222222222222",

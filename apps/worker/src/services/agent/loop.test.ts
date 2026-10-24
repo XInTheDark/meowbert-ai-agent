@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildAgentTurnRequest } from "./turn-request.js";
+import { buildAgentTurnRequest } from "@meowbert/run-executor/agent/turn-request";
 
 vi.mock("@meowbert/shared", async () => {
   const actual = await vi.importActual<typeof import("@meowbert/shared")>("@meowbert/shared");
@@ -21,11 +21,11 @@ vi.mock("../computer/computer-use.js", () => ({
   getDesktopComputerPresence: vi.fn()
 }));
 
-vi.mock("../computer/desktop-computer-status.js", () => ({
+vi.mock("@meowbert/run-executor/computer/desktop-computer-status", () => ({
   buildDesktopComputerUnavailableMessage: vi.fn(() => "desktop unavailable")
 }));
 
-vi.mock("../context-compaction/index.js", () => ({
+vi.mock("@meowbert/run-executor/context-compaction/index", () => ({
   compactContextNow: vi.fn(async () => ({ status: "compacted" })),
   emitActualContextUsage: vi.fn(),
   estimateContextTokens: vi.fn(() => 0),
@@ -33,20 +33,25 @@ vi.mock("../context-compaction/index.js", () => ({
   recoverContextAfterContextWindowError: vi.fn(async () => ({ status: "compacted" }))
 }));
 
-vi.mock("../context-management/index.js", () => ({
+vi.mock("@meowbert/run-executor/context-management/index", () => ({
   checkpointAndTrimContext: vi.fn(),
   persistContextCheckpoint: vi.fn()
 }));
 
-vi.mock("./model.js", () => ({
-  createModelResponseWithRetry: vi.fn()
+// The loop's view of a model turn: the response, with the run's control handle left out of the call.
+const modelTurn = vi.hoisted(() => vi.fn());
+vi.mock("@meowbert/run-executor/agent/model", () => ({
+  createModelResponseWithRetry: vi.fn(async (_control: unknown, ...args: unknown[]) => ({
+    response: await modelTurn(...args),
+    weightedTokens: 0
+  }))
 }));
 
-vi.mock("./model-request-recovery.js", () => ({
+vi.mock("@meowbert/run-executor/agent/model-request-recovery", () => ({
   persistModelRequestRecovery: vi.fn()
 }));
 
-vi.mock("./context-window.js", () => ({
+vi.mock("@meowbert/run-executor/agent/context-window", () => ({
   resetV2ContextWindow: vi.fn(),
   selectContextOverflowRecoveryItems: vi.fn((items: Array<{ role?: string; content?: unknown }>) => {
     const latestUserItem = [...items].reverse().find((item) =>
@@ -58,11 +63,11 @@ vi.mock("./context-window.js", () => ({
   })
 }));
 
-vi.mock("../agent-tool-dispatch/index.js", () => ({
+vi.mock("@meowbert/run-executor/agent-tool-dispatch/index", () => ({
   dispatchResponseOutput: vi.fn()
 }));
 
-vi.mock("./turn-request.js", () => ({
+vi.mock("@meowbert/run-executor/agent/turn-request", () => ({
   buildAgentTurnRequest: vi.fn(() => ({
     responseTools: [],
     codeModeTools: [],
@@ -73,37 +78,13 @@ vi.mock("./turn-request.js", () => ({
   }))
 }));
 
-vi.mock("./prompt-envelope.js", () => ({
+vi.mock("@meowbert/run-executor/agent/prompt-envelope", () => ({
   appendPromptEnvelopeDelta: vi.fn(),
   sealPromptEnvelope: vi.fn()
 }));
 
-vi.mock("./queued-prompt-deltas.js", () => ({
+vi.mock("@meowbert/run-executor/agent/queued-prompt-deltas", () => ({
   appendQueuedPromptDeltas: vi.fn()
-}));
-
-vi.mock("../tasks/subscription-usage.js", () => ({
-  computeEstimatedCostUsageForModel: vi.fn(async () => ({
-    resolvedModel: "gpt-test",
-    inputTokens: 0,
-    cachedInputTokens: 0,
-    cacheWriteInputTokens: 0,
-    billableInputTokens: 0,
-    outputTokens: 0,
-    reasoningTokens: 0,
-    visibleOutputTokens: 0,
-    multipliers: {
-      inputTokens: 1,
-      cachedInputTokens: 1,
-      cacheWriteInputTokens: 1.25,
-      outputTokens: 1,
-      reasoningTokens: 1
-    },
-    rateMultiplier: 1,
-    weightedTokens: 0
-  })),
-  getUserMonthlySubscriptionQuotaStatus: vi.fn(),
-  recordPlatformTokenUsageEvent: vi.fn()
 }));
 
 vi.mock("../task-workflows/service.js", () => ({
@@ -113,26 +94,22 @@ vi.mock("../task-workflows/service.js", () => ({
   submitLongHorizonReview: vi.fn()
 }));
 
-vi.mock("../tasks/recurring-run-utils.js", () => ({
+vi.mock("@meowbert/run-executor/tasks/recurring-run-utils", () => ({
   buildTimedRunFinalizationMessage: vi.fn(() => "timed finalization")
 }));
 
-import { createModelResponseWithRetry } from "./model.js";
-import { persistModelRequestRecovery } from "./model-request-recovery.js";
-import { dispatchResponseOutput } from "../agent-tool-dispatch/index.js";
+import { persistModelRequestRecovery } from "@meowbert/run-executor/agent/model-request-recovery";
+import { dispatchResponseOutput } from "@meowbert/run-executor/agent-tool-dispatch/index";
 import {
   compactContextNow,
   emitActualContextUsage,
   recoverContextAfterContextWindowError
-} from "../context-compaction/index.js";
-import { persistContextCheckpoint } from "../context-management/index.js";
-import {
-  computeEstimatedCostUsageForModel,
-  getUserMonthlySubscriptionQuotaStatus,
-  recordPlatformTokenUsageEvent
-} from "../tasks/subscription-usage.js";
-import { runAgentStepLoop } from "./loop.js";
-import { resetV2ContextWindow } from "./context-window.js";
+} from "@meowbert/run-executor/context-compaction/index";
+import { persistContextCheckpoint } from "@meowbert/run-executor/context-management/index";
+import { createFakeRunControl } from "../run-host/test-run-environment.test-fixtures.js";
+import { runAgentStepLoop } from "@meowbert/run-executor/agent/loop";
+import { resetV2ContextWindow } from "@meowbert/run-executor/agent/context-window";
+import { cloudRunFeatures } from "../run-host/cloud-run-features.js";
 
 function createExecutionContext() {
   const abortController = new AbortController();
@@ -146,7 +123,12 @@ function createExecutionContext() {
       selectionUserId: null
     },
     prepared: {
-      runtimeProvider: "openai",
+      features: cloudRunFeatures,
+      control: createFakeRunControl(),
+      models: { create: vi.fn(), isQuotaExceeded: vi.fn(async () => false) },
+      chatGptCodex: false,
+      runtimeProviderKind: "platform",
+      runtimeProviderBaseUrl: "https://example.com/v1",
       runtimeModel: "gpt-test",
       runtimeCompatibilityModes: [],
       runtimeModelPayload: {},
@@ -166,7 +148,6 @@ function createExecutionContext() {
       hasGitHubAppConnection: false,
       githubInstallationAccess: null,
       networkRequestLoggingEnabled: false,
-      emitNetworkRequestLog: vi.fn(),
       taskDir: "/tmp/task-1",
       envRoot: "/tmp/env-1",
       workspaceRoot: "/tmp/ws-1",
@@ -198,8 +179,6 @@ function createExecutionContext() {
       enableSkillById: vi.fn(),
       refreshGitHubToken: vi.fn(),
       runActorUserId: null,
-      subscriptionUserId: null,
-      subscriptionUserIsSuperAdmin: false,
       cancellationMonitor: {
         signal: abortController.signal,
         assertNotCancelled: vi.fn(async () => {})
@@ -230,7 +209,7 @@ function createExecutionContext() {
     },
     systemPrompt: "system prompt",
     promptEnvelope: {},
-    runControl: {
+    runTiming: {
       isTimedInfiniteRun: false,
       runDeadlineAtMs: null,
       runTimedOut: false,
@@ -248,7 +227,6 @@ function createExecutionContext() {
         runPersistedItems: [],
         commandStep: 0
       },
-      shouldRecordTokenUsage: false,
       hasActualContextUsage: false,
       finalResponseFromTool: null,
       waitRequest: null,
@@ -267,15 +245,15 @@ function createExpiredTimedExecutionContext() {
   const deadlineController = new AbortController();
   deadlineController.abort(new Error("RUN_TIME_LIMIT_REACHED"));
   execution.job.mode = "infinite_auto";
-  execution.runControl.isTimedInfiniteRun = true;
-  execution.runControl.runTimeLimitController = deadlineController;
-  execution.runControl.runAbortSignal = deadlineController.signal;
+  execution.runTiming.isTimedInfiniteRun = true;
+  execution.runTiming.runTimeLimitController = deadlineController;
+  execution.runTiming.runAbortSignal = deadlineController.signal;
   execution.assertRunNotAborted.mockRejectedValue(new Error("RUN_TIME_LIMIT_REACHED"));
   return execution;
 }
 
 describe("runAgentStepLoop", () => {
-  const mockedCreateModelResponseWithRetry = vi.mocked(createModelResponseWithRetry);
+  const mockedCreateModelResponseWithRetry = modelTurn;
   const mockedDispatchResponseOutput = vi.mocked(dispatchResponseOutput);
   const mockedRecoverContextAfterContextWindowError = vi.mocked(recoverContextAfterContextWindowError);
   const mockedCompactContextNow = vi.mocked(compactContextNow);
@@ -283,17 +261,9 @@ describe("runAgentStepLoop", () => {
   const mockedPersistContextCheckpoint = vi.mocked(persistContextCheckpoint);
   const mockedResetV2ContextWindow = vi.mocked(resetV2ContextWindow);
   const mockedPersistModelRequestRecovery = vi.mocked(persistModelRequestRecovery);
-  const mockedComputeEstimatedCostUsageForModel = vi.mocked(computeEstimatedCostUsageForModel);
-  const mockedGetUserMonthlySubscriptionQuotaStatus = vi.mocked(getUserMonthlySubscriptionQuotaStatus);
-  const mockedRecordPlatformTokenUsageEvent = vi.mocked(recordPlatformTokenUsageEvent);
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedGetUserMonthlySubscriptionQuotaStatus.mockResolvedValue({
-      used: 0,
-      limit: 0,
-      exceeded: false
-    });
   });
 
   it("delivers the timed wrap-up response despite the expired run deadline", async () => {
@@ -314,8 +284,8 @@ describe("runAgentStepLoop", () => {
     }), expect.any(Function));
     expect(execution.assertRunNotAborted).toHaveBeenCalledTimes(1);
     expect(execution.injectTimedRunFinalizationPrompt).toHaveBeenCalledTimes(1);
-    expect(execution.runControl.runTimedOut).toBe(true);
-    expect(execution.runControl.reachedMaxRunSteps).toBe(false);
+    expect(execution.runTiming.runTimedOut).toBe(true);
+    expect(execution.runTiming.reachedMaxRunSteps).toBe(false);
     expect(execution.state.finalResponseFromTool).toEqual(finalResponse);
   });
 
@@ -363,7 +333,7 @@ describe("runAgentStepLoop", () => {
     await expect(runAgentStepLoop(execution)).resolves.toBeUndefined();
 
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(1);
-    expect(execution.runControl.reachedMaxRunSteps).toBe(false);
+    expect(execution.runTiming.reachedMaxRunSteps).toBe(false);
     expect(execution.state.finalResponseFromTool).toEqual({
       response: "Timed task reached its time limit and could not produce a final response before stopping.",
       notify: true
@@ -386,7 +356,7 @@ describe("runAgentStepLoop", () => {
 
     await expect(runAgentStepLoop(execution)).rejects.toThrow("Provider unavailable");
 
-    expect(execution.runControl.runTimedOut).toBe(false);
+    expect(execution.runTiming.runTimedOut).toBe(false);
     expect(execution.state.finalResponseFromTool).toBeNull();
   });
 
@@ -455,7 +425,7 @@ describe("runAgentStepLoop", () => {
     expect(buildAgentTurnRequest).toHaveBeenCalledWith(expect.objectContaining({
       availability: expect.objectContaining({ allowWaitTool: true, allowFinalResponse: true })
     }));
-    expect(execution.runControl.reachedMaxRunSteps).toBe(false);
+    expect(execution.runTiming.reachedMaxRunSteps).toBe(false);
     expect(execution.state.finalResponseFromTool).toEqual({
       response: "done",
       notify: true,
@@ -496,7 +466,7 @@ describe("runAgentStepLoop", () => {
     expect(execution.state.finalResponseFromTool).toEqual({
       response: "Review complete.", notify: false, partial: false
     });
-    expect(execution.runControl.reachedMaxRunSteps).toBe(false);
+    expect(execution.runTiming.reachedMaxRunSteps).toBe(false);
     expect(execution.state.dispatchState.conversationItems).toContainEqual({
       role: "user",
       content: "[System: Continue working with tools. When the task is complete, call final_response explicitly; plain text does not finish the run.]"
@@ -521,7 +491,7 @@ describe("runAgentStepLoop", () => {
     await runAgentStepLoop(execution as never);
 
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(3);
-    expect(execution.runControl.reachedMaxRunSteps).toBe(true);
+    expect(execution.runTiming.reachedMaxRunSteps).toBe(true);
     expect(execution.state.finalResponseFromTool).toBeNull();
     expect(execution.state.waitRequest).toBeNull();
     expect(execution.state.stopRequest).toBeNull();
@@ -594,7 +564,7 @@ describe("runAgentStepLoop", () => {
     await runAgentStepLoop(execution as never);
 
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(3);
-    expect(execution.runControl.reachedMaxRunSteps).toBe(true);
+    expect(execution.runTiming.reachedMaxRunSteps).toBe(true);
     expect(execution.debugLogger.log).toHaveBeenCalledWith(
       "Run exhausted its reasoning step budget without a terminal tool call.",
       expect.objectContaining({
@@ -689,7 +659,7 @@ describe("runAgentStepLoop", () => {
     expect(request.promptCacheTtl).toBe("30m");
   });
 
-  it("records platform token usage even when the user has no quota plan", async () => {
+  it("reports the context usage of each model turn", async () => {
     mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
       output: [],
       output_text: "",
@@ -715,23 +685,9 @@ describe("runAgentStepLoop", () => {
     });
 
     const execution = createExecutionContext();
-    execution.prepared.subscriptionUserId = "user-1";
 
     await runAgentStepLoop(execution as never);
 
-    expect(mockedGetUserMonthlySubscriptionQuotaStatus).toHaveBeenCalledWith("user-1");
-    expect(mockedComputeEstimatedCostUsageForModel).toHaveBeenCalledWith(expect.objectContaining({
-      inputTokens: 120,
-      cachedInputTokens: 20,
-      cacheWriteInputTokens: 30,
-      outputTokens: 30,
-      reasoningTokens: 10
-    }));
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
-      { userId: "user-1", taskId: "task-1", runId: "run-1" },
-      expect.objectContaining({ inputTokens: 120, cachedInputTokens: 20, outputTokens: 30, reasoningTokens: 10 }),
-      expect.objectContaining({ resolvedModel: "gpt-test" })
-    );
     expect(execution.state.dispatchState.contextUsage).toEqual({
       usedTokens: 120,
       maxContextTokens: 128_000,
@@ -824,7 +780,7 @@ describe("runAgentStepLoop", () => {
     await runAgentStepLoop(execution as never);
 
     expect(mockedEmitActualContextUsage).toHaveBeenCalledWith({
-      taskId: "task-1",
+      control: execution.prepared.control,
       step: 0,
       maxContextTokens: 128_000,
       inputTokens: 120,
@@ -834,130 +790,17 @@ describe("runAgentStepLoop", () => {
     });
   });
 
-  it("records platform token usage for every Agent Swarm leader and lane run", async () => {
-    mockedCreateModelResponseWithRetry.mockResolvedValue({
-      output: [],
-      output_text: "Done.",
-      usage: {
-        input_tokens: 90,
-        output_tokens: 15
-      }
-    } as never);
-    mockedDispatchResponseOutput.mockResolvedValue({
-      sawToolCall: true,
-      sawFunctionToolCall: true,
-      finalResponse: {
-        response: "done",
-        notify: true,
-        partial: false
-      },
-      waitRequest: null,
-      stopRequest: null,
-      workflowPause: null
-    });
-
-    for (const run of [
-      { taskId: "leader-task", runId: "leader-run", mode: "agent_swarm_leader" },
-      { taskId: "worker-task-1", runId: "worker-run-1", mode: "agent_swarm_lane" },
-      { taskId: "worker-task-2", runId: "worker-run-2", mode: "agent_swarm_lane" }
-    ]) {
-      const execution = createExecutionContext();
-      execution.job.taskId = run.taskId;
-      execution.job.runId = run.runId;
-      execution.job.mode = run.mode;
-      execution.prepared.subscriptionUserId = "user-1";
-
-      await runAgentStepLoop(execution as never);
-    }
-
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledTimes(3);
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
-      { userId: "user-1", taskId: "leader-task", runId: "leader-run" },
-      expect.objectContaining({ inputTokens: 90, outputTokens: 15 }),
-      expect.anything()
-    );
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
-      { userId: "user-1", taskId: "worker-task-1", runId: "worker-run-1" },
-      expect.objectContaining({ inputTokens: 90, outputTokens: 15 }),
-      expect.anything()
-    );
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
-      { userId: "user-1", taskId: "worker-task-2", runId: "worker-run-2" },
-      expect.objectContaining({ inputTokens: 90, outputTokens: 15 }),
-      expect.anything()
-    );
-  });
-
-  it("records admin platform token usage without enforcing quota", async () => {
-    mockedGetUserMonthlySubscriptionQuotaStatus.mockResolvedValueOnce({
-      used: 10_000,
-      limit: 1,
-      exceeded: true
-    });
-    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
-      output: [],
-      output_text: "",
-      usage: {
-        input_tokens: 42,
-        output_tokens: 8
-      }
-    } as never);
-    mockedDispatchResponseOutput.mockResolvedValueOnce({
-      sawToolCall: true,
-      sawFunctionToolCall: true,
-      finalResponse: { response: "Admin done.", notify: true },
-      waitRequest: null,
-      stopRequest: null,
-      workflowPause: null
-    });
-
+  it("stops with the usage-limit message when the run's quota is used up", async () => {
     const execution = createExecutionContext();
-    execution.prepared.subscriptionUserId = "admin-1";
-    execution.prepared.resolvedRunActorIsSuperAdmin = true;
+    execution.prepared.models.isQuotaExceeded.mockResolvedValueOnce(true);
 
     await runAgentStepLoop(execution as never);
 
-    expect(mockedGetUserMonthlySubscriptionQuotaStatus).not.toHaveBeenCalled();
-    expect(execution.state.finalResponseFromTool).toEqual({ response: "Admin done.", notify: true });
-    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(1);
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "admin-1" }),
-      expect.objectContaining({ inputTokens: 42, outputTokens: 8 }),
-      expect.anything()
-    );
-  });
-
-  it("records usage for an admin-initiated task run by a non-admin without enforcing quota", async () => {
-    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({
-      output: [],
-      output_text: "",
-      usage: {
-        input_tokens: 42,
-        output_tokens: 8
-      }
-    } as never);
-    mockedDispatchResponseOutput.mockResolvedValueOnce({
-      sawToolCall: true,
-      sawFunctionToolCall: true,
-      finalResponse: { response: "Done.", notify: true },
-      waitRequest: null,
-      stopRequest: null,
-      workflowPause: null
+    expect(mockedCreateModelResponseWithRetry).not.toHaveBeenCalled();
+    expect(execution.state.finalResponseFromTool).toEqual({
+      response: expect.stringContaining("Subscription usage limit reached"),
+      notify: true
     });
-
-    const execution = createExecutionContext();
-    execution.prepared.subscriptionUserId = "admin-1";
-    execution.prepared.subscriptionUserIsSuperAdmin = true;
-    execution.prepared.resolvedRunActorIsSuperAdmin = false;
-
-    await runAgentStepLoop(execution as never);
-
-    expect(mockedGetUserMonthlySubscriptionQuotaStatus).not.toHaveBeenCalled();
-    expect(mockedRecordPlatformTokenUsageEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "admin-1" }),
-      expect.objectContaining({ inputTokens: 42, outputTokens: 8 }),
-      expect.anything()
-    );
   });
 
   it("omits prompt cache TTL when prompt caching is disabled", async () => {

@@ -1,5 +1,5 @@
 import { query } from "../../lib/db.js";
-import type { LoadedWorkflowRunContext } from "./context-types.js";
+import type { LoadedWorkflowRunContext } from "@meowbert/run-executor/task-workflows/context-types";
 import {
   clampNonNegativeInteger,
   coerceNullableString

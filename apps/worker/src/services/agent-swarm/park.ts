@@ -2,9 +2,8 @@ import type { TaskExecutionJob } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { loadLane } from "./lane-store.js";
+import type { SwarmParkReason } from "@meowbert/run-executor/agent-swarm/lane-types";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
-
-export type SwarmParkReason = "lanes" | "check" | "resume";
 
 // No agent waits on another. A parent that started lanes ends its run here; its resume job is kept
 // until the barrier wakes it. Mirrors parkForSubagentMail. If its lanes all finished before it parked,

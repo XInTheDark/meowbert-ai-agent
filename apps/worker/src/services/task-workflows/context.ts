@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import type { TaskWorkflowType } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
-import { resolveTaskDir } from "../tasks/task-paths.js";
-import * as contextTypes from "./context-types.js";
+import { resolveTaskDir } from "@meowbert/run-executor/tasks/task-paths";
+import * as contextTypes from "@meowbert/run-executor/task-workflows/context-types";
 import { buildLongHorizonContext } from "./long-horizon-context.js";
 import {
   coerceNullableString,
@@ -13,7 +13,7 @@ import {
 export type {
   LoadedWorkflowRunContext,
   WorkflowPromptContext
-} from "./context-types.js";
+} from "@meowbert/run-executor/task-workflows/context-types";
 
 async function loadWorkflowAgents(workflowTaskId: string): Promise<WorkflowAgentRecord[]> {
   const agentsRes = await query<{

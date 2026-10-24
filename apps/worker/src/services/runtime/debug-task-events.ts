@@ -1,5 +1,8 @@
 import { query } from "../../lib/db.js";
 import { emitTaskEvent } from "./events.js";
+import { createDebugLogger, type TaskDebugLogger } from "@meowbert/run-executor/agent/run-debug-logger";
+
+export type { TaskDebugLogger, TaskDebugStageInput } from "@meowbert/run-executor/agent/run-debug-logger";
 
 const DEBUG_MODE_CACHE_TTL_MS = 5_000;
 
@@ -7,56 +10,8 @@ interface DebugModeRow {
   debug_mode: boolean;
 }
 
-export interface TaskDebugStageInput<T> {
-  stage: string;
-  startMessage: string;
-  run: () => Promise<T>;
-  startPayload?: Record<string, unknown>;
-  successMessage?: string | ((result: T) => string);
-  successPayload?: Record<string, unknown> | ((result: T) => Record<string, unknown>);
-  failureMessage?: string | ((error: unknown) => string);
-  failurePayload?: Record<string, unknown> | ((error: unknown) => Record<string, unknown>);
-}
-
-export interface TaskDebugLogger {
-  log(message: string, payload?: Record<string, unknown>): Promise<void>;
-  stage<T>(input: TaskDebugStageInput<T>): Promise<T>;
-}
-
 let cachedDebugMode: { value: boolean; expiresAtMs: number } | null = null;
 let pendingDebugModeLoad: Promise<boolean> | null = null;
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
-  const text = String(error ?? "Unknown error").trim();
-  return text.length > 0 ? text : "Unknown error";
-}
-
-function resolveMessage<T>(
-  value: string | ((input: T) => string) | undefined,
-  fallback: string,
-  input: T
-): string {
-  if (typeof value === "function") {
-    return value(input);
-  }
-
-  return typeof value === "string" ? value : fallback;
-}
-
-function resolvePayload<T>(
-  value: Record<string, unknown> | ((input: T) => Record<string, unknown>) | undefined,
-  input: T
-): Record<string, unknown> {
-  if (typeof value === "function") {
-    return value(input);
-  }
-
-  return value ?? {};
-}
 
 async function loadTaskDebugModeEnabled(): Promise<boolean> {
   try {
@@ -108,61 +63,10 @@ async function emitTaskDebugLogEvent(taskId: string, message: string, payload: R
 }
 
 export function createTaskDebugLogger(taskId: string): TaskDebugLogger {
-  let enabledPromise: Promise<boolean> | null = null;
-
-  const isEnabled = async (): Promise<boolean> => {
-    enabledPromise ??= isTaskDebugModeEnabled();
-    return enabledPromise;
-  };
-
-  const log = async (message: string, payload: Record<string, unknown> = {}): Promise<void> => {
-    if (!(await isEnabled())) {
-      return;
-    }
-
-    await emitTaskDebugLogEvent(taskId, message, payload);
-  };
-
-  const stage = async <T>(input: TaskDebugStageInput<T>): Promise<T> => {
-    const startedAtMs = Date.now();
-    await log(input.startMessage, {
-      stage: input.stage,
-      phase: "start",
-      ...(input.startPayload ?? {})
-    });
-
-    try {
-      const result = await input.run();
-      await log(
-        resolveMessage(input.successMessage, `${input.startMessage} Done.`, result),
-        {
-          stage: input.stage,
-          phase: "success",
-          durationMs: Date.now() - startedAtMs,
-          ...resolvePayload(input.successPayload, result)
-        }
-      );
-      return result;
-    } catch (error) {
-      const message = toErrorMessage(error);
-      await log(
-        resolveMessage(input.failureMessage, `${input.stage} failed: ${message}`, error),
-        {
-          stage: input.stage,
-          phase: "error",
-          durationMs: Date.now() - startedAtMs,
-          error: message,
-          ...resolvePayload(input.failurePayload, error)
-        }
-      );
-      throw error;
-    }
-  };
-
-  return {
-    log,
-    stage
-  };
+  return createDebugLogger({
+    isEnabled: isTaskDebugModeEnabled,
+    emit: (message, payload) => emitTaskDebugLogEvent(taskId, message, payload)
+  });
 }
 
 export function resetTaskDebugModeCacheForTests(): void {

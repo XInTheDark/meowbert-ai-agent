@@ -1,6 +1,6 @@
 import type { ChosenModelRoute } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
-import type { ToolDispatchContext } from "../agent-tool-dispatch/types.js";
+import type { ToolDispatchContext } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { createRecurringTaskFromTool } from "../task-schedules/service.js";
 
 export interface ScheduledManagedTask {

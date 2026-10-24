@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { AiProviderConfig } from "@meowbert/shared";
-import { getOpenAiClient } from "../agent/openai-client.js";
+import { getOpenAiClient } from "@meowbert/run-executor/agent/openai-client";
 
 export async function sendActivationRequest(provider: AiProviderConfig, model: string): Promise<void> {
   const client = getOpenAiClient(provider);

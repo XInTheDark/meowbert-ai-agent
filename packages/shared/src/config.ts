@@ -81,6 +81,14 @@ const configSchema = z.object({
     sandbox: sandboxConfigSchema,
     taskScratch: taskScratchConfigSchema.optional()
   }),
+  // The worker's internal Run API, which executors outside the worker reach through the API.
+  runApi: z.object({
+    port: z.number().int().positive(),
+    // How the API reaches this worker; defaults to http://<hostname>:<port>.
+    url: z.string().url().optional(),
+    // "http" runs cloud tasks through the Run API and model proxy instead of in-process.
+    executorTransport: z.enum(["direct", "http"]).optional()
+  }).optional(),
   security: z.object({
     jwtSecret: z.string().min(1),
     jwtTtl: z.string().min(1)

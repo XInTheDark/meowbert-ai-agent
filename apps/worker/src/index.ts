@@ -8,7 +8,10 @@ import { config } from "./lib/config.js";
 import { redis } from "./lib/redis.js";
 import { pool } from "./lib/db.js";
 import { closeQueue } from "./lib/queue.js";
-import { runAgentJob } from "./services/agent/index.js";
+import { runAgentJob } from "@meowbert/run-executor/agent/index";
+import { createCloudRunEnvironment } from "./services/run-host/cloud-run-environment.js";
+import { createCloudHttpRunEnvironment } from "./services/run-host/cloud-http-run-environment.js";
+import { startRunApi } from "./services/run-api/runtime.js";
 import { startTaskRunRecoveryLoop } from "./services/tasks/task-run-recovery.js";
 import { startTaskScheduleLoop } from "./services/task-schedules/service.js";
 import { startTaskCleanupLoop } from "./services/tasks/task-cleanup.js";
@@ -66,10 +69,22 @@ async function start(): Promise<void> {
     }
   });
 
+  const runApi = config.runApi ? await startRunApi({ security: config.security, runApi: config.runApi }) : null;
+  const runOverHttp = runApi !== null && config.runApi?.executorTransport === "http";
+
   const worker = new Worker<TaskExecutionJob>(
     TASK_QUEUE_NAME,
     async (job) => {
-      await runAgentJob(job.data);
+      if (!runOverHttp) {
+        await runAgentJob(job.data, createCloudRunEnvironment(job.data));
+        return;
+      }
+      const { environment, dispose } = await createCloudHttpRunEnvironment(job.data, runApi);
+      try {
+        await runAgentJob(job.data, environment);
+      } finally {
+        dispose();
+      }
     },
     {
       connection: redis,
@@ -177,6 +192,7 @@ async function start(): Promise<void> {
     await worker.close();
     await emailWorker.close();
     await runDeliveryLoop.stop();
+    await runApi?.close();
     await closeQueue();
     await redis.quit();
     await pool.end();

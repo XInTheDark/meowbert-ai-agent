@@ -3,7 +3,7 @@ import { createTaskMessageMetadata } from "@meowbert/shared";
 import { withTransaction } from "../../lib/db.js";
 import { loadSubagentTask } from "./access.js";
 import { enqueueSubagentRun } from "./dispatch.js";
-import type { SpawnSubagentInput, SubagentTask } from "./types.js";
+import type { SpawnSubagentInput, SubagentTask } from "@meowbert/run-executor/subagents/types";
 
 export async function spawnSubagent(input: SpawnSubagentInput): Promise<SubagentTask> {
   return withTransaction(async (client) => {

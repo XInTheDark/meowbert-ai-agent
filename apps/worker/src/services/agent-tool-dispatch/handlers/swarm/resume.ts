@@ -1,9 +1,9 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import { resumeArgumentsSchema } from "../../../agent-tools/swarm.js";
+import { resumeArgumentsSchema } from "@meowbert/run-executor/agent-tools/swarm";
 import { resumeLane } from "../../../agent-swarm/lane-control.js";
-import { buildResumeStartedMessage } from "../../../agent-swarm/prompt.js";
-import { toolErrorResult, type ToolCallResult } from "../../tool-call-result.js";
-import type { ToolDispatchContext, ToolDispatchState } from "../../types.js";
+import { buildResumeStartedMessage } from "@meowbert/run-executor/agent-swarm/prompt";
+import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { runSwarmToolCall } from "./swarm-tool-call.js";
 
 export async function handleResume(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {

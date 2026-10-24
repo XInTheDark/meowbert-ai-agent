@@ -1,5 +1,5 @@
 import { query } from "../../lib/db.js";
-import type { GoogleWorkspaceRuntimeReference } from "../agent/google-workspace-references.js";
+import type { GoogleWorkspaceRuntimeReference } from "@meowbert/run-executor/agent/google-workspace-references";
 
 export async function hasTaskGoogleWorkspaceFolders(input: {
   taskId: string;

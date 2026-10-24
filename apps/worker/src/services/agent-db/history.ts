@@ -8,8 +8,8 @@ import type {
   TaskHistorySearchInput,
   TaskHistorySearchResult,
   TaskHistoryResult
-} from "../agent/types.js";
-import { asText } from "../agent/utils.js";
+} from "@meowbert/run-executor/agent/types";
+import { asText } from "@meowbert/run-executor/agent/utils";
 import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
 import { loadTaskOutputFiles } from "./task-output-files.js";
 import { config } from "../../lib/config.js";

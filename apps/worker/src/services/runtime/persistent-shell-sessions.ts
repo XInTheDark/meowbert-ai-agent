@@ -8,8 +8,8 @@ import path from "node:path";
 import type { PoolClient, QueryResult, QueryResultRow } from "pg";
 import { query, withConnection } from "../../lib/db.js";
 import { resolveUserSandboxContainerResources } from "../agent-db/user-resource-limits.js";
-import { resolveTaskReadableMountPaths } from "../agent/task-write-scope.js";
-import { resolveTaskInputDir } from "../tasks/task-paths.js";
+import { resolveTaskReadableMountPaths } from "@meowbert/run-executor/agent/task-write-scope";
+import { resolveTaskInputDir } from "@meowbert/run-executor/tasks/task-paths";
 import { workerSandboxManager } from "./sandbox.js";
 
 const STARTING_SESSION_TIMEOUT_MS = 5 * 60_000;

@@ -5,13 +5,14 @@ vi.mock("../agent-db/index.js", () => ({
 }));
 
 import { appendMessage } from "../agent-db/index.js";
+import { createTestRunControl } from "../run-host/test-run-environment.test-fixtures.js";
 import {
   insertMissingToolOutputItem,
   parseMissingToolOutput,
   parseMissingToolOutputCallId,
   persistModelRequestRecovery,
   replaceLastRecoverableRequestItem
-} from "./model-request-recovery.js";
+} from "@meowbert/run-executor/agent/model-request-recovery";
 
 const mockedAppendMessage = vi.mocked(appendMessage);
 
@@ -73,7 +74,7 @@ describe("model request recovery", () => {
     let currentLeafMessageId: string | null = "message-1";
 
     await expect(persistModelRequestRecovery({
-      taskId: "task-1",
+      control: createTestRunControl({ taskId: "task-1" }),
       errorMessage: "400 invalid image",
       conversationItems,
       runPersistedItems,
@@ -297,7 +298,7 @@ describe("model request recovery", () => {
     const runPersistedItems = [...conversationItems];
 
     expect(await persistModelRequestRecovery({
-      taskId: "task-unmatched",
+      control: createTestRunControl({ taskId: "task-unmatched" }),
       errorMessage: "400 No tool output found for function call fc_unknown.",
       conversationItems,
       runPersistedItems,
@@ -347,7 +348,7 @@ describe("model request recovery", () => {
     let currentLeafMessageId: string | null = "msg-prev";
 
     const recovered = await persistModelRequestRecovery({
-      taskId: "task-missing-tool",
+      control: createTestRunControl({ taskId: "task-missing-tool" }),
       errorMessage: "400 No tool output found for function call call_R3KCF83wYt9Wc5NYBwnbhn42.",
       conversationItems,
       runPersistedItems,
@@ -388,7 +389,7 @@ describe("model request recovery", () => {
     let currentLeafMessageId: string | null = "msg-prev";
 
     const recovered = await persistModelRequestRecovery({
-      taskId: "task-missing-custom-tool",
+      control: createTestRunControl({ taskId: "task-missing-custom-tool" }),
       errorMessage: "400 No tool output found for custom tool call ctc_UoAd8ephmWzW3mrhX3neGMmG.",
       conversationItems,
       runPersistedItems,
@@ -420,7 +421,7 @@ describe("model request recovery", () => {
     const conversationItems = [{ role: "user", content: "run this" }, call] as never[];
 
     await persistModelRequestRecovery({
-      taskId: "task-history",
+      control: createTestRunControl({ taskId: "task-history" }),
       errorMessage: "No tool output found for function call call_history",
       conversationItems,
       runPersistedItems: [],
@@ -451,7 +452,7 @@ describe("model request recovery", () => {
     ] as never[];
 
     await persistModelRequestRecovery({
-      taskId: "task-repeat",
+      control: createTestRunControl({ taskId: "task-repeat" }),
       errorMessage: "No tool output found for function call call_repeat",
       conversationItems,
       runPersistedItems: [],

@@ -1,18 +1,11 @@
-import { z } from "zod";
+import type { z } from "zod";
+import { organizationHistoryArgumentsSchema } from "@meowbert/run-executor/agent-tools/argument-schemas";
 import { loadConversationNavigation, loadConversationPublicIndex, type ConversationPublicMessage, type ConversationMap } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { getNewestLeafMessageId } from "./messages.js";
 import { loadTaskOutputFiles } from "./task-output-files.js";
 import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
 
-export const organizationHistoryArgumentsSchema = z.object({
-  task_id: z.string().uuid().nullable().optional(),
-  max_messages: z.number().int().min(1).max(50).nullable().optional(),
-  view: z.enum(["messages", "navigation"]).nullable().optional(),
-  cursor: z.string().uuid().nullable().optional(),
-  branch_leaf_id: z.string().uuid().nullable().optional(),
-  message_ids: z.array(z.string().uuid()).min(1).max(50).nullable().optional()
-});
 
 export async function readOrganizedTaskHistory(input: z.infer<typeof organizationHistoryArgumentsSchema>, context: {
   taskId: string; environmentId: string; branchLeafId: string | null; allowOtherTasks: boolean;

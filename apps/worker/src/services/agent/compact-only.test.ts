@@ -1,27 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  appendMessage: vi.fn(),
-  emitTaskEvent: vi.fn(),
-  recordRunCompletion: vi.fn(),
-  setTaskStatusForRun: vi.fn(),
   compactContextNow: vi.fn(),
   resetV2ContextWindow: vi.fn()
 }));
-const { appendMessage, emitTaskEvent, recordRunCompletion, setTaskStatusForRun, compactContextNow, resetV2ContextWindow } = mocks;
+const { compactContextNow, resetV2ContextWindow } = mocks;
 
-vi.mock("../runtime/events.js", () => ({ emitTaskEvent: mocks.emitTaskEvent }));
-vi.mock("../agent-db/index.js", () => ({
-  appendMessage: mocks.appendMessage,
-  recordRunCompletion: mocks.recordRunCompletion,
-  setTaskStatusForRun: mocks.setTaskStatusForRun
-}));
-vi.mock("../context-compaction/index.js", () => ({
+vi.mock("@meowbert/run-executor/context-compaction/index", () => ({
   compactContextNow: mocks.compactContextNow
 }));
-vi.mock("./context-window.js", () => ({ resetV2ContextWindow: mocks.resetV2ContextWindow }));
+vi.mock("@meowbert/run-executor/agent/context-window", () => ({ resetV2ContextWindow: mocks.resetV2ContextWindow }));
 
-import { maybeHandleCompactOnlyRun } from "./compact-only.js";
+import { maybeHandleCompactOnlyRun } from "@meowbert/run-executor/agent/compact-only";
+import { createFakeRunControl, type FakeRunControl } from "../run-host/test-run-environment.test-fixtures.js";
+
+let control: FakeRunControl;
 
 function buildExecution(restoreStatus?: "awaiting_input" | "succeeded" | "failed" | "cancelled") {
   return {
@@ -33,7 +26,9 @@ function buildExecution(restoreStatus?: "awaiting_input" | "succeeded" | "failed
     },
     manualClearItems: null,
     prepared: {
-      runtimeProvider: {},
+      control,
+      models: {},
+      supportsNativeCompaction: false,
       runtimeModel: "model",
       snapshot: {
         compaction_backend: "native",
@@ -42,7 +37,7 @@ function buildExecution(restoreStatus?: "awaiting_input" | "succeeded" | "failed
       },
       maxContextTokens: 100
     },
-    runControl: {
+    runTiming: {
       runAbortSignal: new AbortController().signal
     },
     systemPrompt: "system",
@@ -60,7 +55,7 @@ function buildExecution(restoreStatus?: "awaiting_input" | "succeeded" | "failed
 describe("maybeHandleCompactOnlyRun", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    appendMessage.mockResolvedValue("clear-message");
+    control = createFakeRunControl();
     compactContextNow.mockResolvedValue({
       status: "success",
       usageBefore: 10,
@@ -71,14 +66,13 @@ describe("maybeHandleCompactOnlyRun", () => {
   it("restores the task status that existed before compaction", async () => {
     await expect(maybeHandleCompactOnlyRun(buildExecution("succeeded"))).resolves.toBe(true);
 
-    expect(setTaskStatusForRun).toHaveBeenCalledWith("task-1", "run-1", "succeeded");
-    expect(recordRunCompletion).toHaveBeenCalledWith("run-1", "completed");
+    expect(control.complete).toHaveBeenCalledWith({ kind: "status", status: "succeeded" });
   });
 
   it("keeps the historical awaiting-input fallback for old compaction jobs", async () => {
     await maybeHandleCompactOnlyRun(buildExecution());
 
-    expect(setTaskStatusForRun).toHaveBeenCalledWith("task-1", "run-1", "awaiting_input");
+    expect(control.complete).toHaveBeenCalledWith({ kind: "status", status: "awaiting_input" });
   });
 
   it("rolls V2 manual compaction into a fresh context window", async () => {

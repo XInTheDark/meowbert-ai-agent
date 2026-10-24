@@ -1,8 +1,8 @@
 import { findPlatformAgentPresetById, resolvePlatformAgentPresetMode, type PlatformAgentPreset } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
-import { extractModelRequestPayload } from "../agent/utils.js";
-import type { OpenAiProviderConfig } from "../agent/openai-client.js";
-import type { SubagentRuntime } from "./types.js";
+import { extractModelRequestPayload } from "@meowbert/run-executor/agent/utils";
+import type { OpenAiProviderConfig } from "@meowbert/run-executor/agent/openai-client";
+import type { SubagentRuntime } from "@meowbert/run-executor/subagents/types";
 
 export async function loadSubagentRuntime(taskId: string): Promise<SubagentRuntime | null> {
   const result = await query<{ runtime_json: SubagentRuntime }>(

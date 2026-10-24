@@ -3,11 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { FunctionTool, ResponseOutputItem } from "openai/resources/responses/responses";
-import { dispatchResponseOutput, type ToolDispatchContext, type ToolDispatchState } from "./index.js";
+import { dispatchResponseOutput, type ToolDispatchContext, type ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/index";
 import { appendMessage } from "../agent-db/index.js";
 import { emitTaskEvent } from "../runtime/events.js";
-import { executeShellCommand } from "../runtime/shell.js";
-import { buildResponseTools, buildRunShellFunctionTool } from "../agent-tools/index.js";
+import { executeShellCommand } from "@meowbert/run-executor/runtime/shell";
+import { buildResponseTools, buildRunShellFunctionTool } from "@meowbert/run-executor/agent-tools/index";
+import { createTestRunControl, testExecutorSettings } from "../run-host/test-run-environment.test-fixtures.js";
+import { noRunFeatures } from "@meowbert/run-executor/agent/ports/run-features";
 
 vi.mock("../agent-db/index.js", () => ({
   appendMessage: vi.fn(async () => "msg-1"),
@@ -17,7 +19,7 @@ vi.mock("../agent-db/index.js", () => ({
 vi.mock("../runtime/events.js", () => ({
   emitTaskEvent: vi.fn(async () => {})
 }));
-vi.mock("../runtime/shell.js", () => ({
+vi.mock("@meowbert/run-executor/runtime/shell", () => ({
   executeShellCommand: vi.fn(async (input: { command: string }) => ({
     command: input.command,
     stdout: input.command === "ls" ? "notes.txt\n" : `ran ${input.command}\n`,
@@ -32,6 +34,9 @@ vi.mock("../runtime/shell.js", () => ({
 
 function createContext(): ToolDispatchContext {
   return {
+    control: createTestRunControl(),
+    settings: testExecutorSettings,
+    features: noRunFeatures,
     runId: "run-1",
     taskId: "task-1",
     workspaceId: "ws-1",

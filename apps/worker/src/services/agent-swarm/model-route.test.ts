@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import type { PlatformModelRouter } from "@meowbert/shared";
-import { buildSwarmFunctionTools } from "../agent-tools/swarm.js";
+import { buildSwarmFunctionTools } from "@meowbert/run-executor/agent-tools/swarm";
 import { inheritedItems } from "./lane-setup.js";
 import { applyLaneModelRoute, buildLaneModelRoute, pickCheckModelRoute } from "./model-route.js";
 import { SwarmToolError } from "./tool-error.js";

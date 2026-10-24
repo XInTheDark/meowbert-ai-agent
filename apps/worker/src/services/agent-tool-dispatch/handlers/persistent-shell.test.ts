@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
+import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 
 const mocks = vi.hoisted(() => ({
   listPersistentShellSessions: vi.fn(),
@@ -22,16 +22,18 @@ vi.mock("../../runtime/persistent-shell-sessions.js", () => ({
   buildPersistentShellEnvironment: vi.fn()
 }));
 
-vi.mock("../events.js", () => ({
+vi.mock("@meowbert/run-executor/agent-tool-dispatch/events", () => ({
   startBuiltinToolExecution: mocks.startBuiltinToolExecution,
   finishBuiltinToolSuccess: mocks.finishBuiltinToolSuccess,
   finishBuiltinToolFailure: mocks.finishBuiltinToolFailure
 }));
 
-import { handleShellSession } from "./persistent-shell.js";
+import { handleShellSession } from "@meowbert/run-executor/agent-tool-dispatch/handlers/persistent-shell";
+import { createTestRunControl } from "../../run-host/test-run-environment.test-fixtures.js";
 
 function createMockContext(overrides?: Partial<ToolDispatchContext>): ToolDispatchContext {
   return {
+    control: createTestRunControl({ actorUserId: "user-1", taskDir: "/task", envRoot: "/env", workspaceRoot: "/workspace" }),
     taskId: "task-1",
     workspaceId: "ws-1",
     environmentId: "env-1",

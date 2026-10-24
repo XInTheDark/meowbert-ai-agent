@@ -297,9 +297,9 @@ New routes under `apps/api/src/routes/runs/`, domain logic in `apps/api/src/serv
 Lease epochs don't cover retries within one epoch: a `/messages` call that commits but loses its response would append twice when retried.
 
 - **Operation ids.** Every mutating call carries an `operationId` the executor generates before the first attempt and reuses on every retry.
-- **Durable dedup.** `run_api_operations(run_id, operation_id, request_hash, response_json, created_at)` with a unique key on `(run_id, operation_id)`. The mutation and the operation row commit in one transaction; a retry with the same id returns the stored response. A retry with the same id and a different request hash is rejected.
+- **Durable dedup.** `run_api_operations(run_id, operation_id, request_hash, response_json, created_at)` with a unique key on `(run_id, operation_id)`. The operation is recorded before the mutation runs and its response after (section 24, decision 17); a retry with the same id returns the stored response, or "outcome unknown" if the first attempt never finished. A retry with the same id and a different request hash is rejected.
 - **Messages** carry `expectedLeafId`. If the branch leaf has moved, the server returns 409 with the current leaf, and the executor reloads instead of appending on the wrong branch.
-- **Events** carry a per-run sequence number assigned by the executor. The server stores `(run_id, seq)` uniquely, ignores duplicates, and publishes in sequence order.
+- **Events** carry a per-run sequence number assigned by the executor. The server ignores duplicates and late arrivals, so events publish in sequence order (decision 18).
 - **Completion.** `complete` and `fail` are idempotent: a repeat returns the same final response. `complete` runs `completeTaskRun` and records pending delivery in one transaction, as today.
 - **Retention.** Operation rows are deleted a day after their run finishes.
 
@@ -323,6 +323,8 @@ Device routes (desktop session auth):
 
 Run routes (lease token): `heartbeat`, `events`, `messages`, `checkpoints`, `tool-calls`, `artifacts`, `model/responses`, `tools/:name`, `live-folders/:linkId/rclone-config` (milestone 5), `complete`, `fail`.
 
+As built in milestone 0, each `RunControl` method is one call: `POST /api/runs/:id/call/:method`, where `method` names the interface member (`control.appendMessage`, `context.recordItems`, `platform.createSubtask`, `control.heartbeat`, ...), with `{ operationId, args, expectedLeafId?, seq? }`. Model requests go to `POST /api/runs/:id/model/responses`. The method list, which methods write, and the error codes are in `packages/shared/src/run-api.ts`. The API checks the lease token and forwards the call to the worker that holds the run (section 24, decision 15).
+
 ## 12. Model proxy
 
 The local executor sends every model request to `/runs/:id/model/responses`. The server owns the upstream connection.
@@ -332,6 +334,29 @@ The local executor sends every model request to `/runs/:id/model/responses`. The
 - **Concurrency.** One in-flight model request per run (the loop is sequential), and a per-user limit across runs.
 - **Disconnects.** If the device disconnects mid-stream, the server cancels the upstream request and settles from the usage the provider reports for what was produced (or the full reservation if none is reported). Accounting never depends on the client finishing.
 - **Auxiliary calls.** Every model call in the run path goes through `ModelGateway` with a `purpose`: `turn`, `compaction` (context compaction and context-management summaries), `title` (`maybeAutoGenerateTaskTitle`), `web_search` (`runClaudeWebSearch`) and any others the phase 2 inventory of `createModelResponse` and provider-client callers finds. Each purpose has its own server-side policy (allowed models, output limit) and is billed to the run like today.
+
+### 12.0 As built in milestone 0
+
+- **Allowlist.** Accepted body fields: `input`, `instructions`, `include`, `store` (false only), `tools`, `tool_choice`, `parallel_tool_calls`, `prompt_cache_key`, `prompt_cache_options`, `user` and `max_output_tokens` (at most the context window). Any other field must be one of the route's own payload fields with the route's value, so reasoning effort and service tier come only from the route. `model` is always rejected; the gateway sets it from the route and purpose. Tools must be `function` or `custom`, except hosted `web_search` on turns of runs allowed to search. Only the cache-affinity and Meridian headers pass.
+- **Reservations.** `user_usage_reservations`, written under a row lock on the user. The bound is the counted input plus `max_output_tokens`, or, when the request sets none, every output token the context window leaves room for. Agent turns don't set an output limit (a small one starves reasoning), so the server doesn't add one; the context window bounds them instead. Reservations count against every limit the user's plans set, rolling windows included, and stop counting after an hour if their request never settles.
+- **Disconnects.** The upstream request is aborted, and a request abandoned this way is billed at its reserved maximum, since the provider reports no usage for it.
+- **Not built yet.** Checking that function tools match the run's resolved tool set (the executor loads skills and MCP tools on demand, so the server would need that state too), and the per-user limit across runs. Both are open questions in section 24.
+
+### 12.1 Model-call inventory
+
+Every model call on the run path, as of milestone 0 phase 2. Each one goes through `ModelGateway.create` with its purpose; nothing on the run path builds a provider client any more.
+
+| Purpose | Caller | Model | Notes |
+|---|---|---|---|
+| `turn` | `createModelResponseWithRetry` (`agent/model.ts`), from the step loop | run route model | Retries, cut-off and recovery stay in the executor. Billed; a billing failure is shown to the user. |
+| `title` | `maybeAutoGenerateTaskTitle` (`agent/model.ts`) | route quick model | Best effort; the title is written through `RunControl.setGeneratedTitle`. |
+| `compaction` | `requestNativeCompaction` (`context-compaction/native.ts`) | run route model | Only for providers that support native compaction. |
+| `compaction` | summary compaction (`context-compaction/summary.ts`), through `openai-tool-output`'s `ResponseRequester` | run route model | Also used by context-management checkpoints and swarm fork compaction. |
+| `web_search` | `runClaudeWebSearch` (`agent/claude-web-search.ts`) | run route model | The hosted search tool is added from run policy. |
+
+Not on the run path, and staying on the server: model routing (`model-routing/router-resolution.ts`, resolved during bootstrap), memory indexing embeddings, and usage activation checks.
+
+The gateway always sets the model from the run's route and purpose, whatever the request body says, and settles usage for every purpose. Quota is read through `ModelGateway.isQuotaExceeded`.
 
 ## 13. Tool ownership
 
@@ -344,6 +369,30 @@ Every tool handler in `agent-tool-dispatch/handlers` gets one of three classes, 
 - **Mixed tools** change both. They return `{ output, stateDelta }` with a typed delta that the executor applies to its run state. Each mixed tool is listed with its delta type. A tool that can't be expressed this way stays cloud-only.
 
 Persistence ownership is fixed: **the executor persists every conversation message, tool call and tool result** through the Run API. The platform tool host never appends messages or emits tool events for the call itself. It may emit domain events (for example, "task scheduled").
+
+### 13.1 Tool classes
+
+The milestone 0 phase 2 table. "Platform host" means the call goes through `RunControl.platform` (`PlatformToolHost`), which acts with the run's own identity: the executor can't name another task, project or workspace.
+
+| Tools | Class | How it crosses the boundary |
+|---|---|---|
+| `final_response`, `update_conversation_outline`, `update_conversation_map`, `context_checkpoint_and_compact`, `context_checkpoint_and_trim`, `init_sandbox`, `list_skills`, `enable_skill`, `search_tools`, `exec` (code mode) | Executor-state | Run state only; persisted by finalize, checkpoints and the context store. Code mode dispatches nested calls through the same table. |
+| Context management v2 tools (windows, notes, history) | Executor-state | `RunControl.context`, scoped to the run's task. |
+| `run_shell`, `apply_patch`, `view_image`, `view_pdf_file`, skill tools, MCP tools | Machine | `MachineHost` and the storage roots. |
+| `shell_session`, persistent `run_shell` | Server | `platform.persistentShell`; the session broker is on the server. |
+| `query_tasks`, `view_task_history`, organized history, `memory_search` | Server (read-only) | Platform host. |
+| `search_web` | Server (model call) | `ModelGateway` with purpose `web_search`. |
+| `refresh_gh_token` | Server | `platform.refreshGitHubToken`; returns env for the machine. |
+| Live sync tools, `search_live_sync_folder` | Server | Platform host. |
+| `mark_artifact`, `create_project_canvas`, `show_canvas` | Server | Platform host for the records; files are written by the executor. |
+| Computer Use tools | Server (milestone 3 moves them to host tools) | `platform.getDesktopComputerPresence` and `requestDesktopComputerAction`. |
+| `schedule_task`, `edit_current_task_schedule`, `create_subtask`, `start_subtask` | Server (side-effecting) | Platform host. |
+| `stop_task` | Mixed | `platform.pauseRecurringSchedule` pauses the schedule; the delta is the run's stop request (`stopRequest`). |
+| `wait` | Mixed | `platform.applyInfiniteWait` moves a timed run's next run; the delta is the run's wait request (`waitRequest`). Shell-session conditions are read through `platform.readShellSessionWaitState`. |
+| Long Horizon workflow tools | Cloud-only | Server-side hooks (`workflowActions`); excluded for device targets (section 14.3). |
+| Subagent tools, Project Master tools, Agent Swarm tools | Cloud-only | Database-backed on the server; excluded for device targets. |
+
+Every tool call, whatever its class, is recorded as started before it runs and cleared when its outcome is known (`RunControl.recordToolCallStart` / `recordToolCallResult`, table `task_run_tool_calls`). The next run of the task reports unfinished calls as "outcome unknown" instead of replaying them (section 10.1).
 
 ## 14. Bootstrap and device state
 
@@ -540,6 +589,16 @@ Decided:
 13. Default device capacity is 2 concurrent local runs.
 14. Cloud sandboxes stay `linux/amd64`. The `linux/arm64` build is published for devices only.
 
+15. The Run API is served by the worker that claims the run, and the API forwards to it. The claim records that worker's listener URL (`task_run_dispatches.lease_api_url`) with the lease, so any number of workers can serve runs. If that worker goes away, the run's lease lapses and the run is claimed again.
+16. Agent Swarm, subagents, Project Master and Long Horizon workflows stay database-backed on the server. The executor reaches them through the `RunFeatures` hooks (`packages/run-executor/src/agent/ports/run-features.ts`); executors outside the control plane get `noRunFeatures`, and the server refuses those features for device runs (section 14.3). A cloud worker running through the Run API still runs these hooks in process.
+17. Operation dedup records the operation before running it and stores the response after, rather than committing both in one transaction: that would mean threading one database client through every write on the run path. A write that crashes in between is reported as "outcome unknown" on retry and is never applied twice.
+18. Events are deduplicated by operation id and by a per-session sequence number that drops late duplicates; `task_events` gets no `seq` column.
+19. An append must extend the run's branch: its parent is the run's last message or a descendant of it. Descendants are allowed because the server's own hooks (subagent mail, swarm notes, Project Master reports) append between the executor's messages.
+20. The executor package keeps the worker's directory layout without `services/`, and the worker imports its modules by path (`@meowbert/run-executor/agent/loop`). Worker tests resolve those paths to the package source so mocks apply inside it.
+21. Executor settings that came from the worker's config (step limit, command timeout and output limit, shell, skills) arrive as `ExecutorSettings` in the run environment.
+
 Open:
 
-1. Code mode (QuickJS) and MCP clients: confirm both run unmodified in Electron's main process (milestone 0, phase 3).
+1. Code mode (QuickJS) and MCP clients: confirm both run unmodified in Electron's main process. Not checked in milestone 0; the package has no Electron-specific code yet.
+2. Matching a model request's function tools to the run's resolved tool set (section 12.0).
+3. A per-user limit on concurrent model requests across runs.
