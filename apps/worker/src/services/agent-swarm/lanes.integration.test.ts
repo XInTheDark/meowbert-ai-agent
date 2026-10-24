@@ -41,6 +41,7 @@ const { recoverSwarmsOnce } = await import("./recovery.js");
 const { loadSwarmRunContext } = await import("./config.js");
 const { loadLane } = await import("./lane-store.js");
 const { prepareLaneRun } = await import("./lane-setup.js");
+const { createDbContextStore } = await import("../context-management-v2/db-store.js");
 const { loadAutoCheckFiles, loadBranchUserMessages } = await import("./check.js");
 const { resumeLane, steerLane, stopLane } = await import("./lane-control.js");
 const { appendLaneInbox } = await import("./lane-inbox.js");
@@ -343,7 +344,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const [lane] = await split(swarm, swarm.swarmTaskId, ["EU"]);
     const messages = (await pool.query("SELECT id, role, content_json, parent_message_id, edited_from_message_id, created_at FROM task_messages WHERE task_id = $1", [lane.taskId])).rows;
     const setup = (await loadLane(pool, lane.taskId))!;
-    const input = { taskId: lane.taskId, lane: setup, messages, branchLeafMessageId: messages[0].id, runtimeModel: "test-model" };
+    const input = { contextStore: createDbContextStore(lane.taskId), taskId: lane.taskId, lane: setup, messages, branchLeafMessageId: messages[0].id, runtimeModel: "test-model" };
 
     const first = await prepareLaneRun(input);
     const second = await prepareLaneRun(input);

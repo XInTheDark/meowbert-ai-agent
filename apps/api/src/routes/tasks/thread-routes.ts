@@ -1,3 +1,4 @@
+import { localTaskMutationError } from "../../services/devices/execution-targets.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { getPromptEntitlementStatus, recordPromptUsageIfRequired } from "../../services/billing/entitlements.js";
 import { requireVisiblePlatformAgentSelectionForUser } from "../../services/platform/platform-agents.js";
@@ -29,6 +30,8 @@ async function handleCreateTaskThread(request: FastifyRequest, reply: FastifyRep
   const params = taskParams.parse(request.params);
   const body = createTaskThreadBody.parse(request.body ?? {});
   const access = await assertTaskMember(params.taskId, request.user.id);
+  const localError = await localTaskMutationError(params.taskId, request.user.id, { thread: true });
+  if (localError) return reply.status(400).send({ error: localError });
   await ensureTaskHistoryWarm(params.taskId);
   const entitlement = await getPromptEntitlementStatus(request.user.id);
 

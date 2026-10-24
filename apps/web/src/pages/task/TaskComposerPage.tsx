@@ -31,6 +31,7 @@ import { canSelectTaskModel } from "../../task/taskModelSelection";
 import { resolveWorkflowForAgentChange } from "../../task/agentSwarmPresetWorkflow";
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
 import { useSubscriptionUsageWarning } from "../../subscription/usageLimits";
+import { TaskExecutionSelector } from "../../task/TaskExecutionSelector";
 
 function createPendingTaskId(): string {
   return crypto.randomUUID();
@@ -295,6 +296,10 @@ export function TaskComposerPage() {
         ? buildCreateTaskSchedulePayload(taskParameters)
         : undefined;
       const parametersPayload = buildCreateTaskParametersPayload(taskParameters);
+      const executionTarget = capabilities.isDesktop ? currentDraft.executionTarget : { kind: "cloud" } as const;
+      if (executionTarget.kind === "local" && (workflow.type !== "standard" || schedulePayload || toolOptions.subtasks || toolOptions.scheduleTask || toolOptions.computerUse || availableAgents.find((agent) => agent.id === selectedAgentId)?.mode === "agent_swarm")) {
+        throw new Error("Local tasks require a standard agent without workflows, schedules, or subtasks.");
+      }
 
       const canvasForTask = selectedInteractiveCanvas;
       const canvasAttachment = canvasForTask ? buildCanvasAttachment(canvasForTask) : null;
@@ -304,6 +309,7 @@ export function TaskComposerPage() {
 
       const created = await api.post<{ taskId: string }>(`/api/projects/${activeEnvironmentId}/tasks`, {
         taskId: pendingTaskId,
+        ...(executionTarget.kind === "local" ? { executionTarget } : {}),
         message: joinTaskMessage(prompt, taskAttachments),
         ...(effectiveQuickMode ? { quickMode: true } : {}),
         ...(effectiveIncognitoMode ? { incognito: true } : {}),
@@ -374,6 +380,7 @@ export function TaskComposerPage() {
   return (
     <div className="chat-layout task-composer-page" style={{ alignItems: "center", justifyContent: "center", display: "flex", flexDirection: "column" }}>
       <div className="task-composer-mode-toggles">
+        {capabilities.isDesktop ? <TaskExecutionSelector api={api} projectId={activeEnvironmentId} target={currentDraft.executionTarget} disabled={isSubmitting} onChange={(executionTarget) => updateDraft((draft) => ({ ...draft, executionTarget }))} /> : null}
         <button
           type="button"
           className={`task-composer-mode-toggle${effectiveQuickMode ? " active quick" : ""}`}

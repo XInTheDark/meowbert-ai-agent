@@ -26,6 +26,8 @@ export function createRunLeaseKeeper(client: RunApiClient, options: RunLeaseKeep
   const watchers = new Set<(reason: RunCancellationReason) => void>();
   let heartbeatTimer: NodeJS.Timeout | null = null;
   let pollTimer: NodeJS.Timeout | null = null;
+  let watchdogTimer: NodeJS.Timeout | null = null;
+  let heartbeatInFlight = false;
   let lastRenewedAt = Date.now();
   let fenced = false;
 
@@ -36,6 +38,8 @@ export function createRunLeaseKeeper(client: RunApiClient, options: RunLeaseKeep
   function stop(): void {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (pollTimer) clearInterval(pollTimer);
+    if (watchdogTimer) clearInterval(watchdogTimer);
+    watchdogTimer = null;
     heartbeatTimer = null;
     pollTimer = null;
   }
@@ -50,6 +54,8 @@ export function createRunLeaseKeeper(client: RunApiClient, options: RunLeaseKeep
   }
 
   async function heartbeat(): Promise<void> {
+    if (heartbeatInFlight || fenced) return;
+    heartbeatInFlight = true;
     try {
       await client.call("control.heartbeat", []);
       lastRenewedAt = Date.now();
@@ -59,6 +65,8 @@ export function createRunLeaseKeeper(client: RunApiClient, options: RunLeaseKeep
         return;
       }
       if (Date.now() - lastRenewedAt >= selfFenceAfterMs) fence();
+    } finally {
+      heartbeatInFlight = false;
     }
   }
 
@@ -76,6 +84,10 @@ export function createRunLeaseKeeper(client: RunApiClient, options: RunLeaseKeep
       lastRenewedAt = Date.now();
       heartbeatTimer = setInterval(() => void heartbeat(), heartbeatIntervalMs);
       heartbeatTimer.unref?.();
+      watchdogTimer = setInterval(() => {
+        if (Date.now() - lastRenewedAt >= selfFenceAfterMs) fence();
+      }, Math.min(1_000, heartbeatIntervalMs));
+      watchdogTimer.unref?.();
     },
     watch(watcher) {
       watchers.add(watcher);

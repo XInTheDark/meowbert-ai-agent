@@ -4,6 +4,7 @@ import type { TaskExecutionJob } from "@meowbert/shared";
 
 vi.mock("../../lib/config.js", () => ({
   config: {
+    localExecution: { enabled: true },
     limits: {
       defaultTaskConcurrencyPerEnv: 1,
       maxConcurrentTasksWorkspace: 2
@@ -547,5 +548,47 @@ describe("runTaskRunDispatchOnce", () => {
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(String(mockedQuery.mock.calls[0][0])).toContain("SELECT EXISTS");
     expect(mockedQueueAdd).not.toHaveBeenCalled();
+  });
+});
+
+describe("local admission", () => {
+  const local = (id: string, kind = "local") => ({
+    run_id: id, task_id: id, workspace_id: "w", environment_id: "e", storage_backend_id: "backend",
+    dispatch_class: "interactive_new", queued_at: "2026-01-01", effective_rank: 3, workspace_rank: 1,
+    payload_json: { ...buildPayload({ taskId: id, runId: id, workspaceId: "w", environmentId: "e" }), executionTarget: kind === "local" ? { kind: "local", deviceId: "device", mode: "sandbox" } : { kind: "cloud" } }
+  });
+  function mockAdmission(candidates: ReturnType<typeof local>[], online: boolean, capacity: number) {
+    const claimed: string[] = [];
+    vi.mocked(query).mockImplementation(async (sql, params) => {
+      if (sql.includes("SELECT EXISTS")) return buildRowsResult([{ exists: true }]);
+      if (sql.includes("SELECT task_scheduler_json")) return buildRowsResult([{ task_scheduler_json: { maxWorkspaceConcurrency: 10, maxQueuedAheadPerWorkspace: 10, defaultEnvironmentConcurrency: capacity } }]);
+      if (sql.includes("WITH ranked_pending")) return buildRowsResult(candidates);
+      if (sql.includes("FROM devices dv")) return buildRowsResult([{
+        id: "device", max_concurrent_runs: capacity, active_runs: 0, revoked_at: null,
+        last_seen_at: online ? new Date().toISOString() : null, stream_expires_at: new Date(Date.now() + 20_000).toISOString(),
+        capabilities_json: { dockerReady: true, sandboxImageReady: true, executorSupported: true, protocolVersion: 1 }, verified_roots_json: { backend: "/runtime" }
+      }]);
+      if (sql.includes("SET queue_state = 'admitted'")) {
+        const run = candidates.find((row) => row.run_id === params?.[0])!;
+        claimed.push(run.run_id); return buildRowsResult([run]);
+      }
+      return buildRowsResult([]);
+    });
+    vi.mocked(taskQueue.add).mockResolvedValue(undefined as never);
+    return claimed;
+  }
+  it("does not let an offline local task block a cloud task at project concurrency one", async () => {
+    vi.clearAllMocks();
+    const claimed = mockAdmission([local("offline"), local("cloud", "cloud")], false, 1);
+    expect(await runTaskRunDispatchOnce()).toBe(1);
+    expect(claimed).toEqual(["cloud"]);
+    expect(taskQueue.add).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ runId: "cloud" }), expect.any(Object));
+  });
+  it("admits only two of three local runs at device capacity two without enqueueing cloud jobs", async () => {
+    vi.clearAllMocks();
+    const claimed = mockAdmission([local("a"), local("b"), local("c")], true, 2);
+    expect(await runTaskRunDispatchOnce()).toBe(2);
+    expect(claimed).toEqual(["a", "b"]);
+    expect(taskQueue.add).not.toHaveBeenCalled();
   });
 });

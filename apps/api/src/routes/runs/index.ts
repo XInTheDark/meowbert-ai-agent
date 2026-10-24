@@ -20,8 +20,8 @@ async function forward(request: FastifyRequest, reply: FastifyReply, runId: stri
     const holderUrl = await resolveRunLeaseHolderUrl(claims);
     // A model request stops upstream when its executor disconnects.
     const controller = new AbortController();
-    request.raw.on("close", () => {
-      if (!reply.sent) controller.abort();
+    reply.raw.on("close", () => {
+      if (!reply.raw.writableEnded) controller.abort();
     });
     const result = await forwardRunApiRequest({
       holderUrl,

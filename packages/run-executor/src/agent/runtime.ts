@@ -466,6 +466,8 @@ async function startRunMachine(state: PreparedRunState, tooling: ReturnType<type
     taskScratchDir: state.taskScratchDir,
     envRoot: roots.envRoot,
     workspaceRoot: roots.workspaceRoot,
+    workspaceRootRelative: roots.workspaceRootRelative,
+    envRootRelative: roots.envRootRelative,
     isThreadTask: snapshot.task.is_thread,
     skillsRootDir: tooling.skillsRootDir,
     networkEnabled: tooling.runToolOptions.enabledSources.length > 0

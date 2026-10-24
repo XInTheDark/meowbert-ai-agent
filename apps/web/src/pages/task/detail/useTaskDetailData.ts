@@ -1,3 +1,4 @@
+import { useLocalTaskPolling } from "./useLocalTaskPolling";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { selectPreferredContextUsage } from "@meowbert/shared/context-usage";
 import type { ApiClient } from "../../../lib/api";
@@ -108,6 +109,7 @@ export function useTaskDetailData(options: UseTaskDetailDataOptions) {
   }, [api, taskId]);
 
   const loadFreshTaskSnapshot = useCallback(() => loadTaskSnapshot({ forceFresh: true }), [loadTaskSnapshot]);
+  useLocalTaskPolling(taskDetail?.task, loadFreshTaskSnapshot);
 
   const loadArtifacts = useCallback(async () => {
     if (!taskId) {

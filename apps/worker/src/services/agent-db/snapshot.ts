@@ -130,7 +130,8 @@ async function loadTaskSnapshotBase(taskId: string) {
               tasks.workflow_parent_task_id,
               tasks.workflow_internal_role,
               tasks.interactive_canvas_id,
-              tasks.interactive_canvas_intent
+              tasks.interactive_canvas_intent,
+              tasks.execution_target
          FROM tasks
          LEFT JOIN task_threads tt ON tt.task_id = tasks.id
         WHERE tasks.id = $1`,

@@ -212,7 +212,7 @@ export interface GitHubTokenRefresh {
   env?: Record<string, string>;
 }
 
-// Persistent project shells run in their own containers on the control plane and outlive runs.
+// Cloud project shells outlive runs in server-owned containers; local shells belong to the run container.
 // Each action returns the output the agent sees.
 export type PersistentShellRequest =
   | { action: "list" }

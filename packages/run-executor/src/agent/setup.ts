@@ -219,6 +219,7 @@ function buildRunSystemPrompt(input: {
     input.prepared.workspaceRoot,
     input.prepared.runtimeEnvironmentPayload,
     {
+      sharedDependenciesDirectory: input.prepared.settings.sharedDependenciesDirectory,
       triggerSource: input.prepared.snapshot.task.source,
       memoryEnabled: input.prepared.memoryEnabled,
       thoughtPersistenceEnabled: input.prepared.thoughtPersistenceEnabled,

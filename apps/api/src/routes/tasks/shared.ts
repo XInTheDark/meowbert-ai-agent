@@ -5,6 +5,7 @@ import {
   AGENT_SWARM_SPAWN_EFFORT_MAX,
   AGENT_SWARM_SPAWN_EFFORT_MIN,
   isSkillEnabledByConfig,
+  taskExecutionTargetSchema,
   type TaskSource
 } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
@@ -228,7 +229,8 @@ export const createTaskBodySchema = z.object({
   agent: taskAgentSelectionSchema,
   schedule: taskScheduleCreateSchema,
   parameters: taskParametersSchema,
-  workflow: taskWorkflowCreateSchema
+  workflow: taskWorkflowCreateSchema,
+  executionTarget: taskExecutionTargetSchema.optional()
 });
 
 export const postTaskMessageBody = z.object({

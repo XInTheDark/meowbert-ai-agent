@@ -7,6 +7,7 @@ import type {
   TaskStatus,
   TaskWorkflowType
 } from "@meowbert/shared";
+import type { TaskExecutionTarget } from "@meowbert/shared";
 import type {
   TaskHistoryConcreteTaskType as SharedTaskHistoryConcreteTaskType,
   TaskHistoryPagination as SharedTaskHistoryPagination,
@@ -55,6 +56,7 @@ export interface TaskRow {
   workflow_internal_role: "leader" | "worker" | "reviewer" | "lane" | null;
   interactive_canvas_id: string | null;
   interactive_canvas_intent: "create" | "update" | "view" | null;
+  execution_target?: TaskExecutionTarget;
 }
 
 export interface TaskMessageToolOptions {

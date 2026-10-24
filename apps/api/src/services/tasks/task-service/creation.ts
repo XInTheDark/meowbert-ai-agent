@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { createTaskMessageMetadata } from "@meowbert/shared";
-import type { ChosenModelRoute, TaskWorkflowType, TaskExecutionJob, TaskSource } from "@meowbert/shared";
+import type { ChosenModelRoute, TaskWorkflowType, TaskExecutionJob, TaskSource, TaskExecutionTarget } from "@meowbert/shared";
 import { query, withTransaction } from "../../../lib/db.js";
 import { setTaskBranchSelection } from "./branching.js";
 import { ensureDispatchedRun, enqueueRun } from "./runs.js";
@@ -58,6 +58,7 @@ interface CreateTaskInput {
   workflowType?: TaskWorkflowType | null;
   workflowParentTaskId?: string | null;
   workflowInternalRole?: "reviewer" | "leader" | "worker" | null;
+  executionTarget?: TaskExecutionTarget;
 }
 
 async function insertTaskRow(
@@ -85,8 +86,9 @@ async function insertTaskRow(
       interactive_canvas_intent,
       workflow_type,
       workflow_parent_task_id,
-      workflow_internal_role
-    ) VALUES ($1, $2, $3, $4, 'queued', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+      workflow_internal_role,
+      execution_target
+    ) VALUES ($1, $2, $3, $4, 'queued', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
     [
       taskId,
       input.workspaceId,
@@ -105,7 +107,8 @@ async function insertTaskRow(
       input.interactiveCanvasIntent ?? null,
       input.workflowType ?? null,
       input.workflowParentTaskId ?? null,
-      input.workflowInternalRole ?? null
+      input.workflowInternalRole ?? null,
+      JSON.stringify(input.executionTarget ?? { kind: "cloud" })
     ]
   );
 }
@@ -372,6 +375,7 @@ async function ensureTaskCreateRun(
     dispatchCategory: input.schedule ? "background" : "new",
     toolOptionsOverride: normalizeTaskMessageToolOptions(input.initialRunToolOptionsOverride),
     quickMode: input.initialRunQuickMode === true
+    ,executionTarget: input.executionTarget
   });
 
   return run.runId;
@@ -431,6 +435,7 @@ export async function createTaskWithInitialMessage(
       dispatchCategory: normalizedInput.schedule ? "background" : "new",
       toolOptionsOverride: normalizeTaskMessageToolOptions(normalizedInput.initialRunToolOptionsOverride),
       quickMode: normalizedInput.initialRunQuickMode === true
+      ,executionTarget: normalizedInput.executionTarget
     });
     runId = run.runId;
     await recordTaskPromptUsage({

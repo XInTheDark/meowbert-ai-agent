@@ -7,6 +7,8 @@ import {
   type PlatformAgentPreset
 } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
+import { config } from "../../lib/config.js";
+import { loadLocalProjectStorage, localTaskFeatureError } from "../../services/devices/execution-targets.js";
 import { createLongHorizonWorkflowTask } from "../../services/tasks/task-workflows.js";
 import { createAgentSwarmTask } from "../../services/agent-swarm/creation.js";
 import { resolveAgentSwarmSettings } from "../../services/agent-swarm/settings.js";
@@ -106,7 +108,8 @@ async function createRequestedTask(input: {
     tools: input.body.tools,
     agent: input.selectedAgent,
     interactiveCanvasId: input.body.interactiveCanvasId ?? null,
-    interactiveCanvasIntent: input.body.interactiveCanvasIntent ?? (input.body.interactiveCanvasId ? "update" : null)
+    interactiveCanvasIntent: input.body.interactiveCanvasIntent ?? (input.body.interactiveCanvasId ? "update" : null),
+    executionTarget: input.body.executionTarget
   };
 
   if (!input.body.workflow && !input.swarmSettings) {
@@ -167,7 +170,7 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
   }
 
   const environment = await loadEnvironmentForTaskCreation(params.envId);
-  await ensureEnvironmentStorageRoot(environment);
+  if (body.executionTarget?.kind !== "local") await ensureEnvironmentStorageRoot(environment);
 
   const selectedAgent = await requireVisiblePlatformAgentSelectionForUser(request.user.id, body.agent);
   const visibleAgentContext = await getVisiblePlatformAgentsForUser(request.user.id);
@@ -187,6 +190,23 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
   if (swarmSettings && !isUsableSwarmLeader(visibleAgentContext.presets, swarmSettings)) {
     return reply.status(400).send({ error: "This Agent Swarm's leader agent is not available to you." });
   }
+  if (body.executionTarget?.kind === "local") {
+    if (!config.localExecution.enabled || config.runApi === undefined) {
+      return reply.status(400).send({ error: "Local execution is disabled on this server." });
+    }
+    const featureError = localTaskFeatureError({ workflow: body.workflow, schedule: body.schedule, swarm: !!swarmSettings, tools: body.tools });
+    if (featureError) return reply.status(400).send({ error: featureError });
+    const device = await query<{ id: string }>(
+      `SELECT id FROM devices WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND platform = 'darwin' AND architecture = 'arm64'`,
+      [body.executionTarget.deviceId, request.user.id]
+    );
+    if ((device.rowCount ?? 0) === 0) {
+      return reply.status(400).send({ error: "The selected local device is unavailable." });
+    }
+    try { await loadLocalProjectStorage(params.envId); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : String(error) }); }
+  }
+  if (body.executionTarget?.kind === "local") await ensureEnvironmentStorageRoot(environment);
   const defaultTimezone = normalizeTimezoneOrThrow(body.clientTimezone);
   if ((body.workflow || swarmSettings) && body.schedule) {
     return reply.status(400).send({ error: "Workflow tasks cannot use schedules in v1." });
@@ -210,6 +230,8 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
     tools: body.tools,
     resolvedSchedule
   });
+
+
 
   const created = await createRequestedTask({
     body,

@@ -72,6 +72,12 @@ export function createRunApiHandler(deps: RunApiHandlerDeps) {
         const session = authorize(input.runId, input.authorization);
         const request = readCallRequest(input.method, input.body);
         const method = input.method as RunApiMethod;
+        await assertCurrentEpoch(stores, session);
+        if (session.holder.startsWith("device:") && [
+          "platform.createRecurringTask", "platform.editCurrentTaskSchedule", "platform.pauseRecurringSchedule",
+          "platform.applyInfiniteWait", "platform.createSubtask", "platform.startSubtasks",
+          "platform.requestDesktopComputerAction", "platform.getDesktopComputerPresence", "platform.persistentShell"
+        ].includes(method)) throw new RunApiFailure("invalid_request", "This feature is unavailable for local sandbox runs.");
         if (method === "control.heartbeat") return { status: 200, body: { result: await heartbeat(session) } };
         if (isRunApiWriteMethod(method)) return await applyDedupedWrite(stores, session, method, request);
         return { status: 200, body: { result: (await RUN_API_CALL_HANDLERS[method](session, request.args)) ?? null } };

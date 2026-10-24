@@ -1,3 +1,4 @@
+import { RUN_API_PROTOCOL_VERSION } from "@meowbert/shared";
 import type { PoolClient } from "pg";
 import {
   buildDefaultTaskSchedulerSettings,
@@ -10,7 +11,9 @@ import {
   type TaskRunDispatchCategory,
   type TaskRunDispatchClass,
   type TaskRunDispatchQueueState,
-  type TaskSchedulerSettings
+  type TaskSchedulerSettings,
+  isLocalTaskExecutionTarget,
+  type LocalPendingReason
 } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import { pool, query } from "../../lib/db.js";
@@ -45,6 +48,7 @@ interface PendingDispatchCandidateRow {
   task_id: string;
   workspace_id: string;
   environment_id: string;
+  storage_backend_id: string | null;
   dispatch_class: TaskRunDispatchClass;
   payload_json: TaskExecutionJob;
   queued_at: string;
@@ -71,6 +75,41 @@ interface SelectedWorkspaceCandidate {
   queuedAt: string;
   effectiveDispatchClass: TaskRunDispatchClass;
   effectiveRank: number;
+}
+
+interface LocalDeviceDispatchState {
+  id: string;
+  maxConcurrentRuns: number;
+  activeRuns: number;
+  lastSeenAt: string | null;
+  streamExpiresAt: string | null;
+  requiredImageDigest: string | null;
+  revokedAt: string | null;
+  capabilities: Record<string, unknown>;
+  verifiedRoots: Record<string, unknown>;
+}
+
+export function resolveLocalDevicePendingReason(input: {
+  device: LocalDeviceDispatchState | null;
+  storageBackendId: string | null;
+  localExecutionEnabled: boolean;
+  now?: Date;
+}): LocalPendingReason | null {
+  if (!input.localExecutionEnabled) return "local_execution_disabled";
+  if (!input.device || input.device.revokedAt) return "device_offline";
+  const now = (input.now ?? new Date()).getTime();
+  if (!input.device.lastSeenAt || !Number.isFinite(Date.parse(input.device.lastSeenAt)) || now - Date.parse(input.device.lastSeenAt) > 30_000 || !input.device.streamExpiresAt || !Number.isFinite(Date.parse(input.device.streamExpiresAt)) || Date.parse(input.device.streamExpiresAt) <= now) {
+    return "device_offline";
+  }
+  if (!input.storageBackendId || typeof input.device.verifiedRoots[input.storageBackendId] !== "string") return "storage_unavailable";
+  if (input.device.capabilities.dockerReady !== true) return "docker_unavailable";
+  if (input.device.capabilities.sandboxImageReady !== true || (input.device.requiredImageDigest && input.device.capabilities.sandboxImageDigest !== input.device.requiredImageDigest)) {
+    if (input.device.capabilities.sandboxDownloadInProgress === true) return input.device.capabilities.sandboxImageDigest ? "sandbox_updating" : "sandbox_downloading";
+    return input.device.capabilities.sandboxImageDigest ? "sandbox_updating" : "sandbox_missing";
+  }
+  if (input.device.capabilities.executorSupported !== true || input.device.capabilities.protocolVersion !== RUN_API_PROTOCOL_VERSION) return "executor_outdated";
+  if (input.device.activeRuns >= input.device.maxConcurrentRuns) return "device_busy";
+  return null;
 }
 
 export interface InsertTaskRunDispatchInput {
@@ -297,6 +336,7 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
                d.task_id,
                d.workspace_id,
                d.environment_id,
+               w.storage_backend_id,
                d.dispatch_class,
                d.payload_json,
                d.queued_at::text,
@@ -328,6 +368,8 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
            AND tr.ended_at IS NULL
           JOIN tasks t
             ON t.id = d.task_id
+          JOIN workspaces w
+            ON w.id = d.workspace_id
          WHERE d.queue_state = 'pending'
            AND d.eligible_at <= now()
            AND t.status = 'queued'
@@ -343,6 +385,7 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
              task_id,
              workspace_id,
              environment_id,
+             storage_backend_id,
              dispatch_class,
              payload_json,
              queued_at,
@@ -409,6 +452,68 @@ async function listEnvironmentDispatchCounts(): Promise<Map<string, number>> {
   return new Map(result.rows.map((row) => [row.environment_id, Number(row.in_use_count ?? 0)]));
 }
 
+async function listLocalDeviceDispatchStates(): Promise<Map<string, LocalDeviceDispatchState>> {
+  const result = await query<{
+    id: string;
+    max_concurrent_runs: number;
+    last_seen_at: string | null;
+    stream_expires_at: string | null;
+    sandbox_image_digest: string | null;
+    revoked_at: string | null;
+    capabilities_json: unknown;
+    verified_roots_json: unknown;
+    active_runs: number;
+  }>(
+    `SELECT dv.id,
+            dv.max_concurrent_runs,
+            dv.last_seen_at::text,
+            dv.stream_expires_at::text,
+            (SELECT sandbox_image_digest FROM platform_settings WHERE id = 1),
+            dv.revoked_at::text,
+            dv.capabilities_json,
+            dv.verified_roots_json,
+            COUNT(d.run_id)::int AS active_runs
+       FROM devices dv
+       LEFT JOIN task_run_dispatches d
+         ON d.queue_state IN ('admitted', 'running')
+        AND d.payload_json->'executionTarget'->>'kind' = 'local'
+        AND d.payload_json->'executionTarget'->>'deviceId' = dv.id::text
+      GROUP BY dv.id`,
+    []
+  );
+  return new Map(result.rows.map((row) => [row.id, {
+    id: row.id,
+    maxConcurrentRuns: Number(row.max_concurrent_runs),
+    activeRuns: Number(row.active_runs ?? 0),
+    lastSeenAt: row.last_seen_at,
+    streamExpiresAt: row.stream_expires_at,
+    requiredImageDigest: row.sandbox_image_digest,
+    revokedAt: row.revoked_at,
+    capabilities: row.capabilities_json && typeof row.capabilities_json === "object" ? row.capabilities_json as Record<string, unknown> : {},
+    verifiedRoots: row.verified_roots_json && typeof row.verified_roots_json === "object" ? row.verified_roots_json as Record<string, unknown> : {}
+  }]));
+}
+
+async function updateLocalPendingReasons(
+  candidates: PendingDispatchCandidateRow[],
+  devices: Map<string, LocalDeviceDispatchState>
+): Promise<void> {
+  for (const candidate of candidates) {
+    const target = candidate.payload_json.executionTarget;
+    if (!target || !isLocalTaskExecutionTarget(target)) continue;
+    const reason = resolveLocalDevicePendingReason({
+      device: devices.get(target.deviceId) ?? null,
+      storageBackendId: candidate.storage_backend_id,
+      localExecutionEnabled: config.localExecution.enabled
+    });
+    await query(
+      `UPDATE task_run_dispatches SET pending_reason = $2, updated_at = now()
+         WHERE run_id = $1 AND queue_state = 'pending'`,
+      [candidate.run_id, reason]
+    );
+  }
+}
+
 function compareWorkspaceSelections(
   a: SelectedWorkspaceCandidate,
   b: SelectedWorkspaceCandidate,
@@ -442,6 +547,7 @@ function selectWorkspaceCandidate(input: {
   workspaceCounts: Map<string, { inUseCount: number; admittedCount: number }>;
   environmentCounts: Map<string, number>;
   settings: TaskSchedulerSettings;
+  deviceStates?: Map<string, LocalDeviceDispatchState>;
 }): SelectedWorkspaceCandidate | null {
   const candidateGroups = new Map<string, PendingDispatchCandidateRow[]>();
   for (const candidate of input.candidates) {
@@ -461,6 +567,14 @@ function selectWorkspaceCandidate(input: {
     }
 
     const chosen = candidates.find((candidate) => {
+      const target = candidate.payload_json.executionTarget;
+      if (target && isLocalTaskExecutionTarget(target)) {
+        if (resolveLocalDevicePendingReason({
+          device: input.deviceStates?.get(target.deviceId) ?? null,
+          storageBackendId: candidate.storage_backend_id,
+          localExecutionEnabled: config.localExecution.enabled
+        }) !== null) return false;
+      }
       const environmentInUse = input.environmentCounts.get(candidate.environment_id) ?? 0;
       return environmentInUse < input.settings.defaultEnvironmentConcurrency;
     });
@@ -580,6 +694,10 @@ export async function runTaskRunDispatchOnce(): Promise<number> {
     listWorkspaceDispatchCounts(),
     listEnvironmentDispatchCounts()
   ]);
+  const deviceStates = pendingCandidates.some((candidate) => candidate.payload_json.executionTarget?.kind === "local")
+    ? await listLocalDeviceDispatchStates() : new Map<string, LocalDeviceDispatchState>();
+
+  await updateLocalPendingReasons(pendingCandidates, deviceStates);
 
   const mutableCandidates = [...pendingCandidates];
   let admittedCount = 0;
@@ -589,7 +707,8 @@ export async function runTaskRunDispatchOnce(): Promise<number> {
       candidates: mutableCandidates,
       workspaceCounts,
       environmentCounts,
-      settings
+      settings,
+      deviceStates
     });
     if (!selected) {
       break;
@@ -604,10 +723,16 @@ export async function runTaskRunDispatchOnce(): Promise<number> {
       continue;
     }
 
-    await enqueueClaimedDispatch({
-      row: claimed,
-      effectiveDispatchClass: selected.effectiveDispatchClass
-    });
+    const localTarget = claimed.payload_json.executionTarget;
+    if (!localTarget || !isLocalTaskExecutionTarget(localTarget)) {
+      await enqueueClaimedDispatch({
+        row: claimed,
+        effectiveDispatchClass: selected.effectiveDispatchClass
+      });
+    } else {
+      const device = deviceStates.get(localTarget.deviceId);
+      if (device) device.activeRuns += 1;
+    }
     await createTaskDebugLogger(claimed.task_id).log("Run admitted to worker queue.", {
       stage: "dispatch.admitted",
       phase: "success",
@@ -627,6 +752,8 @@ export async function runTaskRunDispatchOnce(): Promise<number> {
     environmentCounts.set(selected.environmentId, (environmentCounts.get(selected.environmentId) ?? 0) + 1);
     admittedCount += 1;
   }
+
+  await updateLocalPendingReasons(mutableCandidates, deviceStates);
 
   return admittedCount;
 }

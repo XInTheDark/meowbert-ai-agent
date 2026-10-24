@@ -1,3 +1,4 @@
+import { localTaskMutationError } from "../../services/devices/execution-targets.js";
 import { z } from "zod";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PoolClient } from "pg";
@@ -407,6 +408,8 @@ async function handlePatchTaskParameters(request: FastifyRequest, reply: Fastify
   const body = taskParametersPatchBody.parse(request.body ?? {});
   await assertTaskMember(params.taskId, request.user.id);
 
+  const localError = await localTaskMutationError(params.taskId, request.user.id, { workflow: body.workflow, schedule: body.schedule, tools: body.tools });
+  if (localError) return reply.status(400).send({ error: localError });
   const updated = await patchTaskParameters(params.taskId, request.user.id, body);
   if (!updated) {
     return reply.status(404).send({ error: "Task not found" });

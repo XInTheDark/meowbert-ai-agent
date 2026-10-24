@@ -69,6 +69,7 @@ export interface SandboxMountPath {
 }
 
 export interface SandboxContainerLabels {
+  deviceId?: string;
   workspaceId?: string;
   environmentId?: string;
   taskId?: string;
@@ -497,6 +498,22 @@ export class DockerSandboxManager {
     }
   }
 
+  async inspectImageReference(): Promise<{ reference: string; digest: string | null }> {
+    const image = await withTimeout(
+      this.docker.getImage(this.config.image).inspect(),
+      this.config.startTimeoutMs,
+      "Timed out while inspecting sandbox image"
+    ) as { RepoDigests?: string[] };
+    const taggedRepository = this.config.image.split("@")[0];
+    const lastColon = taggedRepository.lastIndexOf(":");
+    const repository = lastColon > taggedRepository.lastIndexOf("/") ? taggedRepository.slice(0, lastColon) : taggedRepository;
+    const repoDigest = image.RepoDigests?.find((entry) => entry.startsWith(`${repository}@sha256:`));
+    return {
+      reference: this.config.image,
+      digest: repoDigest?.slice(repoDigest.indexOf("@") + 1) ?? (this.config.image.includes("@") ? this.config.image.split("@")[1] : null)
+    };
+  }
+
   async listManagedContainers(): Promise<ManagedSandboxContainerSummary[]> {
     const containers = await withTimeout(
       this.docker.listContainers({ all: true }),
@@ -833,6 +850,7 @@ export class DockerSandboxManager {
       [SANDBOX_LABEL_KEY]: "true",
       [SANDBOX_PURPOSE_LABEL_KEY]: options.labels.purpose
     };
+    if (options.labels.deviceId) labels["meowbert.local.device"] = options.labels.deviceId;
     if (options.labels.workspaceId) {
       labels[SANDBOX_WORKSPACE_ID_LABEL_KEY] = options.labels.workspaceId;
     }

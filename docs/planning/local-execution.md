@@ -1,6 +1,6 @@
 # Local Execution: Planning & Specs
 
-Status: draft for review, revised after review. Nothing is implemented.
+Status: Milestones 0 and 1 implemented. Local execution is disabled by default. Automated validation covers the local lifecycle; the Docker Desktop and packaged-app acceptance checks still require a live Docker daemon and the published arm64 image.
 
 - Part I explains what we are building and why.
 - Part II specifies the contracts between the pieces.
@@ -246,7 +246,7 @@ The device needs Docker and the server's sandbox image.
 - **No Docker.** If Docker isn't installed or not running, the prompt says so, with a link to install Docker Desktop, and offers host mode instead.
 - **Updates.** When the cloud's image digest changes, the device pulls the new one in the background (on by default after the first download, a device setting). A run needs the digest the server names; while it downloads, runs wait with "Updating the sandbox on <device>". Old images are removed after the new one is in use.
 - **Unpullable images.** A self-hosted server running a local-only image (for example `meowbert-sandbox-runtime:local`) has no digest a device can pull. Sandbox mode is unavailable on devices for that server unless the user loads the image into their own Docker; the settings say so and offer host mode.
-- **Architecture.** The image is published for `linux/amd64` only (`.github/workflows/publish-sandbox-runtime.yml`). Apple Silicon Macs need a `linux/arm64` build, or they'd run it under emulation. Adding `linux/arm64` to the publish workflow, and checking every architecture-specific step in `apps/sandbox-runtime/Dockerfile` (Typst already handles both), is part of milestone 1.
+- **Architecture.** The publish workflow now builds `linux/amd64` and `linux/arm64` (`.github/workflows/publish-sandbox-runtime.yml`). Apple Silicon Macs need a `linux/arm64` build, or they'd run it under emulation. Adding `linux/arm64` to the publish workflow, and checking every architecture-specific step in `apps/sandbox-runtime/Dockerfile` (Typst already handles both), is part of milestone 1.
 
 ### 8.4 Host mode
 
@@ -597,8 +597,16 @@ Decided:
 20. The executor package keeps the worker's directory layout without `services/`, and the worker imports its modules by path (`@meowbert/run-executor/agent/loop`). Worker tests resolve those paths to the package source so mocks apply inside it.
 21. Executor settings that came from the worker's config (step limit, command timeout and output limit, shell, skills) arrive as `ExecutorSettings` in the run environment.
 
+22. Milestone 1 is limited to Apple Silicon macOS, Docker Desktop, a loopback server URL, and server-hosted same-machine storage. Host mode, host tools, threads, schedules, subagents, Agent Swarm, Project Master, and Long Horizon remain unavailable locally. Declining a download starts nothing; offering host mode waits for milestone 3.
+23. Docker storage probes use a separate short-lived container with the backend root mounted, before advertising readiness and before each run. The agent container receives only the existing scoped task mounts, so it cannot browse the entire backend. Marker verification includes both backend ID and random install ID, followed by an exclusive write/delete probe.
+24. Skill assets are extracted from the exact sandbox image into the desktop's owned resources directory and mounted read-only at that device path. This preserves built Linux dependencies and avoids relying on the repository checkout or packaging unbuilt skill sources.
+25. Local persistent shells use the existing Python protocol inside the current run container, with run-owned session IDs, bounded lifetimes, safe task-relative output files, and local wait-state reads. They end with the run container; they do not attach to server-owned project terminal sessions.
+26. Device admission and claims require the exact Run API protocol version. Pending local runs expire after 24 hours; lease reclaim resets their eligibility timestamp. Default device capacity is 2 and is configurable in desktop preferences. Local containers cap server limits at 2 CPUs, 2048 MB RAM, 256 PIDs, and 4096 MB writable storage.
+27. Download consent and storage roots are scoped to the active server profile. The first-use prompt reads the arm64 compressed layer sizes from registry manifests when available, and reports an unknown size when registry metadata is unavailable. Images with no pullable digest require a preloaded arm64 build. Only images downloaded by this desktop are eligible for old-image cleanup.
+28. Electron's Node runtime successfully loaded QuickJS, executed an async code-mode tool call, and constructed/closed an MCP client. Docker MCP stdio, the complete local task GUI flow, and an actual arm64 image build remain live acceptance checks.
+
 Open:
 
-1. Code mode (QuickJS) and MCP clients: confirm both run unmodified in Electron's main process. Not checked in milestone 0; the package has no Electron-specific code yet.
-2. Matching a model request's function tools to the run's resolved tool set (section 12.0).
-3. A per-user limit on concurrent model requests across runs.
+1. Matching a model request's function tools to the run's resolved tool set (section 12.0).
+2. A per-user limit on concurrent model requests across runs.
+3. Complete the Docker Desktop failure-injection and packaged-app acceptance checks on a machine with a running daemon; build and publish the multi-architecture sandbox before using downloaded local runs.

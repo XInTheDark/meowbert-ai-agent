@@ -31,6 +31,7 @@ import { searchRoutes } from "./routes/search.js";
 import { webPushRoutes } from "./routes/notifications/web-push-routes.js";
 import { projectMasterInternalRoutes } from "./routes/project-master-internal-routes.js";
 import { runApiRoutes } from "./routes/runs/index.js";
+import { deviceRoutes } from "./routes/devices.js";
 import { startTelegramPollingLoop } from "./services/connectors/telegram/telegram-polling.js";
 import { startDiscordGatewayLoop } from "./services/connectors/discord/discord-gateway.js";
 import { ensureListmonkTemplatesSynced } from "./services/connectors/email/template-sync.js";
@@ -386,6 +387,7 @@ async function registerApplicationRoutes(app: Fastify.FastifyInstance): Promise<
   await app.register(webPushRoutes);
   await app.register(projectMasterInternalRoutes);
   await app.register(runApiRoutes);
+  await app.register(deviceRoutes);
 }
 
 async function buildServer() {

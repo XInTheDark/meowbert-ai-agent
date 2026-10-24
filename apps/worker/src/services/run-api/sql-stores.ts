@@ -16,6 +16,7 @@ const leases: RunApiStores["leases"] = {
               updated_at = now()
         WHERE run_id = $1
           AND queue_state IN ('admitted', 'running')
+          AND (lease_expires_at IS NULL OR lease_expires_at < now() - interval '30 seconds')
         RETURNING lease_epoch`,
       [runId, holder, apiUrl, ttlMs]
     );
@@ -28,6 +29,7 @@ const leases: RunApiStores["leases"] = {
           SET lease_expires_at = now() + ($3::double precision * interval '1 millisecond')
         WHERE run_id = $1
           AND lease_epoch = $2
+          AND lease_expires_at > now()
           AND queue_state IN ('admitted', 'running')`,
       [runId, epoch, ttlMs]
     );

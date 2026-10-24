@@ -354,3 +354,9 @@ describe("TaskDetailTopbar", () => {
     expect(html).toContain("Workflow panel body");
   });
 });
+
+it("shows a local task's pending reason next to its queued status", () => {
+  const props = buildProps();
+  props.task = { ...props.task, status: "queued", execution_target: {kind:"local",deviceId:"11111111-1111-4111-8111-111111111111",mode:"sandbox"}, pending_reason:"docker_unavailable" };
+  expect(renderTopbar(props).textContent).toContain("Waiting for Docker");
+});

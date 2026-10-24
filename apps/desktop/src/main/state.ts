@@ -1,9 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { app, safeStorage } from "electron";
 import type {
   DesktopActiveContext,
   DesktopBootstrapData,
+  DesktopLocalExecutionSettings,
   DesktopServerProfilesState,
   DesktopShortcutPreferences
 } from "../shared";
@@ -18,6 +20,7 @@ interface PersistedDesktopState {
   serverProfilesState?: DesktopServerProfilesState;
   shortcutPreferences?: DesktopShortcutPreferences;
   activeContext?: DesktopActiveContext;
+  localExecutionSettingsByServer?: Record<string, DesktopLocalExecutionSettings>;
 }
 
 const DEFAULT_SERVER_PROFILES_STATE: DesktopServerProfilesState = {
@@ -56,7 +59,8 @@ async function readPersistedState(): Promise<PersistedDesktopState> {
 async function writePersistedState(state: PersistedDesktopState): Promise<void> {
   const filePath = stateFilePath();
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(state, null, 2), "utf8");
+  await fs.writeFile(filePath + ".tmp", JSON.stringify(state, null, 2), { encoding: "utf8", mode: 0o600 });
+  await fs.rename(filePath + ".tmp", filePath);
 }
 
 function encodeToken(token: string | null): PersistedTokenEnvelope {
@@ -135,49 +139,92 @@ function sanitizeActiveContext(input: unknown): DesktopActiveContext {
   };
 }
 
+function sanitizeLocalExecutionSettings(input: unknown): DesktopLocalExecutionSettings {
+  const candidate = input && typeof input === "object" && !Array.isArray(input)
+    ? input as Partial<DesktopLocalExecutionSettings>
+    : {};
+  return {
+    maxConcurrentRuns: typeof candidate.maxConcurrentRuns === "number" && Number.isFinite(candidate.maxConcurrentRuns) ? Math.max(1, Math.min(16, Math.floor(candidate.maxConcurrentRuns))) : 2,
+    serverBaseUrl: typeof candidate.serverBaseUrl === "string" ? candidate.serverBaseUrl : null,
+    downloadConsent: candidate.downloadConsent === true,
+    enabled: candidate.enabled === true,
+    deviceId: typeof candidate.deviceId === "string" && /^[0-9a-f-]{36}$/i.test(candidate.deviceId)
+      ? candidate.deviceId
+      : randomUUID(),
+    storageBackendId: typeof candidate.storageBackendId === "string" && candidate.storageBackendId.trim()
+      ? candidate.storageBackendId.trim()
+      : "local-default",
+    storageRoot: typeof candidate.storageRoot === "string" && candidate.storageRoot.trim()
+      ? path.resolve(candidate.storageRoot.trim())
+      : null
+  };
+}
+
 export function getDefaultDesktopShortcutPreferences(): DesktopShortcutPreferences {
   return { ...DEFAULT_SHORTCUT_PREFERENCES };
 }
 
+let pendingStateWrite: Promise<unknown> = Promise.resolve();
+function updateState<T>(update: (state: PersistedDesktopState) => T): Promise<T> {
+  const work = pendingStateWrite.then(async () => {
+    const state = await readPersistedState();
+    const result = update(state);
+    await writePersistedState(state);
+    return result;
+  });
+  pendingStateWrite = work.catch(() => undefined);
+  return work;
+}
+function activeServerKey(state: PersistedDesktopState): string {
+  const profiles = state.serverProfilesState;
+  const profile = profiles?.profiles.find((entry) => entry.id === profiles.activeProfileId) ?? profiles?.profiles[0];
+  return profile?.baseUrl.replace(/\/+$/, "") ?? "";
+}
 export async function readBootstrapData(): Promise<DesktopBootstrapData> {
-  const state = await readPersistedState();
-  return {
-    token: decodeToken(state.authToken),
-    serverProfilesState: state.serverProfilesState ?? DEFAULT_SERVER_PROFILES_STATE,
-    shortcutPreferences: sanitizeShortcutPreferences(state.shortcutPreferences),
-    activeContext: sanitizeActiveContext(state.activeContext)
-  };
+  return updateState((state) => {
+    const key = activeServerKey(state);
+    const settings = sanitizeLocalExecutionSettings(state.localExecutionSettingsByServer?.[key]);
+    settings.serverBaseUrl = key || null;
+    state.localExecutionSettingsByServer ??= {};
+    state.localExecutionSettingsByServer[key] = settings;
+    return {
+      token: decodeToken(state.authToken),
+      serverProfilesState: state.serverProfilesState ?? DEFAULT_SERVER_PROFILES_STATE,
+      shortcutPreferences: sanitizeShortcutPreferences(state.shortcutPreferences),
+      activeContext: sanitizeActiveContext(state.activeContext), localExecutionSettings: settings
+    };
+  });
 }
-
+export async function saveLocalExecutionSettings(input: DesktopLocalExecutionSettings): Promise<DesktopLocalExecutionSettings> {
+  return updateState((state) => {
+    const key = activeServerKey(state);
+    if (!key || input.serverBaseUrl !== key) throw new Error("The selected server changed. Reload Local Execution settings.");
+    const previous = state.localExecutionSettingsByServer?.[key];
+    const settings = sanitizeLocalExecutionSettings({ ...input, deviceId: previous?.deviceId ?? input.deviceId });
+    state.localExecutionSettingsByServer ??= {};
+    state.localExecutionSettingsByServer[key] = settings;
+    return settings;
+  });
+}
 export async function saveAuthToken(token: string | null): Promise<void> {
-  const state = await readPersistedState();
-  state.authToken = encodeToken(token);
-  await writePersistedState(state);
+  await updateState((state) => { state.authToken = encodeToken(token); });
 }
-
-export async function saveServerProfilesState(serverProfilesState: DesktopServerProfilesState): Promise<DesktopServerProfilesState> {
-  const state = await readPersistedState();
-  state.serverProfilesState = serverProfilesState;
-  await writePersistedState(state);
-  return serverProfilesState;
+export async function saveServerProfilesState(input: DesktopServerProfilesState): Promise<DesktopServerProfilesState> {
+  return updateState((state) => { state.serverProfilesState = input; return input; });
 }
-
-export async function saveShortcutPreferences(shortcutPreferences: DesktopShortcutPreferences): Promise<DesktopShortcutPreferences> {
-  const sanitized = sanitizeShortcutPreferences(shortcutPreferences);
-  const state = await readPersistedState();
-  state.shortcutPreferences = sanitized;
-  await writePersistedState(state);
-  return sanitized;
+export async function saveShortcutPreferences(input: DesktopShortcutPreferences): Promise<DesktopShortcutPreferences> {
+  return updateState((state) => { const value = sanitizeShortcutPreferences(input); state.shortcutPreferences = value; return value; });
 }
-
-export async function saveActiveContext(activeContext: DesktopActiveContext): Promise<DesktopActiveContext> {
-  const sanitized = sanitizeActiveContext(activeContext);
-  const state = await readPersistedState();
-  state.activeContext = sanitized;
-  await writePersistedState(state);
-  return sanitized;
+export async function saveActiveContext(input: DesktopActiveContext): Promise<DesktopActiveContext> {
+  return updateState((state) => { const value = sanitizeActiveContext(input); state.activeContext = value; return value; });
 }
 
 export function supportsSecureAuthStorage(): boolean {
   return safeStorage.isEncryptionAvailable();
+}
+
+export async function listLocalExecutionDeviceIds(): Promise<string[]> {
+  await pendingStateWrite;
+  const state = await readPersistedState();
+  return [...new Set(Object.values(state.localExecutionSettingsByServer ?? {}).map((settings) => settings.deviceId))];
 }

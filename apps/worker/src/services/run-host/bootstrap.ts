@@ -1,4 +1,6 @@
 import { loadSubagentRuntime, loadSubagentPlatformProvider } from "../subagents/runtime.js";
+import path from "node:path";
+import fs from "node:fs/promises";
 import type { SubagentRuntime } from "@meowbert/run-executor/subagents/types";
 import { loadLaneRuntime } from "../agent-swarm/fork-seed.js";
 import { applyLaneModelRoute, loadLaneModelRoute } from "../agent-swarm/model-route.js";
@@ -19,6 +21,7 @@ import {
   type PlatformUsageBilling,
   type TaskExecutionJob
 } from "@meowbert/shared";
+import { findStorageBackendById } from "@meowbert/shared/storage-backends";
 import { assertSafePublicUrl } from "@meowbert/shared/server-security";
 import { query } from "../../lib/db.js";
 import { resolveRuntimeAiProvider } from "../agent/runtime-provider.js";
@@ -66,6 +69,7 @@ import type { RunBootstrap, RunGitHubAccess, RunRuntimeRoute } from "@meowbert/r
 import type { GitHubTokenRefresh } from "@meowbert/run-executor/agent/ports/platform-tools";
 import { listUnfinishedToolCalls } from "./tool-call-records.js";
 import { getTaskScheduleInfo } from "../task-schedules/service.js";
+import { config } from "../../lib/config.js";
 
 type WorkspaceMemoryMainFile = Awaited<ReturnType<typeof readWorkspaceMemoryMainFile>>;
 type ProjectMemoryMainFile = Awaited<ReturnType<typeof readProjectMemoryMainFile>>;
@@ -504,7 +508,30 @@ async function loadRunRoots(snapshot: TaskSnapshot, debugLogger: TaskDebugLogger
       rootPath: resolvedRoot
     })
   });
-  return { envRoot, workspaceRoot };
+  const backendResult = await query<{ storage_backend_id: string }>(
+    `SELECT storage_backend_id FROM workspaces WHERE id = $1`,
+    [snapshot.task.workspace_id]
+  ).catch(() => ({ rows: [] as Array<{ storage_backend_id: string }> }));
+  const storageBackendId = backendResult.rows[0]?.storage_backend_id ?? null;
+  const backend = storageBackendId ? findStorageBackendById(config.storage, storageBackendId) : null;
+  const backendBase = backend?.type === "mounted"
+    ? backend.mountPath
+    : backend?.type === "local"
+      ? path.dirname(backend.workspacesRoot)
+      : null;
+  const canonicalBase = backendBase ? await fs.realpath(backendBase).catch(() => null) : null;
+  const relative = (root: string): string | undefined => {
+    if (!canonicalBase) return undefined;
+    const value = path.relative(canonicalBase, root);
+    return value === ".." || value.startsWith(".." + path.sep) || path.isAbsolute(value) ? undefined : value;
+  };
+  return {
+    envRoot,
+    workspaceRoot,
+    storageBackendId: storageBackendId ?? undefined,
+    envRootRelative: relative(envRoot),
+    workspaceRootRelative: relative(workspaceRoot)
+  };
 }
 
 async function loadRunSnapshotAndActor(job: TaskExecutionJob, debugLogger: TaskDebugLogger) {
@@ -650,6 +677,15 @@ export async function loadServerRunState(
     })
   });
   const github = await githubPromise;
+  const sandboxImage = await query<{ sandbox_image_digest: string | null }>(
+    `SELECT sandbox_image_digest FROM platform_settings WHERE id = 1`
+  ).then((result) => ({
+    reference: config.runtime.sandbox.image,
+    digest: result.rows[0]?.sandbox_image_digest ?? (config.runtime.sandbox.image.includes("@") ? config.runtime.sandbox.image.split("@")[1] : null)
+  })).catch(() => ({
+    reference: config.runtime.sandbox.image,
+    digest: config.runtime.sandbox.image.includes("@") ? config.runtime.sandbox.image.split("@")[1] : null
+  }));
   const memoryEnabled = snapshot.environment.workspace_memory_enabled === true;
   const subscriptionUserId = runtime.hasPlatformInitiator ? snapshot.task.initiator_user_id : null;
 
@@ -681,7 +717,8 @@ export async function loadServerRunState(
       projectMasterTaskAgent: snapshot.task.is_project_master === true
         ? resolveProjectMasterTaskAgent(snapshot, runActorIsSuperAdmin)
         : null,
-      unfinishedToolCalls: await listUnfinishedToolCalls(job.taskId, job.runId)
+      unfinishedToolCalls: await listUnfinishedToolCalls(job.taskId, job.runId),
+      sandboxImage
     }
   };
 }

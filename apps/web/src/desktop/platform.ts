@@ -36,6 +36,21 @@ export interface DesktopActiveContext {
   environmentId: string | null;
 }
 
+export interface DesktopLocalExecutionSettings {
+  maxConcurrentRuns: number;
+  serverBaseUrl: string | null;
+  downloadConsent: boolean;
+  enabled: boolean;
+  deviceId: string;
+  storageBackendId: string;
+  storageRoot: string | null;
+}
+
+export interface DesktopLocalExecutionStatus {
+  state: "disabled" | "starting" | "running" | "error";
+  message: string | null;
+}
+
 export interface PublicServerConfig {
   docsUrl?: string | null;
   publicUrl?: string | null;
@@ -58,6 +73,7 @@ export interface PlatformBootstrapData {
   serverProfilesState: ServerProfilesState;
   shortcutPreferences: DesktopShortcutPreferences;
   activeContext: DesktopActiveContext;
+  localExecutionSettings: DesktopLocalExecutionSettings;
 }
 
 export type PlatformNotificationPermission = NotificationPermission | "unsupported";
@@ -99,6 +115,10 @@ interface DesktopBridge {
   capabilities: PlatformCapabilities;
   getBootstrapData: () => Promise<PlatformBootstrapData>;
   saveAuthToken: (token: string | null) => Promise<void>;
+  saveLocalExecutionSettings: (settings: DesktopLocalExecutionSettings) => Promise<DesktopLocalExecutionSettings>;
+  pickLocalExecutionStorageRoot: () => Promise<string | null>;
+  getLocalExecutionStatus: () => Promise<DesktopLocalExecutionStatus>;
+  retryLocalExecution: () => Promise<DesktopLocalExecutionStatus>;
   saveServerProfilesState: (state: ServerProfilesState) => Promise<ServerProfilesState>;
   saveShortcutPreferences: (state: DesktopShortcutPreferences) => Promise<DesktopShortcutPreferences>;
   saveActiveContext: (state: DesktopActiveContext) => Promise<DesktopActiveContext>;
@@ -130,6 +150,10 @@ export interface PlatformAdapter {
   capabilities: PlatformCapabilities;
   getBootstrapData: () => Promise<PlatformBootstrapData>;
   saveAuthToken: (token: string | null) => Promise<void>;
+  saveLocalExecutionSettings: (settings: DesktopLocalExecutionSettings) => Promise<DesktopLocalExecutionSettings>;
+  pickLocalExecutionStorageRoot: () => Promise<string | null>;
+  getLocalExecutionStatus: () => Promise<DesktopLocalExecutionStatus>;
+  retryLocalExecution: () => Promise<DesktopLocalExecutionStatus>;
   saveServerProfilesState: (state: ServerProfilesState) => Promise<ServerProfilesState>;
   saveShortcutPreferences: (state: DesktopShortcutPreferences) => Promise<DesktopShortcutPreferences>;
   saveActiveContext: (state: DesktopActiveContext) => Promise<DesktopActiveContext>;
@@ -336,7 +360,8 @@ function createWebPlatform(): PlatformAdapter {
         token: localStorage.getItem(AUTH_TOKEN_STORAGE_KEY),
         serverProfilesState: readLocalStorageServerProfilesState(),
         shortcutPreferences: sanitizeDesktopShortcutPreferences(DEFAULT_DESKTOP_SHORTCUT_PREFERENCES),
-        activeContext: sanitizeDesktopActiveContext(null)
+        activeContext: sanitizeDesktopActiveContext(null),
+        localExecutionSettings: { maxConcurrentRuns: 2, serverBaseUrl: null, downloadConsent: false, enabled: false, deviceId: "", storageBackendId: "local-default", storageRoot: null }
       };
     },
     async saveAuthToken(token: string | null): Promise<void> {
@@ -346,6 +371,14 @@ function createWebPlatform(): PlatformAdapter {
       }
 
       localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    },
+    async saveLocalExecutionSettings(settings): Promise<DesktopLocalExecutionSettings> { return settings; },
+    async pickLocalExecutionStorageRoot(): Promise<string | null> { return null; },
+    async getLocalExecutionStatus(): Promise<DesktopLocalExecutionStatus> {
+      return { state: "disabled", message: "Local execution is only available in Meowbert Desktop." };
+    },
+    async retryLocalExecution(): Promise<DesktopLocalExecutionStatus> {
+      return { state: "disabled", message: "Local execution is only available in Meowbert Desktop." };
     },
     async saveServerProfilesState(state: ServerProfilesState): Promise<ServerProfilesState> {
       return writeLocalStorageServerProfilesState(state);
@@ -453,10 +486,15 @@ function createDesktopPlatform(bridge: DesktopBridge): PlatformAdapter {
         token: typeof data.token === "string" ? data.token : null,
         serverProfilesState: sanitizeServerProfilesState(data.serverProfilesState),
         shortcutPreferences: sanitizeDesktopShortcutPreferences(data.shortcutPreferences),
-        activeContext: sanitizeDesktopActiveContext(data.activeContext)
+        activeContext: sanitizeDesktopActiveContext(data.activeContext),
+        localExecutionSettings: data.localExecutionSettings
       };
     },
     saveAuthToken: bridge.saveAuthToken,
+    saveLocalExecutionSettings: bridge.saveLocalExecutionSettings,
+    pickLocalExecutionStorageRoot: bridge.pickLocalExecutionStorageRoot,
+    getLocalExecutionStatus: bridge.getLocalExecutionStatus,
+    retryLocalExecution: bridge.retryLocalExecution,
     async saveServerProfilesState(state: ServerProfilesState): Promise<ServerProfilesState> {
       const saved = await bridge.saveServerProfilesState(sanitizeServerProfilesState(state));
       return sanitizeServerProfilesState(saved);

@@ -1,3 +1,5 @@
+import type { TaskExecutionTarget } from "./task-execution-target.js";
+
 export type TaskStatus =
   | "queued"
   | "starting"
@@ -52,6 +54,7 @@ export interface TaskExecutionJob {
   toolOptionsOverride?: TaskRunToolOptions;
   quickMode?: boolean;
   contextAction?: "compact" | "clear";
+  executionTarget?: TaskExecutionTarget;
 }
 
 export interface TaskRunToolOptions {

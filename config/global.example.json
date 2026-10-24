@@ -67,6 +67,9 @@
     },
     "workspacesRoot": "./runtime/workspaces"
   },
+  "localExecution": {
+    "enabled": false
+  },
   "security": {
     "jwtSecret": "REPLACE_WITH_JWT_SECRET",
     "jwtTtl": "7d"

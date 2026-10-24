@@ -703,6 +703,7 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
               />
               <h3 className="task-topbar-title">{props.task.title || "Untitled Task"}</h3>
               <TaskStatusBadge status={displayStatus} className="task-topbar-status" />
+              {props.task.status === "queued" && props.task.execution_target?.kind === "local" && props.task.pending_reason ? <span className="muted-text">{formatLocalPendingReason(props.task.pending_reason)}</span> : null}
               {props.task.task_type && props.task.task_type !== "standard" ? (
                 <span className="badge muted task-recurring-pill">{formatTaskTypeLabel(props.task.task_type)}</span>
               ) : null}
@@ -785,4 +786,13 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
       </div>
     </div>
   );
+}
+
+function formatLocalPendingReason(reason: string): string {
+  const labels: Record<string, string> = {
+    device_offline: "Waiting for device", storage_unavailable: "Waiting for storage", docker_unavailable: "Waiting for Docker",
+    sandbox_missing: "Sandbox download required", sandbox_downloading: "Downloading sandbox", sandbox_updating: "Updating sandbox", executor_outdated: "Desktop update required",
+    device_busy: "Device busy", claim_timeout: "Waiting for device", waiting_for_storage: "Waiting for storage", local_execution_disabled: "Local execution disabled"
+  };
+  return labels[reason] ?? "Waiting for local executor";
 }

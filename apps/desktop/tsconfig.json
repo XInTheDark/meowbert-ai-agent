@@ -12,6 +12,9 @@
       ],
       "@meowbert/shared/*": [
         "../../packages/shared/src/*"
+      ],
+      "@meowbert/run-executor/*": [
+        "../../packages/run-executor/src/*"
       ]
     },
     "types": [

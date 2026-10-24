@@ -14,6 +14,7 @@ from process import ShellProcess
 class Session:
     def __init__(self, config):
         self.lock = threading.RLock()
+        self.stopped = False
         self.directory = config["directory"]
         os.makedirs(self.directory, mode=0o700, exist_ok=True)
         self.output = OutputLog(config["logPath"])
@@ -83,6 +84,12 @@ class Session:
     def handle(self, request):
         with self.lock:
             action = request["action"]
+            if action == "stop":
+                self.shell.stop()
+                self.stopped = True
+                self.state.update(status="completed", exitCode=-9)
+                self.persist()
+                return self.snapshot()
             if action == "status":
                 return self.snapshot()
             if action == "submit":
@@ -120,8 +127,16 @@ def serve(config):
     listener.bind(os.path.join(config["directory"], "control.sock"))
     os.chmod(os.path.join(config["directory"], "control.sock"), 0o600)
     listener.listen(16)
-    while True:
-        connection, _ = listener.accept()
+    expires_at = config.get("expiresAt")
+    listener.settimeout(1 if expires_at else None)
+    while not session.stopped:
+        if expires_at and time.time() >= expires_at:
+            session.handle({"action": "stop"})
+            break
+        try:
+            connection, _ = listener.accept()
+        except socket.timeout:
+            continue
         with connection:
             connection.settimeout(10)
             try:

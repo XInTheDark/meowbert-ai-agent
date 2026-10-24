@@ -35,6 +35,9 @@ import { startMemorySynthesisEventListener } from "./services/memory-synthesis/s
 
 import { startRunDeliveryLoop } from "./services/notifications/run-delivery-loop.js";
 import { startUsageActivationLoop } from "./services/usage-activation/service.js";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { readStorageMarker, writeStorageMarker } from "@meowbert/shared";
 
 async function waitForSchema(maxRetries = 60, intervalMs = 2000): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
@@ -60,6 +63,13 @@ async function waitForSchema(maxRetries = 60, intervalMs = 2000): Promise<void> 
 async function start(): Promise<void> {
   await workerSandboxManager.assertImageAvailable();
   await waitForSchema();
+  const sandboxImage = await workerSandboxManager.inspectImageReference().catch(() => null);
+  if (sandboxImage) {
+    await pool.query(
+      `UPDATE platform_settings SET sandbox_image_reference = $1, sandbox_image_digest = $2 WHERE id = 1`,
+      [sandboxImage.reference, sandboxImage.digest]
+    );
+  }
   await restorePersistentShellExpiryTimers();
   await warmStorageBackendsOnStartup(storageBackendRegistry, {
     logger: {
@@ -68,6 +78,14 @@ async function start(): Promise<void> {
       error: (message: string) => console.error(message)
     }
   });
+  await Promise.all(config.storage.backends.map(async (backend) => {
+    const root = backend.type === "mounted" ? backend.mountPath : path.dirname(backend.workspacesRoot);
+    await writeStorageMarker(root, {
+      version: 1,
+      backendId: backend.id,
+      installId: process.env.MEOWBERT_INSTALL_ID?.trim() || (await readStorageMarker(root))?.installId || randomUUID()
+    }).catch((error) => console.warn(`[storage] Failed to write marker for ${backend.id}:`, error));
+  }));
 
   const runApi = config.runApi ? await startRunApi({ security: config.security, runApi: config.runApi }) : null;
   const runOverHttp = runApi !== null && config.runApi?.executorTransport === "http";

@@ -11,6 +11,7 @@ import { resolveTaskInputDir } from "../tasks/task-paths.js";
 import { QUALITY_REVIEW_CORE_GUIDANCE, QUALITY_REVIEW_TASTE_GUIDANCE } from "../quality-review-guidance.js";
 
 export interface SystemPromptRuntimeOptions {
+  sharedDependenciesDirectory?: string;
   triggerSource?: TaskSource;
   allowFinalResponse: boolean;
   allowStopTask: boolean;
@@ -328,7 +329,7 @@ export function buildSystemPrompt(
   options: SystemPromptRuntimeOptions
 ): string {
   const taskRunsRoot = path.resolve(envRoot, ".meowbert", "task-runs");
-  const sharedDependenciesDir = path.resolve(envRoot, ".meowbert", "shared");
+  const sharedDependenciesDir = path.resolve(envRoot, ".meowbert", options.sharedDependenciesDirectory ?? "shared");
   const taskInputDir = path.resolve(options.taskInputDir ?? resolveTaskInputDir(taskDir));
   const memoryEnabled = options.memoryEnabled === true;
   const thoughtPersistenceEnabled = memoryEnabled && options.thoughtPersistenceEnabled !== false;

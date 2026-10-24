@@ -27,7 +27,8 @@ def main():
     elif action == "launch":
         child = subprocess.Popen([sys.executable, __file__, "serve", sys.argv[2]],
                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL, start_new_session=True)
+                                 stderr=subprocess.DEVNULL, start_new_session=True,
+                                 env={**os.environ, **payload.get("env", {})})
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             if child.poll() is not None:

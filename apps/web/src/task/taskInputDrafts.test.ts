@@ -400,3 +400,9 @@ describe("per-project draft defaults", () => {
     expect(updated["env-1"]?.toolOptions.memorySearch).toBe(true);
   });
 });
+
+it("preserves a valid local target and resets malformed saved targets to Cloud", () => {
+  const valid = {kind:"local",deviceId:"11111111-1111-4111-8111-111111111111",mode:"sandbox"};
+  expect(normalizeTaskInputDraft({executionTarget:valid}).executionTarget).toEqual(valid);
+  expect(normalizeTaskInputDraft({executionTarget:{...valid,deviceId:"not-a-device"}}).executionTarget).toEqual({kind:"cloud"});
+});

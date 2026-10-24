@@ -7,6 +7,8 @@ import type {
   DesktopCapabilities,
   DesktopDownloadInput,
   DesktopDownloadResult,
+  DesktopLocalExecutionSettings,
+  DesktopLocalExecutionStatus,
   DesktopNavigationState,
   DesktopNotificationInput,
   DesktopPickedFile,
@@ -22,6 +24,11 @@ contextBridge.exposeInMainWorld("meowbertDesktop", {
   capabilities,
   getBootstrapData: (): Promise<DesktopBootstrapData> => ipcRenderer.invoke("desktop:get-bootstrap-data"),
   saveAuthToken: (token: string | null): Promise<void> => ipcRenderer.invoke("desktop:save-auth-token", token),
+  saveLocalExecutionSettings: (settings: DesktopLocalExecutionSettings): Promise<DesktopLocalExecutionSettings> =>
+    ipcRenderer.invoke("desktop:save-local-execution-settings", settings),
+  pickLocalExecutionStorageRoot: (): Promise<string | null> => ipcRenderer.invoke("desktop:pick-local-execution-storage-root"),
+  getLocalExecutionStatus: (): Promise<DesktopLocalExecutionStatus> => ipcRenderer.invoke("desktop:get-local-execution-status"),
+  retryLocalExecution: (): Promise<DesktopLocalExecutionStatus> => ipcRenderer.invoke("desktop:retry-local-execution"),
   saveServerProfilesState: (state: DesktopServerProfilesState): Promise<DesktopServerProfilesState> =>
     ipcRenderer.invoke("desktop:save-server-profiles-state", state),
   saveShortcutPreferences: (state: DesktopShortcutPreferences): Promise<DesktopShortcutPreferences> =>

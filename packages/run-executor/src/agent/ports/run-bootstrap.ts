@@ -26,12 +26,21 @@ export interface RunBootstrap {
   projectMasterTaskAgent: ProjectMasterTaskAgent | null;
   // Tool calls a previous attempt started but never recorded a result for.
   unfinishedToolCalls: RunToolCallStart[];
+  sandboxImage?: {
+    reference: string;
+    digest: string | null;
+  };
 }
 
 // Absolute workspace and project roots as the executor sees them.
 export interface RunRoots {
   workspaceRoot: string;
   envRoot: string;
+  // When a remote executor is given a user-mounted backend, these relative paths are used
+  // instead of the server's absolute paths. Cloud executors continue to use the absolute roots.
+  workspaceRootRelative?: string;
+  envRootRelative?: string;
+  storageBackendId?: string;
 }
 
 // The model route the run was admitted with. Provider credentials stay behind the model gateway.

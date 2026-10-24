@@ -70,6 +70,8 @@ interface TaskDetailRow {
   parent_task_id: string | null;
   subtask_depth: number;
   task_root_path: string;
+  execution_target: import("@meowbert/shared").TaskExecutionTarget;
+  pending_reason: string | null;
   workflow_type: TaskWorkflowType | null;
   // An Agent Swarm from before lanes: readable, but it cannot be continued.
   is_legacy_swarm: boolean;
@@ -550,6 +552,9 @@ async function loadTaskDetailRecord(taskId: string) {
           t.parent_task_id,
           t.subtask_depth,
           t.task_root_path,
+          t.execution_target,
+          (SELECT d.pending_reason FROM task_run_dispatches d JOIN task_runs tr ON tr.id = d.run_id
+            WHERE d.task_id = t.id AND tr.ended_at IS NULL ORDER BY tr.attempt_no DESC LIMIT 1) AS pending_reason,
           t.workflow_type,
           ${legacyAgentSwarmTaskSql("t")} AS is_legacy_swarm,
           t.interactive_canvas_id,

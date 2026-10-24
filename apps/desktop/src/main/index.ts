@@ -23,6 +23,7 @@ import type {
   DesktopCapabilities,
   DesktopDownloadInput,
   DesktopDownloadResult,
+  DesktopLocalExecutionSettings,
   DesktopNavigationState,
   DesktopNotificationInput,
   DesktopPickedFile,
@@ -35,10 +36,12 @@ import {
   readBootstrapData,
   saveActiveContext,
   saveAuthToken,
+  saveLocalExecutionSettings,
   saveServerProfilesState,
   saveShortcutPreferences,
   supportsSecureAuthStorage
 } from "./state";
+import { startConfiguredLocalExecutor, stopLocalExecutor, getLocalExecutionStatus } from "./executor/lifecycle";
 import { createDesktopUpdater, type DesktopUpdater } from "./updater";
 import {
   getComputerUseStatus,
@@ -648,6 +651,14 @@ function resolveDesktopApiBaseUrl(serverProfilesState: DesktopServerProfilesStat
   return fallbackProfile?.baseUrl ? fallbackProfile.baseUrl.replace(/\/+$/, "") : null;
 }
 
+async function pickLocalExecutionStorageRoot(): Promise<string | null> {
+  const ownerWindow = BrowserWindow.getFocusedWindow() ?? mainWindow ?? quickAgentWindow ?? undefined;
+  const result = ownerWindow
+    ? await dialog.showOpenDialog(ownerWindow, { properties: ["openDirectory", "createDirectory"] })
+    : await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
+  return result.canceled || !result.filePaths[0] ? null : result.filePaths[0];
+}
+
 async function cancelTask(taskId: string): Promise<{ ok: boolean; error?: string }> {
   const normalizedTaskId = taskId.trim();
   if (!normalizedTaskId) {
@@ -863,7 +874,18 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle("desktop:get-bootstrap-data", () => readBootstrapData());
-  ipcMain.handle("desktop:save-auth-token", (_event, token: string | null) => saveAuthToken(token));
+  ipcMain.handle("desktop:save-auth-token", async (_event, token: string | null) => {
+    await saveAuthToken(token);
+    void startConfiguredLocalExecutor();
+  });
+  ipcMain.handle("desktop:save-local-execution-settings", async (_event, settings: DesktopLocalExecutionSettings) => {
+    const saved = await saveLocalExecutionSettings(settings);
+    void startConfiguredLocalExecutor();
+    return saved;
+  });
+  ipcMain.handle("desktop:pick-local-execution-storage-root", () => pickLocalExecutionStorageRoot());
+  ipcMain.handle("desktop:get-local-execution-status", () => getLocalExecutionStatus());
+  ipcMain.handle("desktop:retry-local-execution", () => startConfiguredLocalExecutor());
   ipcMain.handle("desktop:get-computer-status", () => getComputerUseStatus());
   ipcMain.handle("desktop:request-accessibility-permission", () => requestAccessibilityPermission());
   ipcMain.handle("desktop:open-screen-recording-settings", () => openScreenRecordingSettings());
@@ -971,7 +993,11 @@ function registerIpcHandlers(): void {
   });
   ipcMain.handle(
     "desktop:save-server-profiles-state",
-    (_event, state: DesktopServerProfilesState) => saveServerProfilesState(state)
+    async (_event, state: DesktopServerProfilesState) => {
+      const saved = await saveServerProfilesState(state);
+      void startConfiguredLocalExecutor();
+      return saved;
+    }
   );
   ipcMain.handle(
     "desktop:save-shortcut-preferences",
@@ -1193,6 +1219,7 @@ app.whenReady().then(async () => {
 
   const bootstrap = await readBootstrapData();
   currentShortcutPreferences = bootstrap.shortcutPreferences;
+  void startConfiguredLocalExecutor();
   try {
     registerGlobalShortcuts(currentShortcutPreferences);
   } catch (error) {
@@ -1212,8 +1239,18 @@ app.whenReady().then(async () => {
   });
 });
 
+let localShutdownComplete = false;
+app.on("before-quit", (event) => {
+  if (localShutdownComplete) return;
+  event.preventDefault();
+  void stopLocalExecutor().catch((error) => console.error("Local executor shutdown failed", error)).finally(() => {
+    localShutdownComplete = true; app.quit();
+  });
+});
+
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+
 });
 
 app.on("window-all-closed", () => {

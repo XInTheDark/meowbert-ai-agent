@@ -130,3 +130,30 @@ done
                 except ProcessLookupError:
                     pass
             os.kill(self.child.pid, signal.SIGINT)
+
+    def stop(self):
+        if self.child.poll() is not None:
+            self.close_input()
+            return
+        # Job-control pipelines have separate groups; collect the shell's descendants.
+        listing = subprocess.check_output(["ps", "-eo", "pid=,ppid="], text=True)
+        parents = [(int(parts[0]), int(parts[1])) for row in listing.splitlines()
+                   if len(parts := row.split()) == 2]
+        descendants = {self.child.pid}
+        while True:
+            found = {pid for pid, parent in parents if parent in descendants}
+            if found.issubset(descendants):
+                break
+            descendants.update(found)
+        groups = set()
+        for pid in descendants:
+            try:
+                groups.add(os.getpgid(pid))
+            except ProcessLookupError:
+                pass
+        for group in groups:
+            try:
+                os.killpg(group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        self.close_input()

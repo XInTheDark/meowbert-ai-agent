@@ -6,6 +6,7 @@ const MAX_BODY_BYTES = 64 * 1024 * 1024;
 
 const CALL_ROUTE = /^\/runs\/([^/]+)\/call\/([a-zA-Z.]+)$/;
 const MODEL_ROUTE = /^\/runs\/([^/]+)\/model\/responses$/;
+const CLAIM_ROUTE = /^\/runs\/([^/]+)\/claim$/;
 
 class BodyTooLargeError extends Error {}
 
@@ -26,14 +27,28 @@ function send(response: http.ServerResponse, reply: RunApiReply): void {
   response.end(JSON.stringify(reply.body));
 }
 
-async function route(handler: RunApiHandler, request: http.IncomingMessage, response: http.ServerResponse): Promise<RunApiReply | null> {
+export interface RunApiServerOptions {
+  claim?: (input: { runId: string; deviceId: string; body: unknown; secret: string | undefined }) => Promise<RunApiReply>;
+}
+
+async function route(handler: RunApiHandler, request: http.IncomingMessage, response: http.ServerResponse, options: RunApiServerOptions): Promise<RunApiReply | null> {
   const path = new URL(request.url ?? "/", "http://run-api").pathname;
   if (request.method !== "POST") return { status: 404, body: { error: { code: "invalid_request", message: "Not found." } } };
   const call = CALL_ROUTE.exec(path);
   const model = call ? null : MODEL_ROUTE.exec(path);
-  if (!call && !model) return { status: 404, body: { error: { code: "invalid_request", message: "Not found." } } };
+  const claim = call || model ? null : CLAIM_ROUTE.exec(path);
+  if (!call && !model && !claim) return { status: 404, body: { error: { code: "invalid_request", message: "Not found." } } };
   const body = await readJson(request);
   const authorization = request.headers.authorization;
+  if (claim) {
+    if (!options.claim) return { status: 404, body: { error: { code: "invalid_request", message: "Not found." } } };
+    return options.claim({
+      runId: decodeURIComponent(claim[1]),
+      deviceId: request.headers["x-meowbert-device-id"] as string,
+      body,
+      secret: request.headers["x-meowbert-run-api-secret"] as string | undefined
+    });
+  }
   if (call) {
     return handler.call({ runId: decodeURIComponent(call[1]), method: call[2], authorization, body });
   }
@@ -47,9 +62,9 @@ async function route(handler: RunApiHandler, request: http.IncomingMessage, resp
 
 // The worker's internal Run API listener. Executors reach it through the API, which forwards a
 // run's calls to the worker holding its lease.
-export function createRunApiServer(handler: RunApiHandler): http.Server {
+export function createRunApiServer(handler: RunApiHandler, options: RunApiServerOptions = {}): http.Server {
   return http.createServer((request, response) => {
-    route(handler, request, response)
+    route(handler, request, response, options)
       .then((reply) => reply && send(response, reply))
       .catch((error: unknown) => {
         const status = error instanceof BodyTooLargeError ? 413 : error instanceof SyntaxError ? 400 : 500;

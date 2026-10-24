@@ -5,6 +5,7 @@ import {
   resolveTaskRunDispatchClass,
   touchTaskHistoryActivity,
   type TaskExecutionJob,
+  type TaskExecutionTarget,
   type TaskRunDispatchCategory,
   type TaskRunDispatchClass,
   type TaskSource,
@@ -49,6 +50,7 @@ export interface EnqueueRunInput {
   dispatchCategory?: TaskRunDispatchCategory;
   dispatchClass?: TaskRunDispatchClass;
   delayMs?: number;
+  executionTarget?: TaskExecutionTarget;
 }
 
 export interface EnsureDispatchedRunInput extends EnqueueRunInput {
@@ -88,13 +90,14 @@ function buildTaskExecutionPayload(input: EnqueueRunInput, runId: string, runMod
     selectionUserId: input.selectionUserId,
     toolOptionsOverride: input.toolOptionsOverride,
     quickMode: input.quickMode === true,
-    ...(input.contextAction ? { contextAction: input.contextAction } : {})
+    ...(input.contextAction ? { contextAction: input.contextAction } : {}),
+    ...(input.executionTarget ? { executionTarget: input.executionTarget } : {})
   };
 }
 
-async function lockTaskRow(client: PoolClient, taskId: string): Promise<void> {
-  const taskLockRes = await client.query<{ id: string }>(
-    `SELECT id
+async function lockTaskRow(client: PoolClient, taskId: string): Promise<TaskExecutionTarget | undefined> {
+  const taskLockRes = await client.query<{ id: string; execution_target?: TaskExecutionTarget }>(
+    `SELECT id, execution_target
        FROM tasks
       WHERE id = $1
       FOR UPDATE`,
@@ -103,6 +106,7 @@ async function lockTaskRow(client: PoolClient, taskId: string): Promise<void> {
   if ((taskLockRes.rowCount ?? 0) === 0) {
     throw new Error(`Task not found: ${taskId}`);
   }
+  return taskLockRes.rows[0].execution_target;
 }
 
 async function loadLatestTaskRun(client: PoolClient, taskId: string): Promise<LatestTaskRunRow | null> {
@@ -125,6 +129,11 @@ async function createRunRecord(
   runMode: NonNullable<EnqueueRunInput["mode"]> | "default",
   payload: TaskExecutionJob
 ): Promise<number> {
+  if (payload.executionTarget?.kind === "local") {
+    if (!["default", "compact_only"].includes(runMode) || input.toolOptionsOverride?.subtasks || input.toolOptionsOverride?.scheduleTask || input.toolOptionsOverride?.computerUse) {
+      throw new Error("Local tasks only support standard sandbox runs.");
+    }
+  }
   const attemptResult = await client.query<{ attempt_no: number }>(
     `SELECT COALESCE(MAX(attempt_no), 0) + 1 AS attempt_no
      FROM task_runs
@@ -153,7 +162,7 @@ async function createRunRecord(
   await touchTaskHistoryActivity(client, input.taskId, new Date().toISOString());
 
   const explicitDispatchClass = input.dispatchClass;
-  const shouldCreateDispatch = explicitDispatchClass !== undefined || input.dispatchCategory !== undefined;
+  const shouldCreateDispatch = explicitDispatchClass !== undefined || input.dispatchCategory !== undefined || payload.executionTarget?.kind === "local";
   if (shouldCreateDispatch) {
     const priorityActorIsSuperAdmin = explicitDispatchClass === "admin_interactive"
       ? true
@@ -203,11 +212,11 @@ export async function enqueueRun(input: EnqueueRunInput): Promise<{ runId: strin
   const runMode = input.mode ?? "default";
   const payload = buildTaskExecutionPayload(input, runId, runMode);
   const attemptNo = await withTransaction(async (client) => {
-    await lockTaskRow(client, input.taskId);
+    payload.executionTarget = await lockTaskRow(client, input.taskId) ?? payload.executionTarget;
     return createRunRecord(client, input, runId, runMode, payload);
   });
 
-  if (input.dispatchClass !== undefined || input.dispatchCategory !== undefined) {
+  if (input.dispatchClass !== undefined || input.dispatchCategory !== undefined || payload.executionTarget?.kind === "local") {
     return { runId, attemptNo };
   }
 
@@ -230,7 +239,7 @@ export async function ensureDispatchedRun(
   const payload = buildTaskExecutionPayload(input, runId, runMode);
 
   return withTransaction(async (client) => {
-    await lockTaskRow(client, input.taskId);
+    payload.executionTarget = await lockTaskRow(client, input.taskId) ?? payload.executionTarget;
     const latestRun = await loadLatestTaskRun(client, input.taskId);
     if (latestRun) {
       return {

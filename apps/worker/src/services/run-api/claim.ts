@@ -37,10 +37,16 @@ export async function claimRunForApi(input: {
 }): Promise<RunClaim> {
   const { job } = input;
   const { control, models } = createDirectRunServices(job);
-  const bootstrap = await control.bootstrap();
   const lease = await input.leases.claim({ runId: job.runId, holder: input.holder, apiUrl: input.apiUrl, ttlMs: RUN_LEASE_TTL_MS });
   if (!lease) {
     throw new Error("The run is no longer admitted, so it cannot be claimed.");
+  }
+  let bootstrap;
+  try {
+    bootstrap = await control.bootstrap();
+  } catch (error) {
+    await input.leases.release({ runId: job.runId, epoch: lease.epoch });
+    throw error;
   }
   input.sessions.add({
     runId: job.runId,

@@ -11,6 +11,7 @@ import {
   Trash2
 } from "lucide-react";
 import { useAppRuntime } from "../../contexts/AppRuntimeContext";
+import { LocalExecutionPreferences } from "./LocalExecutionPreferences";
 import {
   DEFAULT_DESKTOP_SHORTCUT_PREFERENCES,
   DESKTOP_SHORTCUT_DEFINITIONS,
@@ -21,7 +22,7 @@ import {
 } from "../../desktop/desktopShortcuts";
 
 type ShortcutScopeTab = "global" | "inApp";
-type DesktopPreferencesSectionTab = "shortcuts" | "computerUse";
+type DesktopPreferencesSectionTab = "shortcuts" | "computerUse" | "localExecution";
 
 export function DesktopPreferencesPage() {
   const { capabilities, platform, shortcutPreferences, saveShortcutPreferences, activeContext } = useAppRuntime();
@@ -206,6 +207,9 @@ export function DesktopPreferencesPage() {
 
           <div className="desktop-preferences-layout" style={{ marginTop: "1rem" }}>
             <aside className="desktop-preferences-sidebar">
+              <button className={`desktop-preferences-nav-btn ${activeSectionTab === "localExecution" ? "active" : ""}`} type="button" onClick={() => setActiveSectionTab("localExecution")}>
+                <span className="desktop-preferences-nav-label"><Monitor size={16} />Local Execution</span>
+              </button>
               <button
                 className={`desktop-preferences-nav-btn ${activeSectionTab === "shortcuts" ? "active" : ""}`}
                 type="button"
@@ -233,7 +237,7 @@ export function DesktopPreferencesPage() {
             </aside>
 
             <div className="desktop-preferences-panel">
-              {activeSectionTab === "shortcuts" ? (
+              {activeSectionTab === "localExecution" ? <LocalExecutionPreferences /> : activeSectionTab === "shortcuts" ? (
                 <>
                   <div className="section-head desktop-preferences-panel-head">
                     <div>

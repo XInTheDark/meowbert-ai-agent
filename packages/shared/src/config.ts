@@ -89,6 +89,9 @@ const configSchema = z.object({
     // "http" runs cloud tasks through the Run API and model proxy instead of in-process.
     executorTransport: z.enum(["direct", "http"]).optional()
   }).optional(),
+  localExecution: z.object({
+    enabled: z.boolean().default(false)
+  }).default({}),
   security: z.object({
     jwtSecret: z.string().min(1),
     jwtTtl: z.string().min(1)

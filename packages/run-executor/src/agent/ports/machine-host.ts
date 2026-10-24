@@ -11,6 +11,9 @@ export interface MachineSpec {
   taskScratchDir: string;
   envRoot: string;
   workspaceRoot: string;
+  workspaceRootRelative?: string;
+  envRootRelative?: string;
+  storageRoot?: string;
   isThreadTask: boolean;
   skillsRootDir: string | null;
   networkEnabled: boolean;

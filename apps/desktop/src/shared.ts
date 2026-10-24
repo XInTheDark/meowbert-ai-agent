@@ -41,11 +41,27 @@ export interface DesktopActiveContext {
   environmentId: string | null;
 }
 
+export interface DesktopLocalExecutionSettings {
+  maxConcurrentRuns: number;
+  serverBaseUrl: string | null;
+  downloadConsent: boolean;
+  enabled: boolean;
+  deviceId: string;
+  storageBackendId: string;
+  storageRoot: string | null;
+}
+
+export interface DesktopLocalExecutionStatus {
+  state: "disabled" | "starting" | "running" | "error";
+  message: string | null;
+}
+
 export interface DesktopBootstrapData {
   token: string | null;
   serverProfilesState: DesktopServerProfilesState;
   shortcutPreferences: DesktopShortcutPreferences;
   activeContext: DesktopActiveContext;
+  localExecutionSettings: DesktopLocalExecutionSettings;
 }
 
 export interface DesktopNotificationInput {

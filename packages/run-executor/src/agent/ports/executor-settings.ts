@@ -6,6 +6,7 @@ export interface ExecutorSettings {
   commandTimeoutMs: number;
   maxCommandOutputKb: number;
   shell: string;
+  sharedDependenciesDirectory?: string;
   // Where bundled skills live and which optional ones are switched on.
   skills: AppConfig["skills"];
 }

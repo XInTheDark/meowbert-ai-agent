@@ -6,6 +6,7 @@ import {
 } from "@meowbert/shared/agent-swarm-config";
 import { buildDefaultTaskParameters, normalizeTaskParameters } from "./taskParameters";
 import { TaskAttachment, TaskParameters, TaskToolOptions, TaskWorkflowComposerConfig } from "../lib/types";
+import { normalizeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared/task-execution-target";
 
 const TASK_INPUT_DRAFTS_STORAGE_KEY = "meowbert_task_composer_drafts_v1";
 const HTML_CANVAS_SKILL_ID = "html-canvas";
@@ -26,6 +27,7 @@ export interface TaskInputDraft {
   quickMode: boolean;
   taskParameters: TaskParameters;
   workflow: TaskWorkflowComposerConfig;
+  executionTarget: TaskExecutionTarget;
 }
 
 export function buildDefaultTaskWorkflowComposerConfig(): TaskWorkflowComposerConfig {
@@ -62,7 +64,8 @@ export function buildEmptyTaskInputDraft(defaults?: TaskInputDraftDefaults): Tas
     composerTaskId: null,
     quickMode: false,
     taskParameters: buildDefaultTaskParameters(),
-    workflow: buildDefaultTaskWorkflowComposerConfig()
+    workflow: buildDefaultTaskWorkflowComposerConfig(),
+    executionTarget: { kind: "cloud" }
   };
 }
 
@@ -221,6 +224,7 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
     quickMode?: unknown;
     taskParameters?: unknown;
     workflow?: unknown;
+    executionTarget?: unknown;
   };
   return {
     prompt: typeof candidate.prompt === "string" ? candidate.prompt : fallback.prompt,
@@ -278,7 +282,8 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
         enableClarifyPhase: isLongHorizon ? workflow.enableClarifyPhase !== false : true,
         enableReviewPhase: isLongHorizon ? workflow.enableReviewPhase !== false : true
       };
-    })()
+    })(),
+    executionTarget: normalizeTaskExecutionTarget(candidate.executionTarget)
   };
 }
 

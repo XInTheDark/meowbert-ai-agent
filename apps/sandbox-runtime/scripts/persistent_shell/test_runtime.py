@@ -13,12 +13,14 @@ from main import request
 
 
 class RuntimeTests(unittest.TestCase):
-    def start(self, mode):
+    def start(self, mode, lifetime_seconds=None):
         self.temp = tempfile.TemporaryDirectory(prefix="mb-")
         self.addCleanup(self.temp.cleanup)
         self.directory = self.temp.name
         self.log = Path(self.directory) / "output.log"
         config = dict(directory=self.directory, mode=mode, cwd=self.directory, logPath=str(self.log))
+        if lifetime_seconds is not None:
+            config["expiresAt"] = time.time() + lifetime_seconds
         payload = base64.b64encode(json.dumps(config).encode()).decode()
         self.process = subprocess.Popen(["python3", str(Path(__file__).with_name("main.py")), "serve", payload],
                                         start_new_session=True, stderr=subprocess.PIPE)
@@ -69,6 +71,33 @@ class RuntimeTests(unittest.TestCase):
                 return
             time.sleep(.025)
         self.fail("Missing output: " + repr(text) + " in " + self.log.read_text(errors="replace")[-1000:])
+
+    def test_lifetime_stops_an_idle_session_without_desktop_polling(self):
+        self.start("pipe", lifetime_seconds=.15)
+        self.process.wait(timeout=5)
+        state = json.loads(Path(self.directory, "state.json").read_text())
+        self.assertEqual(state["status"], "completed")
+
+    def test_stop_ends_only_the_session_and_its_command(self):
+        self.start("pipe")
+        self.call("submit", command="echo $$ > shell.pid; sleep 60 & echo $! > command.pid; wait")
+        for _ in range(200):
+            if Path(self.directory, "command.pid").exists():
+                break
+            time.sleep(.025)
+        shell_pid = int(Path(self.directory, "shell.pid").read_text())
+        command_pid = int(Path(self.directory, "command.pid").read_text())
+        self.assertEqual(self.call("stop")["status"], "completed")
+        self.process.wait(timeout=5)
+        for _ in range(200):
+            processes = subprocess.check_output(["ps", "-eo", "pid=,stat="], text=True)
+            live = {int(parts[0]) for row in processes.splitlines()
+                    if len(parts := row.split()) == 2 and not parts[1].startswith("Z")}
+            if shell_pid not in live and command_pid not in live:
+                break
+            time.sleep(.025)
+        self.assertNotIn(shell_pid, live)
+        self.assertNotIn(command_pid, live)
 
     def test_pipe_state_input_eof_and_reconnect(self):
         self.start("pipe")

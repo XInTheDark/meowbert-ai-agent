@@ -26,6 +26,8 @@ export interface RunApiClientOptions {
   runId: string;
   token: string;
   fetch?: typeof fetch;
+  signal?: AbortSignal;
+  requestTimeoutMs?: number;
   // Waits between attempts of a call whose response never arrived.
   retryDelaysMs?: number[];
 }
@@ -63,7 +65,9 @@ export function createRunApiClient(options: RunApiClientOptions): RunApiClient {
   const headers = { "content-type": "application/json", authorization: `Bearer ${options.token}` };
 
   async function post(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
-    return fetchImpl(`${runUrl}${path}`, { method: "POST", headers, body: JSON.stringify(body), signal });
+    const signals = [signal, options.signal].filter((value): value is AbortSignal => value !== undefined);
+    if (path.startsWith("/call/") && options.requestTimeoutMs) signals.push(AbortSignal.timeout(options.requestTimeoutMs));
+    return fetchImpl(runUrl + path, { method: "POST", headers, body: JSON.stringify(body), signal: signals.length ? AbortSignal.any(signals) : undefined });
   }
 
   return {
@@ -75,6 +79,7 @@ export function createRunApiClient(options: RunApiClientOptions): RunApiClient {
       const attempts = retryDelaysMs.length + 1;
       let lastError: unknown = null;
       for (let attempt = 0; attempt < attempts; attempt += 1) {
+        options.signal?.throwIfAborted();
         if (attempt > 0) await sleep(retryDelaysMs[attempt - 1]);
         let response: Response;
         try {

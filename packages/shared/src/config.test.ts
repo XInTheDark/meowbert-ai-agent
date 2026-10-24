@@ -115,6 +115,17 @@ describe("loadConfig runtime path normalization", () => {
     expect(loaded.runtime.tasksRoot).toBe(path.resolve(temp.root, "runtime/tasks"));
     expect(loaded.memory?.indexCacheRoot).toBe("/tmp/meowbert-memory-index-cache");
     expect(loaded.runtime.sandbox.image).toBe("meowbert-sandbox-runtime:local");
+    expect(loaded.localExecution.enabled).toBe(false);
+  });
+
+  it("loads the local execution gate", () => {
+    const temp = writeTempConfig("config");
+    const raw = JSON.parse(fs.readFileSync(temp.configPath, "utf-8")) as Record<string, unknown>;
+    raw.localExecution = { enabled: true };
+    fs.writeFileSync(temp.configPath, JSON.stringify(raw, null, 2), "utf-8");
+
+    expect(loadConfig(temp.configPath).localExecution.enabled).toBe(true);
+    fs.rmSync(temp.root, { recursive: true, force: true });
   });
 
   it("defaults task scratch next to the tasks root without a quota", () => {

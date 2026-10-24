@@ -108,6 +108,10 @@
     "./run-lease-token": {
       "types": "./dist/run-lease-token.d.ts",
       "default": "./dist/run-lease-token.js"
+    },
+    "./task-execution-target": {
+      "types": "./dist/task-execution-target.d.ts",
+      "default": "./dist/task-execution-target.js"
     }
   },
   "scripts": {

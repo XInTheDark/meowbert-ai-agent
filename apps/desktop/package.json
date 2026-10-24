@@ -9,9 +9,13 @@
     "build": "electron-vite build",
     "lint": "tsc -p tsconfig.json --noEmit",
     "package": "npm run build && electron-builder --config electron-builder.config.cjs",
-    "package:release": "npm run build && electron-builder --config electron-builder.config.cjs --publish always"
+    "package:release": "npm run build && electron-builder --config electron-builder.config.cjs --publish always",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@meowbert/run-executor": "0.1.0",
+    "@meowbert/shared": "0.1.0",
+    "dockerode": "5.0.1",
     "electron-updater": "6.8.9",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -24,7 +28,8 @@
     "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
     "typescript": "5.9.3",
-    "vite": "6.4.3"
+    "vite": "6.4.3",
+    "vitest": "4.1.11"
   },
   "description": "Meowbert Desktop",
   "author": "Meowbert"
