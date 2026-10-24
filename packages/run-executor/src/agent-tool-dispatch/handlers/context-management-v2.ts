@@ -22,6 +22,7 @@ import {
   NOTES_WRITE_FILE_TOOL_NAME
 } from "../../agent-tools/index.js";
 import { searchContextNotes } from "../../context-management-v2/window.js";
+import { getContextWindowTokenStatus } from "../../context-management-v2/token-usage.js";
 import type { ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 
@@ -73,7 +74,9 @@ export async function handleContextManagementV2Tool(
       break;
     case GET_CONTEXT_REMAINING_TOOL_NAME:
       contextEmptyArgumentsSchema.parse(raw);
-      output = { tokens_left: state.contextUsage ? Math.max(0, state.contextUsage.maxContextTokens - state.contextUsage.usedTokens) : null };
+      output = { tokens_left: state.contextWindowUsage
+        ? getContextWindowTokenStatus(state.contextWindowUsage, state.conversationItems).tokensRemaining
+        : null };
       break;
     case HISTORY_LIST_WINDOWS_TOOL_NAME:
       output = await store.listWindows(context, historyListWindowsArgumentsSchema.parse(raw));

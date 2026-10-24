@@ -80,6 +80,7 @@ vi.mock("@meowbert/run-executor/agent/turn-request", () => ({
 
 vi.mock("@meowbert/run-executor/agent/prompt-envelope", () => ({
   appendPromptEnvelopeDelta: vi.fn(),
+  promptEnvelopeToPrefixItems: vi.fn(() => []),
   sealPromptEnvelope: vi.fn()
 }));
 
@@ -788,6 +789,71 @@ describe("runAgentStepLoop", () => {
       prefixHash: "prefix-hash",
       promptRevision: "prompt-revision"
     });
+  });
+
+  it("gives V2 checkpoint requests real model turns before opening the next window", async () => {
+    const execution = createExecutionContext();
+    execution.maxRunSteps = 8;
+    execution.state.contextManagement = {
+      version: "v2", taskId: "task-1", firstWindowId: "window-1", windowId: "window-1",
+      contextNodeId: "node-1", previousWindowId: null, branchLeafMessageId: null,
+      reminderSent: false, fallbackSent: false, pendingReset: false, recoveryPhase: "normal"
+    };
+    const store = execution.prepared.control.context;
+    let continuity = "";
+    store.writeNote.mockImplementation(async (_state, input) => {
+      continuity = input.text;
+      return { updated: true };
+    });
+    store.loadNotesSummary.mockImplementation(async () => ({ continuity, index: [] }));
+    store.startNewWindow.mockResolvedValue({
+      firstWindowId: "window-1", windowId: "window-2",
+      contextNodeId: "node-2", previousWindowId: "window-1"
+    });
+    store.linkVisibleMessage.mockResolvedValue("node-2");
+    const actualDispatch = await vi.importActual<typeof import("@meowbert/run-executor/agent-tool-dispatch/index")>(
+      "@meowbert/run-executor/agent-tool-dispatch/index"
+    );
+    const actualWindow = await vi.importActual<typeof import("@meowbert/run-executor/agent/context-window")>(
+      "@meowbert/run-executor/agent/context-window"
+    );
+    mockedResetV2ContextWindow.mockImplementationOnce(actualWindow.resetV2ContextWindow);
+    const turns = [
+      { name: "get_context_remaining", total: 109_056, args: {} },
+      { name: "get_context_remaining", total: 115_200, args: {} },
+      { name: "notes_write_file", total: 115_800, args: { path: "notes/continuity.md", text: "Saved goal and next steps." } },
+      { name: "new_context", total: 116_000, args: {} },
+      { name: "final_response", total: 1_000, args: { response: "Done.", notify: true } }
+    ];
+    for (const [index, turn] of turns.entries()) {
+      mockedCreateModelResponseWithRetry.mockImplementationOnce(async (_taskId, input) => {
+        const prompts = input.conversationItems
+          .filter((item: { role?: string }) => item.role === "developer")
+          .map((item: { content: string }) => item.content);
+        if (index === 1) expect(prompts.some((text: string) => text.startsWith("<context_window_reminder>"))).toBe(true);
+        if (index === 2) expect(prompts.some((text: string) => text.includes("The current context window is exhausted."))).toBe(true);
+        if (index < 4) expect(store.startNewWindow).not.toHaveBeenCalled();
+        if (index === 4) {
+          expect(prompts.some((text: string) => text.includes(continuity))).toBe(true);
+          expect(input.conversationItems.some((item: { type?: string }) => item.type === "function_call")).toBe(false);
+        }
+        return {
+          output: [{ type: "function_call", call_id: `call-${index}`, name: turn.name, arguments: JSON.stringify(turn.args) }],
+          output_text: "", usage: { input_tokens: turn.total - 100, output_tokens: 100, total_tokens: turn.total }
+        } as never;
+      });
+      mockedDispatchResponseOutput.mockImplementationOnce(actualDispatch.dispatchResponseOutput);
+    }
+
+    await runAgentStepLoop(execution);
+
+    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(5);
+    expect(store.writeNote).toHaveBeenCalledWith(expect.objectContaining({ windowId: "window-1" }), {
+      path: "notes/continuity.md", text: "Saved goal and next steps.", append: false
+    });
+    expect(mockedResetV2ContextWindow).toHaveBeenCalledExactlyOnceWith(execution, "manual");
+    expect(execution.state.contextManagement).toMatchObject({ windowId: "window-2", reminderSent: false, fallbackSent: false });
+    expect(execution.state.finalResponseFromTool).toMatchObject({ response: "Done." });
   });
 
   it("stops with the usage-limit message when the run's quota is used up", async () => {

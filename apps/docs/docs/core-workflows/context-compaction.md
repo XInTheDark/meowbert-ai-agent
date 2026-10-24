@@ -27,7 +27,7 @@ The agent then continues the conversation with the summary standing in for the f
 
 ---
 
-## Automatic compaction
+## Legacy automatic compaction (V1)
 
 Compaction triggers automatically. You don't need to do anything.
 
@@ -79,18 +79,17 @@ Look for the **Compact now** button in the Task Detail actions menu.
 
 ---
 
-## Agent-managed checkpoints (Experimental)
+## Agent-managed context (Experimental)
 
-Workspace owners can enable **Context management tools** under **Workspace Settings → Experiments**. When enabled, Meowbert can manage its own active context during a task:
+When Context management V2 is active, Meowbert keeps the full conversation in private history and starts a fresh context window when needed. It does not summarize or discard the previous window.
 
-- **Checkpoint and compact** saves a detailed continuity checkpoint, then runs the same configured compaction flow described above.
-- **Checkpoint and trim** is intended for low-impact cleanup. It removes a precise number of the oldest completed tool calls and their results while preserving regular conversation messages. Meowbert also records a detailed summary of what those tools did.
+As the base context budget runs low, the agent receives a reminder to save progress in private notes. When the base budget is exhausted, it receives a final checkpoint instruction and up to 16,384 additional tokens to save a note and request a new window. The model's hard context limit can shorten this interval. Reaching either the buffered budget or the hard limit starts a new window automatically. The next window includes the continuity note and can use private history to recover details.
 
-Each saved checkpoint appears in the conversation as a **Context checkpoint saved** card. Choose **View checkpoint** to inspect the description Meowbert recorded.
+By default, the base budget is 90% of the configured model context window, the reminder threshold is 6,144 remaining tokens, and the hard limit is 95%. A configured `auto_compact_token_limit` can lower the base budget; `effective_context_window_percent` changes the hard limit.
 
-Tool results also include the exact API-reported input-token usage for the model request that produced the tool call. This reading is one request behind, because the current tool result was not part of that completed request. If the provider does not return input-token usage, Meowbert marks it unavailable instead of substituting an estimate.
+The earlier V1 option uses checkpoint-and-compact and checkpoint-and-trim tools. These operate on the legacy compaction flow described above.
 
-These tools are on by default. Automatic and manual compaction continue to work normally whether or not the experiment is enabled.
+The context notice in tool results reports exact API input-token usage for the request that produced the tool call. This reading is one request behind because the current tool result was not part of that completed request. V2 budget tracking and the remaining-token tool also include response output tokens and estimate locally added items after the latest model response, following Codex's total-context accounting approach. Before a provider usage sample is available, V2 estimates the prompt and history instead. These estimates are approximate; a large tool result or a provider context-overflow error can still force a new window before a checkpoint is saved.
 
 ---
 

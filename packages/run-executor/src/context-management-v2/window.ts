@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { ContextHistoryRecord, RunContextStore } from "../agent/ports/run-control.js";
 import { mergeContextSeedItems } from "./history.js";
-import { buildContextWindowPrompt, buildThreadHint } from "./prompts.js";
+import { buildContextWindowPrompt, buildThreadHint, getContextBudgetPromptState } from "./prompts.js";
 import type { ContextManagementState, ContextManagementV2State } from "./types.js";
 
 function getRecord(value: unknown): Record<string, unknown> {
@@ -70,6 +70,7 @@ export async function resolveContextManagementState(store: RunContextStore, inpu
     previousWindowId: window.previousWindowId,
     branchLeafMessageId: input.branchLeafMessageId,
     reminderSent: false,
+    fallbackSent: false,
     pendingReset: false,
     recoveryPhase: "normal"
   };
@@ -78,6 +79,7 @@ export async function resolveContextManagementState(store: RunContextStore, inpu
   }
   const existing = await store.loadWindowItems(state.windowId);
   const merged = mergeContextSeedItems(existing, input.seedItems);
+  Object.assign(state, getContextBudgetPromptState(merged.conversationItems));
   await recordContextItems(store, state, merged.newItems);
   return { state, conversationItems: merged.conversationItems };
 }
@@ -103,6 +105,7 @@ export async function startNewContextWindow(store: RunContextStore, input: {
     previousWindowId: input.state.windowId,
     branchLeafMessageId: input.branchLeafMessageId,
     reminderSent: false,
+    fallbackSent: false,
     pendingReset: false,
     recoveryPhase: "normal"
   };

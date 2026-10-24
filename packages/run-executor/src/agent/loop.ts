@@ -10,7 +10,8 @@ import {
   recoverContextAfterContextWindowError
 } from "../context-compaction/index.js";
 import { checkpointAndTrimContext, persistContextCheckpoint } from "../context-management/index.js";
-import { buildContextReminder } from "../context-management-v2/prompts.js";
+import { getResponseTotalTokens } from "../context-management-v2/token-usage.js";
+import { maybeAdvanceV2ContextWindow, prepareV2ContextWindowUsage } from "./context-window-budget.js";
 import { resetV2ContextWindow, selectContextOverflowRecoveryItems } from "./context-window.js";
 import { createModelResponseWithRetry, type ModelToolChoice } from "./model.js";
 import { resolveModelErrorAction } from "./model-error-actions.js";
@@ -150,16 +151,7 @@ function maybeAppendWindingDownNotice(execution: AgentExecutionContext, availabi
 
 async function maybeRunAutoCompaction(execution: AgentExecutionContext, step: number): Promise<void> {
   if (execution.state.contextManagement.version === "v2") {
-    const usage = execution.state.dispatchState.contextUsage;
-    if (!usage) return;
-    const reminderThreshold = Math.min(6_144, Math.max(1_024, Math.floor(usage.maxContextTokens * 0.08)));
-    const reserve = Math.min(16_384, Math.max(2_048, Math.floor(usage.maxContextTokens * 0.2)));
-    const remaining = Math.max(0, usage.maxContextTokens - usage.usedTokens);
-    if (!execution.state.contextManagement.reminderSent && remaining <= reminderThreshold) {
-      execution.state.dispatchState.conversationItems.push({ role: "developer", content: buildContextReminder(remaining) });
-      execution.state.contextManagement.reminderSent = true;
-    }
-    if (remaining <= reserve) await resetV2ContextWindow(execution, "automatic");
+    await maybeAdvanceV2ContextWindow(execution);
     return;
   }
   const autoCompactionResult = await maybeAutoCompactContext({
@@ -256,6 +248,8 @@ async function recordModelResponseUsage(input: {
   promptPrefixHash: string;
   promptRevision: string;
 }): Promise<void> {
+  const windowUsage = prepareV2ContextWindowUsage(input.execution);
+  if (windowUsage) windowUsage.lastResponseTotalTokens = getResponseTotalTokens(input.response.usage);
   if (typeof input.response.usage?.input_tokens !== "number") {
     input.execution.state.lastActualContextUsage = null;
     input.execution.state.dispatchState.contextUsage = null;
@@ -373,6 +367,7 @@ async function requestModelTurn(input: {
     },
     codeMode: isCodeModeEnabled(execution)
   });
+  prepareV2ContextWindowUsage(execution, turnRequest.promptPrefixItems);
   sealPromptEnvelope(execution.promptEnvelope);
   logLaneForkPrefix(execution, turnRequest.promptPrefixHash);
   const toolChoice = resolveModelToolChoice(execution, availability, step);

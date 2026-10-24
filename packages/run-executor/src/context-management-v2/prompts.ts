@@ -1,4 +1,5 @@
 import type { ContextManagementV2State } from "./types.js";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
 
 const THREAD_HINT_MAX_BYTES = 4_000;
 
@@ -66,3 +67,14 @@ export function buildContextReminder(tokensLeft: number): string {
 export const CONTEXT_EXHAUSTED_FALLBACK = `<context_window_reminder>
 The current context window is exhausted. Do not continue the task or give a final answer in this window. The next window will not automatically include this conversation. Make exactly one write or append call to notes now to save a concise checkpoint with the goal, decisions, progress, learnings, next steps, every relevant user request's window and item IDs, and important actions or tool calls. After the notes result returns, call new_context; do not use any tools other than notes and new_context.
 </context_window_reminder>`;
+
+export function getContextBudgetPromptState(items: ResponseInputItem[]): { reminderSent: boolean; fallbackSent: boolean } {
+  const prompts = items.flatMap((item) => {
+    const record = item as { role?: string; content?: unknown };
+    return record.role === "developer" && typeof record.content === "string" ? [record.content] : [];
+  });
+  return {
+    reminderSent: prompts.some((text) => text.startsWith("<context_window_reminder>")),
+    fallbackSent: prompts.some((text) => text.startsWith(CONTEXT_EXHAUSTED_FALLBACK))
+  };
+}

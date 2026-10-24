@@ -10,6 +10,8 @@ export interface ContextManagementV2State {
   previousWindowId: string | null;
   branchLeafMessageId: string | null;
   reminderSent: boolean;
+  // Older persisted fork seeds do not carry this flag.
+  fallbackSent?: boolean;
   pendingReset: boolean;
   recoveryPhase: "normal" | "needs_note" | "needs_reset";
 }

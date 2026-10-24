@@ -11,6 +11,7 @@ import type { TaskLiveSyncFileSummary } from "../agent/live-sync-types.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
 import type { LoadedWorkflowRunContext } from "../task-workflows/context-types.js";
 import type { ContextManagementV2State } from "../context-management-v2/types.js";
+import type { ContextWindowUsage } from "../context-management-v2/token-usage.js";
 import type { RunControl } from "../agent/ports/run-control.js";
 import type { ExecutorSettings } from "../agent/ports/executor-settings.js";
 import type { RunFeatures } from "../agent/ports/run-features.js";
@@ -118,6 +119,8 @@ export interface ToolDispatchState {
     maxContextTokens: number;
     percent: number;
   } | null;
+  // V2 active-window accounting; contextUsage remains the exact previous request's input usage.
+  contextWindowUsage?: ContextWindowUsage | null;
   budgetTelemetry?: BudgetTelemetry | null;
   commandStep: number;
   finalResponseSegments?: Array<{ response: string; notify: boolean; partial: boolean; summary?: string }>;

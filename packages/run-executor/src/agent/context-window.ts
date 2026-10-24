@@ -97,6 +97,7 @@ export async function resetV2ContextWindow(
   );
   await recordContextItems(control.context, next, seedItems);
   execution.state.dispatchState.contextUsage = null;
+  execution.state.dispatchState.contextWindowUsage = null;
   execution.state.lastActualContextUsage = null;
   execution.state.hasActualContextUsage = false;
   console.info("[context-management-v2]", JSON.stringify({
