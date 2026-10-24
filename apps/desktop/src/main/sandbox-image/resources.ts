@@ -3,9 +3,11 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { createDesktopDocker } from "./manager";
+import { prepareWindowsSkillCatalog } from "./windows-catalog";
 
-// The image owns the skill builds, including native linux/arm64 dependencies.
+// The image owns the skill builds, including native Linux dependencies.
 export async function prepareSandboxSkills(image: string, resourcesRoot: string, deviceId: string): Promise<string> {
+  if (process.platform === "win32") return prepareWindowsSkillCatalog(image, resourcesRoot, deviceId);
   const docker = createDesktopDocker();
   const info = await docker.getImage(image).inspect();
   const destination = path.join(resourcesRoot, info.Id.replace(/[^a-zA-Z0-9_-]/g, "_"));

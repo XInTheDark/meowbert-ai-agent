@@ -45,6 +45,26 @@ Off by default. See [Outgoing Email](/reference/email-delivery).
 
 Where project and workspace files live. The default keeps everything under `/srv/meowbert/runtime`. See [Storage Backends](/reference/storage-backends) and, for per-workspace disk quotas, [XFS Project Quotas](/reference/xfs-project-quotas).
 
+### Local task execution
+
+Local execution is disabled by default. Enable `localExecution.enabled` and configure the worker's `runApi` listener and an API-reachable worker URL before enabling it in the desktop app. The API forwards scoped Run API requests to the claiming worker; keep that listener private. Model calls continue to use server credentials, which are never sent to the desktop.
+
+Use the published sandbox image with a multi-architecture manifest digest. Cloud workers use `linux/amd64`; Apple Silicon and Windows arm64 devices use `linux/arm64`, and Windows x64 uses `linux/amd64`. Docker Desktop must run Linux containers. The Windows default transport is `npipe:////./pipe/dockerDesktopLinuxEngine`; a different local pipe can be selected with `DOCKER_HOST`.
+
+For another machine to run a server-hosted workspace, export the backend root over SMB or NFS and mount that same root on the device. Enter its backend ID and mount path in Desktop Preferences. The folder must contain the server-written `.meowbert-storage.json` marker. Docker Desktop also needs access to the mount. UID mapping, NFS squash rules, SMB permissions, and Docker file sharing are the operator's responsibility. Storage probes fail closed; there is no host-mode fallback in this release.
+
+Every user who can mount a backend can read that backend. Use separate storage backends per tenant on a multi-tenant installation. Independent mounts of the same remote service, including Google Drive for desktop alongside server rclone, remain unsupported because their caches can disagree.
+
+Apply migration `145_local_storage_visibility.sql` before starting the updated services. The Run API protocol is version 2; update the server and desktop together. Uploads record size and SHA-256. Device outputs persist as pending and are checked by name with backoff for up to 30 minutes. Completion queues memory indexing immediately and at one and five minutes, with durable retries after restarts. No workspace or project directory scan is used for these checks.
+
+Before accepting a new Docker Desktop/network-share combination, run the opt-in mount test from the repository on the device. Set `TEST_LOCAL_STORAGE_ROOT`, `TEST_LOCAL_STORAGE_BACKEND_ID`, `TEST_LOCAL_STORAGE_INSTALL_ID`, and `TEST_LOCAL_SANDBOX_IMAGE` to the actual mounted backend and pinned image, then run:
+
+```sh
+npm run test --workspace apps/desktop -- src/main/storage/network-storage.integration.test.ts
+```
+
+This checks the marker, a container write/delete probe, and host/container named-file reads and writes. It requires a running daemon and the image already installed. Also verify a packaged desktop task, cancellation, follow-up, and delayed server visibility on each target platform; passing mocked tests alone does not establish network-mount support.
+
 ### Task scratch
 
 Each task gets a scratch folder on local disk, `$TASK_SCRATCH_DIR`, for work that makes lots of small files: cloning git repos, installing dependencies, builds. Agents keep normal files in the task folder, but a `git clone` onto a network mount such as `rclone` can take minutes, so they use scratch for this instead.

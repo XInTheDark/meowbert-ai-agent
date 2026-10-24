@@ -1,4 +1,5 @@
 import { APPLY_PATCH_TOOL_NAME } from "../../agent-tools/index.js";
+import { fromSandboxPath } from "@meowbert/shared/docker-sandbox";
 import {
   applyPatchOperationToWorkspace,
   formatApplyPatchOperationSummary,
@@ -166,7 +167,8 @@ export async function handleApplyPatch(
     for (const operation of invocation.operations) {
       await ctx.assertNotCancelled();
       const result = await applyPatchOperationToWorkspace({
-        operation,
+        operation: { ...operation, path: fromSandboxPath(operation.path),
+          ...("move_to" in operation && typeof operation.move_to === "string" ? { move_to: fromSandboxPath(operation.move_to) } : {}) },
         baseDir: ctx.taskDir,
         writableRoots
       });

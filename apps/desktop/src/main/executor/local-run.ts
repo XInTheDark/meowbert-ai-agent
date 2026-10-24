@@ -7,10 +7,13 @@ import { createProxyModelGateway } from "@meowbert/run-executor/run-api/proxy-mo
 import type { MachineHost } from "@meowbert/run-executor/agent/ports/machine-host";
 import type { TaskExecutionJob } from "@meowbert/shared";
 import { resolveVerifiedStoragePath, verifyMountedStorage } from "../storage/roots";
-import { createDesktopSandboxMachineProvider } from "./sandbox-machine-host";
+import { createDesktopSandboxMachineProvider, probeDesktopSandboxStorage } from "./sandbox-machine-host";
 import type { DesktopLocalExecutorOptions } from "./local-executor";
 import { createLocalPersistentShells } from "./persistent-shells";
 import type { DeviceApi } from "./device-api";
+import path from "node:path";
+import { waitForRunInputs, StorageNotReadyError } from "../storage/inputs";
+import { sharedSandboxDependencies } from "../sandbox-image/platform";
 
 export interface DeviceRunNotice { run_id: string; queue_state: string; payload_json: TaskExecutionJob }
 export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceApi, notice: DeviceRunNotice, image: string, skillsRootDir: string, settings: ExecutorSettings, installId: string) {
@@ -31,15 +34,20 @@ export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceA
     control = remote;
     const machines = createDesktopSandboxMachineProvider({ image, scratchRoot: options.scratchRoot, skillsRootDir, storageRoot: options.storageRoot, backendId: options.storageBackendId, deviceId: options.deviceId, installId });
     const platform = { ...remote.platform };
+    let executing = false;
     try {
+      const bootstrap = await remote.bootstrap();
+      if (bootstrap.roots.storageBackendId !== options.storageBackendId) throw new Error("The run belongs to another storage backend.");
+      const workspaceRoot = await resolveVerifiedStoragePath(options.storageRoot, bootstrap.roots.workspaceRootRelative);
+      const envRoot = await resolveVerifiedStoragePath(options.storageRoot, bootstrap.roots.envRootRelative);
+      try {
+        await probeDesktopSandboxStorage({ image, scratchRoot: options.scratchRoot, skillsRootDir, storageRoot: options.storageRoot,
+          backendId: options.storageBackendId, deviceId: options.deviceId, installId });
+      } catch { throw new StorageNotReadyError("Waiting for storage: Docker Desktop cannot access the selected mount."); }
+      await waitForRunInputs({ taskDir: path.resolve(envRoot, bootstrap.snapshot.task.task_root_path), inputs: bootstrap.inputs, signal: abort.signal });
+      executing = true;
       await runAgentJob(notice.payload_json, {
-        control: { ...remote, platform, bootstrap: async () => {
-          const bootstrap = await remote.bootstrap();
-          if (bootstrap.roots.storageBackendId !== options.storageBackendId) throw new Error("The run belongs to another storage backend.");
-          const workspaceRoot = await resolveVerifiedStoragePath(options.storageRoot, bootstrap.roots.workspaceRootRelative);
-          const envRoot = await resolveVerifiedStoragePath(options.storageRoot, bootstrap.roots.envRootRelative);
-          return { ...bootstrap, roots: { ...bootstrap.roots, workspaceRoot, envRoot } };
-        } },
+        control: { ...remote, platform, bootstrap: async () => ({ ...bootstrap, roots: { ...bootstrap.roots, workspaceRoot, envRoot } }) },
         models: createProxyModelGateway(client),
         machines: { ...machines, start: async (spec) => {
           if (abort.signal.aborted) throw new Error("The local executor has stopped.");
@@ -49,8 +57,16 @@ export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceA
           return machine;
         } },
         features: noRunFeatures,
-        settings: { ...settings, sharedDependenciesDirectory: "shared-linux-arm64", skills: { ...settings.skills, rootDir: skillsRootDir } }
+        settings: { ...settings, sharedDependenciesDirectory: sharedSandboxDependencies(),
+          sandboxPdfPreparation: true,
+          sandboxSkillsRootDir: process.platform === "win32" ? "/app/skills" : undefined,
+          skills: { ...settings.skills, rootDir: skillsRootDir } }
       });
+    } catch (error) {
+      const storageUnavailable = !executing && ["ENOENT", "EIO", "ESTALE", "ENOTCONN", "ETIMEDOUT", "EACCES"].includes((error as NodeJS.ErrnoException).code ?? "");
+      if (!(error instanceof StorageNotReadyError) && !storageUnavailable) throw error;
+      await client.call("control.releaseForStorage", []);
+      options.onPendingReason?.(error instanceof StorageNotReadyError ? error.message : "Waiting for storage: the workspace root is unavailable.");
     } finally { remote.stop(); await fence(); }
   })();
   return { done, fence, image };

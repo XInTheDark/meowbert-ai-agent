@@ -1,3 +1,4 @@
+import { RUN_API_PROTOCOL_VERSION } from "@meowbert/shared";
 import type { QueryResult } from "pg";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskExecutionJob } from "@meowbert/shared";
@@ -566,7 +567,7 @@ describe("local admission", () => {
       if (sql.includes("FROM devices dv")) return buildRowsResult([{
         id: "device", max_concurrent_runs: capacity, active_runs: 0, revoked_at: null,
         last_seen_at: online ? new Date().toISOString() : null, stream_expires_at: new Date(Date.now() + 20_000).toISOString(),
-        capabilities_json: { dockerReady: true, sandboxImageReady: true, executorSupported: true, protocolVersion: 1 }, verified_roots_json: { backend: "/runtime" }
+        capabilities_json: { dockerReady: true, sandboxImageReady: true, executorSupported: true, protocolVersion: RUN_API_PROTOCOL_VERSION }, verified_roots_json: { backend: "/runtime" }
       }]);
       if (sql.includes("SET queue_state = 'admitted'")) {
         const run = candidates.find((row) => row.run_id === params?.[0])!;

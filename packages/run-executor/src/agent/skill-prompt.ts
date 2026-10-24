@@ -1,4 +1,5 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
+import { toSandboxText } from "@meowbert/shared/docker-sandbox";
 
 const PROMPT_UPDATE_PREFIX = "[Prompt update] ";
 
@@ -26,7 +27,7 @@ export function buildSkillEnabledPromptDelta(input: {
     sections.push("", `${kindLabel} guidance:`, input.doc);
   }
 
-  return sections.join("\n");
+  return toSandboxText(sections.join("\n"));
 }
 
 export function buildOnDemandSkillsPromptDelta(skills: Array<{ id: string; description: string }>): string {

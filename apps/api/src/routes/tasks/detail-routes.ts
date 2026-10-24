@@ -838,9 +838,10 @@ async function handleGetTaskArtifacts(request: FastifyRequest) {
       relative_path: string;
       size_bytes: number | null;
       mime_type: string | null;
+      publication_state: "pending" | "available" | "missing";
       created_at: string;
     }>(
-      `SELECT id, kind, relative_path, size_bytes, mime_type, created_at
+      `SELECT id, kind, relative_path, size_bytes, mime_type, publication_state, created_at
          FROM task_artifacts
         WHERE task_id = $1
           AND kind = 'artifact'

@@ -6,6 +6,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { asText, mapMessagesForResponsesInput } from "./utils.js";
 import { buildSystemPrompt } from "./prompt.js";
+import { toSandboxText } from "@meowbert/shared/docker-sandbox";
 import { maybeAutoGenerateTaskTitle } from "./model.js";
 import {
   getMessagesAfterLatestCompaction,
@@ -335,7 +336,8 @@ async function resolveRunConversation(input: {
     prepared.snapshot.image_detail ?? "high",
     {
       quickMode: prepared.quickMode,
-      sendMetadataToModel: prepared.snapshot.send_metadata_to_model
+      sendMetadataToModel: prepared.snapshot.send_metadata_to_model,
+      ...(prepared.settings.sandboxPdfPreparation ? { pdfRuntime: { sandbox: prepared.sandbox, scratchDir: prepared.taskScratchDir } } : {})
     }
   );
   const resolvedContextManagement = await resolveContextManagementState(prepared.control.context, {
@@ -511,9 +513,9 @@ export async function initializeAgentExecution(
     scheduleInfo,
     projectContextPromptData
   });
-  const systemPrompt = laneRun
+  const systemPrompt = toSandboxText(laneRun
     ? laneRun.promptEnvelope.baseFrames[0]?.content ?? fullSystemPrompt
-    : prepared.quickMode ? buildQuickModeSystemPrompt(prepared.isProjectMaster === true) : fullSystemPrompt;
+    : prepared.quickMode ? buildQuickModeSystemPrompt(prepared.isProjectMaster === true) : fullSystemPrompt);
   let activeSystemPrompt = systemPrompt;
   await debugLogger.log("Built system prompt.", {
     stage: "init.system_prompt",

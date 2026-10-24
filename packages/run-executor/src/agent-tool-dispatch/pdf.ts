@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { toSandboxPath, type DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
 import { formatByteLimit } from "./view-limits.js";
 
 interface PreparedPdfView {
@@ -83,6 +84,21 @@ const pdfToolDeps = {
   execFileText
 };
 
+export interface PdfSandboxRuntime {
+  sandbox: Pick<DockerSandboxHandle, "executeShellCommand">;
+  scratchDir: string;
+}
+
+async function runPdfPython(args: string[], runtime?: PdfSandboxRuntime): Promise<{ stdout: string; stderr: string }> {
+  if (!runtime) return pdfToolDeps.execFileText("python3", args);
+  const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
+  const result = await runtime.sandbox.executeShellCommand({ shell: "/bin/bash",
+    command: "python3 " + args.map(quote).join(" "), workingDir: runtime.scratchDir,
+    timeoutMs: 30_000, maxOutputKb: PYTHON_EXEC_MAX_BUFFER_BYTES / 1024 });
+  if (result.exitCode !== 0 || result.timedOut || result.aborted) throw new Error(result.stderr || "Sandbox PDF preparation failed.");
+  return result;
+}
+
 export const pdfToolTestUtils = {
   deps: pdfToolDeps
 };
@@ -93,22 +109,23 @@ export async function preparePdfView(input: {
   pageStart: number;
   pageEnd: number;
   maxOutputBytes?: number;
+  runtime?: PdfSandboxRuntime;
 }): Promise<PreparedPdfView> {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "meowbert-pdf-view-"));
+  const tempDir = await mkdtemp(path.join(input.runtime?.scratchDir ?? os.tmpdir(), "meowbert-pdf-view-"));
   const inputPath = path.join(tempDir, "input.pdf");
   const outputPath = path.join(tempDir, "output.pdf");
 
   try {
     await writeFile(inputPath, input.fileBuffer);
 
-    const { stdout } = await pdfToolDeps.execFileText("python3", [
+    const { stdout } = await runPdfPython([
       "-c",
       PYTHON_PDF_PREPARE_SCRIPT,
-      inputPath,
-      outputPath,
+      input.runtime ? toSandboxPath(inputPath) : inputPath,
+      input.runtime ? toSandboxPath(outputPath) : outputPath,
       String(input.pageStart),
       String(input.pageEnd)
-    ]);
+    ], input.runtime);
 
     const parsed = JSON.parse(stdout) as PythonPreparedPdfViewJson;
     const outputStats = await stat(outputPath);

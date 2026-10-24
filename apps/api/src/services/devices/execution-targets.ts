@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { isWithinPath, type TaskExecutionTarget } from "@meowbert/shared";
+import { isWithinPath, isSupportedLocalExecutor, type TaskExecutionTarget } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import { query } from "../../lib/db.js";
 import { listDevices } from "./device-service.js";
@@ -37,8 +37,8 @@ export async function loadLocalProjectStorage(projectId: string) {
 export async function listProjectExecutionTargets(userId: string, projectId: string) {
   if (!config.localExecution.enabled || !config.runApi) return { enabled: false, devices: [] };
   const { backendId } = await loadLocalProjectStorage(projectId);
-  const devices = (await listDevices(userId)).filter((device) => device.platform === "darwin"
-    && device.architecture === "arm64" && typeof device.verifiedRoots[backendId] === "string");
+  const devices = (await listDevices(userId)).filter((device) => isSupportedLocalExecutor(device.platform, device.architecture)
+    && typeof device.verifiedRoots[backendId] === "string");
   return { enabled: true, devices: devices.map(({ id, name }) => ({ id, name })) };
 }
 

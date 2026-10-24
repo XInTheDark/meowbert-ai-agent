@@ -33,6 +33,7 @@ describe("saveUploadedFile", () => {
     });
 
     expect(saved.file).toMatchObject({ name: "report.txt", relativePath: "report.txt", sizeBytes: 5 });
+    expect(saved.file.sha256).toBe("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
     await expect(fs.readFile(path.join(targetDirectory.absolutePath, "report.txt"), "utf8")).resolves.toBe("hello");
   });
 

@@ -5,6 +5,8 @@ import path from "node:path";
 import { Duplex, PassThrough, type Readable, type Writable } from "node:stream";
 import { promisify } from "node:util";
 import Docker, { type Container } from "dockerode";
+import { toSandboxPath, toSandboxText } from "./docker-sandbox-paths.js";
+export { toSandboxPath, fromSandboxPath, toSandboxText } from "./docker-sandbox-paths.js";
 import { selectSandboxPassthroughEnv, type SandboxConfig, type SandboxResourcesConfig } from "./sandbox.js";
 import {
   DEFAULT_EXEC_CLOSE_TIMEOUT_MS,
@@ -153,6 +155,9 @@ interface StartAttachedProcessInput {
 }
 
 function createDockerClient(dockerHost: string): Docker {
+  if (dockerHost.startsWith("npipe:////./pipe/")) {
+    return new Docker({ socketPath: dockerHost.slice(8) });
+  }
   if (dockerHost.startsWith("unix://")) {
     return new Docker({ socketPath: dockerHost.slice("unix://".length) || "/var/run/docker.sock" });
   }
@@ -205,7 +210,7 @@ function toEnvList(values: Record<string, string> | undefined, config: SandboxCo
 
   const entries = Object.entries(merged)
     .filter(([, value]) => typeof value === "string")
-    .map(([key, value]) => `${key}=${value}`);
+    .map(([key, value]) => `${key}=${toSandboxPath(value)}`);
 
   return entries.length > 0 ? entries : undefined;
 }
@@ -350,8 +355,8 @@ export class DockerSandboxHandle {
   async startAttachedProcess(input: StartAttachedProcessInput): Promise<SandboxAttachedProcess> {
     const pidFilePath = input.trackProcessGroup ? buildSandboxStateFilePath() : null;
     const finalCommand = withGroupWritableUmask(pidFilePath
-      ? buildWrappedCommand({ command: input.command, pidFilePath })
-      : input.command);
+      ? buildWrappedCommand({ command: input.command.map((value) => toSandboxText(toSandboxPath(value))), pidFilePath })
+      : input.command.map((value) => toSandboxText(toSandboxPath(value))));
 
     const exec = await this.container.exec({
       AttachStdin: input.stdin === true,
@@ -360,7 +365,7 @@ export class DockerSandboxHandle {
       Cmd: finalCommand,
       Env: toEnvList(input.env, this.config),
       Tty: input.tty,
-      WorkingDir: input.workingDir
+      WorkingDir: toSandboxPath(input.workingDir)
     });
 
     const rawStream = await exec.start({
@@ -694,7 +699,7 @@ export class DockerSandboxManager {
       resolvedMounts.push({
         source: source.source,
         sourceKind: source.sourceKind,
-        destination: path.resolve(mount.path),
+        destination: toSandboxPath(path.resolve(mount.path)),
         accessiblePath: path.resolve(mount.path),
         readOnly: mount.readOnly === true
       });
@@ -715,6 +720,7 @@ export class DockerSandboxManager {
   }
 
   private async normalizeWritableMountSources(mounts: ResolvedSandboxMount[]): Promise<void> {
+    if (process.platform === "win32") return;
     const writableSources = listWritableMountRoots(mounts);
 
     await Promise.all(writableSources.map(async (source) => {
@@ -810,7 +816,9 @@ export class DockerSandboxManager {
     };
     const hostConfig: Docker.ContainerCreateOptions["HostConfig"] = {
       AutoRemove: false,
-      Binds: binds,
+      ...(process.platform === "win32" ? { Mounts: resolvedMounts.map((mount) => ({
+        Type: "bind" as const, Source: mount.source.replace(/\\/g, "/"), Target: mount.destination, ReadOnly: mount.readOnly
+      })) } : { Binds: binds }),
       NetworkMode: options.networkEnabled ? undefined : "none",
       PidsLimit: resources.pids,
       ReadonlyRootfs: true,
@@ -885,7 +893,7 @@ export class DockerSandboxManager {
           Image: this.config.image,
           Entrypoint: CONTAINER_LOOP_COMMAND.slice(0, 2),
           Cmd: CONTAINER_LOOP_COMMAND.slice(2),
-          WorkingDir: options.workingDir,
+          WorkingDir: toSandboxPath(options.workingDir),
           Env: toEnvList(options.env, this.config),
           ...(requestedPorts.length > 0 ? { ExposedPorts: exposedPorts } : {}),
           User: sandboxIdentity.user,

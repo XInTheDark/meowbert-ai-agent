@@ -46,7 +46,7 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
         workspaceRoot: spec.workspaceRoot,
         taskScratchDir: spec.taskScratchDir,
         isThreadTask: spec.isThreadTask,
-        skillsRootDir: options.skillsRootDir
+        skillsRootDir: process.platform === "win32" ? null : options.skillsRootDir
       });
       const sandbox = await manager.createPersistentSandbox({
         workingDir: spec.taskDir,

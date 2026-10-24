@@ -47,6 +47,11 @@ export const LOCAL_PENDING_REASONS: readonly LocalPendingReason[] = [
 ];
 
 export const DEFAULT_LOCAL_DEVICE_CAPACITY = 2;
+
+export function isSupportedLocalExecutor(platform: string, architecture: string): boolean {
+  return (platform === "darwin" && architecture === "arm64")
+    || (platform === "win32" && (architecture === "x64" || architecture === "arm64"));
+}
 export const DEVICE_HEARTBEAT_INTERVAL_MS = 10_000;
 export const DEVICE_READY_WINDOW_MS = 30_000;
 export const LOCAL_RUN_CLAIM_WINDOW_MS = 60_000;

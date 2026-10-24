@@ -8,6 +8,7 @@ export interface RunLeaseStore {
   renew(input: { runId: string; epoch: number; ttlMs: number }): Promise<boolean>;
   currentEpoch(runId: string): Promise<number | null>;
   release(input: { runId: string; epoch: number }): Promise<void>;
+  releaseForStorage(input: { runId: string; epoch: number }): Promise<boolean>;
 }
 
 export type OperationBegin =

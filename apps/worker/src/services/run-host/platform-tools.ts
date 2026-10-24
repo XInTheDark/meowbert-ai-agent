@@ -303,7 +303,7 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
         [canvasId, entryPath, taskId, environmentId]
       );
     },
-    markArtifacts: ({ artifacts }) => markTaskArtifacts(scope().taskId, artifacts),
+    markArtifacts: ({ artifacts }) => markTaskArtifacts(scope().taskId, artifacts, scope().run.job.executionTarget?.kind === "local"),
     unmarkArtifacts: ({ relativePaths }) => unmarkTaskArtifacts(scope().taskId, relativePaths),
     refreshGitHubToken: () => scope().run.refreshGitHubToken(),
     async issueSourceAccess({ sourceId, provider, ticketScope }) {

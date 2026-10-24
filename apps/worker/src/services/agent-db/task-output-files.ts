@@ -11,6 +11,7 @@ export async function loadTaskOutputFiles(db: TaskHistoryArchiveQueryable, taskI
        JOIN tasks t ON t.id = a.task_id
       WHERE a.task_id = $1
         AND a.kind = 'artifact'
+        AND a.publication_state = 'available'
       ORDER BY a.created_at DESC, a.relative_path
       LIMIT $2`,
     [taskId, MAX_OUTPUT_FILES]

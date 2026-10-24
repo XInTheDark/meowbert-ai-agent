@@ -4,7 +4,7 @@ const state = vi.hoisted(() => ({
   stream: vi.fn(), pull: vi.fn(), fence: vi.fn(), cleanup: vi.fn(), ping: vi.fn()
 }));
 vi.mock("../sandbox-image/manager", () => ({
-  createDesktopDocker: () => ({ ping: state.ping }), createDockerImageClient: () => ({}),
+  createDesktopDocker: () => ({ ping: state.ping, info: async () => ({ OSType: "linux" }) }), createDockerImageClient: () => ({}),
   pinnedImage: (image: { digest: string }) => "registry/image@" + image.digest,
   sandboxImagePresent: async () => state.present,
   ensureSandboxImage: state.pull
@@ -44,7 +44,7 @@ describe.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("desk
     await executor.stop();
   });
   it("reconnects the stream updates digests and fences active runs on stop", async () => {
-    const executor = await startDesktopLocalExecutor({...options,downloadConsent:true});
+    const executor = await startDesktopLocalExecutor({...options,apiBaseUrl:"https://server.example.test",downloadConsent:true});
     await vi.waitFor(() => expect(state.pull).toHaveBeenCalledTimes(1));
     await vi.advanceTimersByTimeAsync(5_000);
     expect(state.stream).toHaveBeenCalledTimes(2);

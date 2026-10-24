@@ -1,4 +1,5 @@
 import type { DockerSandboxManager } from "./docker-sandbox.js";
+import { toSandboxText } from "./docker-sandbox-paths.js";
 
 export interface PersistentShellRuntimeState {
   status: "running" | "idle" | "completed";
@@ -27,10 +28,10 @@ export async function requestPersistentShellRuntime<T = PersistentShellRuntimeSt
     containerId: session.container_id,
     workingDir: session.working_dir
   });
-  const payload = Buffer.from(JSON.stringify({
+  const payload = Buffer.from(toSandboxText(JSON.stringify({
     directory: `/tmp/meowbert-shell-${session.id}`,
     ...request
-  })).toString("base64");
+  }))).toString("base64");
   const result = await sandbox.executeShellCommand({
     shell: "/bin/bash",
     command: `python3 /opt/meowbert/persistent-shell/main.py ${action} '${payload}'`,

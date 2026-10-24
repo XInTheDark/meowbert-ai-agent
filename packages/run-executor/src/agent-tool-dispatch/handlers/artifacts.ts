@@ -1,7 +1,8 @@
 import { isWithinPath } from "@meowbert/shared";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import { resolveReadablePathWithinRoots } from "@meowbert/shared/server-security";
+import { fromSandboxPath } from "@meowbert/shared/docker-sandbox";
+import { resolveReadablePathWithinRoots, sha256File } from "@meowbert/shared/server-security";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import {
   MARK_ARTIFACT_TOOL_NAME,
@@ -22,7 +23,7 @@ function toWebPath(filePath: string): string {
 }
 
 async function resolveMarkedArtifactPath(taskDir: string, filePath: string): Promise<string> {
-  const trimmedPath = filePath.trim();
+  const trimmedPath = fromSandboxPath(filePath.trim());
   if (!trimmedPath) {
     throw new Error("Artifact file paths must not be empty.");
   }
@@ -35,7 +36,7 @@ async function resolveMarkedArtifactPath(taskDir: string, filePath: string): Pro
 }
 
 async function resolveArtifactRelativePathForRemoval(taskDir: string, filePath: string): Promise<string> {
-  const trimmedPath = filePath.trim();
+  const trimmedPath = fromSandboxPath(filePath.trim());
   if (!trimmedPath) {
     throw new Error("Artifact file paths must not be empty.");
   }
@@ -108,7 +109,7 @@ export async function handleMarkArtifact(
     }
 
     const envRootRealPath = await realpath(ctx.envRoot).catch(() => path.resolve(ctx.envRoot));
-    const artifactsByRelativePath = new Map<string, { relativePath: string; size: number; downloadUrl: string }>();
+    const artifactsByRelativePath = new Map<string, { relativePath: string; size: number; sha256: string; downloadUrl: string }>();
 
     for (const filePath of parsed.value.file_paths) {
       const readablePath = await resolveMarkedArtifactPath(taskDirRealPath, filePath);
@@ -132,6 +133,7 @@ export async function handleMarkArtifact(
       artifactsByRelativePath.set(relativePath, {
         relativePath,
         size: fileStats.size,
+        sha256: await sha256File(readablePath),
         downloadUrl
       });
     }
@@ -140,7 +142,8 @@ export async function handleMarkArtifact(
     await ctx.control.platform.markArtifacts({
       artifacts: artifacts.map((artifact) => ({
         relativePath: artifact.relativePath,
-        size: artifact.size
+        size: artifact.size,
+        sha256: artifact.sha256
       }))
     });
     await ctx.control.emitEvent("artifact", {

@@ -1,6 +1,6 @@
 # Local Execution: Planning & Specs
 
-Status: Milestones 0 and 1 implemented. Local execution is disabled by default. Automated validation covers the local lifecycle; the Docker Desktop and packaged-app acceptance checks still require a live Docker daemon and the published arm64 image.
+Status: Milestones 0–2 implemented in code. Local execution is disabled by default. Automated tests cover the HTTP lifecycle, storage visibility, and Windows path/transport contracts. Live Docker Desktop network-share and packaged-app acceptance on macOS/Windows still require the corresponding hosts and published multi-architecture image.
 
 - Part I explains what we are building and why.
 - Part II specifies the contracts between the pieces.
@@ -136,7 +136,7 @@ For a server-hosted workspace run from a device, the device must see the backend
    - Use **Mirror files**, not **Stream files**. Streamed files are placeholders until opened, and whether Docker Desktop's file sharing downloads them on read is untested, so sandbox mode may see empty files.
    - Google Docs, Sheets and Slides appear as `.gdoc`-style shortcut files on the device, but as exports or links through the server's rclone mount. Agents on the two sides see them differently.
 
-In sandbox mode the root must also be shareable into Docker Desktop's VM, since the sandbox bind-mounts it. Folders under the user's home are shared by default; other paths must be added in Docker Desktop's file sharing settings. Network mounts bind-mounted into Docker Desktop are untested and get a spike in milestone 2; until then, network storage on a device uses host mode.
+In sandbox mode the root must also be shareable into Docker Desktop's VM, since the sandbox bind-mounts it. Folders under the user's home are shared by default; other paths must be added in Docker Desktop's file sharing settings. A network mount must pass both the host marker/write probe and the Docker bind-mount probe before it is advertised as ready. The opt-in desktop network-storage integration test exercises named-file reads and writes on an actual mount; run it for each host/share combination. Host mode is not available until milestone 3.
 
 The guarantee Meowbert relies on is narrow: **a named file the executor has closed is eventually visible to the server by name**, with a delay bounded by the mount's settings. Nothing relies on listings being consistent.
 
@@ -479,7 +479,7 @@ Accepted limitations:
 - Network mounts lag; artifacts can show as "syncing" for a while (section 6.6). Independent mounts of the same remote are unsupported (section 6.2).
 - Mount permission mapping is the mount's job: the device user and the sandbox user must be able to write each other's files. rclone and SMB synthesize permissions; NFS needs a squash or uid mapping.
 - Shared dependencies are installed per platform.
-- Sandbox mode needs Docker Desktop and a large image download per device. Network storage on a device uses host mode until the bind-mount spike in milestone 2.
+- Sandbox mode needs Docker Desktop and a large image download per device. Network storage is accepted only after its Docker bind-mount probe succeeds; host mode is a later milestone.
 - Host mode only offers host-supported skills.
 - One task at a time per device uses Browser Use, and one uses Computer Use.
 - Device-hosted workspaces lack the features marked off in section 7.2.
@@ -597,13 +597,21 @@ Decided:
 20. The executor package keeps the worker's directory layout without `services/`, and the worker imports its modules by path (`@meowbert/run-executor/agent/loop`). Worker tests resolve those paths to the package source so mocks apply inside it.
 21. Executor settings that came from the worker's config (step limit, command timeout and output limit, shell, skills) arrive as `ExecutorSettings` in the run environment.
 
-22. Milestone 1 is limited to Apple Silicon macOS, Docker Desktop, a loopback server URL, and server-hosted same-machine storage. Host mode, host tools, threads, schedules, subagents, Agent Swarm, Project Master, and Long Horizon remain unavailable locally. Declining a download starts nothing; offering host mode waits for milestone 3.
+22. Milestone 1 was limited to Apple Silicon macOS, Docker Desktop, a loopback server URL, and server-hosted same-machine storage. Milestone 2 adds Windows x64/arm64 and remote server-hosted SMB/NFS roots that pass the Docker storage probe. Host mode, host tools, threads, schedules, subagents, Agent Swarm, Project Master, and Long Horizon remain unavailable locally. Declining a download starts nothing; offering host mode waits for milestone 3.
 23. Docker storage probes use a separate short-lived container with the backend root mounted, before advertising readiness and before each run. The agent container receives only the existing scoped task mounts, so it cannot browse the entire backend. Marker verification includes both backend ID and random install ID, followed by an exclusive write/delete probe.
 24. Skill assets are extracted from the exact sandbox image into the desktop's owned resources directory and mounted read-only at that device path. This preserves built Linux dependencies and avoids relying on the repository checkout or packaging unbuilt skill sources.
 25. Local persistent shells use the existing Python protocol inside the current run container, with run-owned session IDs, bounded lifetimes, safe task-relative output files, and local wait-state reads. They end with the run container; they do not attach to server-owned project terminal sessions.
 26. Device admission and claims require the exact Run API protocol version. Pending local runs expire after 24 hours; lease reclaim resets their eligibility timestamp. Default device capacity is 2 and is configurable in desktop preferences. Local containers cap server limits at 2 CPUs, 2048 MB RAM, 256 PIDs, and 4096 MB writable storage.
 27. Download consent and storage roots are scoped to the active server profile. The first-use prompt reads the arm64 compressed layer sizes from registry manifests when available, and reports an unknown size when registry metadata is unavailable. Images with no pullable digest require a preloaded arm64 build. Only images downloaded by this desktop are eligible for old-image cleanup.
 28. Electron's Node runtime successfully loaded QuickJS, executed an async code-mode tool call, and constructed/closed an MCP client. Docker MCP stdio, the complete local task GUI flow, and an actual arm64 image build remain live acceptance checks.
+
+
+29. Run API protocol 2 adds a scoped, deduplicated storage-wait release. It frees device/project admission without ending the run, preserves cancellation and the original pending timeout, fences further work from that lease, and backs off claims for 30 seconds.
+30. Upload integrity is recorded in existing task_artifacts rows with kind=input. Device artifacts include SHA-256 and use durable pending/available/missing publication. Existing cloud artifacts stay available; only available artifacts are listed to later tasks. A completed hash mismatch is terminal; missing or size-mismatched files retry by name for up to 30 minutes.
+31. Memory refresh requests at completion, +1 minute and +5 minutes commit with completion/delivery and survive worker restarts. Failed indexing status retains the request for retry. memory_search already syncs before searching.
+32. Windows uses the local Docker Desktop Linux-engine named pipe, native image architecture, and /meowbert-host/drives/<drive> or /meowbert-host/unc/<server>/<share> inside the container. Filesystem tools translate those paths back to native paths before existing containment checks. Cloud and macOS paths retain their existing mapping.
+33. Windows reads only image-owned skill manifests/docs into its desktop catalog; Linux binaries, dependencies and symlinks remain at /app/skills in the immutable image. Desktop PDF preparation uses the image's bundled Python in mounted scratch, including force-included attachments; no host Python installation is required.
+34. The Docker Desktop network-share spike is an opt-in integration test using TEST_LOCAL_STORAGE_ROOT, TEST_LOCAL_STORAGE_BACKEND_ID, TEST_LOCAL_STORAGE_INSTALL_ID and TEST_LOCAL_SANDBOX_IMAGE. Code and automated tests do not claim live macOS/Windows share acceptance when no daemon/test hosts are available.
 
 Open:
 

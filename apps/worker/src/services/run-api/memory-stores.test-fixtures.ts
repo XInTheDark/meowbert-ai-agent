@@ -11,6 +11,12 @@ export function createMemoryRunApiStores(options: { headroomByUser?: Record<stri
 
   const stores: RunApiStores = {
     leases: {
+      async releaseForStorage({ runId, epoch }) {
+        const lease = leases.get(runId);
+        if (lease?.epoch !== epoch || !lease.live) return false;
+        lease.live = false;
+        return true;
+      },
       async claim({ runId }) {
         const epoch = (leases.get(runId)?.epoch ?? 0) + 1;
         leases.set(runId, { epoch, live: true });

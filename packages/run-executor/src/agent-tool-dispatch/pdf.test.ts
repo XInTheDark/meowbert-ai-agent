@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { pdfToolTestUtils, preparePdfView } from "./pdf.js";
@@ -16,6 +18,24 @@ afterEach(() => {
 });
 
 describe("preparePdfView", () => {
+  it("prepares desktop PDFs using bundled sandbox Python and mounted scratch", async () => {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "meowbert-pdf-sandbox-"));
+    const buffer = await createPdfBuffer(1);
+    const host = vi.spyOn(pdfToolTestUtils.deps, "execFileText");
+    const execute = vi.fn(async () => {
+      const directory = fs.readdirSync(scratch)[0];
+      fs.writeFileSync(path.join(scratch, directory, "output.pdf"), buffer);
+      return { exitCode: 0, timedOut: false, aborted: false, stderr: "", stdout: JSON.stringify({ effective_page_start: 1, effective_page_end: 1, total_pages: 1 }) };
+    });
+    try {
+      const result = await preparePdfView({ fileBuffer: buffer, fileName: "local.pdf", pageStart: 1, pageEnd: 1,
+        runtime: { sandbox: { executeShellCommand: execute } as never, scratchDir: scratch } });
+      expect(result.outputBuffer).toEqual(buffer);
+      expect(execute).toHaveBeenCalledWith(expect.objectContaining({ workingDir: scratch }));
+      expect(host).not.toHaveBeenCalled();
+      expect(fs.readdirSync(scratch)).toEqual([]);
+    } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
+  });
   it("returns a subset filename and metadata for page windows", async () => {
     const subsetBuffer = await createPdfBuffer(1);
     const execFileSpy = vi.spyOn(pdfToolTestUtils.deps, "execFileText").mockImplementation(async (_command, args) => {

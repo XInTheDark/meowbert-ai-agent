@@ -5,6 +5,7 @@ import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import net from "node:net";
 import { isWithinPath } from "./fs-guards.js";
+export { sha256File } from "./file-integrity.js";
 
 export interface ResolvedRootPath {
   rootRealPath: string;

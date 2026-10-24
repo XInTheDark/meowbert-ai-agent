@@ -903,9 +903,10 @@ describe("dispatchResponseOutput", () => {
       expect(markTaskArtifactsMock).toHaveBeenCalledWith("task-1", [
         {
           relativePath: "deliverables/report.txt",
-          size: Buffer.byteLength("artifact contents")
+          size: Buffer.byteLength("artifact contents"),
+          sha256: "4334ca16f2ec5681429141d70f1738c1651c215830ec3ea5fa5ba83ef0288552"
         }
-      ]);
+      ], false);
 
       const outputItem = state.runPersistedItems.find((item) => item.type === "function_call_output");
       expect(outputItem).toBeDefined();
@@ -966,9 +967,10 @@ describe("dispatchResponseOutput", () => {
       expect(markTaskArtifactsMock).toHaveBeenCalledWith("task-1", [
         {
           relativePath: "summary.csv",
-          size: Buffer.byteLength("id,name\n1,test")
+          size: Buffer.byteLength("id,name\n1,test"),
+          sha256: "3c6222ede282a043bcd95628f6aa0b9e033790b56f61b952aa5aa66e341e3272"
         }
-      ]);
+      ], false);
 
       const outputItem = state.runPersistedItems.find((item) => item.type === "function_call_output");
       expect(outputItem).toBeDefined();

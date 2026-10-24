@@ -320,6 +320,7 @@ async function hasEligiblePendingDispatch(): Promise<boolean> {
            ON t.id = d.task_id
         WHERE d.queue_state = 'pending'
           AND d.eligible_at <= now()
+          AND (d.storage_retry_at IS NULL OR d.storage_retry_at <= now())
           AND t.status = 'queued'
           AND t.trashed_at IS NULL
         LIMIT 1
@@ -372,6 +373,7 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
             ON w.id = d.workspace_id
          WHERE d.queue_state = 'pending'
            AND d.eligible_at <= now()
+           AND (d.storage_retry_at IS NULL OR d.storage_retry_at <= now())
            AND t.status = 'queued'
            AND t.trashed_at IS NULL
            AND NOT EXISTS (

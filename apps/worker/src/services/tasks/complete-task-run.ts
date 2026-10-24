@@ -26,6 +26,14 @@ export async function completeTaskRun(input: RunDeliveryInput): Promise<boolean>
       );
     }
     if (!result.rowCount) return false;
+    await client.query(
+      `INSERT INTO local_run_memory_refreshes (run_id, workspace_id, delay_seconds, due_at)
+       SELECT $1, t.workspace_id, delay, now() + (delay * interval '1 second')
+         FROM tasks t CROSS JOIN unnest(ARRAY[0, 60, 300]) AS delay
+        WHERE t.id = $2 AND t.execution_target->>'kind' = 'local'
+          AND COALESCE((SELECT memory_enabled FROM workspace_settings WHERE workspace_id = t.workspace_id), true)
+       ON CONFLICT (run_id, delay_seconds) DO NOTHING`, [input.runId, input.taskId]
+    );
     if (!input.isSubtask && input.finalResponse.length > 0) {
       await client.query(
         `INSERT INTO task_run_deliveries (run_id, task_id, payload_json) VALUES ($1, $2, $3::jsonb)

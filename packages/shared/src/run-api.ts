@@ -2,7 +2,7 @@
 // `POST /runs/:runId/call/:method` with a lease token, except model requests, which go to
 // `POST /runs/:runId/model/responses`.
 
-export const RUN_API_PROTOCOL_VERSION = 1;
+export const RUN_API_PROTOCOL_VERSION = 2;
 
 // A lease lasts this long after the last successful heartbeat; the server reclaims it only after
 // a further grace, and an executor that cannot renew fences itself well before either.
@@ -51,6 +51,7 @@ export const RUN_API_WRITE_METHODS = [
   "control.resolveInterruptedToolCalls",
   "control.complete",
   "control.fail",
+  "control.releaseForStorage",
   "context.freezeVersion",
   "context.openWindow",
   "context.recordItems",

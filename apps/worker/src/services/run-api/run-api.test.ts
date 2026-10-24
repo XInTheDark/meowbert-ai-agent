@@ -103,6 +103,18 @@ afterEach(async () => {
 });
 
 describe("Run API retries", () => {
+  it("releases a storage-wait claim once after a lost reply and refuses further device work", async () => {
+    const { session, control, token } = await claim();
+    session.holder = "device:desktop";
+    const release = vi.spyOn(harness.memory.stores.leases, "releaseForStorage");
+    const remote = client(token, { fetch: losingFirstResponse((url) => url.includes("releaseForStorage")) });
+    await expect(remote.call("control.releaseForStorage", [])).resolves.toEqual({ pending: true });
+    expect(release).toHaveBeenCalledTimes(1);
+    await expect(remote.call("control.setTaskStatus", ["running"])).rejects.toMatchObject({ code: "lease_lost" });
+    await expect(remote.call("control.heartbeat", [])).rejects.toMatchObject({ code: "lease_lost" });
+    expect(control.setTaskStatus).not.toHaveBeenCalled();
+  });
+
   it("applies a message, an event, an artifact and a schedule once when their responses are lost", async () => {
     const { control, token } = await claim();
     control.platform.createRecurringTask.mockResolvedValue({ taskId: "scheduled-1" });

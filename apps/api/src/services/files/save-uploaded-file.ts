@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import { createHash } from "node:crypto";
+import { Transform } from "node:stream";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
@@ -27,6 +29,7 @@ export interface SavedUploadedFile {
   name: string;
   relativePath: string;
   sizeBytes: number;
+  sha256: string;
   createdAt: string | null;
   modifiedAt: string | null;
 }
@@ -43,8 +46,12 @@ export async function saveUploadedFile(input: {
   const destinationPath = path.resolve(await createAvailableFilePath(preferredPath));
   assertPathInsideRoot(input.targetDirectory.rootRealPath, destinationPath);
 
+  const hash = createHash("sha256");
+  const hashing = new Transform({
+    transform(chunk, _encoding, callback) { hash.update(chunk); callback(null, chunk); }
+  });
   try {
-    await pipeline(input.file, fs.createWriteStream(destinationPath));
+    await pipeline(input.file, hashing, fs.createWriteStream(destinationPath));
     if (input.file.truncated) {
       throw new UploadTooLargeError(input.limitBytes);
     }
@@ -60,6 +67,7 @@ export async function saveUploadedFile(input: {
       name: path.basename(destinationPath),
       relativePath: toWebPath(path.relative(input.targetDirectory.rootRealPath, destinationPath)),
       sizeBytes: savedStats.size,
+      sha256: hash.digest("hex"),
       createdAt: toIsoTimestamp(savedStats.birthtime),
       modifiedAt: toIsoTimestamp(savedStats.mtime)
     }

@@ -176,6 +176,7 @@ interface SkillManagerInput {
   sandbox: DockerSandboxHandle;
   skillsRootDir: string | null;
   skillConfig: ExecutorSettings["skills"];
+  sandboxSkillsRootDir?: string;
   taskDir: string;
   canvas?: {
     id: string;
@@ -221,7 +222,7 @@ function createManifestEnabler(
 
     const connection = await startMcpServer(
       entry.manifest,
-      entry.skillDir,
+      input.sandboxSkillsRootDir ? path.posix.join(input.sandboxSkillsRootDir, path.basename(entry.skillDir)) : entry.skillDir,
       input.sandbox,
       input.mcpTimeoutMs,
       { ...defaultSkillRuntimeEnv, ...(runtimeEnv ?? {}) }
@@ -596,6 +597,7 @@ async function prepareRunFromBootstrap(state: PreparedRunState): Promise<Prepare
       sandbox: machine.sandbox,
       skillsRootDir: tooling.skillsRootDir,
       skillConfig: state.env.settings.skills,
+      sandboxSkillsRootDir: state.env.settings.sandboxSkillsRootDir,
       taskDir: state.taskDir,
       canvas: interactiveCanvas
         ? {

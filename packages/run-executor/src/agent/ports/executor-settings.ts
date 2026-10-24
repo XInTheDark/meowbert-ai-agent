@@ -7,6 +7,9 @@ export interface ExecutorSettings {
   maxCommandOutputKb: number;
   shell: string;
   sharedDependenciesDirectory?: string;
+  // Optional image-owned skill assets, separate from the desktop's metadata catalog.
+  sandboxSkillsRootDir?: string;
+  sandboxPdfPreparation?: boolean;
   // Where bundled skills live and which optional ones are switched on.
   skills: AppConfig["skills"];
 }

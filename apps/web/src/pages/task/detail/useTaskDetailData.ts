@@ -155,6 +155,12 @@ export function useTaskDetailData(options: UseTaskDetailDataOptions) {
   }, [loadArtifacts, loadTaskSnapshot]);
 
   useEffect(() => {
+    if (!artifacts.some((artifact) => artifact.publication_state === "pending")) return;
+    const timer = window.setInterval(() => { void loadArtifacts(); }, 5_000);
+    return () => window.clearInterval(timer);
+  }, [artifacts, loadArtifacts]);
+
+  useEffect(() => {
     activeTaskIdRef.current = taskId;
     previousTaskStatusRef.current = null;
     taskSnapshotRequestIdRef.current += 1;

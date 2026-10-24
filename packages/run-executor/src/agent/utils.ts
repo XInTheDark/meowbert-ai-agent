@@ -24,7 +24,7 @@ import {
 import { z } from "zod";
 import type { TaskMessageRow, TaskMessageToolOptions } from "./types.js";
 import { isApplyPatchCallItem } from "./apply-patch.js";
-import { preparePdfView } from "../agent-tool-dispatch/pdf.js";
+import { preparePdfView, type PdfSandboxRuntime } from "../agent-tool-dispatch/pdf.js";
 import { prepareToolOutputForModel } from "../agent-tool-dispatch/state.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
 import {
@@ -478,7 +478,8 @@ async function tryBuildForceIncludedAttachmentItems(
   attachment: TaskMessageAttachment,
   taskInputDir: string,
   imageDetail: WorkspaceImageDetail,
-  mode: "normal" | "quick"
+  mode: "normal" | "quick",
+  pdfRuntime?: PdfSandboxRuntime
 ): Promise<ResponseInputItem[]> {
   if (mode === "normal" && attachment.forceInclude !== true) {
     return [];
@@ -522,7 +523,8 @@ async function tryBuildForceIncludedAttachmentItems(
         fileName: path.basename(filePath),
         pageStart: VIEW_PDF_DEFAULT_PAGE_START,
         pageEnd: Number.MAX_SAFE_INTEGER,
-        maxOutputBytes: VIEW_PDF_MAX_OUTPUT_BYTES
+        maxOutputBytes: VIEW_PDF_MAX_OUTPUT_BYTES,
+        runtime: pdfRuntime
       });
       const fileContent: ResponseInputContent = {
         type: "input_file",
@@ -832,7 +834,7 @@ export async function mapMessagesForResponsesInput(
   messages: TaskMessageRow[],
   taskInputDir: string,
   imageDetail: WorkspaceImageDetail,
-  options: { quickMode?: boolean; sendMetadataToModel?: boolean } = {}
+  options: { quickMode?: boolean; sendMetadataToModel?: boolean; pdfRuntime?: PdfSandboxRuntime } = {}
 ): Promise<ResponseInputItem[]> {
   const output: ResponseInputItem[] = [];
   const fallbackOutputs: ResponseInputItem[] = [];
@@ -895,7 +897,8 @@ export async function mapMessagesForResponsesInput(
         attachment,
         taskInputDir,
         imageDetail,
-        options.quickMode === true ? "quick" : "normal"
+        options.quickMode === true ? "quick" : "normal",
+        options.pdfRuntime
       ));
     }
   }

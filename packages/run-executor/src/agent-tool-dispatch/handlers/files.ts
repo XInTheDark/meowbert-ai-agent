@@ -1,5 +1,6 @@
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
+import { fromSandboxPath } from "@meowbert/shared/docker-sandbox";
 import { openReadablePathWithinRoots } from "@meowbert/shared/server-security";
 import type {
   ResponseFunctionToolCall,
@@ -63,7 +64,7 @@ export async function handleViewImage(
     inputText: parsed.value.file_path
   });
 
-  const filePath = parsed.value.file_path;
+  const filePath = fromSandboxPath(parsed.value.file_path);
   try {
     const opened = await openReadablePathWithinRoots(resolveToolReadableRoots(ctx), filePath);
     try {
@@ -117,7 +118,7 @@ export async function handleViewPdf(
     return toolErrorResult(parsed.error);
   }
 
-  const filePath = parsed.value.file_path;
+  const filePath = fromSandboxPath(parsed.value.file_path);
   const pageStart = parsed.value.pages?.start ?? VIEW_PDF_DEFAULT_PAGE_START;
   const pageEnd = parsed.value.pages?.end ?? VIEW_PDF_DEFAULT_PAGE_END;
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
@@ -135,7 +136,8 @@ export async function handleViewPdf(
         fileName,
         pageStart,
         pageEnd,
-        maxOutputBytes: VIEW_PDF_MAX_OUTPUT_BYTES
+        maxOutputBytes: VIEW_PDF_MAX_OUTPUT_BYTES,
+        ...(ctx.settings.sandboxPdfPreparation ? { runtime: { sandbox: ctx.sandbox, scratchDir: ctx.taskScratchDir } } : {})
       });
       const dataUrl = `data:application/pdf;base64,${preparedPdf.outputBuffer.toString("base64")}`;
 

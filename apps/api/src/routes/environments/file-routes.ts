@@ -18,6 +18,7 @@ import {
   requiredFileQuery
 } from "../files/file-route-schemas.js";
 import { receiveFileUpload } from "../files/file-upload.js";
+import { recordTaskUpload } from "../../services/files/task-upload-manifest.js";
 import { environmentCleanupQuery, environmentParams } from "./shared.js";
 
 async function loadWorkspaceStorage(environment: EnvironmentForUser) {
@@ -121,6 +122,7 @@ export async function registerEnvironmentFileRoutes(fastify: FastifyInstance): P
       targetPath: saved.absolutePath
     });
 
+    await recordTaskUpload(environment.id, saved.file);
     return reply.status(201).send({ file: saved.file });
   });
 

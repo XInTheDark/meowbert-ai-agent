@@ -11,6 +11,7 @@ export async function claimLocalRun(input: { userId: string; deviceId: string; r
               lease_device_id = $2,
               started_at = COALESCE(started_at, now()),
               pending_reason = NULL,
+              storage_retry_at = NULL,
               updated_at = now()
         FROM devices dv
        WHERE d.run_id = $1
@@ -19,7 +20,8 @@ export async function claimLocalRun(input: { userId: string; deviceId: string; r
          AND dv.revoked_at IS NULL
          AND dv.stream_expires_at > now()
          AND dv.last_seen_at > now() - interval '30 seconds'
-         AND dv.platform = 'darwin' AND dv.architecture = 'arm64'
+         AND ((dv.platform = 'darwin' AND dv.architecture = 'arm64')
+           OR (dv.platform = 'win32' AND dv.architecture IN ('x64', 'arm64')))
          AND dv.capabilities_json->>'dockerReady' = 'true'
          AND dv.capabilities_json->>'sandboxImageReady' = 'true'
          AND dv.capabilities_json->>'executorSupported' = 'true'

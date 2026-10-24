@@ -18,6 +18,23 @@ describe("TaskDetailArtifactsPane", () => {
   let container: HTMLDivElement | null = null;
   let root: Root | null = null;
 
+  it.each(["pending", "missing"] as const)("shows %s artifacts without previewing or downloading them", async (state) => {
+    const get = vi.fn();
+    const download = vi.fn();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => { root?.render(<TaskDetailArtifactsPane api={{ get } as unknown as ApiClient}
+      token="token" projectId="project" taskRootPath=".meowbert/task-runs/task"
+      artifacts={[{ id: "artifact", kind: "artifact", relative_path: "out.txt", size_bytes: 5,
+        mime_type: "text/plain", created_at: "2026-10-24", publication_state: state }]}
+      canvases={[]} onDownloadArtifact={download} onOpenCanvas={vi.fn()} />); });
+    expect(get).not.toHaveBeenCalled();
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="Download artifact"]');
+    expect(button?.disabled).toBe(true);
+    expect(container.textContent).toContain(state === "pending" ? "Syncing" : "Missing");
+  });
+
   afterEach(async () => {
     if (root) {
       await act(async () => root?.unmount());

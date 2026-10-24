@@ -142,6 +142,18 @@ You can do that from:
 
 > **Note:** Folder reveal only works in local desktop mode. If you're connected to a hosted server, those files live on the server, not on your Mac or PC.
 
+## Local tasks
+
+When your server enables local execution, Meowbert Desktop can run standard tasks in Docker Desktop on an Apple Silicon Mac or Windows x64/arm64 computer. In **Desktop Preferences → Local Execution**, choose the server storage backend and its mounted folder, enable local execution, and keep Docker Desktop running with Linux containers. Then choose **Local** in the task composer. Cloud remains the default, and the web app does not offer the Local control.
+
+The selected folder must be the same storage backend the server uses. For a server on another machine, your operator exports that storage over SMB or NFS and you mount it yourself. Meowbert checks the storage identity and tests read/write access from Docker before running tasks. Docker Desktop must be able to share the selected folder; a share that fails the probe cannot run local tasks.
+
+On first use, the app asks before downloading the sandbox. It uses the server's pinned release and downloads updates automatically after consent. Keep the app open while tasks run; closing it stops their containers. Local tasks still use the server's model connection and budget.
+
+If an uploaded input has not reached your mount yet, the task waits for storage and retries. Outputs show **Syncing** until the server verifies them; they become downloadable when ready. An output that does not arrive within 30 minutes is marked **Missing**.
+
+Local tasks currently exclude host mode, host shell, Computer Use, your own Chrome, threads, schedules, subagents, Agent Swarm, Project Master, and Long Horizon workflows. Device-hosted workspaces and live Drive folders are not available yet.
+
 ## External browser handoff
 
 A few flows still open in your system browser by design — for example, some connector auth flows such as GitHub installation. After you finish that flow in the browser, return to Meowbert Desktop and continue where you left off.

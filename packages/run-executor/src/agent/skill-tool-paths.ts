@@ -1,4 +1,5 @@
 import path from "node:path";
+import { toSandboxPath } from "@meowbert/shared/docker-sandbox";
 
 const PATH_LIKE_FIELD_PATTERN = /(?:^|_)(?:path|paths|dir|dirs|file|files|filename|filenames|file_name|file_names)$/i;
 const URI_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
@@ -17,7 +18,7 @@ function isRelativeFilesystemPath(value: string): boolean {
   if (URI_SCHEME_PATTERN.test(trimmed) || WINDOWS_DRIVE_PATTERN.test(trimmed) || WINDOWS_UNC_PATTERN.test(trimmed)) {
     return false;
   }
-  return !path.isAbsolute(trimmed);
+  return !path.posix.isAbsolute(trimmed);
 }
 
 function normalizeSkillToolArgumentValue(
@@ -25,8 +26,8 @@ function normalizeSkillToolArgumentValue(
   cwd: string,
   fieldName: string | null
 ): unknown {
-  if (typeof value === "string" && isPathLikeField(fieldName) && isRelativeFilesystemPath(value)) {
-    return path.resolve(cwd, value);
+  if (typeof value === "string" && isPathLikeField(fieldName)) {
+    return isRelativeFilesystemPath(value) ? path.posix.resolve(cwd, value) : toSandboxPath(value);
   }
 
   if (Array.isArray(value)) {
@@ -46,5 +47,5 @@ export function normalizeSkillToolArguments(
   args: Record<string, unknown>,
   cwd: string
 ): Record<string, unknown> {
-  return normalizeSkillToolArgumentValue(args, path.resolve(cwd), null) as Record<string, unknown>;
+  return normalizeSkillToolArgumentValue(args, toSandboxPath(path.resolve(cwd)), null) as Record<string, unknown>;
 }

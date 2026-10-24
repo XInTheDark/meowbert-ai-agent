@@ -30,6 +30,7 @@ export interface RunApiSession {
   modelRequestInFlight: boolean;
   // Set once the run completed or failed; the session lingers so retried calls get their answers.
   finishedAt: number | null;
+  storageWait?: boolean;
 }
 
 // How long a finished session answers retries of its last calls.

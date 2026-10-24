@@ -26,6 +26,7 @@ export interface RunBootstrap {
   projectMasterTaskAgent: ProjectMasterTaskAgent | null;
   // Tool calls a previous attempt started but never recorded a result for.
   unfinishedToolCalls: RunToolCallStart[];
+  inputs?: Array<{ relativePath: string; sizeBytes: number; sha256: string }>;
   sandboxImage?: {
     reference: string;
     digest: string | null;

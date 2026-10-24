@@ -1,4 +1,5 @@
 import { realpath, stat } from "node:fs/promises";
+import { fromSandboxPath } from "@meowbert/shared/docker-sandbox";
 import path from "node:path";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { isWithinPath } from "@meowbert/shared";
@@ -38,6 +39,7 @@ function toWebPath(value: string): string {
 }
 
 async function resolveCanvasEntry(ctx: ToolDispatchContext, requestedPath: string): Promise<ResolvedCanvasEntry> {
+  requestedPath = fromSandboxPath(requestedPath);
   const candidate = path.isAbsolute(requestedPath) ? requestedPath : path.resolve(ctx.taskDir, requestedPath);
   const absolutePath = await realpath(candidate).catch(() => {
     throw new Error(`File not found: ${requestedPath}`);

@@ -34,6 +34,7 @@ import { startMemoryReindexListener } from "./services/memory-reindex/service.js
 import { startMemorySynthesisEventListener } from "./services/memory-synthesis/service.js";
 
 import { startRunDeliveryLoop } from "./services/notifications/run-delivery-loop.js";
+import { startLocalStorageLoop } from "./services/tasks/local-storage-loop.js";
 import { startUsageActivationLoop } from "./services/usage-activation/service.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -126,6 +127,7 @@ async function start(): Promise<void> {
   );
 
   const runDeliveryLoop = startRunDeliveryLoop();
+  const localStorageLoop = startLocalStorageLoop();
   const usageActivationLoop = startUsageActivationLoop();
   const subagentWakeLoop = startSubagentWakeLoop();
   const swarmRecoveryLoop = startSwarmRecoveryLoop();
@@ -189,6 +191,7 @@ async function start(): Promise<void> {
   });
 
   async function shutdown(): Promise<void> {
+    await localStorageLoop.stop();
     await usageActivationLoop.stop();
     await stopWorkspaceMemoryWatchers();
     await taskCleanupLoop.stop();

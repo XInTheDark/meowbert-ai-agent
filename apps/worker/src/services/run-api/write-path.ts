@@ -29,13 +29,22 @@ async function assertExtendsBranch(stores: RunApiStores, session: RunApiSession,
 }
 
 async function applyWrite(stores: RunApiStores, session: RunApiSession, method: RunApiMethod, request: RunApiCallRequest): Promise<unknown> {
+  if (method === "control.releaseForStorage") {
+    if (!session.holder.startsWith("device:")) throw new RunApiFailure("invalid_request", "Only a device claim can wait for storage.");
+    if (!await stores.leases.releaseForStorage({ runId: session.runId, epoch: session.epoch })) {
+      throw new RunApiFailure("lease_lost", "This storage-wait claim has ended.");
+    }
+    session.finishedAt = Date.now();
+    session.storageWait = true;
+    return { pending: true };
+  }
   if (method === "control.appendMessage") await assertExtendsBranch(stores, session, request);
   if (method === "control.emitEvent" && typeof request.seq === "number") {
     // A late duplicate of an event already published is dropped, so events stay in order.
     if (request.seq <= session.lastEventSeq) return null;
     session.lastEventSeq = request.seq;
   }
-  const result = await RUN_API_CALL_HANDLERS[method as Exclude<RunApiMethod, "control.heartbeat">](session, request.args);
+  const result = await RUN_API_CALL_HANDLERS[method as Exclude<RunApiMethod, "control.heartbeat" | "control.releaseForStorage">](session, request.args);
   if (method === "control.appendMessage") session.leafMessageId = result as string;
   if (method === "control.selectBranch") session.leafMessageId = request.args[0] as string;
   if (method === "control.complete" || method === "control.fail") {

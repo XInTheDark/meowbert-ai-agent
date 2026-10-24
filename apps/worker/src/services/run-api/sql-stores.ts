@@ -6,6 +6,29 @@ import type { OperationBegin, RunApiStores, StoredOperationResponse } from "./st
 const STALE_RESERVATION_INTERVAL = "1 hour";
 
 const leases: RunApiStores["leases"] = {
+  async releaseForStorage({ runId, epoch }) {
+    return withTransaction(async (client) => {
+      const result = await client.query<{ task_id: string }>(
+        `UPDATE task_run_dispatches d
+            SET queue_state = 'pending', pending_reason = 'waiting_for_storage',
+                admitted_at = NULL, started_at = NULL, storage_retry_at = now() + interval '30 seconds',
+                lease_holder = NULL, lease_device_id = NULL, lease_api_url = NULL, lease_expires_at = NULL,
+                updated_at = now()
+          WHERE run_id = $1 AND lease_epoch = $2 AND lease_holder LIKE 'device:%'
+            AND queue_state = 'running' AND lease_expires_at > now()
+            AND EXISTS (SELECT 1 FROM task_runs tr JOIN tasks t ON t.id = tr.task_id
+              WHERE tr.id = d.run_id AND tr.ended_at IS NULL AND NOT t.cancellation_requested AND t.trashed_at IS NULL
+                AND NOT EXISTS (SELECT 1 FROM task_runs newer WHERE newer.task_id = tr.task_id AND newer.attempt_no > tr.attempt_no))
+          RETURNING task_id`, [runId, epoch]
+      );
+      if (!result.rows[0]) return false;
+      await client.query(
+        "UPDATE tasks SET status = 'queued', updated_at = now() WHERE id = $1 AND NOT cancellation_requested AND status IN ('starting', 'running', 'queued')",
+        [result.rows[0].task_id]
+      );
+      return true;
+    });
+  },
   async claim({ runId, holder, apiUrl, ttlMs }) {
     const result = await query<{ lease_epoch: number }>(
       `UPDATE task_run_dispatches

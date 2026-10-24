@@ -66,7 +66,7 @@ function TaskArtifactList(props: {
               <span className="muted-text" title={detail}>{detail}</span>
             </span>
             {isCanvas ? null : (
-              <span className="muted-text task-artifact-size">{formatBytes(entry.artifact.size_bytes)}</span>
+              <span className="muted-text task-artifact-size">{entry.artifact.publication_state === "pending" ? "Syncing" : entry.artifact.publication_state === "missing" ? "Missing" : formatBytes(entry.artifact.size_bytes)}</span>
             )}
           </button>
         );
@@ -95,7 +95,7 @@ export function TaskDetailArtifactsPane(props: TaskDetailArtifactsPaneProps) {
   const selectedArtifact = selectedItem?.kind === "file" ? selectedItem.artifact : null;
   const selectedCanvas = selectedItem?.kind === "canvas" ? selectedItem.canvas : null;
   const selectedEntry = useMemo(
-    () => selectedArtifact ? toFileEntry(selectedArtifact) : null,
+    () => selectedArtifact && (!selectedArtifact.publication_state || selectedArtifact.publication_state === "available") ? toFileEntry(selectedArtifact) : null,
     [selectedArtifact]
   );
   const artifactPreview = useTaskArtifactPreview({
@@ -152,7 +152,7 @@ export function TaskDetailArtifactsPane(props: TaskDetailArtifactsPaneProps) {
               className="btn ghost icon-btn"
               title={props.isDownloadingArtifact ? "Preparing download..." : "Download"}
               aria-label={props.isDownloadingArtifact ? "Preparing download" : `Download ${selectedEntry?.name ?? "artifact"}`}
-              disabled={props.isDownloadingArtifact}
+              disabled={props.isDownloadingArtifact || selectedArtifact.publication_state === "pending" || selectedArtifact.publication_state === "missing"}
               onClick={() => props.onDownloadArtifact(selectedArtifact.relative_path)}
             >
               {props.isDownloadingArtifact ? <Loader2 className="spin" size={15} /> : <Download size={15} />}
@@ -166,6 +166,8 @@ export function TaskDetailArtifactsPane(props: TaskDetailArtifactsPaneProps) {
               projectId={props.projectId}
               token={props.token}
             />
+          ) : selectedArtifact?.publication_state === "pending" || selectedArtifact?.publication_state === "missing" ? (
+            <p className="muted-text task-artifact-preview-message">{selectedArtifact.publication_state === "pending" ? "Syncing from device…" : "This artifact is unavailable on the server."}</p>
           ) : artifactPreview.error ? (
             <div className="empty-hint task-artifact-preview-message">
               <p>{artifactPreview.error}</p>

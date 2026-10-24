@@ -62,7 +62,7 @@ export interface PlatformToolHost {
 
   createProjectCanvas(input: { name: string; entryPath: string }): Promise<CreatedProjectCanvas>;
   recordProjectCanvasEntry(input: { canvasId: string; entryPath: string }): Promise<void>;
-  markArtifacts(input: { artifacts: Array<{ relativePath: string; size: number }> }): Promise<void>;
+  markArtifacts(input: { artifacts: Array<{ relativePath: string; size: number; sha256?: string }> }): Promise<void>;
   unmarkArtifacts(input: { relativePaths: string[] }): Promise<void>;
 
   refreshGitHubToken(): Promise<GitHubTokenRefresh>;

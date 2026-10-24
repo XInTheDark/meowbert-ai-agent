@@ -19,7 +19,7 @@ function platformCall(name: keyof RunControl["platform"]): Handler {
 }
 
 // control.heartbeat is handled with the lease, and model calls by the model proxy.
-export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartbeat">, Handler> = {
+export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartbeat" | "control.releaseForStorage">, Handler> = {
   "control.bootstrap": controlCall("bootstrap"),
   "control.readCancellation": controlCall("readCancellation"),
   "control.isDebugEnabled": controlCall("isDebugEnabled"),

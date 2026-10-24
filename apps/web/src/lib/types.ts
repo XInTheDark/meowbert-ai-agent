@@ -388,6 +388,7 @@ export interface TaskArtifact {
   kind: string;
   relative_path: string;
   size_bytes: number | null;
+  publication_state?: "pending" | "available" | "missing";
   mime_type: string | null;
   created_at: string;
 }

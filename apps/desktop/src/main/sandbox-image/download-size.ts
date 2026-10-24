@@ -1,4 +1,5 @@
 import { imageRepository, type SandboxImageReference } from "./manager";
+import { sandboxArchitecture } from "./platform";
 
 interface Manifest {
   manifests?: Array<{ digest: string; platform?: { os?: string; architecture?: string } }>;
@@ -43,9 +44,9 @@ export async function sandboxDownloadSize(image: SandboxImageReference, request:
   try {
     let manifest = await read(image.digest);
     if (manifest?.manifests) {
-      const arm64 = manifest.manifests.find((entry) => entry.platform?.os === "linux" && entry.platform.architecture === "arm64");
-      if (!arm64) return null;
-      manifest = await read(arm64.digest);
+      const selected = manifest.manifests.find((entry) => entry.platform?.os === "linux" && entry.platform.architecture === sandboxArchitecture());
+      if (!selected) return null;
+      manifest = await read(selected.digest);
     }
     if (!manifest?.layers?.length || manifest.layers.some((layer) => !Number.isFinite(layer.size) || layer.size < 0)) return null;
     return manifest.layers.reduce((total, layer) => total + layer.size, manifest.config?.size ?? 0);

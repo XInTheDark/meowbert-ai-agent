@@ -33,12 +33,12 @@ describe("markTaskArtifacts", () => {
     expect(mockedQuery).toHaveBeenNthCalledWith(2, expect.stringContaining("VALUES ($1, 'artifact'"), [
       "task-1",
       "build/report.pdf",
-      123
+      123, null, "available"
     ]);
     expect(mockedQuery).toHaveBeenNthCalledWith(3, expect.stringContaining("VALUES ($1, 'artifact'"), [
       "task-1",
       "images/preview.png",
-      456
+      456, null, "available"
     ]);
   });
 

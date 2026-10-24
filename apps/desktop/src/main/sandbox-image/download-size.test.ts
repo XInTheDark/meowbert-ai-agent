@@ -1,12 +1,12 @@
 import { expect, it, vi } from "vitest";
 import { sandboxDownloadSize } from "./download-size";
-it("reports compressed arm64 layer sizes from the pinned multiarch manifest", async () => {
+it("reports compressed native Linux layer sizes from the pinned multiarch manifest", async () => {
   const request = vi.fn().mockResolvedValueOnce(Response.json({ manifests: [
     { digest: "sha256:amd", platform: { os: "linux", architecture: "amd64" } },
     { digest: "sha256:arm", platform: { os: "linux", architecture: "arm64" } }
   ] })).mockResolvedValueOnce(Response.json({ layers: [{ size: 100 }, { size: 200 }], config: { size: 5 } }));
   expect(await sandboxDownloadSize({ reference: "ghcr.io/owner/image:main", digest: "sha256:index" }, request)).toBe(305);
-  expect(request.mock.calls[1][0]).toBe("https://ghcr.io/v2/owner/image/manifests/sha256%3Aarm");
+  expect(request.mock.calls[1][0]).toBe("https://ghcr.io/v2/owner/image/manifests/sha256%3A" + (process.arch === "arm64" ? "arm" : "amd"));
 });
 it("handles anonymous registry bearer auth without downloading layers", async () => {
   const request = vi.fn().mockResolvedValueOnce(new Response(null, { status: 401, headers: {

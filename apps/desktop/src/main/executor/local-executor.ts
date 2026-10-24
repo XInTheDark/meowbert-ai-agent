@@ -1,6 +1,6 @@
 import type { ExecutorSettings } from "@meowbert/run-executor/agent/ports/executor-settings";
 import os from "node:os";
-import { RUN_API_PROTOCOL_VERSION } from "@meowbert/shared";
+import { RUN_API_PROTOCOL_VERSION, isSupportedLocalExecutor } from "@meowbert/shared";
 import type { SandboxImageReference } from "../sandbox-image/manager";
 import { createDesktopDocker, createDockerImageClient, ensureSandboxImage, pinnedImage, sandboxImagePresent } from "../sandbox-image/manager";
 import { maintainDownloadedSandboxes } from "../sandbox-image/cleanup";
@@ -9,6 +9,7 @@ import { verifyMountedStorage } from "../storage/roots";
 import { createDeviceApi, waitForDeviceRetry, type DeviceApiOptions } from "./device-api";
 import { probeDesktopSandboxStorage } from "./sandbox-machine-host";
 import { startLocalRun, type DeviceRunNotice } from "./local-run";
+import { sandboxArchitecture } from "../sandbox-image/platform";
 
 export interface LocalExecutionConfig { enabled: boolean; sandboxImage: SandboxImageReference; executorSettings: ExecutorSettings; storageMarkers: Record<string, { installId: string } | null> }
 export interface DesktopLocalExecutorOptions extends DeviceApiOptions {
@@ -22,9 +23,8 @@ export async function loadLocalExecutionConfig(options: DeviceApiOptions): Promi
 }
 
 export async function startDesktopLocalExecutor(options: DesktopLocalExecutorOptions): Promise<{ stop: () => Promise<void> }> {
-  const url = new URL(options.apiBaseUrl);
-  if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("Local execution currently requires an Apple Silicon Mac.");
-  if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) throw new Error("Local execution currently requires a server on this computer.");
+  sandboxArchitecture();
+  if (!isSupportedLocalExecutor(process.platform, process.arch)) throw new Error("Local execution requires Apple Silicon macOS or Windows x64/arm64 with Docker Desktop.");
   const abort = new AbortController();
   const api = createDeviceApi(options, abort.signal);
   const route = "/api/devices/" + options.deviceId;
@@ -55,7 +55,9 @@ export async function startDesktopLocalExecutor(options: DesktopLocalExecutorOpt
     const config = await api.request<LocalExecutionConfig>("/api/local-execution/config");
     if (!config.enabled) throw new Error("Local execution is disabled on this server.");
     capabilities = { ...capabilities, dockerReady: false, sandboxImageReady: false };
-    await createDesktopDocker().ping();
+    const docker = createDesktopDocker();
+    await docker.ping();
+    if ((await docker.info()).OSType !== "linux") throw new Error("Switch Docker Desktop to Linux containers for local tasks.");
     capabilities.dockerReady = true;
     if (!cleaned) { await stopDesktopContainers(options.deviceId); cleaned = true; }
     const installId = config.storageMarkers[options.storageBackendId]?.installId;
