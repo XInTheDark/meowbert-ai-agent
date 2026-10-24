@@ -6,8 +6,22 @@
     "jsx": "react-jsx",
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "types": ["node", "electron", "vite/client"],
+    "paths": {
+      "@meowbert/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@meowbert/shared/*": [
+        "../../packages/shared/src/*"
+      ]
+    },
+    "types": [
+      "node",
+      "electron",
+      "vite/client"
+    ],
     "noEmit": true
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

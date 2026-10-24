@@ -20,7 +20,7 @@
     "docs:generate-onboarding-manifest": "npm run generate:onboarding-manifest --workspace apps/docs",
     "test": "npm run test:desktop-version && npm run test --workspace packages/shared && npm run test --workspace apps/api && npm run test --workspace apps/worker && npm run test --workspace apps/web",
     "test:desktop-version": "node --test scripts/desktop-version.test.mjs",
-    "lint": "npm run build --workspace packages/shared && npm run lint --workspace packages/shared && npm run lint --workspace apps/api && npm run lint --workspace apps/worker && npm run lint --workspace apps/web",
+    "lint": "npm run build --workspace packages/shared && npm run lint --workspace packages/shared && npm run lint --workspace apps/api && npm run lint --workspace apps/worker && npm run lint --workspace apps/web && npm run lint:desktop",
     "migrate": "npm run migrate --workspace apps/api",
     "compose:coolify": "node scripts/generate-coolify-compose.mjs",
     "dev:desktop": "npm run dev --workspace apps/desktop",
