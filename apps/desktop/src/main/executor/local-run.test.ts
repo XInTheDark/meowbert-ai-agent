@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ bootstrap: vi.fn(), call: vi.fn(), wait: vi.fn(), run: vi.fn(), stop: vi.fn(),
   verifyStorage: vi.fn(), sandboxProvider: vi.fn(),
   remotePresence: vi.fn(), remoteAction: vi.fn(), localPresence: vi.fn(), localAction: vi.fn() }));
@@ -18,14 +18,18 @@ import { StorageNotReadyError } from "../storage/inputs";
 import type { DesktopLocalExecutorOptions } from "./local-executor";
 import { configureLocalRunPlatform } from "./local-run-platform";
 
+const nativePlatform = process.platform;
+afterEach(() => { Object.defineProperty(process, "platform", { value: nativePlatform }); });
 beforeEach(() => {
   vi.clearAllMocks();
+  state.run.mockReset();
   state.sandboxProvider.mockReturnValue({});
   state.verifyStorage.mockResolvedValue({ ok: true });
   state.bootstrap.mockResolvedValue({ roots: { storageBackendId: "backend", envRootRelative: "project", workspaceRootRelative: "workspace" },
     snapshot: { task: { task_root_path: ".meowbert/task-runs/task" } }, inputs: [{ relativePath: "inputs/file", sizeBytes: 5, sha256: "digest" }] });
 });
 it.each([false, true])("keeps sandbox skills, scopes Drive mounts, and releases them after failure=%s", async (failure) => {
+  Object.defineProperty(process, "platform", { value: "darwin" });
   state.wait.mockResolvedValue(undefined);
   const acquire = vi.fn().mockResolvedValue("/owned/mounts/attached");
   const release = vi.fn();
