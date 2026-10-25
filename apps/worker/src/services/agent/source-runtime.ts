@@ -10,10 +10,11 @@ export function buildSourceRuntimeEnv(input: {
   sourceId: string;
   provider: string;
   ticketScope?: "source_proxy" | "source_reference_proxy";
+  apiBaseUrl?: string;
 }): Record<string, string> {
   assertSourceProviderRuntimeEnabled(input.provider);
   return {
-    SOURCE_PROXY_BASE_URL: resolveInternalApiBaseUrl(),
+    SOURCE_PROXY_BASE_URL: input.apiBaseUrl ?? resolveInternalApiBaseUrl(),
     SOURCE_PROXY_TICKET: signInternalScopedAccessTicket({
       scope: input.ticketScope ?? "source_proxy",
       userId: input.userId,

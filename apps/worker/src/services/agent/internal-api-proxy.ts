@@ -44,3 +44,11 @@ export function resolveInternalApiBaseUrl(): string {
   }
   return url.toString().replace(/\/+$/, "");
 }
+
+export function resolveDesktopApiBaseUrl(sandbox: boolean): string {
+  const url = new URL(config.server.publicUrl);
+  if (sandbox && (url.hostname === "localhost" || url.hostname === "127.0.0.1")) {
+    url.hostname = "host.docker.internal";
+  }
+  return url.toString().replace(/\/+$/, "");
+}

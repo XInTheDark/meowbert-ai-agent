@@ -96,7 +96,7 @@ export interface TaskSnapshot {
     byo_enabled: boolean;
     byo_provider: string | null;
     byo_base_url: string | null;
-    byo_api_key: string | null;
+    byo_api_key?: string | null;
     byo_model: string | null;
   } | null;
   environment: EnvironmentRow;
@@ -125,7 +125,7 @@ export interface TaskSnapshot {
         type: "app";
         app_id: string;
         app_slug: string;
-        private_key_pem: string;
+        private_key_pem?: string;
         installation_id: string;
         default_org: string | null;
       }
@@ -134,7 +134,7 @@ export interface TaskSnapshot {
         github_login: string;
         github_name: string | null;
         github_email: string | null;
-        access_token: string;
+        access_token?: string;
         default_org: string | null;
       }
   ) | null;

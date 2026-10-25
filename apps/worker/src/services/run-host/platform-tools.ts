@@ -36,6 +36,7 @@ import {
   stopPersistentShellSession
 } from "../runtime/persistent-shell-sessions.js";
 import { buildSourceRuntimeEnv } from "../agent/source-runtime.js";
+import { resolveDesktopApiBaseUrl } from "../agent/internal-api-proxy.js";
 import type { PersistentShellRequest, PlatformToolHost } from "@meowbert/run-executor/agent/ports/platform-tools";
 import type { ServerRunState } from "./bootstrap.js";
 
@@ -253,7 +254,7 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
     },
     searchMemory: (input) => {
       const { run, environmentId } = scope();
-      return searchMemoryIndex({ workspaceRoot: run.bootstrap.roots.workspaceRoot, currentProjectId: environmentId, ...input });
+      return searchMemoryIndex({ ...input, workspaceRoot: run.bootstrap.roots.workspaceRoot, currentProjectId: environmentId });
     },
     createRecurringTask: (input) => {
       const { run, taskId, workspaceId, environmentId } = scope();
@@ -273,11 +274,11 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
     applyInfiniteWait: (seconds) => applyInfiniteWait(scope().taskId, seconds),
     createSubtask: (input) => {
       const { taskId, workspaceId, environmentId } = scope();
-      return createSubtaskFromTool({ parentTaskId: taskId, workspaceId, environmentId, ...input });
+      return createSubtaskFromTool({ ...input, parentTaskId: taskId, workspaceId, environmentId });
     },
     startSubtasks: (input) => {
       const { taskId, workspaceId, environmentId } = scope();
-      return startSubtasksFromTool({ parentTaskId: taskId, workspaceId, environmentId, ...input });
+      return startSubtasksFromTool({ ...input, parentTaskId: taskId, workspaceId, environmentId });
     },
     liveSyncStatus: ({ taskRelativePath }) => {
       const { taskId, workspaceId, actorUserId } = scope();
@@ -290,7 +291,7 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
     },
     liveSyncFolderSearch: (input) => {
       const { taskId, workspaceId, actorUserId } = scope();
-      return searchTaskLiveSyncFolder({ userId: actorUserId, taskId, workspaceId, ...input });
+      return searchTaskLiveSyncFolder({ ...input, userId: actorUserId, taskId, workspaceId });
     },
     createProjectCanvas: (input) => insertProjectCanvas(scope().run, input),
     async recordProjectCanvasEntry({ canvasId, entryPath }) {
@@ -317,13 +318,15 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
         workspaceRoot: run.bootstrap.roots.workspaceRoot,
         sourceId,
         provider,
-        ticketScope
+        ticketScope,
+        apiBaseUrl: run.job.executionTarget?.kind === "local"
+          ? resolveDesktopApiBaseUrl(run.job.executionTarget.mode !== "host") : undefined
       });
     },
     getDesktopComputerPresence: () => getDesktopComputerPresence(scope().actorUserId),
     requestDesktopComputerAction: (input) => {
       const { run, taskId } = scope();
-      return requestDesktopComputerAction({ userId: requireActor(run, "Computer use"), taskId, ...input });
+      return requestDesktopComputerAction({ ...input, userId: requireActor(run, "Computer use"), taskId });
     },
     persistentShell: (request) => runPersistentShellRequest(scope().run, request),
     async readShellSessionWaitState({ sessionId }) {

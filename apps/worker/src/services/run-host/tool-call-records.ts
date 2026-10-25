@@ -17,22 +17,22 @@ export async function recordToolCallFinished(runId: string, callId: string): Pro
   await query("DELETE FROM task_run_tool_calls WHERE run_id = $1 AND call_id = $2", [runId, callId]);
 }
 
-// Calls started by earlier runs of the task that never recorded a result.
-export async function listUnfinishedToolCalls(taskId: string, currentRunId: string): Promise<RunToolCallStart[]> {
+// Includes a previous lease of this run: bootstrap happens before its new tools can start.
+export async function listUnfinishedToolCalls(taskId: string): Promise<RunToolCallStart[]> {
   const result = await query<{ call_id: string; name: string; arguments: string }>(
     `SELECT call_id, name, arguments
        FROM task_run_tool_calls
-      WHERE task_id = $1 AND run_id <> $2
+      WHERE task_id = $1
       ORDER BY started_at ASC`,
-    [taskId, currentRunId]
+    [taskId]
   );
   return result.rows.map((row) => ({ callId: row.call_id, name: row.name, arguments: row.arguments }));
 }
 
-export async function clearInterruptedToolCalls(taskId: string, currentRunId: string, callIds: string[]): Promise<void> {
+export async function clearInterruptedToolCalls(taskId: string, callIds: string[]): Promise<void> {
   if (callIds.length === 0) return;
   await query(
-    "DELETE FROM task_run_tool_calls WHERE task_id = $1 AND run_id <> $2 AND call_id = ANY($3::text[])",
-    [taskId, currentRunId, callIds]
+    "DELETE FROM task_run_tool_calls WHERE task_id = $1 AND call_id = ANY($2::text[])",
+    [taskId, callIds]
   );
 }

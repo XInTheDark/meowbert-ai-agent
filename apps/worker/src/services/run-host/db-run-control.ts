@@ -107,7 +107,7 @@ export function createDbRunControl(
     setGeneratedTitle: (title) => setGeneratedTaskTitle(taskId, title),
     recordToolCallStart: (call) => recordToolCallStarted(taskId, runId, call),
     recordToolCallResult: ({ callId }) => recordToolCallFinished(runId, callId),
-    resolveInterruptedToolCalls: (callIds) => clearInterruptedToolCalls(taskId, runId, callIds),
+    resolveInterruptedToolCalls: (callIds) => clearInterruptedToolCalls(taskId, callIds),
     context: createDbContextStore(taskId),
     platform: createDbPlatformToolHost(serverState),
     complete: async (completion) => (await import("./run-completion.js")).completeServerRun(serverState(), completion),

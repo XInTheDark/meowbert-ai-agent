@@ -72,6 +72,7 @@ import { listUnfinishedToolCalls } from "./tool-call-records.js";
 import { getTaskScheduleInfo } from "../task-schedules/service.js";
 import { config } from "../../lib/config.js";
 import { loadRunInputManifest } from "./input-manifest.js";
+import { createExecutorSnapshot } from "./executor-snapshot.js";
 
 type WorkspaceMemoryMainFile = Awaited<ReturnType<typeof readWorkspaceMemoryMainFile>>;
 type ProjectMemoryMainFile = Awaited<ReturnType<typeof readProjectMemoryMainFile>>;
@@ -175,6 +176,7 @@ function createRefreshGitHubToken(snapshot: TaskSnapshot, abortSignal?: AbortSig
 
     try {
       if (githubConnection.type === "oauth") {
+        if (!githubConnection.access_token) throw new Error("GitHub OAuth token is unavailable.");
         const env = buildGitHubRuntimeEnv({
           accessToken: githubConnection.access_token,
           login: githubConnection.github_login,
@@ -189,8 +191,9 @@ function createRefreshGitHubToken(snapshot: TaskSnapshot, abortSignal?: AbortSig
         return { ok: true, login: githubConnection.github_login, expiresAt: null, env };
       }
 
+      if (!githubConnection.private_key_pem) throw new Error("GitHub App signing key is unavailable.");
       const minted = await mintGitHubRuntimeEnvFromConnection({
-        connection: githubConnection,
+        connection: { ...githubConnection, private_key_pem: githubConnection.private_key_pem },
         abortSignal
       });
       if (!minted) {
@@ -713,7 +716,7 @@ export async function loadServerRunState(
     refreshGitHubToken,
     bootstrap: {
       fileHost: roots.fileHost,
-      snapshot,
+      snapshot: createExecutorSnapshot(snapshot),
       runActorUserId,
       runActorIsSuperAdmin,
       runStartedAt: runStartedAt.toISOString(),
@@ -732,7 +735,7 @@ export async function loadServerRunState(
       projectMasterTaskAgent: snapshot.task.is_project_master === true
         ? resolveProjectMasterTaskAgent(snapshot, runActorIsSuperAdmin)
         : null,
-      unfinishedToolCalls: await listUnfinishedToolCalls(job.taskId, job.runId),
+      unfinishedToolCalls: await listUnfinishedToolCalls(job.taskId),
       inputs: job.executionTarget?.kind === "local" ? await loadRunInputManifest(job.taskId) : [],
       sandboxImage
     }

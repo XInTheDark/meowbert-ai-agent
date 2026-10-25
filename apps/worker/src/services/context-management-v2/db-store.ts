@@ -41,7 +41,9 @@ export function createDbContextStore(taskId: string): RunContextStore {
     loadNotesSummary: (contextNodeId) => loadContextNotesSummary(taskId, contextNodeId),
     startNewWindow: (window, branchLeafMessageId, reason) => own(window).then((ref) => startNewContextWindowRecord(ref, branchLeafMessageId, reason)),
     linkVisibleMessage: (window, visibleMessageId) => own(window).then((ref) => linkVisibleContextNode(ref, visibleMessageId)),
-    writeNote: (window, input) => own(window).then((ref) => writeContextNote({ state: ref, ...input })),
+    writeNote: (window, input) => own(window).then((ref) => writeContextNote({
+      state: ref, path: input.path, text: input.text, append: input.append
+    })),
     listWindows: (window, input) => own(window).then((ref) => listContextWindows(ref, input)),
     listItems: (window, input) => own(window).then((ref) => listContextItems(ref, input)),
     readItem: (window, input) => own(window).then((ref) => readContextItem(ref, input)),
