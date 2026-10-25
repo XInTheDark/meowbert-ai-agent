@@ -37,7 +37,7 @@ export class RunAdmissions {
       const run = startLocalRun(this.options, this.api, entry, ready.image, ready.skillsRoot, ready.settings, ready.installId);
       this.runs.set(entry.run_id, run);
       void run.done.catch(error => {
-        this.options.onPendingReason?.(String(error));
+        this.options.onPendingReason?.(String(error), { taskId: entry.payload_json.taskId, runId: entry.run_id });
         if (error instanceof TypeError || (error instanceof DeviceApiError && (error.status >= 500 || [408, 429].includes(error.status)))) this.retry(entry);
       }).finally(() => { this.runs.delete(entry.run_id); if (!this.signal.aborted) this.onDone(); });
     }

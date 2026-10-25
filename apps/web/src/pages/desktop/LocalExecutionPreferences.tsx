@@ -10,16 +10,18 @@ export function LocalExecutionPreferences() {
   const { settings, status, busy, updateSettings } = preferences;
   if (!settings) return <p className="desktop-preferences-hint" role={preferences.error ? "alert" : "status"}>{preferences.error ?? "Loading local execution settings…"}</p>;
   const needsStorage = settings.enabled && !settings.storageRoot && !Object.keys(settings.workspaceRoots ?? {}).length;
+  const runIssues = status?.runIssues ?? [];
   return (
     <form className="desktop-local-preferences" onSubmit={(event) => { event.preventDefault(); void preferences.save(); }}>
       <header className="desktop-preferences-panel-head">
         <div><h2>Local execution</h2><p>Run tasks in a sandbox or directly on this computer.</p></div>
       </header>
-      <div className="desktop-execution-status" data-state={status?.state ?? "starting"}>
+      <div className="desktop-execution-status" data-state={runIssues.length ? "error" : status?.state ?? "starting"}>
         <span className="desktop-preferences-status-dot" />
         <div role="status">
-          <strong>{status?.state === "running" ? "Ready for local tasks" : status?.state === "error" ? (status.hostReady ? "Host ready · Sandbox needs attention" : "Local execution needs attention") : status?.state === "checking" ? "Checking for updates…" : status?.state === "downloading" ? "Downloading sandbox…" : status?.state === "disabled" ? "Local execution is off" : "Connecting…"}</strong>
-          {status?.message ? <p>{status.message}</p> : null}
+          <strong>{runIssues.length ? "Task startup needs attention" : status?.state === "running" ? "Ready for local tasks" : status?.state === "error" ? (status.hostReady && !status.sandboxReady ? "Host ready · Sandbox needs attention" : "Local execution needs attention") : status?.state === "checking" ? "Checking for updates…" : status?.state === "downloading" ? "Downloading sandbox…" : status?.state === "disabled" ? "Local execution is off" : "Connecting…"}</strong>
+          {runIssues.length ? runIssues.map((issue) => <p key={issue.taskId}>{issue.message}</p>)
+            : status?.message ? <p>{status.message}</p> : null}
         </div>
         <button className="icon-btn" type="button" disabled={busy || !settings.enabled || status?.state === "downloading" || status?.state === "checking"} onClick={() => void preferences.checkForUpdates()} title="Check for sandbox updates" aria-label="Check for sandbox updates">
           <RotateCcw size={15} />

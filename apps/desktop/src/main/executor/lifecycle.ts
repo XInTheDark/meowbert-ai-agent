@@ -17,7 +17,12 @@ let pending: Promise<unknown> = Promise.resolve();
 let generation = 0;
 let status: DesktopLocalExecutionStatus = { state: "disabled", message: null };
 const statusEvents = new EventEmitter();
-function setStatus(next: DesktopLocalExecutionStatus): void { status = next; statusEvents.emit("change", status); }
+const runIssues = new Map<string, NonNullable<DesktopLocalExecutionStatus["runIssues"]>[number]>();
+let runIssueServer: string | null = null;
+function setStatus(next: DesktopLocalExecutionStatus): void {
+  status = { ...next, runIssues: [...runIssues.values()] };
+  statusEvents.emit("change", status);
+}
 export function onLocalExecutionStatusChanged(listener: (value: DesktopLocalExecutionStatus) => void): () => void {
   statusEvents.on("change", listener); return () => { statusEvents.off("change", listener); };
 }
@@ -44,6 +49,7 @@ export function startConfiguredLocalExecutor(): Promise<DesktopLocalExecutionSta
     for (const deviceId of await listLocalExecutionDeviceIds()) await stopDesktopContainers(deviceId).catch(() => undefined);
     const bootstrap = await readBootstrapData();
     const settings = bootstrap.localExecutionSettings;
+    if (runIssueServer !== settings.serverBaseUrl) { runIssues.clear(); runIssueServer = settings.serverBaseUrl; }
     if (!settings.enabled || (!settings.storageRoot && !Object.keys(settings.workspaceRoots ?? {}).length) || !settings.serverBaseUrl || !bootstrap.token) {
       setStatus({ ...status, sandbox: await readSandboxHistory(path.join(app.getPath("userData"), "sandbox-resources")), state: "disabled", hostReady: false, sandboxReady: false, message: null }); return status;
     }
@@ -81,7 +87,14 @@ export function startConfiguredLocalExecutor(): Promise<DesktopLocalExecutionSta
         await saveLocalExecutionSettings({ ...latest.localExecutionSettings, downloadConsent: true });
         return true;
       },
-      onPendingReason: (message) => { if (generation === currentGeneration) setStatus({ ...status, state: "error", message }); },
+      onPendingReason: (message, run) => {
+        if (generation !== currentGeneration) return;
+        if (run) { runIssues.set(run.taskId, { ...run, message }); setStatus(status); }
+        else setStatus({ ...status, state: "error", message });
+      },
+      onRunStarted: (taskId) => {
+        if (generation === currentGeneration && runIssues.delete(taskId)) setStatus(status);
+      },
       onStatus: (next) => { if (generation === currentGeneration) setStatus(next); }
     });
     return status;

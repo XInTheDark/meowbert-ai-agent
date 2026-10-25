@@ -1,5 +1,7 @@
 import http from "node:http";
+import { RUN_API_MODEL_STREAM_CONTENT_TYPE } from "@meowbert/shared";
 import type { RunApiHandler, RunApiReply } from "./handler.js";
+import { streamModelReply } from "./model-stream.js";
 
 // Model requests carry the whole conversation, images included.
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
@@ -29,6 +31,7 @@ function send(response: http.ServerResponse, reply: RunApiReply): void {
 
 export interface RunApiServerOptions {
   claim?: (input: { runId: string; deviceId: string; body: unknown; secret: string | undefined }) => Promise<RunApiReply>;
+  modelHeartbeatMs?: number;
 }
 
 async function route(handler: RunApiHandler, request: http.IncomingMessage, response: http.ServerResponse, options: RunApiServerOptions): Promise<RunApiReply | null> {
@@ -57,7 +60,12 @@ async function route(handler: RunApiHandler, request: http.IncomingMessage, resp
   response.on("close", () => {
     if (!response.writableEnded) controller.abort(new Error("RUN_API_CLIENT_DISCONNECTED"));
   });
-  return handler.model({ runId: decodeURIComponent(model![1]), authorization, body, signal: controller.signal });
+  const create = () => handler.model({ runId: decodeURIComponent(model![1]), authorization, body, signal: controller.signal });
+  if (request.headers.accept === RUN_API_MODEL_STREAM_CONTENT_TYPE) {
+    await streamModelReply(response, create, options.modelHeartbeatMs);
+    return null;
+  }
+  return create();
 }
 
 // The worker's internal Run API listener. Executors reach it through the API, which forwards a

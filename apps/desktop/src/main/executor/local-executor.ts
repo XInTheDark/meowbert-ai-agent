@@ -26,7 +26,8 @@ export interface DesktopLocalExecutorOptions extends DeviceApiOptions {
   workspaceRoots?: Record<string, string>;
   runsRoot?: string; hostSkillsRoot?: string; hostConsent?: boolean; hostShellEnabled?: boolean; computerUseEnabled?: boolean; hostBrowserEnabled?: boolean;
   onSandboxDownloadRequired?: (image: SandboxImageReference, unavailableReason?: string) => Promise<boolean>;
-  onPendingReason?: (reason: string) => void;
+  onPendingReason?: (reason: string, run?: { taskId: string; runId: string }) => void;
+  onRunStarted?: (taskId: string) => void;
   onStatus?: (status: DesktopLocalExecutionStatus) => void;
 }
 export async function loadLocalExecutionConfig(options: DeviceApiOptions): Promise<LocalExecutionConfig> {

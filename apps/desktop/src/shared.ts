@@ -64,6 +64,7 @@ export interface DesktopLocalExecutionStatus {
   message: string | null;
   hostReady?: boolean;
   sandboxReady?: boolean;
+  runIssues?: Array<{ taskId: string; runId: string; message: string }>;
   sandbox?: {
     image: string | null;
     digest: string | null;

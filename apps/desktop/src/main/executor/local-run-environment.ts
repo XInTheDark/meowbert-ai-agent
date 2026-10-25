@@ -31,7 +31,11 @@ export function localRunEnvironment(input: {
       liveFolderPaths: (input.bootstrap.liveSyncFiles ?? []).filter((file) => file.provider === "google-drive" && file.linkKind === "folder").map((file) => file.taskRelativePath),
       storageRoot: options.storageRoot, backendId: options.storageBackendId, deviceId: options.deviceId, installId });
   return {
-    control: { ...input.remote, platform, bootstrap: async () => input.bootstrap }, models: createProxyModelGateway(input.client),
+    control: { ...input.remote, platform, bootstrap: async () => input.bootstrap, setTaskStatus: async (status) => {
+      const accepted = await input.remote.setTaskStatus(status);
+      if (accepted && status === "running") options.onRunStarted?.(input.taskId);
+      return accepted;
+    } }, models: createProxyModelGateway(input.client),
     machines: { ...machines, start: async (spec) => {
       signal.throwIfAborted();
       const machine = await machines.start(spec);

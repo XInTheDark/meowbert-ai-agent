@@ -1,6 +1,7 @@
 import { runLiveFolderRoutes } from "./live-folders.js";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { RUN_API_MODEL_STREAM_CONTENT_TYPE } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import {
   RunApiForwardingError,
@@ -15,7 +16,7 @@ const RUN_API_BODY_LIMIT_BYTES = 64 * 1024 * 1024;
 const callParams = z.object({ runId: z.string().uuid(), method: z.string().regex(/^[a-zA-Z]+\.[a-zA-Z]+$/) });
 const modelParams = z.object({ runId: z.string().uuid() });
 
-async function forward(request: FastifyRequest, reply: FastifyReply, runId: string, path: string) {
+async function forward(request: FastifyRequest, reply: FastifyReply, runId: string, path: string, streamModel = false) {
   try {
     const claims = verifyRunLease(request.headers.authorization, runId, config.security.jwtSecret);
     const holderUrl = await resolveRunLeaseHolderUrl(claims);
@@ -29,8 +30,12 @@ async function forward(request: FastifyRequest, reply: FastifyReply, runId: stri
       path,
       authorization: request.headers.authorization!,
       body: request.body,
-      signal: controller.signal
+      signal: controller.signal, streamModel
     });
+    if (result.contentType) {
+      reply.header("content-type", result.contentType).header("cache-control", "no-store, no-transform")
+        .header("x-accel-buffering", "no");
+    }
     return reply.code(result.status).send(result.body);
   } catch (error) {
     if (error instanceof RunApiForwardingError) {
@@ -51,6 +56,7 @@ export const runApiRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/api/runs/:runId/model/responses", { bodyLimit: RUN_API_BODY_LIMIT_BYTES }, async (request, reply) => {
     const params = modelParams.parse(request.params);
-    return forward(request, reply, params.runId, `/runs/${params.runId}/model/responses`);
+    return forward(request, reply, params.runId, `/runs/${params.runId}/model/responses`,
+      request.headers.accept === RUN_API_MODEL_STREAM_CONTENT_TYPE);
   });
 };

@@ -1,4 +1,7 @@
 import { verifyRunLeaseToken, type RunLeaseClaims } from "@meowbert/shared/run-lease-token";
+import { RUN_API_MODEL_STREAM_CONTENT_TYPE } from "@meowbert/shared";
+import { Readable } from "node:stream";
+import type { ReadableStream } from "node:stream/web";
 import { query } from "../../lib/db.js";
 
 export class RunApiForwardingError extends Error {
@@ -42,17 +45,24 @@ export async function forwardRunApiRequest(input: {
   authorization: string;
   body: unknown;
   signal: AbortSignal;
-}): Promise<{ status: number; body: unknown }> {
+  streamModel?: boolean;
+}): Promise<{ status: number; body: unknown; contentType?: string }> {
   let response: Response;
   try {
     response = await fetch(`${input.holderUrl}${input.path}`, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: input.authorization },
+      headers: { "content-type": "application/json", authorization: input.authorization,
+        ...(input.streamModel ? { accept: RUN_API_MODEL_STREAM_CONTENT_TYPE } : {}) },
       body: JSON.stringify(input.body),
       signal: input.signal
     });
   } catch {
     throw new RunApiForwardingError(503, "internal", "The worker holding this run is unreachable.");
+  }
+  if (input.streamModel && response.body
+    && response.headers.get("content-type")?.split(";")[0] === RUN_API_MODEL_STREAM_CONTENT_TYPE) {
+    return { status: response.status, contentType: RUN_API_MODEL_STREAM_CONTENT_TYPE,
+      body: Readable.fromWeb(response.body as ReadableStream<Uint8Array>) };
   }
   const body = await response.json().catch(() => ({ error: { code: "internal", message: "The worker sent an unreadable response." } }));
   return { status: response.status, body };

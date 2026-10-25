@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { readModelStream } from "./model-stream.js";
 import {
+  RUN_API_MODEL_STREAM_CONTENT_TYPE,
   type RunApiCallRequest,
   type RunApiErrorBody,
   type RunApiErrorCode,
@@ -47,10 +49,10 @@ function isRetryableStatus(status: number): boolean {
 async function readError(response: Response): Promise<RunApiError> {
   const body = await response.json().catch(() => null) as RunApiErrorBody | null;
   return new RunApiError(
-    body?.error.code ?? (response.status === 401 ? "unauthorized" : "internal"),
-    body?.error.message ?? `Run API request failed with status ${response.status}.`,
+    body?.error?.code ?? (response.status === 401 ? "unauthorized" : "internal"),
+    body?.error?.message ?? `Run API request failed with status ${response.status}.`,
     response.status,
-    body?.error.currentLeafId ?? null
+    body?.error?.currentLeafId ?? null
   );
 }
 
@@ -67,7 +69,9 @@ export function createRunApiClient(options: RunApiClientOptions): RunApiClient {
   async function post(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
     const signals = [signal, options.signal].filter((value): value is AbortSignal => value !== undefined);
     if (path.startsWith("/call/") && options.requestTimeoutMs) signals.push(AbortSignal.timeout(options.requestTimeoutMs));
-    return fetchImpl(runUrl + path, { method: "POST", headers, body: JSON.stringify(body), signal: signals.length ? AbortSignal.any(signals) : undefined });
+    return fetchImpl(runUrl + path, { method: "POST",
+      headers: { ...headers, ...(path === "/model/responses" ? { accept: RUN_API_MODEL_STREAM_CONTENT_TYPE } : {}) },
+      body: JSON.stringify(body), signal: signals.length ? AbortSignal.any(signals) : undefined });
   }
 
   return {
@@ -102,6 +106,13 @@ export function createRunApiClient(options: RunApiClientOptions): RunApiClient {
     async model(request, signal) {
       const response = await post("/model/responses", { ...request, operationId: randomUUID() }, signal);
       if (!response.ok) throw await readError(response);
+      if (response.headers.get("content-type")?.split(";")[0] === RUN_API_MODEL_STREAM_CONTENT_TYPE) {
+        const result = await readModelStream(response);
+        if (result.status < 200 || result.status >= 300) {
+          throw await readError(Response.json(result.body, { status: result.status }));
+        }
+        return result.body as RunApiModelResponse;
+      }
       return (await response.json()) as RunApiModelResponse;
     }
   };

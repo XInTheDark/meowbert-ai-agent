@@ -48,7 +48,7 @@ async function startHarness(headroomByUser?: Record<string, number>): Promise<Ha
     // One weighted token per counted token keeps the arithmetic visible.
     model: { weighUsage: async (_model, counts) => counts.inputTokens + counts.outputTokens, chargeAbandoned }
   });
-  const server = createRunApiServer(handler);
+  const server = createRunApiServer(handler, { modelHeartbeatMs: 10 });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   const { port } = server.address() as AddressInfo;
   return { baseUrl: `http://127.0.0.1:${port}`, sessions, memory, chargeAbandoned, server };

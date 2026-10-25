@@ -195,6 +195,26 @@ describe("local execution preferences", () => {
     expect(platform.retryLocalExecution).not.toHaveBeenCalled();
     expect(container.querySelector('[role="status"]')?.textContent).toContain("Docker is not running");
   });
+  it("keeps task startup failures visible after refresh without blaming a ready sandbox", async () => {
+    const status = { state: "running", message: "Ready for local tasks", hostReady: true, sandboxReady: true,
+      runIssues: [{ taskId: "task", runId: "run", message: "Waiting for storage: project folder is unavailable" }] };
+    platform.getLocalExecutionStatus.mockResolvedValue(status);
+    platform.checkSandboxUpdates.mockResolvedValue(status);
+    await renderPage(); await click("Local execution");
+    await click("Check for sandbox updates");
+    const text = container.querySelector('[role="status"]')?.textContent;
+    expect(text).toContain("Task startup needs attention");
+    expect(text).toContain("project folder is unavailable");
+    expect(text).not.toContain("Sandbox needs attention");
+    expect(text).not.toContain("Ready for local tasks");
+    expect(container.querySelector('[data-state="error"]')).not.toBeNull();
+  });
+  it("does not label a general execution error as a sandbox failure when the sandbox is ready", async () => {
+    platform.getLocalExecutionStatus.mockResolvedValue({ state: "error", hostReady: true, sandboxReady: true, message: "Storage unavailable" });
+    await renderPage(); await click("Local execution");
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("Local execution needs attention");
+    expect(container.textContent).not.toContain("Sandbox needs attention");
+  });
   it("receives pushed status and timestamps without polling, and unsubscribes", async () => {
     vi.useFakeTimers();
     const unsubscribe = vi.fn();

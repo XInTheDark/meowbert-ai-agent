@@ -3,6 +3,11 @@
 // `POST /runs/:runId/model/responses`.
 
 export const RUN_API_PROTOCOL_VERSION = 2;
+export const RUN_API_MODEL_STREAM_CONTENT_TYPE = "application/x-ndjson";
+
+export type RunApiModelStreamEvent =
+  | { type: "heartbeat" }
+  | { type: "result"; status: number; body: unknown };
 
 // A lease lasts this long after the last successful heartbeat; the server reclaims it only after
 // a further grace, and an executor that cannot renew fences itself well before either.

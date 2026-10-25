@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ bootstrap: vi.fn(), call: vi.fn(), wait: vi.fn(), run: vi.fn(), stop: vi.fn(),
-  verifyStorage: vi.fn(), sandboxProvider: vi.fn(),
+  verifyStorage: vi.fn(), resolveStoragePath: vi.fn(), sandboxProvider: vi.fn(), emit: vi.fn(), setStatus: vi.fn(),
   remotePresence: vi.fn(), remoteAction: vi.fn(), localPresence: vi.fn(), localAction: vi.fn() }));
 vi.mock("@meowbert/run-executor/agent/index", () => ({ runAgentJob: state.run }));
 vi.mock("@meowbert/run-executor/run-api/client", () => ({ createRunApiClient: () => ({ call: state.call }) }));
 vi.mock("@meowbert/run-executor/run-api/http-run-control", () => ({ createHttpRunControl: () => ({ bootstrap: state.bootstrap,
-  platform: { getDesktopComputerPresence: state.remotePresence, requestDesktopComputerAction: state.remoteAction }, stop: state.stop }) }));
+  platform: { getDesktopComputerPresence: state.remotePresence, requestDesktopComputerAction: state.remoteAction },
+  emitEvent: state.emit, setTaskStatus: state.setStatus, stop: state.stop }) }));
 vi.mock("@meowbert/run-executor/run-api/proxy-model-gateway", () => ({ createProxyModelGateway: () => ({}) }));
-vi.mock("../storage/roots", () => ({ verifyMountedStorage: state.verifyStorage, resolveVerifiedStoragePath: async () => "/mount/project" }));
+vi.mock("../storage/roots", () => ({ verifyMountedStorage: state.verifyStorage, resolveVerifiedStoragePath: state.resolveStoragePath }));
 vi.mock("../storage/inputs", async () => ({ ...await vi.importActual<typeof import("../storage/inputs")>("../storage/inputs"), waitForRunInputs: state.wait }));
 vi.mock("./sandbox-machine-host", () => ({ createDesktopSandboxMachineProvider: state.sandboxProvider, probeDesktopSandboxStorage: async () => {} }));
 vi.mock("./local-run-paths", () => ({ localRunRelocationNote: async () => undefined }));
@@ -25,6 +26,9 @@ beforeEach(() => {
   state.run.mockReset();
   state.sandboxProvider.mockReturnValue({});
   state.verifyStorage.mockResolvedValue({ ok: true });
+  state.resolveStoragePath.mockReset().mockResolvedValue("/mount/project");
+  state.emit.mockResolvedValue(undefined);
+  state.setStatus.mockResolvedValue(true);
   state.bootstrap.mockResolvedValue({ roots: { storageBackendId: "backend", envRootRelative: "project", workspaceRootRelative: "workspace" },
     snapshot: { task: { task_root_path: ".meowbert/task-runs/task" } }, inputs: [{ relativePath: "inputs/file", sizeBytes: 5, sha256: "digest" }] });
 });
@@ -68,7 +72,7 @@ it.each([false, true])("refuses admission immediately when storage disappears be
   expect(state.bootstrap).not.toHaveBeenCalled();
   expect(state.run).not.toHaveBeenCalled();
   expect(state.call).not.toHaveBeenCalled();
-  expect(options.onPendingReason).toHaveBeenCalledWith(expect.stringContaining("Waiting for storage"));
+  expect(options.onPendingReason).toHaveBeenCalledWith(expect.stringContaining("Waiting for storage"), expect.objectContaining({ runId: "run" }));
 });
 it("releases invisible inputs to pending without starting or failing the run", async () => {
   state.wait.mockRejectedValue(new StorageNotReadyError("waiting for storage"));
@@ -77,7 +81,46 @@ it("releases invisible inputs to pending without starting or failing the run", a
   await startLocalRun(options, api as never, { run_id: "run", queue_state: "admitted", payload_json: {} as never }, "image", "/skills", { skills: {} } as never, "install").done;
   expect(state.call).toHaveBeenCalledExactlyOnceWith("control.releaseForStorage", []);
   expect(state.run).not.toHaveBeenCalled();
-  expect(options.onPendingReason).toHaveBeenCalledWith("waiting for storage");
+  expect(options.onPendingReason).toHaveBeenCalledWith("waiting for storage", expect.objectContaining({ runId: "run" }));
+});
+
+it.each([false, true])("initializes the host project directory and clears issues only after running is accepted=%s", async (accepted) => {
+  state.wait.mockResolvedValue(undefined);
+  state.setStatus.mockResolvedValue(accepted);
+  const onRunStarted = vi.fn();
+  state.run.mockImplementationOnce(async (_job, env) => {
+    await env.control.setTaskStatus("starting");
+    expect(onRunStarted).not.toHaveBeenCalled();
+    await env.control.setTaskStatus("running");
+  });
+  const options = { scratchRoot: "/tmp/meowbert-test-scratch", resourcesRoot: "/tmp/meowbert-test-resources",
+    storageBackendId: "backend", storageRoot: "/mount", apiBaseUrl: "https://server.test", deviceId: "device",
+    hostConsent: true, onRunStarted } as unknown as DesktopLocalExecutorOptions;
+  await startLocalRun(options, { request: vi.fn().mockResolvedValue({ token: "lease" }) } as never,
+    { run_id: "run", queue_state: "admitted", payload_json: { taskId: "task", executionTarget: { kind: "local", mode: "host" } } as never },
+    "image", "/skills", { skills: {} } as never, "install").done;
+  expect(state.resolveStoragePath).toHaveBeenCalledWith("/mount", "project", { createDirectory: true });
+  if (accepted) expect(onRunStarted).toHaveBeenCalledExactlyOnceWith("task");
+  else expect(onRunStarted).not.toHaveBeenCalled();
+  expect(state.run).toHaveBeenCalledOnce();
+});
+
+it("records the exact unavailable folder in task events before releasing storage", async () => {
+  state.resolveStoragePath.mockResolvedValueOnce("/mount/workspace")
+    .mockRejectedValueOnce(Object.assign(new Error("Missing"), { code: "ENOENT", path: "/mount/project/root" }));
+  const onPendingReason = vi.fn(), onRunStarted = vi.fn();
+  const options = { scratchRoot: "/tmp/meowbert-test-scratch", resourcesRoot: "/tmp/meowbert-test-resources",
+    storageBackendId: "backend", storageRoot: "/mount", apiBaseUrl: "https://server.test", deviceId: "device",
+    onPendingReason, onRunStarted } as unknown as DesktopLocalExecutorOptions;
+  await startLocalRun(options, { request: vi.fn().mockResolvedValue({ token: "lease" }) } as never,
+    { run_id: "run", queue_state: "admitted", payload_json: { taskId: "task" } as never },
+    "image", "/skills", { skills: {} } as never, "install").done;
+  expect(state.emit).toHaveBeenCalledWith("log", { stage: "startup.storage", phase: "waiting",
+    message: "Waiting for storage: project folder is unavailable (ENOENT): /mount/project/root" });
+  expect(onPendingReason).toHaveBeenCalledWith(expect.stringContaining("/mount/project/root"), { taskId: "task", runId: "run" });
+  expect(state.call).toHaveBeenCalledExactlyOnceWith("control.releaseForStorage", []);
+  expect(onRunStarted).not.toHaveBeenCalled();
+  expect(state.run).not.toHaveBeenCalled();
 });
 
 it.each([false, true])("keeps local Computer Use on the device when enabled=%s", async (enabled) => {
