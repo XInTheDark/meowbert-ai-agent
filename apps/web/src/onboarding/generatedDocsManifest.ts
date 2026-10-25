@@ -95,8 +95,8 @@ export const onboardingDocsManifest: Record<string, OnboardingDocsEntry> = {
   },
   "welcome": {
     id: "welcome",
-    title: "Welcome to Meowbert",
-    summary: "Get oriented quickly, then work through the most common workflows.",
+    title: "Workspaces, Projects and tasks",
+    summary: "Understand how work is organized before creating your first task.",
     checklistLabel: "Welcome",
     docsPath: "/getting-started/overview"
   },

@@ -2,7 +2,7 @@
 
 **A self-hosted AI agent workspace for real work.** Give an agent a task and it works in its own sandbox on your server: it runs commands, writes code, browses, builds documents, and keeps going while you're away. Use any model that speaks the OpenAI Responses API.
 
-[Quickstart](#quickstart) · [Documentation](apps/docs/docs/index.md) · [What you can count on](apps/docs/docs/introduction/principles.md) · [Known limitations](apps/docs/docs/introduction/limitations.md)
+[Quickstart](#quickstart) · [Documentation](apps/docs/docs/index.md) · [Overview](apps/docs/docs/introduction/principles.md) · [Known limitations](apps/docs/docs/introduction/limitations.md)
 
 ## Why Meowbert
 

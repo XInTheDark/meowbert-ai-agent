@@ -47,40 +47,9 @@ Where project and workspace files live. The default keeps everything under `/srv
 
 ### Local task execution
 
-Local execution is disabled by default. Enable `localExecution.enabled` and configure the worker's `runApi` listener and an API-reachable worker URL before enabling it in the desktop app. The API forwards scoped Run API requests to the claiming worker; keep that listener private. Model calls continue to use server credentials, which are never sent to the desktop.
+Meowbert Desktop can execute tasks on the user's computer while the server keeps conversations, model access and task state. Local execution is disabled by default; both a server configuration change and desktop setup are required.
 
-Use the published sandbox image with a multi-architecture manifest digest. Cloud workers use `linux/amd64`; Apple Silicon and Windows arm64 devices use `linux/arm64`, and Windows x64 uses `linux/amd64`. Docker Desktop must run Linux containers. The Windows default transport is `npipe:////./pipe/dockerDesktopLinuxEngine`; a different local pipe can be selected with `DOCKER_HOST`.
-
-For another machine to run a server-hosted workspace, export the backend root over SMB or NFS and mount that same root on the device. Enter its backend ID and mount path in Desktop Preferences. The folder must contain the server-written `.meowbert-storage.json` marker. Docker Desktop also needs access to the mount. UID mapping, NFS squash rules, SMB permissions, and Docker file sharing are the operator's responsibility. Storage probes fail closed. Host mode is available only after explicit device consent; declining a sandbox download starts nothing automatically.
-
-Every user who can mount a backend can read that backend. Use separate storage backends per tenant on a multi-tenant installation. Independent mounts of the same remote service, including Google Drive for desktop alongside server rclone, remain unsupported because their caches can disagree.
-
-Apply all migrations through `146_device_workspaces.sql` before starting the updated services. The Run API protocol is version 2; update the server and desktop together. Uploads record size and SHA-256. Device outputs persist as pending and are checked by name with backoff for up to 30 minutes. Completion queues memory indexing immediately and at one and five minutes, with durable retries after restarts. No workspace or project directory scan is used for these checks.
-
-Device-hosted workspaces need no server mount or quota. Migration 146 persists their fixed file host, keeps absolute device paths off the server, and records durable cleanup tombstones. All their runs, including recurring runs, target the owning device. Relink revokes the old epochs and waits 90 seconds before reassigning unfinished runs. Workspace deletion preserves the user folder. Server-only file features are disabled, while conversations, settings and model usage remain server-managed.
-
-The model proxy checks device-supplied tool schemas against the run's builtin definitions and trusted installed skill catalogs, including lazy tool discovery. It allows one in-flight model request per run and four per user across workers, using PostgreSQL advisory locks released on completion or connection loss. Admission connections use a separate pool so model billing keeps access to the main pool.
-
-Live Google Drive folders use the desktop app's bundled, checksum-pinned rclone on macOS, with the built-in NFS client and no macFUSE. They are currently host-mode only: Docker Desktop bind visibility has not been accepted. The Run API returns rclone credentials only for a current macOS host lease, an attached folder and the user who connected the workspace's Drive account, after connection-specific consent. These credentials include the provider client secret and a persistent full-Drive token; a folder root is not a token permission boundary. Disconnecting Drive revokes its refresh token at Google before removing the saved connection. Failed revocation remains retryable.
-
-For the local NFS acceptance test, build the desktop runtime and run this on macOS; it uses a temporary local alias, requires no Google account, and verifies named reads/writes, config permissions and crash cleanup:
-
-```sh
-npm run build:desktop
-TEST_LIVE_FOLDER_NFS=1 npm run test --workspace apps/desktop -- src/main/live-folders/native-mount.integration.test.ts
-```
-
-This does not establish Google account access, Docker NFS bind support, signing/notarization, or packaged-app acceptance. Those require the actual account and target hosts.
-
-Host mode and host shell have the authority of the desktop user and require consent on that device. Computer Use and the persistent Chrome profile are separate opt-in host tools. Do not enable host execution on an untrusted shared machine.
-
-Before accepting a new Docker Desktop/network-share combination, run the opt-in mount test from the repository on the device. Set `TEST_LOCAL_STORAGE_ROOT`, `TEST_LOCAL_STORAGE_BACKEND_ID`, `TEST_LOCAL_STORAGE_INSTALL_ID`, and `TEST_LOCAL_SANDBOX_IMAGE` to the actual mounted backend and pinned image, then run:
-
-```sh
-npm run test --workspace apps/desktop -- src/main/storage/network-storage.integration.test.ts
-```
-
-This checks the marker, a container write/delete probe, and host/container named-file reads and writes. It requires a running daemon and the image already installed. Also verify a packaged desktop task, cancellation, follow-up, and delayed server visibility on each target platform; passing mocked tests alone does not establish network-mount support.
+See [Local execution](./local-execution) for the JSON settings, internal worker address, shared-storage examples, and the difference between server-hosted and device-hosted workspaces. Desktop users should start with the [Local tasks overview](/getting-started/desktop-app/local-tasks).
 
 ### Task scratch
 

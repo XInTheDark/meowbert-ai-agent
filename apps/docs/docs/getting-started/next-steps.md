@@ -20,7 +20,7 @@ You've set up a project and run your first task. Here's how to get the most out 
 
 | Feature | Why it matters |
 |---|---|
-| [Desktop App](/getting-started/desktop-app) | Learn the native shortcuts, desktop notifications, file dialogs, and local folder actions available in Meowbert Desktop. |
+| [Desktop App](/getting-started/desktop-app) | Understand local execution, choose a workspace setup, and use desktop shortcuts and native integrations. |
 | [Agents & Personalities](/core-workflows/agents-and-personalities) | Control reasoning depth and tone on a per-task or per-project basis. |
 | [Context Compaction](/core-workflows/context-compaction) | Understand how Meowbert handles long conversations automatically. |
 | [Connectors](/core-workflows/connectors) | Let your team submit tasks from Telegram, Discord, or GitHub without opening the web app. |

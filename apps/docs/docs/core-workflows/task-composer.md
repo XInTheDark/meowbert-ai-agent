@@ -9,6 +9,20 @@ checklistLabel: Task composer
 
 The Task Composer is where you define a new task. A well-constructed task gets better results — this page explains every option available.
 
+## Overview
+
+A new task combines an outcome, the files it needs and choices about how the agent should work. Choose the Project first so the task has the right files and context, then describe the output you want.
+
+| Composer choice | What it controls |
+| --- | --- |
+| Prompt and attachments | The goal and source material |
+| Agent preset | The model and its defaults |
+| Workflow | Standard execution, research, review or Agent Swarm |
+| Tools and skills | The actions the agent can use |
+| Cloud or Local, in the desktop app | The computer that executes commands; it does not move workspace files |
+
+Use the defaults for a first task. The sections below explain individual choices when you need to change them.
+
 ## Writing an effective prompt
 
 Your prompt is the agent's instruction set. Structure it like this:
@@ -37,6 +51,12 @@ Below the prompt field, you can choose an **agent preset**. Agents control the r
 If you're unsure, leave it on **Default**. See [Agents & Personalities](/core-workflows/agents-and-personalities) for more detail.
 
 Some presets may be visible only to super-admin accounts, depending on how your platform is configured.
+
+## Choosing where the task runs
+
+In Meowbert Desktop, a server-hosted workspace defaults to **Cloud**. Once your server operator has enabled local execution and your computer has access to the workspace's shared storage, choose **Local · your computer's name** in the composer. Then choose **Sandbox** for Docker Desktop or **Host** for execution directly on your computer. Local tasks use the **Standard** workflow.
+
+Switching to Local does not download or move the server workspace. A workspace created **On this device** always targets its owning computer and has no Cloud/Local selector. See [Local tasks in the desktop app](/getting-started/desktop-app/local-tasks) for setup, storage requirements and mode permissions. The browser version does not offer the Local selector.
 
 ## Choosing a workflow
 

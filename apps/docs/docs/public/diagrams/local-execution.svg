@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="380" viewBox="0 0 560 380" role="img" aria-labelledby="title desc">
+  <title id="title">What a local task changes</title>
+  <desc id="desc">Your computer runs task commands. The server keeps the conversation and calls the chosen model provider. Workspace file location is a separate choice.</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <style>text{font-family:system-ui,-apple-system,sans-serif;fill:#1e293b}.box{fill:#f1f5f9;stroke:#94a3b8;stroke-width:1.5}.title{font-size:21px;font-weight:650}.copy{font-size:18px}.arrow{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}</style>
+  <rect width="560" height="380" rx="12" fill="#fff"/>
+  <rect class="box" x="16" y="20" width="246" height="110" rx="10"/>
+  <text class="title" x="32" y="53">Your computer</text>
+  <text class="copy" x="32" y="83">Meowbert Desktop</text>
+  <text class="copy" x="32" y="108">Runs commands locally</text>
+  <rect class="box" x="300" y="20" width="244" height="110" rx="10"/>
+  <text class="title" x="316" y="53">Meowbert server</text>
+  <text class="copy" x="316" y="83">Conversation + task state</text>
+  <text class="copy" x="316" y="108">Model access and usage</text>
+  <path class="arrow" marker-start="url(#arrow)" d="M 266 74 H 295"/>
+  <path class="arrow" d="M 139 134 V 215"/>
+  <rect x="51" y="157" width="176" height="28" fill="#fff"/>
+  <text class="copy" x="139" y="177" text-anchor="middle">runs commands</text>
+  <path class="arrow" d="M 422 134 V 215"/>
+  <rect x="334" y="157" width="176" height="28" fill="#fff"/>
+  <text class="copy" x="422" y="177" text-anchor="middle">calls the model</text>
+  <rect class="box" x="16" y="220" width="246" height="106" rx="10"/>
+  <text class="title" x="32" y="253">Local execution</text>
+  <text class="copy" x="32" y="282">Sandbox in Docker</text>
+  <text class="copy" x="32" y="307">or Host as your account</text>
+  <rect class="box" x="300" y="220" width="244" height="106" rx="10"/>
+  <text class="title" x="316" y="253">Your model provider</text>
+  <text class="copy" x="316" y="282">Chooses actions</text>
+  <text class="copy" x="316" y="307">and writes responses</text>
+  <text class="copy" x="280" y="360" text-anchor="middle">Files can live on the server or on this device.</text>
+</svg>

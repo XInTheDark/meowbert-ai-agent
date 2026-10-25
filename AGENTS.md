@@ -85,6 +85,15 @@
 - If you added a new feature, then ask the user if he wants you to update CHANGELOG, and update the docs website.
   - Guideline: Make sure to keep the same formatting & tone when updating changelog or docs! The docs have two audiences: people using Meowbert (Getting Started, Projects, Tasks, AI & Agents, Connectors), and people running their own server (Self-Hosting). Keep user pages free of server internals, and put setup and config details in the Self-Hosting section.
 
+### Documentation writing
+
+- Start with an overview: explain what the feature is, how its main parts relate, and when someone would use it before listing settings or setup steps. Assume the reader has no existing mental model.
+- The Introduction must introduce the project itself. Use concrete titles such as Overview; avoid slogans, promises, marketing copy, and vague names such as What You Can Count On.
+- Use a simple diagram, example, or comparison when it makes a relationship easier to understand. Explain distinctions such as where files live versus where commands run before asking readers to configure them.
+- Keep important details, but split long guides into focused nested pages with an overview and clear links to the relevant setup or reference page. Do not turn an overview into one long checklist.
+- Keep user workflows separate from server configuration. Include usable JSON examples when documenting configuration, explain where they belong, and identify example values and prerequisites.
+- Use plain language and exact UI labels. Organize content around the reader's goal, with limitations and permissions next to the choices they affect.
+
 
 ## Commit & Pull Request Guidelines
 - Follow concise Conventional Commit style when possible: `feat:`, `fix:`, `chore:`.

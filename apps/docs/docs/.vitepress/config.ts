@@ -61,7 +61,7 @@ export default defineConfig({
       {
         text: "Introduction",
         items: [
-          { text: "What You Can Count On", link: "/introduction/principles" },
+          { text: "Overview", link: "/introduction/principles" },
           { text: "System Requirements", link: "/introduction/requirements" },
           { text: "Known Limitations", link: "/introduction/limitations" },
           { text: "Quickstart", link: "/getting-started/quickstart" }
@@ -70,11 +70,23 @@ export default defineConfig({
       {
         text: "Getting Started",
         items: [
-          { text: "Overview", link: "/getting-started/overview" },
+          { text: "Workspaces, Projects and tasks", link: "/getting-started/overview" },
           { text: "Workspace Navigation", link: "/getting-started/workspace-navigation" },
           { text: "Open Your Project", link: "/getting-started/create-project" },
           { text: "Project Master", link: "/getting-started/project-master" },
-          { text: "Desktop App", link: "/getting-started/desktop-app" },
+          {
+            text: "Desktop App",
+            link: "/getting-started/desktop-app",
+            collapsed: false,
+            items: [
+              { text: "Local tasks overview", link: "/getting-started/desktop-app/local-tasks" },
+              { text: "Use a server workspace locally", link: "/getting-started/desktop-app/server-workspaces" },
+              { text: "Workspaces on this device", link: "/getting-started/desktop-app/device-workspaces" },
+              { text: "Host mode and host tools", link: "/getting-started/desktop-app/host-tools" },
+              { text: "Live Google Drive folders", link: "/getting-started/desktop-app/live-drive-folders" },
+              { text: "Quick Agent and shortcuts", link: "/getting-started/desktop-app/shortcuts" }
+            ]
+          },
           { text: "Next Steps", link: "/getting-started/next-steps" }
         ]
       },
@@ -122,7 +134,12 @@ export default defineConfig({
         text: "Self-Hosting",
         items: [
           { text: "Configuration", link: "/self-hosting/configuration" },
-          { text: "Models & Providers", link: "/self-hosting/models-and-providers" },
+          { text: "Local execution", link: "/self-hosting/local-execution" },
+          {
+            text: "Models & Providers",
+            link: "/self-hosting/models-and-providers",
+            items: [{ text: "Agent presets", link: "/self-hosting/agent-presets" }]
+          },
           { text: "Sandbox & Security", link: "/self-hosting/sandbox-security" },
           { text: "Users & Sign-ups", link: "/self-hosting/users-and-signups" },
           { text: "Custom Skills", link: "/self-hosting/custom-skills" },
@@ -130,7 +147,11 @@ export default defineConfig({
           { text: "Outgoing Email", link: "/reference/email-delivery" },
           { text: "Inbound Email", link: "/core-workflows/connectors-email-inbound-admin" },
           { text: "Sources", link: "/reference/sources-admin-setup" },
-          { text: "Storage Backends", link: "/reference/storage-backends" },
+          {
+            text: "Storage Backends",
+            link: "/reference/storage-backends",
+            items: [{ text: "Storage mounts", link: "/reference/storage-mounts" }]
+          },
           { text: "XFS Project Quotas", link: "/reference/xfs-project-quotas" },
           { text: "Scheduled Usage Activation", link: "/core-workflows/scheduled-usage-activation" },
           { text: "Example: Coolify", link: "/reference/coolify-runtime-storage" }

@@ -1,37 +1,57 @@
 ---
-title: What You Can Count On
-summary: The promises Meowbert makes about where it runs, which models it uses, and what happens to your work.
+title: Overview
+summary: What Meowbert is, how agents do work, and where the server, files and models fit.
 ---
 
-# What You Can Count On
+# Overview
 
-Meowbert is built for people who want a capable AI agent without handing their work to someone else's cloud. These are the things it's designed to guarantee.
+Meowbert is a self-hosted app for running AI agents that do work with files, code, browsers and connected services. You describe an outcome, the agent uses tools to work toward it, and the task keeps a conversation and record of what happened.
 
-## It runs on your hardware
+For example, you can ask it to analyze a spreadsheet and write a report, change and test a codebase, or process a recurring request from a connected messaging app. You can follow up in the same task rather than starting over.
 
-Meowbert is fully self-hosted. The web app, API, worker, database, search index, and every agent sandbox run on a machine you control, whether that's a home server, a VPS, or a laptop. There's no Meowbert cloud service behind it, and nothing is sent to the Meowbert project. The code contains no telemetry or analytics.
+## How it works
 
-The only outside service it needs is the model provider you choose, and that can also be a model server you run yourself.
+Three parts work together:
 
-## You choose the model
+- **The app** is where you describe work, attach files, read results and steer a task. Use the browser or Meowbert Desktop.
+- **Your Meowbert server** stores conversations and settings, coordinates tasks, and connects to your chosen models.
+- **The task executor** runs commands and tools. It normally runs in a sandbox on the server; the desktop app can also execute tasks on your computer.
 
-Meowbert talks to models through the **OpenAI Responses API**. Any provider or gateway that implements it works: OpenAI itself, API gateways and proxies, or a local model server with Responses support. You can offer several models side by side and set different reasoning effort for each. An [Agent Swarm](/core-workflows/task-workflows) can also run some of its lanes on other models through a model router.
+![Your prompt goes to the Meowbert server, which coordinates task execution and calls your chosen model provider.](/diagrams/task-flow.svg)
 
-Users can also bring their own key or sign in with a ChatGPT subscription, if you allow it. See [Bring Your Own Provider](/core-workflows/byo-providers).
+The model decides the next actions; Meowbert executes the tool calls and sends the results back until the task finishes or needs your input. A task is more than a chat response: it can create files, run scripts, test changes and report the result.
 
-## Agents work in a sandbox
+## Workspaces, Projects and tasks
 
-Every task runs in its own short-lived Docker container. The agent gets a real shell and can install packages, run code, and use git, but only inside that container and the project files it was given. The container has a read-only system filesystem, runs without Linux capabilities, and has CPU, memory, and process limits. For stronger isolation you can run sandboxes under gVisor. See [Sandbox & Security](/self-hosting/sandbox-security).
+A **workspace** groups access, connected services and shared settings. A **Project** holds related files, context and task history. A **task** is one conversation about an outcome inside a Project.
 
-## Your work stays yours, and it lasts
+For example, a Personal workspace could have Reports and Website Projects, each with several task conversations. See [Workspaces, Projects and tasks](/getting-started/overview) for the full explanation.
 
-Conversations, files, and task history are stored in your own PostgreSQL database and on your own disk. Nothing expires. You can:
+## Where the work runs
 
-- Come back to any task days or weeks later and continue the conversation where it left off
-- Branch a conversation to try another approach without losing the original
-- Stop a long-running task and resume it later
-- Restart the server: queued and running work is recovered
+Meowbert's server runs on hardware you control: for example, a home server, VPS or laptop. There is no required Meowbert-operated cloud service. In the task composer, **Cloud** means execution on your Meowbert server.
 
-## It's open source
+Server tasks normally execute in short-lived Docker sandboxes with resource limits. Optional gVisor adds stronger isolation. [Local tasks](/getting-started/desktop-app/local-tasks) execute on your computer through the desktop app, either in Docker or directly in Host mode. Host mode has the authority of your user account and requires permission.
 
-Meowbert is licensed under the [AGPL-3.0](https://github.com/XInTheDark/meowbert-ai-agent/blob/main/LICENSE). You can read every line, change it, and run it however you like. If you offer a modified version to other people over a network, the license asks you to share your changes too.
+Where commands run and where files live are separate decisions. A local task can use an existing server workspace only when it can access that workspace's storage. A workspace created **On this device** keeps its files on the owning computer.
+
+## Models and data
+
+You choose the model provider. Meowbert supports providers and gateways with the OpenAI Responses API, including compatible model servers you run yourself. Operators can offer multiple models and agent presets; users can bring their own provider when enabled.
+
+The Meowbert server stores conversations and task settings. Workspace files live on their configured server storage or owning device. Content the agent reads is sent to the selected model provider, even when the task executes locally. Self-hosting Meowbert does not automatically make an external model provider local.
+
+See [Models & Providers](/self-hosting/models-and-providers) for operator settings and [Bring Your Own Provider](/core-workflows/byo-providers) for user connections.
+
+## Ways to use Meowbert
+
+| You want to… | Start here |
+| --- | --- |
+| Use an existing server and run a first task | [Workspaces, Projects and tasks](/getting-started/overview) |
+| Install your own server | [Quickstart](/getting-started/quickstart) |
+| Work from your computer's desktop app | [Desktop App](/getting-started/desktop-app) |
+| Run tasks on a schedule | [Scheduled & Infinite Tasks](/core-workflows/scheduled-tasks) |
+| Plan and review larger work, or split it across agents | [Workflows & Agent Swarm](/core-workflows/task-workflows) |
+| Send tasks from Telegram, Discord, GitHub or email | [Connectors](/core-workflows/connectors) |
+
+Meowbert is open source under the [AGPL-3.0](https://github.com/XInTheDark/meowbert-ai-agent/blob/main/LICENSE). See [System Requirements](/introduction/requirements) and [Known Limitations](/introduction/limitations) before choosing a hosting setup.

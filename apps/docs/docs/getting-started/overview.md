@@ -1,67 +1,62 @@
 ---
-title: Welcome to Meowbert
-summary: Get oriented quickly, then work through the most common workflows.
+title: Workspaces, Projects and tasks
+summary: Understand how work is organized before creating your first task.
 onboardingId: welcome
 checklistLabel: Welcome
 ---
 
-# Welcome to Meowbert
+# Workspaces, Projects and tasks
 
-Meowbert lets you run AI agents that execute real shell commands inside sandboxed workspace projects. Think of it as a team-aware platform where you describe outcomes in plain language and the agent does the work — writing files, running scripts, calling APIs, and reporting back.
+## Overview
 
-## The three-tier model
+Meowbert organizes your work into three levels: a **workspace** contains **Projects**, and each Project contains **tasks**. Choose the Project that holds the files and context for your work, then start a task for the outcome you want.
 
-Everything in Meowbert is organized in three layers:
+For example, your Personal workspace might have a Reports Project for analysis and a Website Project for code changes:
 
-### 1. Workspace
-A workspace is the top-level container for your team or project. It holds:
-- **Members** — the people who have access.
-- **Connectors** — integrations with Telegram, Discord, and GitHub so tasks can be triggered externally.
-- **Notifications** — browser push alerts for task completions and events.
-- **Memory** — if enabled, a shared `.memory` directory and `MEMORY.md` that persist across all projects in the workspace.
-- **Subscription & limits** — concurrency and usage caps.
+![A Personal workspace contains Reports and Website Projects; each Project has its own task conversations.](/diagrams/workspace-project-task.svg)
 
-You can belong to multiple workspaces and switch between them freely.
+| Level | What it groups | Example |
+| --- | --- | --- |
+| **Workspace** | People, access, connected services, shared settings and memory | Personal, or your team's workspace |
+| **Project** | Related files, Project Context and task history | Reports or Website |
+| **Task** | A conversation and the work toward a particular outcome | Analyze sales, or fix website navigation |
 
-### 2. Project
-A project is a runtime area — a directory on the server where files live and shell sessions run. Each project has its own:
-- **Root directory** — files written by tasks or uploaded by you persist here.
-- **Shell sessions** — you can open a live terminal attached to this directory.
-- **Settings** — personality, default context, sandbox network policy, and task concurrency limits.
-- **Task history** — all tasks that ran in this project.
+If you are new to the product itself, start with the [Meowbert overview](/introduction/principles).
 
-A workspace can have many projects. Common patterns are one per project, one per deployment target (e.g., `staging`, `production`), or one per team member.
+## Workspace: access and shared settings
 
-### 3. Task
-A task is a single AI conversation. When you submit a prompt, the agent:
-1. Reads the conversation history.
-2. Calls the configured model.
-3. Executes any shell commands the model emits.
-4. Records output as events.
-5. Loops until the task is complete or you cancel it.
+Use a workspace for work that shares members, connectors and settings. You can belong to several and switch between them from the workspace dropdown.
 
-Task runs and terminal sessions use short-lived Docker sandbox containers. Meowbert does not keep one container per project running all the time, so idle projects stay lightweight.
+Workspace memory, when available and enabled, persists useful notes across its Projects. Usage and concurrency limits also apply at workspace level. A workspace created **On this device** is single-user; its files and task execution belong to that computer.
 
-Tasks keep their full message history, so you can follow up, branch to alternatives, or inspect exactly what happened.
+## Project: related files and context
 
-## Quick path to your first task
+Use separate Projects for distinct bodies of work. A Project holds the files and context its tasks need, the tasks that worked on them, and settings such as its personality and defaults.
 
-1. Open the left sidebar and choose your workspace.
-2. Open the default project, or create another one if you need a separate runtime.
-3. Click **New Task** and describe what you want done.
-4. Watch the events stream as the agent works.
-5. Follow up with clarifications or corrections in the same conversation.
+A Project is not a permanently running container. Meowbert starts task sandboxes when needed, so keeping an idle Project does not mean leaving a container running. Most workspaces store Project files on the server; device workspaces store them on the owning computer.
 
-## What these docs cover
+Use [Project Context](/getting-started/create-project) for material tasks should share. Open [Project Overview](/core-workflows/project-overview) to browse task history. [Agent shell sessions](/core-workflows/agent-shells) shows background commands started by a task where that feature is available.
 
-- [Workspace Navigation](/getting-started/workspace-navigation) — moving around the UI.
-- [Open Your Project](/getting-started/create-project) — getting into the default runtime and creating more later.
-- [Task Composer](/core-workflows/task-composer) — writing effective prompts and enabling tools.
-- [Workspace Memory](/core-workflows/workspace-memory) — storing durable notes the agent can reuse across tasks.
-- [Task Follow-up](/core-workflows/task-follow-up) — steering and inspecting agent runs.
-- [Agents & Personalities](/core-workflows/agents-and-personalities) — controlling reasoning effort and tone.
-- [Context Compaction](/core-workflows/context-compaction) — how long conversations are managed.
-- [Connectors](/core-workflows/connectors) — triggering tasks from Telegram, Discord, and GitHub.
-- [Files Browser](/core-workflows/files-browser) — working with task output files.
-- [Agent shell sessions](/core-workflows/agent-shells) — inspect and stop background commands.
-- [Skills](/reference/skills) — MCP-based tool extensions.
+## Task: a conversation you can continue
+
+Start a task for a specific outcome. The agent calls a model, uses tools, reads their results and continues until it finishes, needs your input or is stopped.
+
+A **task** is the conversation. A **run** is one period of execution within it. Following up in the same task starts more work with that conversation's context, rather than creating an unrelated task.
+
+You can inspect the messages and tool results, attach more files, correct an instruction, or branch to try a different approach. Tasks in the same Project share its context and accessible Project files, but keep separate conversations.
+
+## Where the task runs
+
+A server-hosted workspace defaults to **Cloud**, meaning the task executes on your Meowbert server. The desktop app also offers **Local** execution on your computer after setup. This choice does not move the workspace files.
+
+A workspace created **On this device** keeps its files on that computer and always targets it. See the [Local tasks overview](/getting-started/desktop-app/local-tasks) before choosing between these arrangements.
+
+## Start your first task
+
+1. Choose your workspace in the sidebar.
+2. Open the default Project, or create a Project for a separate body of work.
+3. Choose **New Task** and describe the output you want. Attach any source files it needs.
+4. Read the progress and tool results while the agent works.
+5. Follow up in the same conversation with corrections or the next step.
+
+Next, see [Task Composer](/core-workflows/task-composer) for the task options, [Files Browser](/core-workflows/files-browser) for outputs, or [Task Follow-up](/core-workflows/task-follow-up) for continuing work.

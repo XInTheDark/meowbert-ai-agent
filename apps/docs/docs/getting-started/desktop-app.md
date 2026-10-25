@@ -1,11 +1,24 @@
 ---
 title: Desktop App
-summary: Use Quick Agent, desktop shortcut preferences, notifications, file dialogs, and local folder actions in Meowbert Desktop.
+summary: Connect to Meowbert and choose whether tasks run on the server or your computer.
 ---
 
 # Desktop App
 
-Meowbert Desktop uses the same core product UI as the web app, with a few native integrations layered on top. This page shows where those desktop-only features live and how to use them.
+## Overview
+
+Meowbert Desktop is a Mac and Windows app for your Meowbert server. You sign into the same account and use the same workspaces, Projects and task conversations as in the browser.
+
+The app can also execute tasks on your computer. **Connecting to a server and choosing where a task runs are separate decisions:** opening the desktop app does not automatically make tasks local.
+
+| What you want to do | Guide |
+| --- | --- |
+| Understand what Local changes | [Local tasks](./desktop-app/local-tasks) |
+| Run an existing server workspace on your computer | [Use a server workspace locally](./desktop-app/server-workspaces) |
+| Keep a new workspace's files on this computer | [Workspaces on this device](./desktop-app/device-workspaces) |
+| Allow commands, screen control or browser access on your computer | [Host mode and host tools](./desktop-app/host-tools) |
+| Use attached Google Drive folders in a local task | [Live Google Drive folders](./desktop-app/live-drive-folders) |
+| Open Quick Agent or customize keyboard shortcuts | [Quick Agent and shortcuts](./desktop-app/shortcuts) |
 
 <script setup lang="ts">
 const releaseRepository = ((import.meta.env.VITE_DESKTOP_RELEASE_REPOSITORY as string | undefined) ?? "XInTheDark/meowbert-ai-agent").trim();
@@ -25,7 +38,6 @@ const windowsDownloadUrl = `${releasesBaseUrl}/latest/download/Meowbert-desktop-
 
 > macOS downloads are currently unsigned preview builds. In-app auto-update is enabled on Windows first; macOS auto-update lands once signed and notarized releases are available.
 
-
 ## Switching servers
 
 When you first open Meowbert Desktop, you'll see a welcome screen with two choices:
@@ -38,76 +50,37 @@ After setup, you can reopen server settings any time from either of these places
 - The **Server: ...** button near the bottom of the sidebar.
 - The command palette action **Desktop Server Profiles**.
 
+Choosing **This computer** connects to a server already running on your computer. It does not install a server or select Local for every task. Choosing a remote server does not prevent local execution, but a server-hosted workspace needs shared storage for a local task.
+
+## Local tasks
+
+The server keeps the conversation and calls the model. For a local task, your computer executes the commands. A task can use an existing server workspace if your computer can access its storage, or a separate workspace whose files live on your device.
+
+Start with the [Local tasks overview](./desktop-app/local-tasks), then follow [Use a server workspace locally](./desktop-app/server-workspaces) or [Workspaces on this device](./desktop-app/device-workspaces).
+
+### Workspaces on this device
+
+Choose **On this device** when creating a new workspace to keep its files in a folder on your computer. Its tasks always target that computer. This does not convert an existing server workspace. See the [device workspace guide](./desktop-app/device-workspaces).
+
+### Live Google Drive folders
+
+On macOS, local Host tasks can use attached Drive folders with explicit connection consent. This is separate from sharing a server workspace's storage. See the [Drive folder guide](./desktop-app/live-drive-folders).
+
 ## Desktop preferences
 
-Desktop-only settings live in **Desktop Preferences**.
+Open **account menu → Desktop Preferences**, use the command palette action **Desktop Preferences**, or choose **View → Desktop Preferences** in the app menu.
 
-You can open that page from:
-
-- the **Desktop Preferences** button in the sidebar,
-- the command palette action **Desktop Preferences**,
-- the app menu item **View → Desktop Preferences**.
-
-Right now, Desktop Preferences includes a dedicated **Keyboard Shortcuts** section where you can:
-
-- change the global **Quick Agent** shortcut,
-- change the in-app desktop shortcuts,
-- clear a shortcut,
-- reset everything back to the defaults.
-
-## Keyboard shortcuts
-
-These shortcuts are configurable in **Desktop Preferences**.
-
-| Default shortcut | Action |
-|---|---|
-| `Cmd/Ctrl + Shift + Space` | Open **Quick Agent** from anywhere on your computer |
-| `Cmd/Ctrl + K` | Open the command palette |
-| `Cmd/Ctrl + N` | Start a new task in the current project |
-| `Cmd/Ctrl + Shift + F` | Open the Files page for the current project |
-| `Cmd/Ctrl + Shift + U` | Open the native file picker |
-| `Cmd/Ctrl + Shift + O` | Open the current project folder in Finder / Explorer / your file manager |
+- **Local Execution** sets storage, task capacity, Sandbox or Host mode, and optional host tools.
+- **Computer Use** manages screen-control permissions.
+- **Shortcuts** customizes global and in-app keyboard shortcuts.
 
 ## Quick Agent
 
-**Quick Agent** is a floating desktop composer that can be opened even while you're in another app.
+Open the floating composer from another app with **Cmd/Ctrl + Shift + Space**. It starts a task in your selected workspace and Project. See [Quick Agent and shortcuts](./desktop-app/shortcuts).
 
-It uses the same task input UI as the normal composer, including:
+## Keyboard shortcuts
 
-- file attachments,
-- tool toggles,
-- skills,
-- agent selection.
-
-By default, Quick Agent sends the new task to your most recently used workspace and project. Inside the floating window, you can also switch the target workspace or project before sending.
-
-After you submit, Meowbert Desktop jumps straight to the new task in the main window.
-
-## Command palette
-
-The command palette is still the quickest way to move around once Meowbert Desktop is focused. Open it with its configured shortcut, then search for actions like:
-
-- **All Projects**
-- **New Task**
-- **Files**
-- **Upload Files**
-- **Reveal Project Folder**
-- **Quick Agent**
-- **Desktop Preferences**
-- **Desktop Server Profiles**
-
-## Window navigation
-
-Use the app menu for window-level navigation:
-
-- **View → Back**
-- **View → Forward**
-- **View → Reload**
-
-Common shortcuts:
-
-- macOS: `Cmd + [`, `Cmd + ]`, `Cmd + R`
-- Windows / Linux: `Alt + Left`, `Alt + Right`, `Ctrl + R`
+Use **Desktop Preferences → Shortcuts** to change or clear bindings. The [shortcut reference](./desktop-app/shortcuts#keyboard-shortcuts) lists the defaults.
 
 ## Desktop notifications
 
@@ -142,47 +115,6 @@ You can do that from:
 
 > **Note:** Folder reveal only works in local desktop mode. If you're connected to a hosted server, those files live on the server, not on your Mac or PC.
 
-## Local tasks
-
-When your server enables local execution, Meowbert Desktop can run standard tasks in Docker Desktop on an Apple Silicon Mac or Windows x64/arm64 computer. In **Desktop Preferences → Local Execution**, choose the server storage backend and its mounted folder, enable local execution, and keep Docker Desktop running with Linux containers. Then choose **Local** in the task composer. Cloud remains the default, and the web app does not offer the Local control.
-
-The selected folder must be the same storage backend the server uses. For a server on another machine, your operator exports that storage over SMB or NFS and you mount it yourself. Meowbert checks the storage identity and tests read/write access from Docker before running tasks. Docker Desktop must be able to share the selected folder; a share that fails the probe cannot run local tasks.
-
-On first use, the app asks before downloading the sandbox. It uses the server's pinned release and downloads updates automatically after consent. Keep the app open while tasks run; closing it stops their containers. Local tasks still use the server's model connection and budget.
-
-If an uploaded input has not reached your mount yet, the task waits for storage and retries. Outputs show **Syncing** until the server verifies them; they become downloadable when ready. An output that does not arrive within 30 minutes is marked **Missing**.
-
-Choose **Sandbox** or **Host** beside Local. Sandbox is the default and runs commands in Docker. Host runs commands directly as you and can read or change any of your files. Enabling it requires confirmation in Local Execution preferences. You can also enable **Host shell** for commands outside the sandbox. Host mode uses only host-supported bundled skills and does not install missing runtime tools.
-
-Enable **Computer Use** for screen control, subject to your system's permissions. **Your Chrome** opens Chrome, or Edge when Chrome is unavailable, with a separate persistent Meowbert profile. Log into sites in that window to keep those logins between tasks. Each resource has one task owner at a time. Closing the desktop app stops local commands and containers.
-
-Local tasks support schedules and recurring runs, which wait while their device is offline. Threads, subagents, Agent Swarm, Project Master and Long Horizon workflows remain unavailable locally.
-
-### Live Google Drive folders
-
-On macOS, enable **Live Google Drive folders** in Local Execution preferences and choose **Host** for tasks that use them. Connect Google Drive in your workspace, then attach a folder in **Live sync** mode to a task or Project Context. Only the person who connected that Google Drive account can mount its folders locally. Windows and local sandbox mode do not support these mounts.
-
-The first mount asks permission to store a credential with access to your **entire Google Drive**, even when you attach just one folder. Approval is remembered for that device, server and connection; reconnecting the account asks again. Ending a task, disabling live folders, or removing a device cleans up the app's local credentials but cannot revoke a copy someone kept. To revoke every copy, disconnect Google Drive in Meowbert or remove Meowbert's access from your Google account. If disconnecting fails, retry until it succeeds.
-
-Folders mount while local tasks use them and unmount after the last task finishes. Files stream as needed and edits upload automatically. In device workspaces, Files and Project Context show the linked folder; browse its contents in Google Drive or ask a local host task to use it. Removing the linked folder from Files unlinks it without deleting anything from Google Drive.
-
-### Workspaces on this device
-
-In **Manage Workspaces**, choose **On this device**, enter a name and pick a folder. Files stay there, and every task runs on its owning device. What an agent reads still goes to the model through your server; conversations and settings are stored on the server.
-
-Use Files, Project Context, uploads, downloads and memory files in the desktop app on that device. Other devices and the web app can show conversations but direct file views to the owning device. Device workspaces are single-user. Live Google Drive folders are available on macOS in host mode; other linked-source file sync, canvases, project terminals, server memory search and automatic memory refresh are unavailable.
-
-After reinstalling the app or moving the folder to another computer, use **Relink** in Manage Workspaces and select the existing folder. Its marker must match. Meowbert revokes the old lease and waits before resuming tasks on the new device. Deleting a workspace never deletes its chosen folder. Task/project cleanup reaches offline devices when they reconnect.
-
 ## External browser handoff
 
 A few flows still open in your system browser by design — for example, some connector auth flows such as GitHub installation. After you finish that flow in the browser, return to Meowbert Desktop and continue where you left off.
-
-## Recommended everyday workflow
-
-1. Open **Quick Agent** when you want to start something fast from anywhere.
-2. Use the command palette to jump around once Meowbert Desktop is frontmost.
-3. Customize the shortcuts you use most in **Desktop Preferences**.
-4. Use the attachment button or your configured upload shortcut to add files.
-5. Enable desktop notifications so you don't need to babysit long-running tasks.
-6. Use **Open Folder** when you want to inspect local files outside the app.

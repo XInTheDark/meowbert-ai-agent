@@ -5,13 +5,13 @@ title: Meowbert Documentation
 hero:
   name: Meowbert
   text: Your own AI agent workspace
-  tagline: Self-hosted, open source, and built for real work. Agents run in sandboxes on your hardware, with any model that speaks the OpenAI Responses API.
+  tagline: Run agents that use files, code, browsers and connected services. Host your own server and choose your models.
   actions:
     - theme: brand
       text: Quickstart
       link: /getting-started/quickstart
     - theme: alt
-      text: What you can count on
+      text: Overview
       link: /introduction/principles
 
 features:
@@ -25,12 +25,13 @@ features:
     details: Scheduled, infinite, and timed tasks, a Project Master that follows up, and results sent to Telegram, Discord, or email.
 ---
 
-## Find your way
+## Start here
 
 | I want to… | Go to |
 | --- | --- |
 | Install Meowbert | [Quickstart](/getting-started/quickstart) |
-| Learn how Meowbert is organized | [Overview](/getting-started/overview) |
+| Understand Meowbert | [Meowbert overview](/introduction/principles) |
+| Learn how work is organized | [Workspaces, Projects and tasks](/getting-started/overview) |
 | Run my first task | [Task Composer](/core-workflows/task-composer) |
 | Run tasks on a schedule or in a loop | [Scheduled & Infinite Tasks](/core-workflows/scheduled-tasks) |
 | Split big work across parallel agents | [Workflows & Agent Swarm](/core-workflows/task-workflows) |
