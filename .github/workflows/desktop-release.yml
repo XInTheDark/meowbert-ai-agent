@@ -191,6 +191,15 @@ jobs:
             RESOURCES="apps/desktop/dist-packages/win-unpacked/resources"
           fi
           ELECTRON_RUN_AS_NODE=1 "${BINARY}" apps/desktop/scripts/verify-package.cjs "${RESOURCES}"
+          node apps/desktop/scripts/verify-renderer.mjs "${BINARY}"
+
+      - name: Upload renderer screenshots
+        if: ${{ !cancelled() && inputs.build_only }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}-screenshots
+          if-no-files-found: ignore
+          path: apps/desktop/dist-packages/renderer-checks/*.png
 
       - name: Upload packaged desktop artifacts
         if: inputs.build_only

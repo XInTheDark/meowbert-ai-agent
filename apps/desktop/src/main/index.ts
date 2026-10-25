@@ -530,7 +530,7 @@ function createComputerUseWindow(): BrowserWindow {
     backgroundColor: "#0c1220",
     autoHideMenuBar: true,
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.mjs"),
+      preload: path.join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -995,7 +995,7 @@ function createMainWindow(initialRoute = MAIN_WINDOW_ROUTE): BrowserWindow {
     backgroundColor: "#0c1220",
     autoHideMenuBar: process.platform !== "darwin",
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.mjs"),
+      preload: path.join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -1038,7 +1038,7 @@ function createQuickAgentWindow(): BrowserWindow {
     autoHideMenuBar: true,
     roundedCorners: true,
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.mjs"),
+      preload: path.join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
