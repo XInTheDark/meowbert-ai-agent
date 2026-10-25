@@ -24,11 +24,11 @@ function fixture(consent = true) {
   return { options, calls, manager, stop, start, fetch };
 }
 
-it("asks consent before fetching credentials, remaps the run path, and releases its mount", async () => {
+it.each([true, false])("asks consent, remaps the run path, and releases its mount for host=%s", async (host) => {
   Object.defineProperty(process, "platform", { value: "darwin" });
   const test = fixture();
   const result = await prepareRunLiveFolders({ options: test.options, bootstrap, runId: "run", token: "lease",
-    consumer: "consumer", host: true, signal: new AbortController().signal });
+    consumer: "consumer", host, signal: new AbortController().signal });
   expect(test.calls).toEqual(["metadata", "consent", "config", "mount"]);
   expect(result[0]).toMatchObject({ taskRelativePath: "/owned/live/docs", localRelativePath: "context/docs" });
   expect(test.fetch).toHaveBeenLastCalledWith(expect.stringContaining("/live-folders/link/rclone-config"), expect.objectContaining({
@@ -48,10 +48,10 @@ it("returns a storage wait without credentials or a mount when consent is declin
   expect(test.start).not.toHaveBeenCalled();
 });
 
-it.each([{ platform: "win32", host: true }, { platform: "darwin", host: false }] as const)("does not request credentials on unsupported $platform host=$host", async ({ platform, host }) => {
+it.each([{ platform: "win32", host: true }, { platform: "win32", host: false }] as const)("does not request credentials on unsupported $platform host=$host", async ({ platform, host }) => {
   Object.defineProperty(process, "platform", { value: platform });
   const test = fixture();
   await expect(prepareRunLiveFolders({ options: test.options, bootstrap, runId: "run", token: "lease",
-    consumer: "consumer", host, signal: new AbortController().signal })).rejects.toThrow("macOS host mode");
+    consumer: "consumer", host, signal: new AbortController().signal })).rejects.toThrow("macOS");
   expect(test.fetch).not.toHaveBeenCalled();
 });

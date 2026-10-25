@@ -72,7 +72,7 @@ export async function startDesktopLocalExecutor(options: DesktopLocalExecutorOpt
           readiness.capabilities.sandboxImageReady = false;
           readiness.capabilities.sandboxDownloadInProgress = false;
           awaitReport();
-          options.onPendingReason?.((options.hostConsent ? "Host mode ready. " : "") + (error instanceof Error ? error.message : String(error)));
+          options.onPendingReason?.((options.hostConsent && readiness.ready ? "Host mode ready. Sandbox unavailable: " : "") + (error instanceof Error ? error.message : String(error)));
         });
         await waitForDeviceRetry(abort.signal, 30_000);
       }

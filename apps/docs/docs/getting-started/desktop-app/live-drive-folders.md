@@ -1,26 +1,26 @@
 ---
 title: Live Google Drive folders
-summary: Attach Drive folders for a macOS Host task without making a working copy.
+summary: Attach Drive folders for a local macOS task without making a working copy.
 ---
 
 # Live Google Drive folders
 
 ## Overview
 
-A live Drive folder lets a local Host task read and edit an attached Google Drive folder as files are needed. Edits upload automatically; this differs from importing a one-off copy into the task.
+A live Drive folder lets a local macOS task read and edit an attached Google Drive folder as files are needed. Edits upload automatically; this differs from importing a one-off copy into the task.
 
 It is a **folder attachment**, not a way to synchronize an entire server workspace. A local task in a server workspace still needs [access to that workspace's storage](./server-workspaces). A device workspace needs only its own local folder.
 
-This feature requires **macOS, Host mode and the user who connected the workspace's Google Drive account**. Windows and local Sandbox mode do not support these mounts.
+This feature requires **macOS and the user who connected the workspace's Google Drive account**. Both Sandbox and Host mode support it. Sandbox mode keeps the sandbox skill catalog and mounts only the attached folders into Docker Desktop. Meowbert checks file visibility and write access inside the sandbox before starting work. Windows does not support these mounts.
 
 ## Attach a folder
 
 1. Enable **Live Google Drive folders** in **Desktop Preferences → Local Execution** and save.
-2. Connect Google Drive in your workspace and choose **Host** for the task.
+2. Connect Google Drive in your workspace and choose **Sandbox** or **Host** for the local task.
 3. Attach a Drive folder in **Live sync** mode to the task or Project Context.
 4. Accept the connection-specific permission prompt before the folder mounts.
 
-Folders mount while local tasks use them and unmount after the last task finishes. In device workspaces, Files and Project Context show the linked folder; browse its contents in Google Drive or ask a local Host task to use it.
+Folders mount while local tasks use them and unmount after the last task finishes. In device workspaces, Files and Project Context show the linked folder; browse its contents in Google Drive or ask a local task to use it.
 
 ## Understand the permission
 

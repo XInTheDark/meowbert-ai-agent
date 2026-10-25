@@ -4,9 +4,10 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, it, vi } from "vitest";
-const calls = vi.hoisted(() => ({ create: vi.fn(), stop: vi.fn() }));
+const calls = vi.hoisted(() => ({ create: vi.fn(), stop: vi.fn(), verifyFolders: vi.fn() }));
 vi.mock("@meowbert/shared/docker-sandbox", () => ({ DockerSandboxManager: class { createPersistentSandbox = calls.create; } }));
 vi.mock("@meowbert/run-executor/agent/task-write-scope", () => ({ buildTaskSandboxMounts: async () => [] }));
+vi.mock("../live-folders/sandbox-probe", () => ({ verifySandboxLiveFolders: calls.verifyFolders }));
 import { createDesktopSandboxMachineProvider } from "./sandbox-machine-host";
 const run = promisify(execFile);
 it("checks backend identity and write/delete access before starting the agent container", async () => {
@@ -29,4 +30,25 @@ it("checks backend identity and write/delete access before starting the agent co
     expect(calls.create).toHaveBeenCalledTimes(1);
     expect(calls.stop).toHaveBeenCalledTimes(2);
   } finally { await fs.rm(root,{recursive:true,force:true}); }
+});
+it.each([false, true])("binds only the run folders and verifies visibility, readOnly=%s", async (isThreadTask) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "meowbert-folders-"));
+  vi.clearAllMocks();
+  calls.create.mockReset(); calls.verifyFolders.mockReset();
+  calls.verifyFolders.mockResolvedValue(undefined);
+  const storageProbe = { stop: vi.fn(), executeShellCommand: vi.fn().mockResolvedValue({ exitCode: 0 }) };
+  const sandbox = { stop: vi.fn() };
+  calls.create.mockResolvedValueOnce(storageProbe).mockResolvedValue(sandbox);
+  try {
+    const provider = createDesktopSandboxMachineProvider({ image: "image", storageRoot: root, backendId: "backend", installId: "install",
+      deviceId: "device", scratchRoot: root, skillsRootDir: "/skills", liveFolderPaths: ["/owned/mounts/attached"] });
+    const taskDir = path.join(root, "task");
+    await provider.start({ taskDir, isThreadTask, resources: {}, log: vi.fn() } as never);
+    expect(calls.create.mock.calls[1][0].mounts).toEqual([{ path: "/owned/mounts/attached", readOnly: isThreadTask }]);
+    expect(calls.verifyFolders).toHaveBeenCalledExactlyOnceWith({ sandbox, paths: ["/owned/mounts/attached"], taskDir, readOnly: isThreadTask });
+    calls.verifyFolders.mockRejectedValueOnce(new Error("mount unavailable"));
+    calls.create.mockResolvedValueOnce(storageProbe).mockResolvedValueOnce(sandbox);
+    await expect(provider.start({ taskDir, isThreadTask, resources: {}, log: vi.fn() } as never)).rejects.toThrow("mount unavailable");
+    expect(sandbox.stop).toHaveBeenCalledOnce();
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
 });

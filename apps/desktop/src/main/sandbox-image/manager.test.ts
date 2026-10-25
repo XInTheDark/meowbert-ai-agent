@@ -20,3 +20,15 @@ it("reuses the exact installed digest without a download", async () => {
   await expect(ensureSandboxImage({ client, image: { reference: "registry/image:main", digest: "sha256:new" } })).resolves.toMatchObject({ downloaded: false });
   expect(client.pull).not.toHaveBeenCalled();
 });
+it("explains a missing native platform and never falls back to an unpinned tag", async () => {
+  const client = { inspect: vi.fn().mockRejectedValue(new Error("not installed")),
+    pull: vi.fn().mockRejectedValue(new Error("no matching manifest for linux/arm64 in the manifest list entries")) };
+  await expect(ensureSandboxImage({ client, image: { reference: "registry/image:main", digest: "sha256:server" } }))
+    .rejects.toThrow("Update the server to a published sandbox image");
+  expect(client.pull).toHaveBeenCalledExactlyOnceWith("registry/image@sha256:server", undefined);
+});
+it("preserves unrelated image download failures", async () => {
+  const error = new Error("registry access denied");
+  const client = { inspect: vi.fn().mockRejectedValue(new Error("not installed")), pull: vi.fn().mockRejectedValue(error) };
+  await expect(ensureSandboxImage({ client, image: { reference: "registry/image:main", digest: "sha256:server" } })).rejects.toBe(error);
+});

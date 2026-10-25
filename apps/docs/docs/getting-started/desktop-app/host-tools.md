@@ -38,4 +38,4 @@ Your Chrome does not reuse your everyday browser profile. Computer Use and the p
 
 ## Live Google Drive folders
 
-These are a separate macOS Host-mode feature. Enabling Host mode alone does not grant Drive access. See [Live Google Drive folders](./live-drive-folders) for connection-specific permission and revocation.
+Live Drive folders work in both Sandbox and Host mode on macOS. Enabling either mode alone does not grant Drive access. See [Live Google Drive folders](./live-drive-folders) for connection-specific permission and revocation.

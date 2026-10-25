@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ bootstrap: vi.fn(), call: vi.fn(), wait: vi.fn(), run: vi.fn(), stop: vi.fn(),
-  verifyStorage: vi.fn(),
+  verifyStorage: vi.fn(), sandboxProvider: vi.fn(),
   remotePresence: vi.fn(), remoteAction: vi.fn(), localPresence: vi.fn(), localAction: vi.fn() }));
 vi.mock("@meowbert/run-executor/agent/index", () => ({ runAgentJob: state.run }));
 vi.mock("@meowbert/run-executor/run-api/client", () => ({ createRunApiClient: () => ({ call: state.call }) }));
@@ -9,7 +9,7 @@ vi.mock("@meowbert/run-executor/run-api/http-run-control", () => ({ createHttpRu
 vi.mock("@meowbert/run-executor/run-api/proxy-model-gateway", () => ({ createProxyModelGateway: () => ({}) }));
 vi.mock("../storage/roots", () => ({ verifyMountedStorage: state.verifyStorage, resolveVerifiedStoragePath: async () => "/mount/project" }));
 vi.mock("../storage/inputs", async () => ({ ...await vi.importActual<typeof import("../storage/inputs")>("../storage/inputs"), waitForRunInputs: state.wait }));
-vi.mock("./sandbox-machine-host", () => ({ createDesktopSandboxMachineProvider: () => ({}), probeDesktopSandboxStorage: async () => {} }));
+vi.mock("./sandbox-machine-host", () => ({ createDesktopSandboxMachineProvider: state.sandboxProvider, probeDesktopSandboxStorage: async () => {} }));
 vi.mock("./local-run-paths", () => ({ localRunRelocationNote: async () => undefined }));
 vi.mock("../computer", () => ({ getComputerUseStatus: state.localPresence }));
 vi.mock("../computer-use/service", () => ({ computerUseService: { performAction: state.localAction, release: vi.fn() } }));
@@ -20,9 +20,37 @@ import { configureLocalRunPlatform } from "./local-run-platform";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.sandboxProvider.mockReturnValue({});
   state.verifyStorage.mockResolvedValue({ ok: true });
   state.bootstrap.mockResolvedValue({ roots: { storageBackendId: "backend", envRootRelative: "project", workspaceRootRelative: "workspace" },
     snapshot: { task: { task_root_path: ".meowbert/task-runs/task" } }, inputs: [{ relativePath: "inputs/file", sizeBytes: 5, sha256: "digest" }] });
+});
+it.each([false, true])("keeps sandbox skills, scopes Drive mounts, and releases them after failure=%s", async (failure) => {
+  state.wait.mockResolvedValue(undefined);
+  const acquire = vi.fn().mockResolvedValue("/owned/mounts/attached");
+  const release = vi.fn();
+  const folder = { linkId: "attached", connectionId: "a".repeat(64), accountLabel: "owner", localRelativePath: "context/docs" };
+  const bootstrap = await state.bootstrap();
+  state.bootstrap.mockResolvedValueOnce({ ...bootstrap, liveSyncFiles: [{ id: "attached", provider: "google-drive",
+    linkKind: "folder", taskRelativePath: "context/docs", localRelativePath: "context/docs" }] });
+  state.run.mockImplementationOnce(async (_job, env) => {
+    expect(env.settings.hostMode).toBe(false);
+    expect(env.settings.skills.rootDir).toBe("/sandbox-skills");
+    expect((await env.control.bootstrap()).liveSyncFiles[0].taskRelativePath).toBe("/owned/mounts/attached");
+    if (failure) throw new StorageNotReadyError("Waiting for storage: live folder unavailable");
+  });
+  const options = { scratchRoot: "/tmp/meowbert-test-scratch", resourcesRoot: "/tmp/meowbert-test-resources",
+    storageBackendId: "backend", storageRoot: "/mount", apiBaseUrl: "https://server.test", deviceId: "device",
+    liveDriveEnabled: true, liveFolders: { acquire, release }, onLiveFolderConsent: vi.fn().mockResolvedValue(true),
+    fetch: vi.fn(async (_url, init) => Response.json(init?.method === "POST" ? { ...folder, config: "private credential" } : { folders: [folder] }))
+  } as unknown as DesktopLocalExecutorOptions;
+  await startLocalRun(options, { request: vi.fn().mockResolvedValue({ token: "lease" }) } as never,
+    { run_id: "run", queue_state: "admitted", payload_json: { taskId: "task", executionTarget: { kind: "local", mode: "sandbox" } } as never },
+    "image", "/sandbox-skills", { skills: {} } as never, "install").done;
+  expect(state.sandboxProvider).toHaveBeenCalledWith(expect.objectContaining({ liveFolderPaths: ["/owned/mounts/attached"], skillsRootDir: "/sandbox-skills" }));
+  expect(release).toHaveBeenCalledWith(expect.stringMatching(/^run:/));
+  if (failure) expect(state.call).toHaveBeenCalledWith("control.releaseForStorage", []);
+  else expect(state.call).not.toHaveBeenCalled();
 });
 it.each([false, true])("refuses admission immediately when storage disappears before claim, throws=%s", async (throws) => {
   if (throws) state.verifyStorage.mockRejectedValueOnce(Object.assign(new Error("Gone"), { code: "ENOENT" }));

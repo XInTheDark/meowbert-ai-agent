@@ -61,7 +61,16 @@ export async function ensureSandboxImage(input: {
 }): Promise<{ downloaded: boolean; digest: string | null }> {
   if (await sandboxImagePresent(input.client, input.image)) return { downloaded: false, digest: input.image.digest };
   if (!input.image.digest) throw new Error("This server uses a local sandbox image. Load its linux/" + sandboxArchitecture() + " build into Docker Desktop first.");
-  await input.client.pull(pinnedImage(input.image), input.onProgress);
+  try {
+    await input.client.pull(pinnedImage(input.image), input.onProgress);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/no matching manifest|no match for platform|does not match the specified platform/i.test(message)) {
+      throw new Error("The server-selected sandbox image has no linux/" + sandboxArchitecture() + " build (" + pinnedImage(input.image)
+        + "). Update the server to a published sandbox image containing this platform, then restart its worker and retry. Host mode does not require this image.", { cause: error });
+    }
+    throw error;
+  }
   if (!await sandboxImagePresent(input.client, input.image)) throw new Error("The downloaded sandbox does not match the server digest.");
   return { downloaded: true, digest: input.image.digest };
 }

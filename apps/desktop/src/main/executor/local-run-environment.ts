@@ -28,6 +28,7 @@ export function localRunEnvironment(input: {
   const machines = host ? createHostMachineProvider({ scratchRoot: options.scratchRoot,
     runsRoot: options.runsRoot ?? path.join(options.scratchRoot, "../runs"), consent: options.hostConsent === true })
     : createDesktopSandboxMachineProvider({ image, scratchRoot: options.scratchRoot, skillsRootDir,
+      liveFolderPaths: (input.bootstrap.liveSyncFiles ?? []).filter((file) => file.provider === "google-drive" && file.linkKind === "folder").map((file) => file.taskRelativePath),
       storageRoot: options.storageRoot, backendId: options.storageBackendId, deviceId: options.deviceId, installId });
   return {
     control: { ...input.remote, platform, bootstrap: async () => input.bootstrap }, models: createProxyModelGateway(input.client),

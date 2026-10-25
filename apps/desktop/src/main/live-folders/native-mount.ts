@@ -8,7 +8,7 @@ import { HostProcesses, cleanupHostProcesses } from "../executor/host-processes"
 const execFile = promisify(execFileCallback);
 export interface LiveFolderMount { path: string; stop(): Promise<void>; isReady?(): Promise<boolean> }
 
-async function mounted(mountPoint: string): Promise<boolean> {
+export async function isNativeLiveFolderMounted(mountPoint: string): Promise<boolean> {
   const parent = await fs.realpath(path.dirname(mountPoint)).catch(() => path.dirname(mountPoint));
   const canonical = path.join(parent, path.basename(mountPoint));
   const { stdout } = await execFile("/sbin/mount", [], { timeout: 2_000 });
@@ -16,9 +16,9 @@ async function mounted(mountPoint: string): Promise<boolean> {
 }
 
 async function unmount(mountPoint: string): Promise<void> {
-  if (!await mounted(mountPoint)) return;
+  if (!await isNativeLiveFolderMounted(mountPoint)) return;
   await execFile("/usr/sbin/diskutil", ["unmount", "force", mountPoint], { timeout: 10_000, killSignal: "SIGKILL" });
-  if (await mounted(mountPoint)) throw new Error("The live Drive folder could not be unmounted.");
+  if (await isNativeLiveFolderMounted(mountPoint)) throw new Error("The live Drive folder could not be unmounted.");
 }
 
 // Only lists app-owned mount records, never a workspace or a remote folder.
@@ -37,7 +37,7 @@ export async function cleanupLiveFolderMounts(root: string): Promise<void> {
 export async function startNativeLiveFolder(input: {
   root: string; binary: string; folder: LocalLiveFolderConfig; signal: AbortSignal;
 }): Promise<LiveFolderMount> {
-  if (process.platform !== "darwin") throw new Error("Live Drive folders are available in macOS host mode.");
+  if (process.platform !== "darwin") throw new Error("Live Drive folders are available on macOS.");
   if (!/^[a-f0-9]{64}$/.test(input.folder.connectionId)) throw new Error("Invalid live-folder connection.");
   if (!/^[a-f0-9-]{36}$/i.test(input.folder.linkId)) throw new Error("Invalid live-folder ID.");
   input.signal.throwIfAborted();
@@ -68,7 +68,7 @@ export async function startNativeLiveFolder(input: {
     while (Date.now() < deadline) {
       input.signal.throwIfAborted();
       if (exited) throw new Error("The live Drive folder could not be mounted. Check Google Drive access and macOS NFS permissions.");
-      if (await mounted(mountPoint)) return { path: mountPoint, stop, isReady: async () => !exited && !stopped && await mounted(mountPoint) };
+      if (await isNativeLiveFolderMounted(mountPoint)) return { path: mountPoint, stop, isReady: async () => !exited && !stopped && await isNativeLiveFolderMounted(mountPoint) };
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     throw new Error("Timed out mounting the live Drive folder.");

@@ -40,7 +40,7 @@ Google Drive, OneDrive, pCloud, and rclone files or folders attached in **Live s
 
 Google Drive **folders** stream ordinary files when opened and upload edits automatically. Native Google Docs, Sheets, and Slides appear as `.url` links: the agent can read or edit them with the Google Workspace skill, or export an Office copy on demand. No full-folder download is required, and manual Pull/Push does not apply to these mounted folders.
 
-For local tasks, Google Drive folders require macOS host mode and explicit connection consent. Device workspaces show folder links in Files and Project Context; browse their contents in Google Drive or through a local host task. Removing a device folder link leaves the remote files intact. See [Live Google Drive folders](/getting-started/desktop-app/live-drive-folders).
+For local tasks, Google Drive folders require macOS and explicit connection consent; both Sandbox and Host mode support them. Device workspaces show folder links in Files and Project Context; browse their contents in Google Drive or through a local task. Removing a device folder link leaves the remote files intact. See [Live Google Drive folders](/getting-started/desktop-app/live-drive-folders).
 
 Individual live-linked files and folders from other providers use working copies:
 

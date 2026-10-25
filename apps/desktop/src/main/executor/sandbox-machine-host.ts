@@ -4,6 +4,7 @@ import { DockerSandboxManager } from "@meowbert/shared/docker-sandbox";
 import { getSandboxNetworkEnabled, type SandboxConfig } from "@meowbert/shared";
 import { buildTaskSandboxMounts } from "@meowbert/run-executor/agent/task-write-scope";
 import { desktopDockerHost } from "../sandbox-image/manager";
+import { verifySandboxLiveFolders } from "../live-folders/sandbox-probe";
 import type { MachineHost, MachineProvider, MachineSpec } from "@meowbert/run-executor/agent/ports/machine-host";
 
 export interface DesktopSandboxMachineOptions {
@@ -15,6 +16,7 @@ export interface DesktopSandboxMachineOptions {
   dockerHost?: string;
   scratchRoot: string;
   skillsRootDir: string | null;
+  liveFolderPaths?: string[];
   resources?: SandboxConfig["resources"];
 }
 
@@ -51,7 +53,7 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
       const sandbox = await manager.createPersistentSandbox({
         workingDir: spec.taskDir,
         networkEnabled: spec.networkEnabled,
-        mounts,
+        mounts: [...mounts, ...(options.liveFolderPaths ?? []).map((folder) => ({ path: folder, readOnly: spec.isThreadTask }))],
         env: spec.env,
         runAsRoot: spec.runAsRoot,
         resources: {
@@ -73,6 +75,12 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
           ...(event.payload ?? {})
         })
       });
+      try {
+        await verifySandboxLiveFolders({ sandbox, paths: options.liveFolderPaths ?? [], taskDir: spec.taskDir, readOnly: spec.isThreadTask });
+      } catch (error) {
+        await sandbox.stop();
+        throw error;
+      }
       return {
         sandbox,
         initialize: async () => ({ alreadyInitialized: true }),

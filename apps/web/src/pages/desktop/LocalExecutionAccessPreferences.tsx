@@ -23,7 +23,7 @@ export function LocalExecutionAccessPreferences(props: {
         </DesktopPreferenceRow>
       </DesktopPreferenceSection>
       <DesktopPreferenceSection title="Google Drive">
-        <DesktopPreferenceRow title="Live Drive folders" controlId="local-live-drive" description="Access live Google Drive folders in macOS host mode.">
+        <DesktopPreferenceRow title="Live Drive folders" controlId="local-live-drive" description="Access live Google Drive folders in macOS Sandbox or Host mode.">
           <DesktopPreferenceSwitch id="local-live-drive" checked={settings.liveDriveEnabled ?? false} onChange={(liveDriveEnabled) => updateSettings({ liveDriveEnabled, ...(liveDriveEnabled ? {} : { liveDriveConsents: {} }) })} />
         </DesktopPreferenceRow>
         <p className="desktop-preferences-hint desktop-preferences-permission-note">

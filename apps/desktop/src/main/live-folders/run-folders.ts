@@ -11,7 +11,7 @@ export async function prepareRunLiveFolders(input: {
   const links = files.filter((file) => file.provider === "google-drive" && file.linkKind === "folder");
   if (!links.length) return files;
   const { options } = input;
-  if (!input.host || process.platform !== "darwin") throw new StorageNotReadyError("Live Drive folders require macOS host mode.");
+  if (process.platform !== "darwin") throw new StorageNotReadyError("Live Drive folders require macOS.");
   if (!options.liveDriveEnabled || !options.liveFolders) throw new StorageNotReadyError("Enable live Drive folders in Local Execution settings.");
   async function request<T>(route: string, body?: unknown): Promise<T> {
     const response = await (options.fetch ?? fetch)(options.apiBaseUrl + "/api/runs/" + input.runId + route, {

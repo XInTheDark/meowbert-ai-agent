@@ -60,6 +60,8 @@ The sandbox is a separate download from the desktop app. On first use, the app a
 
 **Allow sandbox downloads and updates** in **Desktop Preferences → Local Execution** controls permission for downloads and updates. The first-use prompt also offers Host mode as an alternative; Host requires separate consent. Cancelling the prompt does not start a task automatically.
 
+If the download reports **no matching manifest for linux/arm64**, the server-selected image does not contain an Apple Silicon build. The server operator must update to a published image with that platform and restart the worker. Updating the desktop app alone does not change the pinned server image. Host mode can still run without the sandbox image.
+
 ## What stays on the server
 
 Local execution changes the machine doing the work, not the model connection. Conversations, task settings and usage are still stored on the server, and tasks use the server's model connection and budget. File content the agent reads goes to the model through the server, including for device workspaces. This is not offline AI.

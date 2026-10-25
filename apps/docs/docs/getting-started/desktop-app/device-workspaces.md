@@ -33,7 +33,7 @@ Schedules and recurring runs also target this device and wait while it is unavai
 
 ## Available features
 
-Device workspaces are single-user. Live Google Drive folders work on macOS in Host mode. Other linked-source file sync, canvases, Project terminals, server memory search and automatic memory refresh are unavailable. You can still browse and use the memory files on the device.
+Device workspaces are single-user. Live Google Drive folders work on macOS in Sandbox or Host mode. Other linked-source file sync, canvases, Project terminals, server memory search and automatic memory refresh are unavailable. You can still browse and use the memory files on the device.
 
 ## Relink or delete a workspace
 

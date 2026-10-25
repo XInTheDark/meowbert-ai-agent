@@ -35,6 +35,31 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 describe.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("desktop supervisor", () => {
+  it("does not claim Host readiness when workspace storage has not verified", async () => {
+    state.request.mockImplementation(async (route: string) => route.endsWith("/config")
+      ? { enabled: true, storageMarkers: {}, sandboxImage: {}, executorSettings: {} }
+      : route.endsWith("/tombstones") ? { items: [] } : {});
+    const onPendingReason = vi.fn();
+    const executor = await startDesktopLocalExecutor({ ...options, hostConsent: true, onPendingReason });
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(onPendingReason).toHaveBeenCalledWith("No verified workspace folder is available on this device.");
+    expect(state.pull).not.toHaveBeenCalled();
+    expect(startLocalRun).not.toHaveBeenCalled();
+    await executor.stop();
+  });
+  it("keeps Host admission working when the pinned sandbox image lacks this platform", async () => {
+    state.pull.mockRejectedValue(new Error("The server-selected sandbox image has no linux/arm64 build."));
+    const onPendingReason = vi.fn();
+    const executor = await startDesktopLocalExecutor({ ...options, hostConsent: true, downloadConsent: true, onPendingReason });
+    await vi.advanceTimersByTimeAsync(11_000);
+    state.onRuns?.(["host", "sandbox"].map((mode) => ({ run_id: mode, queue_state: "admitted",
+      payload_json: { executionTarget: { kind: "local", deviceId: "device", mode } } })));
+    expect(startLocalRun).toHaveBeenCalledOnce();
+    expect(startLocalRun).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ run_id: "host" }),
+      "", "", expect.anything(), "install");
+    expect(onPendingReason).toHaveBeenCalledWith("Host mode ready. Sandbox unavailable: The server-selected sandbox image has no linux/arm64 build.");
+    await executor.stop();
+  });
   it("runs consented host tasks while Docker is unavailable and fences them on stop", async () => {
     state.ping.mockRejectedValue(new Error("Docker unavailable"));
     const consent = vi.fn();

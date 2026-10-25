@@ -28,13 +28,13 @@ async function scopedFolders(claims: RunLeaseClaims): Promise<LiveFolderRow[]> {
         AND d.queue_state = 'running' AND d.lease_holder = 'device:' || dv.id::text AND d.lease_expires_at > now()
         AND d.payload_json->'executionTarget'->>'kind' = 'local'
         AND d.payload_json->'executionTarget'->>'deviceId' = dv.id::text
-        AND d.payload_json->'executionTarget'->>'mode' = 'host'
+        AND d.payload_json->'executionTarget'->>'mode' IN ('host', 'sandbox')
         AND dv.platform = 'darwin' AND dv.revoked_at IS NULL
         AND NOT t.cancellation_requested AND t.trashed_at IS NULL AND r.ended_at IS NULL`,
     [claims.runId, claims.taskId, claims.epoch, deviceId]
   );
   const owner = lease.rows[0];
-  if (!owner) throw new RunApiForwardingError(409, "lease_lost", "Live Drive folders require a current macOS host-mode lease.");
+  if (!owner) throw new RunApiForwardingError(409, "lease_lost", "Live Drive folders require a current macOS local-execution lease.");
   const links = await query<Omit<LiveFolderRow, "user_id">>(
     `SELECT l.id, l.workspace_id, l.local_relative_path, l.remote_item_id
       FROM source_file_links l JOIN tasks t ON t.id = $1
