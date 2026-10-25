@@ -95,7 +95,11 @@ Local executors support Apple Silicon macOS and Windows x64/arm64. The universal
 
 The Windows default Docker transport is `npipe:////./pipe/dockerDesktopLinuxEngine`; `DOCKER_HOST` can select a different local pipe. **Computer Use** and **Your Chrome** are separate desktop opt-ins. Keep host execution disabled on untrusted shared machines.
 
-If a device reports **no matching manifest for linux/arm64**, the server-selected image digest does not include that platform. Update the configured sandbox image to a published multi-platform build, pull it on the server, and restart the worker so it records the new digest. Desktop downloads stay pinned to that digest; they do not substitute a newer tag automatically. Host mode can remain available while the sandbox image is unavailable.
+The official runtime image is `ghcr.io/xinthedark/meowbert-sandbox-runtime:main`. Every runtime publication also updates `ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main` with the same multi-architecture build. The standard and generated Compose files and example configurations default to the original image name. `MEOWBERT_SANDBOX_RUNTIME_IMAGE` overrides the image for the API, worker, and runtime service together; the explicit local-sandbox Compose override builds `meowbert-sandbox-runtime:local` instead.
+
+Desktop installers do not bundle or choose a separate runtime image. The worker records its configured image repository and digest at startup, the API advertises that pair, and the desktop pulls the exact digest for its architecture. When Compose updates the runtime service, its restart dependency also restarts the worker to refresh that recorded digest.
+
+If a device reports **no matching manifest for linux/arm64**, the server-selected image digest does not include that platform. Pull the updated configured runtime image on the server and restart the worker so it records the new digest. Existing deployments can keep the original repository name. Publishing a new `main` tag does not change an already-recorded digest. Host mode can remain available while the sandbox image is unavailable.
 
 Model requests use the server's configured providers and usage limits. Provider API keys and GitHub App signing keys stay on the server. Local execution does not provide an offline model.
 

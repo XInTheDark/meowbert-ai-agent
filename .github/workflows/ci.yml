@@ -40,6 +40,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Check sandbox runtime image contract
+        run: node --test scripts/sandbox-runtime-images.test.mjs
+
       - name: Test
         run: npm run test
 

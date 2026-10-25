@@ -94,7 +94,7 @@ services:
     restart: unless-stopped
     environment:
       MEOWBERT_CONFIG_PATH: ${MEOWBERT_CONFIG_PATH:-/app/config/global.docker.json}
-      MEOWBERT_SANDBOX_RUNTIME_IMAGE: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main}
+      MEOWBERT_SANDBOX_RUNTIME_IMAGE: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-sandbox-runtime:main}
       DATABASE_HOST: meowbert-postgres
       DATABASE_PORT: "5432"
       DATABASE_USER: ${MEOWBERT_POSTGRES_USER:-postgres}
@@ -145,7 +145,7 @@ services:
     restart: unless-stopped
     environment:
       MEOWBERT_CONFIG_PATH: ${MEOWBERT_CONFIG_PATH:-/app/config/global.docker.json}
-      MEOWBERT_SANDBOX_RUNTIME_IMAGE: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main}
+      MEOWBERT_SANDBOX_RUNTIME_IMAGE: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-sandbox-runtime:main}
       MEOWBERT_API_URL: http://api:4000
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
       DATABASE_HOST: meowbert-postgres
@@ -183,8 +183,9 @@ services:
         condition: service_started
       sandbox-runtime:
         condition: service_started
+        restart: true
   sandbox-runtime:
-    image: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main}
+    image: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-sandbox-runtime:main}
     pull_policy: always
     restart: unless-stopped
     command:

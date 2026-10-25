@@ -48,7 +48,7 @@
     },
     "sandbox": {
       "provider": "docker",
-      "image": "ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main",
+      "image": "ghcr.io/xinthedark/meowbert-sandbox-runtime:main",
       "dockerHost": "unix:///var/run/docker.sock",
       "startTimeoutMs": 30000,
       "sessionIdleTimeoutMs": 2700000,
