@@ -95,6 +95,44 @@ afterEach(() => {
 });
 
 describe("loadConfig runtime path normalization", () => {
+  it.each(["file", "json", "base64"])("loads %s config without the legacy openai section", (source) => {
+    const temp = writeTempConfig("config");
+    const raw = JSON.parse(fs.readFileSync(temp.configPath, "utf-8")) as Record<string, unknown>;
+    delete raw.openai;
+    const serialized = JSON.stringify(raw);
+    if (source === "file") fs.writeFileSync(temp.configPath, serialized, "utf-8");
+    if (source === "json") process.env.MEOWBERT_CONFIG_JSON = serialized;
+    if (source === "base64") process.env.MEOWBERT_CONFIG_BASE64 = Buffer.from(serialized).toString("base64");
+
+    try {
+      expect(loadConfig(temp.configPath).openai).toEqual({ defaultModel: "o4-mini" });
+    } finally {
+      fs.rmSync(temp.root, { recursive: true, force: true });
+    }
+  });
+
+  it("defaults an empty legacy openai section and preserves an explicit default model", () => {
+    const temp = writeTempConfig("config");
+    try {
+      fs.writeFileSync(temp.configPath, JSON.stringify({ ...baseConfig, openai: {} }));
+      expect(loadConfig(temp.configPath).openai).toEqual({ defaultModel: "o4-mini" });
+      fs.writeFileSync(temp.configPath, JSON.stringify({ ...baseConfig, openai: { defaultModel: "custom-model" } }));
+      expect(loadConfig(temp.configPath).openai).toEqual({ defaultModel: "custom-model" });
+    } finally {
+      fs.rmSync(temp.root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([{ defaultModel: "" }, { defaultModel: 123 }, null])("rejects invalid explicit openai config: %j", (openai) => {
+    const temp = writeTempConfig("config");
+    try {
+      fs.writeFileSync(temp.configPath, JSON.stringify({ ...baseConfig, openai }));
+      expect(() => loadConfig(temp.configPath)).toThrow();
+    } finally {
+      fs.rmSync(temp.root, { recursive: true, force: true });
+    }
+  });
+
   it("loads without provider credentials and ignores legacy JSON credentials", () => {
     const temp = writeTempConfig("config");
     expect(loadConfig(temp.configPath).openai).toEqual({ defaultModel: "o4-mini" });

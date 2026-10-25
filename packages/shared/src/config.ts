@@ -63,9 +63,10 @@ const configSchema = z.object({
   search: z.object({
     meilisearch: meilisearchConfigSchema
   }).optional(),
+  // Legacy model fallback; provider connections are managed in Admin.
   openai: z.object({
-    defaultModel: z.string().min(1)
-  }),
+    defaultModel: z.string().min(1).default("o4-mini")
+  }).default({}),
   memory: z.object({
     indexCacheRoot: z.string().min(1).optional()
   }).optional(),
