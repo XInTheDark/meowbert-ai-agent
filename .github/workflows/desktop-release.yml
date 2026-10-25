@@ -177,6 +177,21 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.csc_identity_auto_discovery }}
         run: npm run package --workspace apps/desktop -- ${{ matrix.publish_args }} --publish never
 
+      - name: Verify packaged desktop runtime
+        if: inputs.build_only
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            APP_ROOT="apps/desktop/dist-packages/mac-universal/Meowbert.app/Contents"
+            BINARY="${APP_ROOT}/MacOS/Meowbert"
+            RESOURCES="${APP_ROOT}/Resources"
+          else
+            BINARY="apps/desktop/dist-packages/win-unpacked/Meowbert.exe"
+            RESOURCES="apps/desktop/dist-packages/win-unpacked/resources"
+          fi
+          ELECTRON_RUN_AS_NODE=1 "${BINARY}" apps/desktop/scripts/verify-package.cjs "${RESOURCES}"
+
       - name: Upload packaged desktop artifacts
         if: inputs.build_only
         uses: actions/upload-artifact@v4
