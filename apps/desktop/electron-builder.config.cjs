@@ -21,6 +21,8 @@ module.exports = {
   mac: {
     category: "public.app-category.developer-tools",
     icon: "build/icon.icns",
+    // Both pinned helper architectures intentionally ship in every app.
+    x64ArchFiles: "Contents/Resources/live-folder-runtime/rclone-{x64,arm64}",
     target: [
       "dmg",
       "zip"
