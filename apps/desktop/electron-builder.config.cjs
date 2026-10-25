@@ -21,6 +21,7 @@ module.exports = {
   extraResources: [{ from: "dist/host-skills", to: "host-skills" }, { from: "dist/live-folder-runtime", to: "live-folder-runtime" }],
   icon: "build/icon.png",
   mac: {
+    identity: "-",
     category: "public.app-category.developer-tools",
     icon: "build/icon.icns",
     // Both pinned helper architectures intentionally ship in every app.

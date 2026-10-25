@@ -73,6 +73,9 @@
 
 ### Development notes
 
+- Work efficiently: use the established build, publish, and install workflows, and reuse completed builds and checks when their inputs have not changed.
+- Never take ad hoc packaging or installation detours, patch built app bundles, copy release metadata into them, or manually re-sign them. If a workflow is missing required behavior, fix that workflow first and run it end to end.
+- When asked to publish a desktop update, complete the versioned release and verify its downloadable assets. A source push or local app replacement does not complete publication; report those states separately.
 - After completing the task, you should ask if the user wants you to commit and push. 
 - When the user says to commit, commit directly to `main` by default. Use a separate branch only for really big or risky changes, and say so when you do.
 - Do not modify CHANGELOG.md unless given permission to.
