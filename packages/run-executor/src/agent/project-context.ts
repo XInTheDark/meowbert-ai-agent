@@ -22,6 +22,7 @@ async function collectProjectContextEntries(input: {
   envRoot: string;
   currentPath: string;
   envPayload: Record<string, unknown>;
+  excludedDirectories: Set<string>;
 }): Promise<ProjectContextPromptEntry[]> {
   const directoryEntries = await fsPromises.readdir(input.currentPath, { withFileTypes: true });
   const sortedEntries = [...directoryEntries].sort((left, right) => left.name.localeCompare(right.name));
@@ -29,6 +30,7 @@ async function collectProjectContextEntries(input: {
 
   for (const directoryEntry of sortedEntries) {
     const absolutePath = path.join(input.currentPath, directoryEntry.name);
+    if (input.excludedDirectories.has(absolutePath)) continue;
     const stats = await fsPromises.lstat(absolutePath).catch(() => null);
     if (!stats) {
       continue;
@@ -45,7 +47,8 @@ async function collectProjectContextEntries(input: {
       collected.push(...await collectProjectContextEntries({
         envRoot: input.envRoot,
         currentPath: absolutePath,
-        envPayload: input.envPayload
+        envPayload: input.envPayload,
+        excludedDirectories: input.excludedDirectories
       }));
       continue;
     }
@@ -65,19 +68,22 @@ async function collectProjectContextEntries(input: {
 
 export async function loadProjectContextPromptData(
   envRoot: string,
-  envPayload: Record<string, unknown>
+  envPayload: Record<string, unknown>,
+  linkedDirectories: Array<{ relativePath: string; absolutePath: string }> = []
 ): Promise<ProjectContextPromptData | null> {
   const rootPath = path.resolve(envRoot, "context");
-  const stats = await fsPromises.lstat(rootPath).catch(() => null);
-  if (!stats?.isDirectory()) {
-    return null;
-  }
-
-  const entries = await collectProjectContextEntries({
+  const folders = linkedDirectories.filter((value) => value.relativePath === "context" || value.relativePath.startsWith("context/"));
+  const excludedDirectories = new Set(folders.map((value) => path.resolve(envRoot, value.relativePath)));
+  const stats = excludedDirectories.has(rootPath) ? null : await fsPromises.lstat(rootPath).catch(() => null);
+  const entries = stats?.isDirectory() ? await collectProjectContextEntries({
     envRoot,
     currentPath: rootPath,
-    envPayload
-  });
+    envPayload,
+    excludedDirectories
+  }) : [];
+  entries.push(...folders.map((folder): ProjectContextPromptEntry => ({ ...folder, kind: "directory",
+    note: getProjectContextNote(envPayload, folder.relativePath) })));
+  entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
   if (entries.length === 0) {
     return null;
   }

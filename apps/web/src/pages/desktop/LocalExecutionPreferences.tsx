@@ -69,6 +69,8 @@ export function LocalExecutionPreferences() {
         <label className="desktop-shortcut-row"><span>Computer Use</span><input type="checkbox" checked={settings.computerUseEnabled ?? false} onChange={(event) => setSettings({ ...settings, computerUseEnabled: event.target.checked })} /></label>
         <label className="desktop-shortcut-row"><span>Your Chrome</span><input type="checkbox" checked={settings.hostBrowserEnabled ?? false} onChange={(event) => setSettings({ ...settings, hostBrowserEnabled: event.target.checked })} /></label>
       </div>
+      <label><input type="checkbox" checked={settings.liveDriveEnabled ?? false} onChange={(event) => setSettings({ ...settings, liveDriveEnabled: event.target.checked, ...(event.target.checked ? {} : { liveDriveConsents: {} }) })} /> Live Google Drive folders (macOS host mode)</label>
+      <p className="muted-text">Each connection asks for permission to store a credential with access to your entire Drive. Disconnect Google Drive in Meowbert to revoke all copies; removing a device or ending a task does not revoke them.</p>
       <label><input type="checkbox" checked={settings.downloadConsent} onChange={(event) => setSettings({ ...settings, downloadConsent: event.target.checked })} /> Allow sandbox downloads and updates</label>
       <div className="desktop-preferences-actions">
         <button type="button" className="btn primary" disabled={busy || (settings.enabled && !settings.storageRoot && !Object.keys(settings.workspaceRoots ?? {}).length)} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button>

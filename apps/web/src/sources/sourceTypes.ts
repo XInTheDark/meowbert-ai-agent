@@ -23,6 +23,7 @@ export interface AdminSourcesResponse {
 }
 
 export interface WorkspaceSourceSummary {
+  liveFoldersOnly?: boolean;
   id: string;
   name: string;
   description: string;

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ root: "" }));
 vi.mock("electron", () => ({ app: { getPath: () => state.root }, safeStorage: { isEncryptionAvailable: () => false } }));
-import { readBootstrapData, saveAuthToken, saveLocalExecutionSettings, saveServerProfilesState, saveActiveContext } from "./state";
+import { readBootstrapData, saveAuthToken, saveLocalExecutionSettings, saveServerProfilesState, saveActiveContext, grantLiveDriveConsent } from "./state";
 state.root = await fs.mkdtemp(path.join(os.tmpdir(), "meowbert-state-"));
 afterAll(() => fs.rm(state.root, { recursive: true, force: true }));
 it("isolates storage and download consent per server while retaining concurrent settings writes", async () => {
@@ -21,4 +21,16 @@ it("isolates storage and download consent per server while retaining concurrent 
   await expect(saveLocalExecutionSettings(a)).rejects.toThrow(/server changed/);
   await saveServerProfilesState({profiles,activeProfileId:"a"});
   expect((await readBootstrapData()).localExecutionSettings).toMatchObject({enabled:true,storageRoot:"/tmp/backend",downloadConsent:true,deviceId:a.deviceId,maxConcurrentRuns:3});
+});
+
+it("retains native Drive consent through stale preferences and clears it when live folders are disabled", async () => {
+  const previous = (await readBootstrapData()).localExecutionSettings;
+  const settings = await saveLocalExecutionSettings({ ...previous, liveDriveEnabled: true });
+  const connectionId = "a".repeat(64);
+  expect(await grantLiveDriveConsent(settings.serverBaseUrl!, settings.deviceId, connectionId)).toBe(true);
+  const saved = await saveLocalExecutionSettings({ ...settings, maxConcurrentRuns: 4, liveDriveConsents: {} });
+  expect(saved).toMatchObject({ maxConcurrentRuns: 4, liveDriveConsents: { [connectionId]: true } });
+  await saveLocalExecutionSettings({ ...saved, liveDriveEnabled: false });
+  expect((await readBootstrapData()).localExecutionSettings.liveDriveConsents).toEqual({});
+  expect(await grantLiveDriveConsent(settings.serverBaseUrl!, settings.deviceId, connectionId)).toBe(false);
 });

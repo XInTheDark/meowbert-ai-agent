@@ -548,6 +548,16 @@ describe("buildResponseTools", () => {
     expect(hasSearch(buildResponseTools(options, [], { allowLiveSyncTools: true, allowLiveSyncFolderSearch: true }))).toBe(true);
   });
 
+  it("keeps device folder listing and search while disabling server-file sync operations", () => {
+    const tools = buildResponseTools({ webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false,
+      computerUse: false, enabledSkills: [], enabledSources: [] }, [],
+    { allowLiveSyncTools: true, allowLiveSyncFileTools: false, allowLiveSyncFolderSearch: true });
+    const names = tools.filter((tool) => tool.type === "function").map((tool) => tool.name);
+    expect(names).toContain(LIST_LIVE_SYNC_FILES_TOOL_NAME);
+    expect(names).toContain(SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME);
+    for (const name of [GET_LIVE_SYNC_STATUS_TOOL_NAME, PULL_LIVE_SYNC_FILE_TOOL_NAME, PUSH_LIVE_SYNC_FILE_TOOL_NAME]) expect(names).not.toContain(name);
+  });
+
   it("keeps scheduling tools out of the request until their group is loaded", () => {
     const options = {
       webSearch: false,

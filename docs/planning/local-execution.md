@@ -1,6 +1,6 @@
 # Local Execution: Planning & Specs
 
-Status: Milestones 0–4 implemented in code. Local execution is disabled by default. Automated tests cover the HTTP lifecycle, storage visibility, Windows paths/transport, native host commands and fencing, Computer Use arbitration, device file workflows, and PostgreSQL workspace/tombstone/relink contracts. Live host browser and Computer Use permissions, Docker Desktop network shares, and packaged-app acceptance on macOS/Windows still require the corresponding hosts and published multi-architecture image. Milestone 5 is not implemented.
+Status: Milestones 0–5 implemented in code. Local execution remains disabled by default. Automated coverage includes HTTP lifecycle and recovery, storage visibility, Windows transport, host process fencing, Computer Use arbitration, device files, live-folder authorization/consent, Drive revocation and model admission/tool policy. The bundled rclone NFS mount passed a real macOS local-alias read/write/unmount spike, including stale-process cleanup. Live Google Drive account access, Docker Desktop network/NFS binds, multi-architecture image publication and signed/packaged macOS/Windows acceptance require their corresponding resources; these are release acceptance checks, not claims made by the automated suite.
 
 - Part I explains what we are building and why.
 - Part II specifies the contracts between the pieces.
@@ -208,7 +208,7 @@ The root guards (below) are a safety net, not the mechanism. Every request path 
 | Memory synthesis (writes its delta as a task input on the server) | server | off |
 | Canvas (`project-canvases.ts`, `canvas-file-response.ts`, canvas tools) | server | off |
 | Terminal sessions (`persistent-shell-sessions.ts`) | sandbox | off |
-| Synced linked sources (`folder-sync.ts`) | server fs | off |
+| Synced linked sources (`folder-sync.ts`) | server fs | off; live Drive folders are metadata plus a device-owned macOS NFS mount |
 | Inbound connectors saving attachments (email, Discord, Telegram) | server fs | off |
 | Task forks copying files (`task-forks.ts`) | server fs | conversation only |
 | Task inline files (`task-inline-files.ts`) | server fs | desktop IPC |
@@ -216,7 +216,7 @@ The root guards (below) are a safety net, not the mechanism. Every request path 
 | Storage usage, storage migration, XFS quotas | server | off |
 | Members and invites | | off (single user) |
 
-Implementation inventory (milestone 4): API request gates run before file, memory, canvas, shell, membership and source-attachment handlers; source connection metadata and network reads remain available. Task/project creation skips server provisioning. JSON file operations and binary previews use desktop IPC; native downloads and inline media use device delivery. Desktop operations reauthorize their scope through the metadata-only location endpoint and verify the folder marker. Memory refresh/reindex/synthesis and cleanup loops skip device roots; cleanup records durable named-path tombstones. Forks copy conversation only. Storage migration, usage, linked-source attachment and inbound attachment persistence are gated in their owning services. Shared feature policy also hides unavailable UI controls. TEST_LOCAL_WORKSPACE_DATABASE_URL enables an isolated-schema PostgreSQL regression test for host invariants, archive tombstones and delayed relink recovery.
+Implementation inventory (milestone 4): API request gates run before file, memory, canvas, shell, membership and source-attachment handlers; source connection metadata and network reads remain available. Task/project creation skips server provisioning. JSON file operations and binary previews use desktop IPC; native downloads and inline media use device delivery. Desktop operations reauthorize their scope through the metadata-only location endpoint and verify the folder marker. Memory refresh/reindex/synthesis and cleanup loops skip device roots; cleanup records durable named-path tombstones. Forks copy conversation only. Storage migration, usage, working-copy source attachments and inbound attachment persistence are gated in their owning services. Live Google Drive folder attachment/listing/unlinking uses metadata only; the owning macOS device mounts it during host runs. Shared feature policy also hides unavailable UI controls. TEST_LOCAL_WORKSPACE_DATABASE_URL enables an isolated-schema PostgreSQL regression test for host invariants, archive tombstones and delayed relink recovery.
 
 **Guards.** The root helpers (`ensureWorkspaceStorageRoot`, `ensureEnvironmentRootById`, `resolveTaskInputsDirForEnvironment`, and the worker's `resolveTaskWorkspaceRoot` / `resolveTaskEnvironmentRoot`) throw `WorkspaceFilesOnDeviceError` for a device-hosted workspace. Hitting one is a bug in the inventory, logged as an error and returned as a 409.
 
@@ -342,7 +342,7 @@ The local executor sends every model request to `/runs/:id/model/responses`. The
 - **Allowlist.** Accepted body fields: `input`, `instructions`, `include`, `store` (false only), `tools`, `tool_choice`, `parallel_tool_calls`, `prompt_cache_key`, `prompt_cache_options`, `user` and `max_output_tokens` (at most the context window). Any other field must be one of the route's own payload fields with the route's value, so reasoning effort and service tier come only from the route. `model` is always rejected; the gateway sets it from the route and purpose. Tools must be `function` or `custom`, except hosted `web_search` on turns of runs allowed to search. Only the cache-affinity and Meridian headers pass.
 - **Reservations.** `user_usage_reservations`, written under a row lock on the user. The bound is the counted input plus `max_output_tokens`, or, when the request sets none, every output token the context window leaves room for. Agent turns don't set an output limit (a small one starves reasoning), so the server doesn't add one; the context window bounds them instead. Reservations count against every limit the user's plans set, rolling windows included, and stop counting after an hour if their request never settles.
 - **Disconnects.** The upstream request is aborted, and a request abandoned this way is billed at its reserved maximum, since the provider reports no usage for it.
-- **Not built yet.** Checking that function tools match the run's resolved tool set (the executor loads skills and MCP tools on demand, so the server would need that state too), and the per-user limit across runs. Both are open questions in section 24.
+- **Completed in milestone 5.** Device function tools must match server-owned builtin or trusted skill schemas. The policy accepts subsets for lazy discovery and context recovery; unknown tools, altered schemas and duplicates are rejected. Model admission is one in-flight request per run and four per user across workers, held with PostgreSQL advisory locks on a separate pool. Input estimates include tool definitions and string inputs. The request deadline bounds admission and forwarding; a rejected request is never charged as an abandoned provider call.
 
 ### 12.1 Model-call inventory
 
@@ -432,7 +432,7 @@ These are the host tools from section 8.2. Both are device-wide resources shared
 
 In the cloud, a live Google Drive folder is an `rclone mount` the API runs with Linux FUSE at `<project root>/<link path>` (`google-drive-mount-manager.ts`). That mount exists only in the server's view, so a device can't use it. The device mounts the folder itself:
 
-- **`rclone nfsmount` on macOS.** The desktop app bundles rclone and runs `rclone nfsmount` (the macOS built-in NFS client; no macFUSE) with the server's flags minus `--allow-other`. Config text and flags move into shared so both sides build the same mount. Mounts live under `<userData>/live-folders/<linkId>`, are reference-counted per link, unmounted when the last run releases them, cleaned up at app start, and killed when a run is fenced. In host mode the agent sees that path where a cloud task sees `<project root>/<link path>`. In sandbox mode the mount is bind-mounted into the container at `<project root>/<link path>`, as the server does; whether Docker Desktop can bind-mount an NFS-mounted path is part of the milestone 5 spike, and if it can't, live folders are host-mode only.
+- **`rclone nfsmount` on macOS.** The desktop app bundles rclone and runs `rclone nfsmount` (the macOS built-in NFS client; no macFUSE) with the server's flags minus `--allow-other`. Config text and flags move into shared so both sides build the same mount. Mounts live under `<userData>/live-folders/mounts/<linkId>`, with credentials and process journals in sibling app-owned directories, are reference-counted per link, unmounted when the last run releases them, cleaned up at app start, and killed when a run is fenced. In host mode the agent sees that path where a cloud task sees `<project root>/<link path>`. Local sandbox mode refuses live folders until an actual Docker Desktop NFS bind test has passed. The macOS local-alias NFS spike passed, but no Docker daemon was available for bind validation, so this release conservatively supports host mode only. A future validated sandbox integration would bind the mount at `<project root>/<link path>`, as the server does.
 - **Credentials.** The device gets the same config the API writes: the provider client id and secret, the connection's token (refresh token included), and the link's `root_folder_id`. `root_folder_id` only sets rclone's starting folder; the token has full Drive scope.
 - **Who can get it.** Only the user who connected the link (`updatedByUserId`), which is always true in a device-hosted workspace. Other members' devices can't mount it.
 - **Consent.** The first time a device mounts a link, the app asks: "This computer will store a credential with access to your entire Google Drive (<account>). It keeps working until you disconnect Google Drive in Meowbert or remove Meowbert's access in your Google account. Removing this device or ending the task doesn't revoke it." Consent is per device and per connection.
@@ -485,7 +485,7 @@ Accepted limitations:
 - Host mode only offers host-supported skills.
 - One task at a time per device uses Browser Use, and one uses Computer Use.
 - Device-hosted workspaces lack the features marked off in section 7.2.
-- Live Drive folders: macOS only, only for the user who connected the link.
+- Live Drive folders: macOS host mode only, only for the user who connected the link. Docker NFS binds remain unaccepted.
 
 ## 20. Skills on the device
 
@@ -621,8 +621,14 @@ Decided:
 38. Recurring runs and scheduling tools preserve persisted device targets and use device admission. Subagents and workflows stay excluded. Host threads are refused; sandbox threads remain unavailable in this release.
 39. Device inline-file tickets are random, task/server-bound and expire after one minute. A task-local location journal travels with the folder; relocation notes use appendPromptEnvelopeDelta and remain stable until the next move.
 
-Open:
+40. Live-folder consent is scoped to the server profile, device and connection identity. Token refresh preserves identity; OAuth reconnection changes it. Credential refresh uses compare-and-set and cannot recreate a disconnected connection. Disconnect revokes at Google before deleting server state; transient failures leave the connection available to retry.
+41. Native rclone is pinned to v1.75.2 with architecture-specific build-time checksums and MIT notices. Mounts are app-owned, reference-counted per link and released after the last run; fencing waits for in-progress acquisition. Startup unmounts stale NFS mounts before killing journaled groups and deleting credential files. Caches are per connection/link; workspace trees are never walked.
+42. Device-hosted live folders are metadata-only attachments. The server never provisions their roots or mounts them. Desktop Files/Project Context merge link metadata into local listings; removing a link does not delete Drive contents. Local host runs map prompt/readable paths to native mounts and translate remote search results back to those paths. Windows and local sandbox mounts remain unavailable.
+43. Device model tool definitions are checked against server-owned builtin contracts or trusted installed MCP catalogs resolved without workspace mounts. Host browser schemas come from the same pinned Playwright MCP package as the desktop and are listed without launching a browser. Descriptions can vary with discovery; executable schemas cannot.
+44. Model requests use one run slot and four per-user slots across workers. PostgreSQL session advisory locks use a separate pool, release when a request finishes or its connection dies, and abort upstream work on connection loss. Admission precedes skill discovery and reservations; requests rejected before provider forwarding are not charged.
 
-1. Matching a model request's function tools to the run's resolved tool set (section 12.0).
-2. A per-user limit on concurrent model requests across runs.
-3. Complete the Docker Desktop failure-injection and packaged-app acceptance checks on a machine with a running daemon; build and publish the multi-architecture sandbox before using downloaded local runs.
+Release acceptance still requiring external resources:
+
+1. Complete Docker Desktop failure-injection, SMB/NFS network-share and NFS-to-container bind checks with a running daemon and each target macOS/Windows host. Host-mode-only live folders remain the supported fallback until the bind check succeeds.
+2. Validate a real connected Google Drive folder and provider revocation, host browser permissions, Computer Use permissions and packaged desktop workflows on target hosts. The automated NFS spike uses a local alias and does not claim these checks.
+3. Build and publish the multi-architecture sandbox image before downloaded local runs are released. Use the existing Publish Sandbox Runtime workflow after authorized commit/push; no live deployment or publication is performed by local implementation checks.

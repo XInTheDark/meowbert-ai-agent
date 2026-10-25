@@ -4,8 +4,10 @@ import { registerSourceGoogleWorkspaceRoutes } from "./source-google-workspace-r
 import { registerSourceOauthRoutes } from "./source-oauth-routes.js";
 import { registerSourceOutlookRoutes } from "./source-outlook-routes.js";
 import { registerWorkspaceSourceRoutes } from "./source-workspace-routes.js";
+import { registerDeviceLiveFolderRoutes } from "./device-live-folders.js";
 
 export const sourceRoutes: FastifyPluginAsync = async (fastify) => {
+  registerDeviceLiveFolderRoutes(fastify);
   registerSourceGoogleWorkspaceRoutes(fastify);
   registerSourceOutlookRoutes(fastify);
   registerWorkspaceSourceRoutes(fastify);

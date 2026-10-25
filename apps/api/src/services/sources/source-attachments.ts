@@ -1,3 +1,5 @@
+import { loadWorkspaceFileHost } from "../workspaces/workspace-file-host.js";
+import { createDeviceLiveFolderAttachment } from "../source-file-links/device-live-folders.js";
 import { requireWorkspaceFileFeature } from "../workspaces/workspace-file-host.js";
 import { getSourceCatalogEntry } from "./source-catalog.js";
 import { importWorkspaceSourceFileToEnvironment } from "./file-import.js";
@@ -87,6 +89,11 @@ export async function attachWorkspaceSource(input: {
     throw new Error(`Source ${source.manifest.name} does not support note attachments.`);
   }
 
+  if (source.provider === "google-drive" && input.fileMode === "live_sync"
+    && (await loadWorkspaceFileHost(input.workspaceId)).kind === "device") {
+    if (!input.environmentId || !input.itemId) throw new Error("A project and source folder are required.");
+    return createDeviceLiveFolderAttachment({ ...input, environmentId: input.environmentId, itemId: input.itemId });
+  }
   await requireWorkspaceFileFeature(input.workspaceId, "linkedSources");
   if (!input.environmentRootPath || !input.workspaceRootPath) {
     throw new Error("This source attachment requires a project destination.");

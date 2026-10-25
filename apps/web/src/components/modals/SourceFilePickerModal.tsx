@@ -172,7 +172,8 @@ function SourceFilePickerFileModal(props: SourceFilePickerModalProps) {
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isAttaching, setIsAttaching] = useState(false);
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
-  const [fileMode, setFileMode] = useState<SourceAttachFileMode>("copy");
+  const liveFoldersOnly = props.source?.liveFoldersOnly === true;
+  const [fileMode, setFileMode] = useState<SourceAttachFileMode>(liveFoldersOnly ? "live_sync" : "copy");
   const [pendingGoogleWorkspaceEntries, setPendingGoogleWorkspaceEntries] = useState<SourceFileEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
@@ -195,8 +196,8 @@ function SourceFilePickerFileModal(props: SourceFilePickerModalProps) {
   );
   const selectedSourceEntries = useMemo(() => {
     const selectedIdSet = selectedIds;
-    return visibleSourceItems.filter((entry) => selectedIdSet.has(entry.id) && (entry.kind === "file" || fileMode === "live_sync"));
-  }, [fileMode, selectedIds, visibleSourceItems]);
+    return visibleSourceItems.filter((entry) => selectedIdSet.has(entry.id) && (liveFoldersOnly ? entry.kind === "folder" : entry.kind === "file" || fileMode === "live_sync"));
+  }, [fileMode, liveFoldersOnly, selectedIds, visibleSourceItems]);
   const selectedSourceEntry = useMemo(() => {
     if (selectedIds.size !== 1) {
       return null;
@@ -329,7 +330,7 @@ function SourceFilePickerFileModal(props: SourceFilePickerModalProps) {
     setSearchQuery("");
     setLookupMode(props.source && isSourcePathOnly(props.source.provider) ? "path" : "search");
     setIsDetailsVisible(false);
-    setFileMode("copy");
+    setFileMode(props.source?.liveFoldersOnly ? "live_sync" : "copy");
     setPendingGoogleWorkspaceEntries(null);
     setBreadcrumbs([]);
     void loadBrowse(null);
@@ -713,7 +714,7 @@ function SourceFilePickerFileModal(props: SourceFilePickerModalProps) {
                         disabled={isAttaching}
                         aria-label="Attachment mode"
                       >
-                        <option value="copy">Copy</option>
+                        <option value="copy" disabled={liveFoldersOnly}>Copy</option>
                         <option value="live_sync" disabled={!canUseLiveSync}>
                           Live sync
                         </option>

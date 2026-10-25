@@ -608,7 +608,10 @@ async function refreshStartupGitHubAccess(
 
 async function loadRunTooling(snapshot: TaskSnapshot, runActorUserId: string | null, fileHost: WorkspaceFileHost) {
   if (!workspaceFileFeatures(fileHost).serverFiles) return { googleWorkspaceReferences: [], hasGoogleWorkspaceFolders: false,
-    sandboxResources: await resolveUserSandboxContainerResources(runActorUserId), liveSyncFiles: [] };
+    sandboxResources: await resolveUserSandboxContainerResources(runActorUserId),
+    liveSyncFiles: (await listTaskLiveSyncFilesForWorker({ taskId: snapshot.task.id, workspaceId: snapshot.task.workspace_id,
+      environmentId: snapshot.task.environment_id, taskRootPath: snapshot.task.task_root_path }))
+      .filter((file) => file.provider === "google-drive" && file.linkKind === "folder") };
   const project = {
     workspaceId: snapshot.task.workspace_id,
     environmentId: snapshot.task.environment_id

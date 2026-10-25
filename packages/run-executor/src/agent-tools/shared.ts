@@ -90,6 +90,7 @@ export interface ResponseToolAvailability {
   // When the Master's tasks run on a model router, create_task lets the Master pick its target.
   projectMasterTaskRouter?: PlatformModelRouter | null;
   allowLiveSyncTools?: boolean;
+  allowLiveSyncFileTools?: boolean;
   allowLiveSyncFolderSearch?: boolean;
   allowCanvasTools?: boolean;
   allowStopTask?: boolean;

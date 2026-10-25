@@ -6,6 +6,15 @@ import { describe, expect, it } from "vitest";
 import { resolveToolReadableRoots } from "./readable-roots.js";
 
 describe("resolveToolReadableRoots", () => {
+  it("adds native Drive folder mounts without admitting relative or non-folder link paths", () => {
+    const roots = resolveToolReadableRoots({ taskDir: "/task", taskScratchDir: "/scratch", envRoot: "/project", workspaceRoot: "/workspace",
+      liveSyncFiles: [
+        { provider: "google-drive", linkKind: "folder", taskRelativePath: "/owned/mount" },
+        { provider: "google-drive", linkKind: "folder", taskRelativePath: "context/Drive" },
+        { provider: "onedrive", linkKind: "folder", taskRelativePath: "/not-a-native-mount" }
+      ] });
+    expect(roots).toEqual(["/task", "/scratch", "/project", "/workspace", "/owned/mount"]);
+  });
   it("reads workspace task-run files outside the current project but rejects other workspaces", async () => {
     const storage = await fs.mkdtemp(path.join(os.tmpdir(), "viewer-roots-"));
     try {

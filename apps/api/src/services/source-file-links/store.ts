@@ -241,7 +241,9 @@ export async function listGoogleDriveFolderMountPoints(): Promise<Array<{ enviro
     `SELECT e.root_path, l.local_relative_path
        FROM source_file_links l
        JOIN environments e ON e.id = l.environment_id
-      WHERE l.provider = 'google-drive' AND l.link_kind = 'folder'`
+       JOIN workspaces w ON w.id = l.workspace_id
+      WHERE l.provider = 'google-drive' AND l.link_kind = 'folder'
+        AND w.file_host->>'kind' = 'server'`
   );
 
   return result.rows.map((row) => ({ environmentRootPath: row.root_path, localRelativePath: row.local_relative_path }));

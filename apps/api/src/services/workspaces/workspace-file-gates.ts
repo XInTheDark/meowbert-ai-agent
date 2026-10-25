@@ -25,6 +25,10 @@ export function installWorkspaceFileGates(app: FastifyInstance): void {
       const location = await loadWorkspaceFileLocation(request.user.id, scope);
       const features = workspaceFileFeatures(location.fileHost);
       if (features.serverFiles) return;
+      // This attachment path has a metadata-only branch; every other source attachment remains gated in its service.
+      const body = request.body as { fileMode?: unknown } | null;
+      if (/\/sources\/google-drive\/attach$/.test(new URL(request.url, "http://workspace.invalid").pathname)
+        && body?.fileMode === "live_sync") return;
       return reply.status(409).send({ error: "Files are on " + (location.deviceName ?? "the workspace device") + ". Open Meowbert Desktop on that device.",
         code: "DEVICE_WORKSPACE_FILES", fileHost: location.fileHost, features });
     }];

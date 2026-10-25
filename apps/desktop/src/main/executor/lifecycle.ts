@@ -1,3 +1,6 @@
+import { LiveFolderManager } from "../live-folders/manager";
+import { cleanupLiveFolderMounts } from "../live-folders/native-mount";
+import { confirmLiveFolderConsent } from "../live-folders/consent";
 import path from "node:path";
 import { app, dialog } from "electron";
 import { readBootstrapData, saveLocalExecutionSettings, listLocalExecutionDeviceIds } from "../state";
@@ -25,6 +28,8 @@ export function startConfiguredLocalExecutor(): Promise<DesktopLocalExecutionSta
     const current = executor; executor = null; await current?.stop();
     if (generation !== currentGeneration) return status;
     await cleanupHostProcesses(path.join(app.getPath("userData"), "runs"));
+    const liveFoldersRoot = path.join(app.getPath("userData"), "live-folders");
+    await cleanupLiveFolderMounts(liveFoldersRoot);
     for (const deviceId of await listLocalExecutionDeviceIds()) await stopDesktopContainers(deviceId).catch(() => undefined);
     const bootstrap = await readBootstrapData();
     const settings = bootstrap.localExecutionSettings;
@@ -34,6 +39,10 @@ export function startConfiguredLocalExecutor(): Promise<DesktopLocalExecutionSta
     executor = await startDesktopLocalExecutor({
       apiBaseUrl: settings.serverBaseUrl, token: bootstrap.token, deviceId: settings.deviceId,
       executorVersion: app.getVersion(), maxConcurrentRuns: settings.maxConcurrentRuns, storageBackendId: settings.storageBackendId, storageRoot: settings.storageRoot ?? "", workspaceRoots: settings.workspaceRoots,
+      liveDriveEnabled: settings.liveDriveEnabled,
+      liveFolders: settings.liveDriveEnabled && process.platform === "darwin" ? new LiveFolderManager(liveFoldersRoot,
+        path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), "dist"), "live-folder-runtime", "rclone-" + process.arch)) : undefined,
+      onLiveFolderConsent: (folder) => confirmLiveFolderConsent(settings.serverBaseUrl!, settings.deviceId, folder),
       hostConsent: settings.hostConsent, hostShellEnabled: settings.hostShellEnabled,
       computerUseEnabled: settings.computerUseEnabled, hostBrowserEnabled: settings.hostBrowserEnabled,
       runsRoot: path.join(app.getPath("userData"), "runs"),

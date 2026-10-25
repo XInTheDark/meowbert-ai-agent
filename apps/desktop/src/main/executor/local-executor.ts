@@ -1,3 +1,5 @@
+import type { LocalLiveFolder } from "@meowbert/shared";
+import type { LiveFolderManager } from "../live-folders/manager";
 import { stopDesktopContainers } from "../sandbox-image/resources";
 import { LocalExecutionReadiness } from "./local-readiness";
 import path from "node:path";
@@ -12,6 +14,8 @@ import { sandboxArchitecture } from "../sandbox-image/platform";
 
 export interface LocalExecutionConfig { deviceWorkspaces?: Array<{ id: string; file_host: { kind: "device"; deviceId: string } }>; enabled: boolean; sandboxImage: SandboxImageReference; executorSettings: ExecutorSettings; storageMarkers: Record<string, { installId: string } | null> }
 export interface DesktopLocalExecutorOptions extends DeviceApiOptions {
+  liveDriveEnabled?: boolean; liveFolders?: LiveFolderManager;
+  onLiveFolderConsent?: (folder: LocalLiveFolder) => Promise<boolean>;
   maxConcurrentRuns: number; deviceId: string; executorVersion: string; storageBackendId: string; storageRoot: string;
   scratchRoot: string; resourcesRoot: string; downloadConsent: boolean;
   workspaceRoots?: Record<string, string>;

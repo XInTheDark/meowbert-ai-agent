@@ -149,13 +149,14 @@ function isToolEnabled(
     return availability.allowProjectMasterTools === true;
   }
 
+  if (tool.name === LIST_LIVE_SYNC_FILES_TOOL_NAME) return availability.allowLiveSyncTools === true;
+
   if (
-    tool.name === LIST_LIVE_SYNC_FILES_TOOL_NAME
-    || tool.name === GET_LIVE_SYNC_STATUS_TOOL_NAME
+    tool.name === GET_LIVE_SYNC_STATUS_TOOL_NAME
     || tool.name === PULL_LIVE_SYNC_FILE_TOOL_NAME
     || tool.name === PUSH_LIVE_SYNC_FILE_TOOL_NAME
   ) {
-    return availability.allowLiveSyncTools === true;
+    return availability.allowLiveSyncTools === true && availability.allowLiveSyncFileTools !== false;
   }
 
   if (tool.name === SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME) {

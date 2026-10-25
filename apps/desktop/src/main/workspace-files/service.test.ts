@@ -22,7 +22,7 @@ beforeEach(async () => {
   state.request.mockImplementation(async (url: string) => url.startsWith("/api/workspace-files/location") ? {
     workspaceId, fileHost: { kind: "device", deviceId: "device" }, deviceName: "My computer",
     projectId, taskRootPath: null, memoryEnabled: true
-  } : { ok: true });
+  } : url.endsWith("/live-drive-folders") ? { folders: [] } : { ok: true });
 });
 afterEach(async () => { await fs.rm(root, { recursive: true, force: true }); });
 
@@ -67,4 +67,25 @@ it("requires the workspace marker and rejects traversal and escaping symlinks", 
 it("refuses files owned by a different device", async () => {
   state.bootstrap.mockResolvedValue({ token: "session", localExecutionSettings: { serverBaseUrl: "https://server.test", deviceId: "other" } });
   await expect(requestDeviceWorkspaceFiles({ method: "GET", path: "/api/projects/" + projectId + "/files" })).rejects.toThrow("My computer");
+});
+
+it("shows metadata-only Drive folders, rejects writes inside them, and unlinks before deleting a parent", async () => {
+  const original = state.request.getMockImplementation()!;
+  state.request.mockImplementation(async (url: string, ...args: unknown[]) => url.endsWith("/live-drive-folders") ? { folders: [
+    { id: "link", localRelativePath: "context/references/Drive", remoteName: "Drive", remoteWebUrl: "https://drive.google.com/fixture" }
+  ] } : original(url, ...args));
+  const base = "/api/projects/" + projectId + "/files";
+  expect(await requestDeviceWorkspaceFiles({ method: "GET", path: base + "?path=context" })).toMatchObject({
+    items: [expect.objectContaining({ name: "references", kind: "directory" })]
+  });
+  expect(await requestDeviceWorkspaceFiles({ method: "GET", path: base + "?path=context/references" })).toMatchObject({
+    items: [expect.objectContaining({ name: "Drive", liveSync: expect.objectContaining({ id: "link" }) })]
+  });
+  await expect(requestDeviceWorkspaceFiles({ method: "POST", path: base + "/text?path=context/references/Drive",
+    body: { name: "not-local.txt", content: "should never be written" } })).rejects.toThrow("mounted only");
+  expect(await requestDeviceWorkspaceFiles({ method: "POST", path: base + "/delete", body: { paths: ["context/references"] } })).toMatchObject({
+    deletedPaths: ["context/references"]
+  });
+  expect(state.request).toHaveBeenCalledWith("/api/projects/" + projectId + "/live-drive-folders/unlink", "POST", { paths: ["context/references/Drive"] });
+  await expect(fs.stat(path.join(root, "projects", projectId, "context/references/Drive"))).rejects.toMatchObject({ code: "ENOENT" });
 });

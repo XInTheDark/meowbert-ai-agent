@@ -6,7 +6,7 @@ import {
   type GoogleDriveFolderSearchResult
 } from "./google-drive-folder-search.js";
 import { SourceFileLinkActionError } from "./provider-errors.js";
-import { getTaskLiveSyncLinkByTaskPath } from "./service.js";
+import { getTaskLiveSyncLinkMetadata } from "./task-link-metadata.js";
 
 function normalizeSubfolder(value: string | null): string | null {
   const trimmed = value?.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "") ?? "";
@@ -27,7 +27,7 @@ export async function searchTaskLiveSyncFolderByTaskPath(input: {
   depth: number;
   filters: GoogleDriveFolderSearchFilters;
 }): Promise<GoogleDriveFolderSearchResult & { folder: string }> {
-  const { link } = await getTaskLiveSyncLinkByTaskPath(input);
+  const { link } = await getTaskLiveSyncLinkMetadata(input);
   if (link.provider !== "google-drive" || link.linkKind !== "folder") {
     throw new SourceFileLinkActionError("Folder search is only available for linked Google Drive folders.");
   }

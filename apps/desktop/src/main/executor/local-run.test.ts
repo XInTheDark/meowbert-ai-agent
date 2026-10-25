@@ -15,6 +15,7 @@ vi.mock("../computer-use/service", () => ({ computerUseService: { performAction:
 import { startLocalRun } from "./local-run";
 import { StorageNotReadyError } from "../storage/inputs";
 import type { DesktopLocalExecutorOptions } from "./local-executor";
+import { configureLocalRunPlatform } from "./local-run-platform";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -58,4 +59,18 @@ it.each([false, true])("keeps local Computer Use on the device when enabled=%s",
   expect(state.run).toHaveBeenCalledOnce();
   expect(state.remotePresence).not.toHaveBeenCalled();
   expect(state.remoteAction).not.toHaveBeenCalled();
+});
+
+it("maps native Drive paths back to task-scoped search and status without exposing server paths", async () => {
+  const search = vi.fn().mockResolvedValue({ folder: "context/Drive/sub", items: [{ path: "context/Drive/sub/file.txt" }] });
+  const status = vi.fn().mockResolvedValue({ status: "synced" });
+  const platform = { liveSyncFolderSearch: search, liveSyncStatus: status };
+  configureLocalRunPlatform({ platform, options: {}, taskId: "task", signal: new AbortController().signal,
+    bootstrap: { liveSyncFiles: [{ id: "link", taskRelativePath: "context/Drive" }] },
+    liveSyncFiles: [{ id: "link", taskRelativePath: "/owned/live/Drive" }] } as never);
+  const request = { taskRelativePath: "/owned/live/Drive", subfolder: "sub" };
+  expect(await platform.liveSyncFolderSearch(request)).toEqual({ folder: "/owned/live/Drive/sub", items: [{ path: "/owned/live/Drive/sub/file.txt" }] });
+  expect(search).toHaveBeenCalledWith({ ...request, taskRelativePath: "context/Drive" });
+  await platform.liveSyncStatus({ taskRelativePath: "/owned/live/Drive" });
+  expect(status).toHaveBeenCalledWith({ taskRelativePath: "context/Drive" });
 });

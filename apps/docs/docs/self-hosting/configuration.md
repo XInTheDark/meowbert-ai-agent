@@ -59,6 +59,19 @@ Apply all migrations through `146_device_workspaces.sql` before starting the upd
 
 Device-hosted workspaces need no server mount or quota. Migration 146 persists their fixed file host, keeps absolute device paths off the server, and records durable cleanup tombstones. All their runs, including recurring runs, target the owning device. Relink revokes the old epochs and waits 90 seconds before reassigning unfinished runs. Workspace deletion preserves the user folder. Server-only file features are disabled, while conversations, settings and model usage remain server-managed.
 
+The model proxy checks device-supplied tool schemas against the run's builtin definitions and trusted installed skill catalogs, including lazy tool discovery. It allows one in-flight model request per run and four per user across workers, using PostgreSQL advisory locks released on completion or connection loss. Admission connections use a separate pool so model billing keeps access to the main pool.
+
+Live Google Drive folders use the desktop app's bundled, checksum-pinned rclone on macOS, with the built-in NFS client and no macFUSE. They are currently host-mode only: Docker Desktop bind visibility has not been accepted. The Run API returns rclone credentials only for a current macOS host lease, an attached folder and the user who connected the workspace's Drive account, after connection-specific consent. These credentials include the provider client secret and a persistent full-Drive token; a folder root is not a token permission boundary. Disconnecting Drive revokes its refresh token at Google before removing the saved connection. Failed revocation remains retryable.
+
+For the local NFS acceptance test, build the desktop runtime and run this on macOS; it uses a temporary local alias, requires no Google account, and verifies named reads/writes, config permissions and crash cleanup:
+
+```sh
+npm run build:desktop
+TEST_LIVE_FOLDER_NFS=1 npm run test --workspace apps/desktop -- src/main/live-folders/native-mount.integration.test.ts
+```
+
+This does not establish Google account access, Docker NFS bind support, signing/notarization, or packaged-app acceptance. Those require the actual account and target hosts.
+
 Host mode and host shell have the authority of the desktop user and require consent on that device. Computer Use and the persistent Chrome profile are separate opt-in host tools. Do not enable host execution on an untrusted shared machine.
 
 Before accepting a new Docker Desktop/network-share combination, run the opt-in mount test from the repository on the device. Set `TEST_LOCAL_STORAGE_ROOT`, `TEST_LOCAL_STORAGE_BACKEND_ID`, `TEST_LOCAL_STORAGE_INSTALL_ID`, and `TEST_LOCAL_SANDBOX_IMAGE` to the actual mounted backend and pinned image, then run:

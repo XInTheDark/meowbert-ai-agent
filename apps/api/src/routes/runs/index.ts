@@ -1,3 +1,4 @@
+import { runLiveFolderRoutes } from "./live-folders.js";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { config } from "../../lib/config.js";
@@ -42,6 +43,7 @@ async function forward(request: FastifyRequest, reply: FastifyReply, runId: stri
 // The Run API for executors outside the control plane. The API checks the lease token and passes
 // each call to the worker that holds the run's lease.
 export const runApiRoutes: FastifyPluginAsync = async (fastify) => {
+  await fastify.register(runLiveFolderRoutes);
   fastify.post("/api/runs/:runId/call/:method", { bodyLimit: RUN_API_BODY_LIMIT_BYTES }, async (request, reply) => {
     const params = callParams.parse(request.params);
     return forward(request, reply, params.runId, `/runs/${params.runId}/call/${params.method}`);

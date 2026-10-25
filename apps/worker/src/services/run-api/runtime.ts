@@ -1,3 +1,5 @@
+import { createUserModelRequestSlots } from "./model-request-slots.js";
+import { config as workerConfig } from "../../lib/config.js";
 import os from "node:os";
 import type http from "node:http";
 import { isLocalTaskExecutionTarget, type AppConfig, type TaskExecutionJob } from "@meowbert/shared";
@@ -26,6 +28,7 @@ export async function startRunApi(
   stores: RunApiStores = sqlRunApiStores
 ): Promise<RunApiRuntime> {
   const sessions = new RunApiSessions();
+  const modelSlots = createUserModelRequestSlots(workerConfig.db.url);
   const leaseSecret = config.security.jwtSecret;
   const apiUrl = config.runApi.url ?? `http://${os.hostname()}:${config.runApi.port}`;
   const handler = createRunApiHandler({
@@ -33,6 +36,7 @@ export async function startRunApi(
     sessions,
     leaseSecret,
     model: {
+      withUserSlot: modelSlots.withSlot,
       weighUsage: async (model, counts) => (await platformUsageRecorder.computeCost(model, counts)).weightedTokens,
       chargeAbandoned: async (policy, model, counts) => {
         if (!policy.billing) return;
@@ -84,6 +88,7 @@ export async function startRunApi(
     close: async () => {
       clearInterval(pruneTimer);
       await closeServer(server);
+      await modelSlots.close();
     }
   };
 }

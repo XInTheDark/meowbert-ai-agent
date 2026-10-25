@@ -126,6 +126,7 @@ export type RunApiErrorCode =
   | "outcome_unknown"
   | "invalid_request"
   | "unauthorized"
+  | "rate_limited"
   | "quota_exceeded"
   | "internal";
 
@@ -145,5 +146,6 @@ export const RUN_API_ERROR_STATUS: Record<RunApiErrorCode, number> = {
   invalid_request: 400,
   unauthorized: 401,
   quota_exceeded: 402,
+  rate_limited: 429,
   internal: 500
 };

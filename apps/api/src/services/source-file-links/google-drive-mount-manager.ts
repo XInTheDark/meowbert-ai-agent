@@ -1,3 +1,4 @@
+import { buildGoogleDriveMountConfig, googleDriveMountArgs } from "@meowbert/shared";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -24,16 +25,6 @@ interface GoogleDriveMountHandle {
   references: Set<string>;
   stopPromise: Promise<void> | null;
   unlinkRequested: boolean;
-}
-
-function tokenJson(access: Awaited<ReturnType<typeof resolveWorkspaceSourceAccess>>): string {
-  const tokens = access.connection.tokens;
-  return JSON.stringify({
-    access_token: tokens.accessToken,
-    token_type: tokens.tokenType ?? "Bearer",
-    refresh_token: tokens.refreshToken,
-    expiry: tokens.expiresAt
-  });
 }
 
 async function withAccessLock<T>(workspaceId: string, run: () => Promise<T>): Promise<T> {
@@ -173,12 +164,9 @@ export async function acquireGoogleDriveFolderMount(input: {
     const configPath = path.join(configDir, "rclone.conf");
     let child: ChildProcess;
     try {
-      await fs.writeFile(configPath, `[google-drive]\ntype = drive\nclient_id = ${access.settings.clientId}\nclient_secret = ${access.settings.clientSecret}\ntoken = ${tokenJson(access)}\nroot_folder_id = ${input.link.remoteItemId}\n`, { mode: 0o600 });
-      child = spawn("rclone", ["--config", configPath, "mount", "google-drive:", mountPoint,
-        "--vfs-cache-mode", "full", "--vfs-write-back", "1s", "--vfs-cache-max-size", "10G",
-        "--vfs-fast-fingerprint", "--dir-cache-time", "30m", "--drive-pacer-min-sleep", "100ms",
-        "--drive-export-formats", "url", "--allow-other", "--timeout", "10s", "--contimeout", "5s",
-        "--low-level-retries", "2", "--retries", "1"], { stdio: ["ignore", "ignore", "pipe"] });
+      await fs.writeFile(configPath, buildGoogleDriveMountConfig({ clientId: access.settings.clientId!,
+        clientSecret: access.settings.clientSecret!, tokens: access.connection.tokens, rootFolderId: input.link.remoteItemId }), { mode: 0o600 });
+      child = spawn("rclone", googleDriveMountArgs({ configPath, mountPoint, transport: "fuse" }), { stdio: ["ignore", "ignore", "pipe"] });
     } catch (error) {
       await fs.rm(configDir, { recursive: true, force: true }).catch(() => undefined);
       throw error;

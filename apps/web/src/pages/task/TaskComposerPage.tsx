@@ -470,7 +470,7 @@ export function TaskComposerPage() {
             taskParametersMode="create"
             availableSkills={fileFeatures.canvases ? availableSkills : availableSkills.filter((skill) => skill.id !== "html-canvas")}
             availableSources={availableSources}
-            attachableSources={fileFeatures.linkedSources ? attachableSources : []}
+            attachableSources={attachableSources}
             availableAgents={isLocalTarget ? availableAgents.filter((agent) => agent.mode !== "agent_swarm") : availableAgents}
             selectedAgentId={selectedAgentId}
             defaultAgentId={defaultAgentId}

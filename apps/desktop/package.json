@@ -6,7 +6,7 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build && node scripts/build-host-skills.mjs",
+    "build": "electron-vite build && node scripts/build-host-skills.mjs && node scripts/build-live-folder-runtime.mjs",
     "lint": "tsc -p tsconfig.json --noEmit",
     "package": "npm run build && electron-builder --config electron-builder.config.cjs",
     "package:release": "npm run build && electron-builder --config electron-builder.config.cjs --publish always",

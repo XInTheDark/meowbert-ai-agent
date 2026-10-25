@@ -1,4 +1,6 @@
+import path from "node:path";
 interface ToolReadableRootsInput {
+  liveSyncFiles?: Array<{ provider: string; linkKind: string; taskRelativePath: string }>;
   taskDir: string;
   taskScratchDir: string;
   envRoot: string;
@@ -15,6 +17,7 @@ export function resolveToolReadableRoots(ctx: ToolReadableRootsInput): string[] 
     ctx.taskDir,
     ctx.taskScratchDir,
     ctx.envRoot,
-    ctx.workspaceRoot
+    ctx.workspaceRoot,
+    ...(ctx.liveSyncFiles ?? []).filter((file) => file.provider === "google-drive" && file.linkKind === "folder" && path.isAbsolute(file.taskRelativePath)).map((file) => file.taskRelativePath)
   ];
 }

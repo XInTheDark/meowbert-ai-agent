@@ -7,6 +7,7 @@ import { createDeviceApi } from "../executor/device-api";
 import { resolveDevicePath, verifyDeviceWorkspace } from "./roots";
 import { listDeviceDirectory, previewDeviceFile, writeDeviceFile, deleteDeviceFiles } from "./file-operations";
 import { issueDeviceFileTicket } from "./inline-tickets";
+import { handleDeviceLiveFolders } from "./live-folders";
 
 export async function deviceFileContext(requestPath: string) {
   const url = new URL(requestPath, "http://workspace.invalid");
@@ -53,6 +54,8 @@ export async function requestDeviceWorkspaceFiles(input: WorkspaceFilesRequest):
   if (!context) throw new Error("These files are hosted by the server.");
   const { root, url, api, settings, location } = context;
   const requested = url.searchParams.get("path") ?? "";
+  const liveFolders = await handleDeviceLiveFolders(context, request);
+  if (liveFolders.handled) return liveFolders.value;
   if (url.pathname.endsWith("/memory") && request.method === "GET") return readDeviceMemory(context);
   if (url.pathname.endsWith("/suggested-actions")) return { enabled: false, actions: createDefaultProjectSuggestedActions() };
   if (url.pathname.endsWith("/storage")) return { storage: null };

@@ -2,7 +2,7 @@ import { getSourceProviderClient } from "./provider-clients.js";
 import { getSourceProviderSettings, isSourceProviderReady } from "./provider-settings.js";
 import {
   getWorkspaceSourceConnection,
-  upsertWorkspaceSourceConnection
+  updateWorkspaceSourceTokens
 } from "./workspace-source-connections.js";
 import type { SourceProvider, SourceProviderSettings, WorkspaceSourceConnection } from "./source-types.js";
 
@@ -47,16 +47,9 @@ async function refreshWorkspaceSourceConnection(input: {
     refreshToken
   });
 
-  return upsertWorkspaceSourceConnection({
-    workspaceId: input.connection.workspaceId,
-    provider: input.connection.provider,
-    tokens: {
-      ...refreshedTokens,
-      refreshToken: refreshedTokens.refreshToken ?? refreshToken
-    },
-    accountId: input.connection.accountId,
-    accountLabel: input.connection.accountLabel,
-    updatedByUserId: input.connection.updatedByUserId
+  return updateWorkspaceSourceTokens(input.connection, {
+    ...refreshedTokens,
+    refreshToken: refreshedTokens.refreshToken ?? refreshToken
   });
 }
 

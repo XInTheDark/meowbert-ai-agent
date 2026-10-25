@@ -11,6 +11,7 @@ export function workspaceFileFeatures(fileHost: WorkspaceFileHost) {
     canvases: server,
     terminalSessions: server,
     linkedSources: server,
+    liveDriveFolders: true,
     inboundAttachments: server,
     forkFiles: server,
     storageManagement: server,

@@ -9,3 +9,13 @@ Meowbert is licensed under the GNU Affero General Public License v3.0 (see `LICE
 | `skills/google-workspace/` | Portions derived from [google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp) by Taylor Wilsdon, with local modifications | MIT, see `skills/google-workspace/LICENSE.google-workspace-mcp` |
 | `promo-website/assets/fonts/google-sans.woff2` | [Google Sans](https://github.com/googlefonts/googlesans) (Latin subset from Google Fonts) | SIL Open Font License 1.1, see `promo-website/assets/fonts/OFL-google-sans.txt` |
 | `promo-website/assets/fonts/google-sans-code.woff2` | [Google Sans Code](https://github.com/googlefonts/googlesans-code) (Latin subset from Google Fonts) | SIL Open Font License 1.1, see `promo-website/assets/fonts/OFL-google-sans-code.txt` |
+
+## rclone
+
+Meowbert Desktop bundles rclone 1.75.2 for macOS live Google Drive folders.
+
+- Project: https://rclone.org/ and https://github.com/rclone/rclone
+- License: MIT
+- Copyright: (C) 2012 Nick Craig-Wood
+- The complete MIT license and rclone README ship alongside the bundled binaries.
+- Build downloads are pinned by version and SHA-256 for macOS amd64 and arm64.

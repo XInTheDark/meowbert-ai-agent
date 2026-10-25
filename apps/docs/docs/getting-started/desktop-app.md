@@ -156,13 +156,21 @@ Choose **Sandbox** or **Host** beside Local. Sandbox is the default and runs com
 
 Enable **Computer Use** for screen control, subject to your system's permissions. **Your Chrome** opens Chrome, or Edge when Chrome is unavailable, with a separate persistent Meowbert profile. Log into sites in that window to keep those logins between tasks. Each resource has one task owner at a time. Closing the desktop app stops local commands and containers.
 
-Local tasks support schedules and recurring runs, which wait while their device is offline. Threads, subagents, Agent Swarm, Project Master, Long Horizon workflows and live Drive folder mounts remain unavailable locally.
+Local tasks support schedules and recurring runs, which wait while their device is offline. Threads, subagents, Agent Swarm, Project Master and Long Horizon workflows remain unavailable locally.
+
+### Live Google Drive folders
+
+On macOS, enable **Live Google Drive folders** in Local Execution preferences and choose **Host** for tasks that use them. Connect Google Drive in your workspace, then attach a folder in **Live sync** mode to a task or Project Context. Only the person who connected that Google Drive account can mount its folders locally. Windows and local sandbox mode do not support these mounts.
+
+The first mount asks permission to store a credential with access to your **entire Google Drive**, even when you attach just one folder. Approval is remembered for that device, server and connection; reconnecting the account asks again. Ending a task, disabling live folders, or removing a device cleans up the app's local credentials but cannot revoke a copy someone kept. To revoke every copy, disconnect Google Drive in Meowbert or remove Meowbert's access from your Google account. If disconnecting fails, retry until it succeeds.
+
+Folders mount while local tasks use them and unmount after the last task finishes. Files stream as needed and edits upload automatically. In device workspaces, Files and Project Context show the linked folder; browse its contents in Google Drive or ask a local host task to use it. Removing the linked folder from Files unlinks it without deleting anything from Google Drive.
 
 ### Workspaces on this device
 
 In **Manage Workspaces**, choose **On this device**, enter a name and pick a folder. Files stay there, and every task runs on its owning device. What an agent reads still goes to the model through your server; conversations and settings are stored on the server.
 
-Use Files, Project Context, uploads, downloads and memory files in the desktop app on that device. Other devices and the web app can show conversations but direct file views to the owning device. Device workspaces are single-user. Canvases, project terminals, linked-source file sync, server memory search and automatic memory refresh are unavailable.
+Use Files, Project Context, uploads, downloads and memory files in the desktop app on that device. Other devices and the web app can show conversations but direct file views to the owning device. Device workspaces are single-user. Live Google Drive folders are available on macOS in host mode; other linked-source file sync, canvases, project terminals, server memory search and automatic memory refresh are unavailable.
 
 After reinstalling the app or moving the folder to another computer, use **Relink** in Manage Workspaces and select the existing folder. Its marker must match. Meowbert revokes the old lease and waits before resuming tasks on the new device. Deleting a workspace never deletes its chosen folder. Task/project cleanup reaches offline devices when they reconnect.
 

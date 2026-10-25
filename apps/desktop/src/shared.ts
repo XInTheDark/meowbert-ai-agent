@@ -42,6 +42,8 @@ export interface DesktopActiveContext {
 }
 
 export interface DesktopLocalExecutionSettings {
+  liveDriveEnabled?: boolean;
+  liveDriveConsents?: Record<string, boolean>;
   workspaceRoots?: Record<string, string>;
   defaultMode?: "sandbox" | "host";
   hostConsent?: boolean;

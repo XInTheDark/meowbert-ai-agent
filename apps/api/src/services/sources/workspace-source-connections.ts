@@ -1,3 +1,4 @@
+import { revokeGoogleDriveTokens } from "./google-drive-revocation.js";
 import { query } from "../../lib/db.js";
 import type { SourceProvider, StoredSourceTokens, WorkspaceSourceConnection } from "./source-types.js";
 
@@ -190,7 +191,7 @@ export async function upsertWorkspaceSourceConnection(input: {
        tokens_json = EXCLUDED.tokens_json,
        account_id = EXCLUDED.account_id,
        account_label = EXCLUDED.account_label,
-       connected_at = COALESCE(workspace_source_connections.connected_at, EXCLUDED.connected_at),
+       connected_at = EXCLUDED.connected_at,
        updated_by_user_id = EXCLUDED.updated_by_user_id,
        updated_at = now()
      RETURNING workspace_id,
@@ -215,7 +216,28 @@ export async function upsertWorkspaceSourceConnection(input: {
   return mapWorkspaceSourceConnection(result.rows[0]);
 }
 
+// A refresh must not recreate a connection deleted while the provider request was in flight.
+export async function updateWorkspaceSourceTokens(connection: WorkspaceSourceConnection, tokens: StoredSourceTokens): Promise<WorkspaceSourceConnection> {
+  const result = await query(
+    "UPDATE workspace_source_connections SET tokens_json = $3::jsonb, updated_at = now() WHERE workspace_id = $1 AND provider = $2 AND updated_at = $4::timestamptz RETURNING workspace_id",
+    [connection.workspaceId, connection.provider, JSON.stringify(tokens), connection.updatedAt]
+  );
+  if (!result.rows.length) throw new Error("The source connection changed or was disconnected. Retry the request.");
+  return { ...connection, tokens };
+}
+
 export async function deleteWorkspaceSourceConnection(workspaceId: string, provider: SourceProvider): Promise<void> {
+  if (provider === "google-drive") {
+    const connection = await getWorkspaceSourceConnection(workspaceId, provider);
+    if (!connection) return;
+    await revokeGoogleDriveTokens(connection.tokens);
+    const result = await query(
+      "DELETE FROM workspace_source_connections WHERE workspace_id = $1 AND provider = $2 AND updated_at = $3::timestamptz RETURNING workspace_id",
+      [workspaceId, provider, connection.updatedAt]
+    );
+    if (!result.rows.length && await getWorkspaceSourceConnection(workspaceId, provider)) throw new Error("The source connection changed. Retry disconnecting.");
+    return;
+  }
   await query(
     `DELETE FROM workspace_source_connections
       WHERE workspace_id = $1

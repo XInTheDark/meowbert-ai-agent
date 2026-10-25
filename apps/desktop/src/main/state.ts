@@ -145,6 +145,8 @@ function sanitizeLocalExecutionSettings(input: unknown): DesktopLocalExecutionSe
     : {};
   return {
     workspaceRoots: Object.fromEntries(Object.entries(candidate.workspaceRoots ?? {}).filter(([id, root]) => /^[a-f0-9-]{36}$/i.test(id) && typeof root === "string" && path.isAbsolute(root))),
+    liveDriveEnabled: candidate.liveDriveEnabled === true,
+    liveDriveConsents: Object.fromEntries(Object.entries(candidate.liveDriveConsents ?? {}).filter(([id, allowed]) => /^[a-f0-9]{64}$/.test(id) && allowed === true)),
     defaultMode: candidate.defaultMode === "host" ? "host" : "sandbox",
     hostConsent: candidate.hostConsent === true,
     hostShellEnabled: candidate.hostConsent === true && candidate.hostShellEnabled === true,
@@ -206,10 +208,21 @@ export async function saveLocalExecutionSettings(input: DesktopLocalExecutionSet
     const key = activeServerKey(state);
     if (!key || input.serverBaseUrl !== key) throw new Error("The selected server changed. Reload Local Execution settings.");
     const previous = state.localExecutionSettingsByServer?.[key];
-    const settings = sanitizeLocalExecutionSettings({ ...input, deviceId: previous?.deviceId ?? input.deviceId });
+    const settings = sanitizeLocalExecutionSettings({ ...input, deviceId: previous?.deviceId ?? input.deviceId,
+      liveDriveConsents: input.liveDriveEnabled ? previous?.liveDriveConsents ?? {} : {} });
     state.localExecutionSettingsByServer ??= {};
     state.localExecutionSettingsByServer[key] = settings;
     return settings;
+  });
+}
+
+export async function grantLiveDriveConsent(serverBaseUrl: string, deviceId: string, connectionId: string): Promise<boolean> {
+  return updateState((state) => {
+    const key = activeServerKey(state);
+    const settings = state.localExecutionSettingsByServer?.[key];
+    if (key !== serverBaseUrl || settings?.deviceId !== deviceId || !settings.liveDriveEnabled || !/^[a-f0-9]{64}$/.test(connectionId)) return false;
+    settings.liveDriveConsents = { ...settings.liveDriveConsents, [connectionId]: true };
+    return true;
   });
 }
 export async function saveAuthToken(token: string | null): Promise<void> {

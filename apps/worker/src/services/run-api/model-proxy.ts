@@ -1,7 +1,7 @@
-import type { ResponseInputItem } from "openai/resources/responses/responses";
+import type { ResponseInputItem, Tool } from "openai/resources/responses/responses";
 import type { ModelUsageCounts, RunApiModelRequest, RunApiModelResponse } from "@meowbert/shared";
 import { canonicalizeModelPayload } from "@meowbert/run-executor/agent/model";
-import { estimateContextTokens } from "@meowbert/run-executor/context-compaction/token-estimation";
+import { estimateContextTokens, estimateTokensFromText } from "@meowbert/run-executor/context-compaction/token-estimation";
 import type { RunApiSession, RunModelPolicy } from "./sessions.js";
 import type { UsageReservationStore } from "./stores.js";
 import { RunApiFailure } from "./failure.js";
@@ -49,6 +49,8 @@ function validateTools(tools: unknown, request: RunApiModelRequest, policy: RunM
 }
 
 export function validateModelRequest(request: RunApiModelRequest, policy: RunModelPolicy): void {
+  if (!request || typeof request.operationId !== "string" || !request.operationId
+    || !Number.isSafeInteger(request.timeoutMs) || request.timeoutMs < 1 || request.timeoutMs > 3_600_000) reject("Invalid model operation or timeout.");
   if (!PURPOSES.has(request.purpose)) reject("Unknown model request purpose.");
   if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) reject("body must be an object.");
   for (const [key, value] of Object.entries(request.body)) {
@@ -56,9 +58,10 @@ export function validateModelRequest(request: RunApiModelRequest, policy: RunMod
     if (key in policy.modelPayload && sameValue(value, policy.modelPayload[key])) continue;
     reject(`Field ${key} is not allowed.`);
   }
-  if (request.body.store === true) reject("store must be false.");
+  if (request.body.store !== undefined && request.body.store !== false) reject("store must be false.");
+  if (request.body.input !== undefined && typeof request.body.input !== "string" && !Array.isArray(request.body.input)) reject("input must be text or an item array.");
   const maxOutputTokens = request.body.max_output_tokens;
-  if (maxOutputTokens !== undefined && (typeof maxOutputTokens !== "number" || maxOutputTokens < 1 || maxOutputTokens > policy.maxContextTokens)) {
+  if (maxOutputTokens !== undefined && (typeof maxOutputTokens !== "number" || !Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > policy.maxContextTokens)) {
     reject("max_output_tokens is out of range.");
   }
   validateTools(request.body.tools, request, policy);
@@ -73,7 +76,9 @@ export function estimateMaximumUsage(request: RunApiModelRequest, policy: RunMod
   const model = policy.model(request.purpose);
   const input = Array.isArray(request.body.input) ? request.body.input as ResponseInputItem[] : [];
   const instructions = typeof request.body.instructions === "string" ? request.body.instructions : "";
-  const inputTokens = estimateContextTokens(instructions, input, model);
+  const inputTokens = estimateContextTokens(instructions, input, model)
+    + estimateTokensFromText(typeof request.body.input === "string" ? request.body.input : "")
+    + estimateTokensFromText(Array.isArray(request.body.tools) && request.body.tools.length ? JSON.stringify(request.body.tools) : "");
   const maxOutput = typeof request.body.max_output_tokens === "number"
     ? request.body.max_output_tokens
     : Math.max(1, policy.maxContextTokens - inputTokens);
@@ -81,53 +86,55 @@ export function estimateMaximumUsage(request: RunApiModelRequest, policy: RunMod
 }
 
 export interface ModelProxyDeps {
+  withUserSlot?<T>(userId: string, signal: AbortSignal, run: (signal: AbortSignal) => Promise<T>): Promise<T>;
   reservations: UsageReservationStore;
   weighUsage(model: string, counts: ModelUsageCounts): Promise<number>;
   // Bills a request the executor walked away from, at its reserved maximum.
   chargeAbandoned(policy: RunModelPolicy, model: string, counts: ModelUsageCounts): Promise<void>;
 }
 
-// Forwards one model request for a run: validated against the run's route, held against the
-// user's allowance at its maximum cost first, then settled to what the provider reports.
-export async function proxyModelRequest(
-  session: RunApiSession,
-  request: RunApiModelRequest,
-  deps: ModelProxyDeps,
-  signal: AbortSignal
-): Promise<RunApiModelResponse> {
-  const policy = session.policy();
-  validateModelRequest(request, policy);
-  if (session.modelRequestInFlight) throw new RunApiFailure("invalid_request", "Another model request for this run is in flight.");
-  session.modelRequestInFlight = true;
-  let reservationId: string | null = null;
+async function forwardModelRequest(session: RunApiSession, request: RunApiModelRequest, policy: RunModelPolicy, deps: ModelProxyDeps, signal: AbortSignal): Promise<RunApiModelResponse> {
+  if (policy.validateTools) await policy.validateTools((request.body.tools ?? []) as Tool[], request.purpose);
+  signal.throwIfAborted();
   const model = policy.model(request.purpose);
   const maximum = estimateMaximumUsage(request, policy);
+  let reservationId: string | null = null;
   try {
     if (policy.billing && !policy.quotaExempt) {
-      const reservation = await deps.reservations.reserve({
-        userId: policy.billing.userId,
-        runId: session.runId,
-        weightedTokens: await deps.weighUsage(model, maximum)
-      });
+      const reservation = await deps.reservations.reserve({ userId: policy.billing.userId, runId: session.runId,
+        weightedTokens: await deps.weighUsage(model, maximum) });
       if (!reservation) throw new RunApiFailure("quota_exceeded", "Subscription usage limit reached.");
       reservationId = reservation.id;
     }
+    signal.throwIfAborted();
     try {
-      return await session.models.create({
-        purpose: request.purpose,
-        body: request.body,
+      return await session.models.create({ purpose: request.purpose, body: request.body, signal, timeoutMs: request.timeoutMs,
         ...(request.headers ? { headers: request.headers } : {}),
-        timeoutMs: request.timeoutMs,
-        signal,
         ...(request.sessionId ? { sessionId: request.sessionId } : {}),
-        ...(request.attempt ? { attempt: request.attempt } : {})
-      });
+        ...(request.attempt ? { attempt: request.attempt } : {}) });
     } catch (error) {
       if (signal.aborted && policy.billing) await deps.chargeAbandoned(policy, model, maximum);
       throw error;
     }
   } finally {
     if (reservationId) await deps.reservations.release(reservationId);
+  }
+}
+
+// Admission covers schema discovery too, so a modified device cannot start unbounded catalog lookups.
+export async function proxyModelRequest(
+  session: RunApiSession, request: RunApiModelRequest, deps: ModelProxyDeps, signal: AbortSignal
+): Promise<RunApiModelResponse> {
+  const policy = session.policy();
+  validateModelRequest(request, policy);
+  if (session.modelRequestInFlight) throw new RunApiFailure("invalid_request", "Another model request for this run is in flight.");
+  session.modelRequestInFlight = true;
+  try {
+    const boundedSignal = AbortSignal.any([signal, AbortSignal.timeout(request.timeoutMs)]);
+    const create = (admittedSignal: AbortSignal) => forwardModelRequest(session, request, policy, deps, admittedSignal);
+    return policy.requestUserId && deps.withUserSlot
+      ? await deps.withUserSlot(policy.requestUserId, boundedSignal, create) : await create(boundedSignal);
+  } finally {
     session.modelRequestInFlight = false;
   }
 }

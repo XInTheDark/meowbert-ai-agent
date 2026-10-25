@@ -82,7 +82,7 @@ export function createRunApiHandler(deps: RunApiHandlerDeps) {
         const features = workspaceFileFeatures(normalizeWorkspaceFileHost(session.fileHost));
         if ((!features.memorySearch && method === "platform.searchMemory")
           || (!features.canvases && ["platform.createProjectCanvas", "platform.recordProjectCanvasEntry"].includes(method))
-          || (!features.linkedSources && ["platform.liveSyncStatus", "platform.liveSyncTransfer", "platform.liveSyncFolderSearch"].includes(method))) {
+          || (!features.linkedSources && ["platform.liveSyncStatus", "platform.liveSyncTransfer"].includes(method))) {
           throw new RunApiFailure("invalid_request", "This feature is unavailable for device-hosted workspaces.");
         }
         if (method === "control.heartbeat") return { status: 200, body: { result: await heartbeat(session) } };

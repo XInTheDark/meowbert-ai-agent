@@ -1,5 +1,20 @@
 # Changelog
 
+## Oct 25, 2026
+
+### Local execution
+
+- **Run tasks on your own computer** — Meowbert Desktop now offers **Cloud** or **Local** when starting a task. Local tasks run in Docker Desktop on Apple Silicon Macs and Windows x64/arm64, with the same conversation, progress and results in Meowbert. Model connections, usage and budgets stay managed by your server.
+- **Use your desktop tools** — Choose **Host** to run commands directly as your desktop user, with explicit permission and full access to your files. Optional **Host shell**, **Computer Use** and **Your Chrome** let tasks use local commands, control your screen and keep browser logins in a separate Meowbert profile.
+- **Keep a workspace on one device** — Create an **On this device** workspace in a folder you choose, with Files, Project Context, uploads, downloads and memory files handled by that computer. These workspaces are single-user; conversations remain on the server. Relink an existing folder after reinstalling or moving devices, and deleting the workspace leaves the folder intact.
+- **Wait safely for devices and shared storage** — Server-hosted workspaces can use the same storage mounted on your computer, including SMB or NFS shares. Tasks wait when the device or required files are unavailable, and outputs show **Syncing** until the server verifies them. Scheduled and recurring local tasks wait for their device too.
+- **Work with live Google Drive folders on Mac** — Local Host tasks can mount linked Drive folders while they need them, stream files on demand and upload edits automatically. Only the person who connected the account can approve access. Consent covers the entire Drive, even for one linked folder; disconnecting Google Drive revokes that access. Removing a folder link leaves its Drive contents intact.
+- **Local starts with standard tasks** — Threads, subagents, Agent Swarm, Project Master and Long Horizon workflows remain unavailable locally. Live Drive folders currently require macOS Host mode.
+
+### Self-hosting
+
+- **Local execution is off by default** — Update both the server and desktop app, run `npm run migrate`, and enable local execution in server configuration before setting it up in Desktop Preferences. The sandbox image now supports both Intel/AMD and Arm devices; publish the updated image with **Publish Sandbox Runtime**, and update any pinned image reference. See **Desktop App** and **Configuration** in the docs for setup and supported storage arrangements.
+
 ## Oct 24, 2026
 
 ### AI and agents

@@ -43,7 +43,6 @@ import type { ResponseInputItem } from "openai/resources/responses/responses";
 async function inspectProjectContextDirectory(envRoot: string): Promise<Record<string, unknown>> {
   const resolvedEnvRoot = path.resolve(envRoot);
   const envRootRealPath = await fsPromises.realpath(resolvedEnvRoot).catch(() => null);
-  const envRootEntries = await fsPromises.readdir(resolvedEnvRoot).catch(() => []);
   const contextPath = path.resolve(resolvedEnvRoot, "context");
   const contextStats = await fsPromises.lstat(contextPath).catch(() => null);
   const contextEntries = contextStats?.isDirectory()
@@ -53,8 +52,6 @@ async function inspectProjectContextDirectory(envRoot: string): Promise<Record<s
   return {
     envRoot: resolvedEnvRoot,
     envRootRealPath,
-    envRootEntryCount: envRootEntries.length,
-    envRootEntrySample: envRootEntries.slice(0, 20),
     contextPath,
     contextExists: contextStats !== null,
     contextIsDirectory: contextStats?.isDirectory() ?? false,
@@ -66,14 +63,15 @@ async function inspectProjectContextDirectory(envRoot: string): Promise<Record<s
 async function loadProjectContextInitData(
   envRoot: string,
   envPayload: Record<string, unknown>,
-  isDebugEnabled: () => Promise<boolean>
+  isDebugEnabled: () => Promise<boolean>,
+  linkedDirectories: Array<{ relativePath: string; absolutePath: string }>
 ): Promise<{
   projectContext: Awaited<ReturnType<typeof loadProjectContextPromptData>>;
   inspection: Record<string, unknown>;
 }> {
   // The directory listing only feeds the debug log, and project storage can be a network mount.
   const [projectContext, inspection] = await Promise.all([
-    loadProjectContextPromptData(envRoot, envPayload),
+    loadProjectContextPromptData(envRoot, envPayload, linkedDirectories),
     isDebugEnabled().then((enabled) => enabled ? inspectProjectContextDirectory(envRoot) : {})
   ]);
 
@@ -493,7 +491,10 @@ export async function initializeAgentExecution(
     run: () => loadProjectContextInitData(
       prepared.envRoot,
       prepared.runtimeEnvironmentPayload,
-      () => prepared.control.isDebugEnabled()
+      () => prepared.control.isDebugEnabled(),
+      prepared.liveSyncFiles.filter((file) => file.provider === "google-drive" && file.linkKind === "folder").map((file) => ({
+        relativePath: file.localRelativePath, absolutePath: path.isAbsolute(file.taskRelativePath) ? file.taskRelativePath : path.resolve(prepared.envRoot, file.localRelativePath)
+      }))
     ),
     successPayload: (result) => ({
       hasProjectContext: result.projectContext !== null,

@@ -4,6 +4,8 @@ import type { PlatformUsageBilling } from "@meowbert/shared";
 
 // What the model proxy needs to know about a run to bill and bound its requests.
 export interface RunModelPolicy {
+  validateTools?: (tools: import("openai/resources/responses/responses").Tool[], purpose: string) => Promise<void>;
+  requestUserId?: string | null;
   // Who the run's platform usage is billed to; null for runs on the user's own provider.
   billing: PlatformUsageBilling | null;
   quotaExempt: boolean;

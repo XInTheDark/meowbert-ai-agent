@@ -114,11 +114,12 @@ function registerSourceCatalogRoutes(fastify: Parameters<FastifyPluginAsync>[0])
       await assertWorkspaceMember(params.wsId, request.user.id);
 
       const [memberRoleRes, providerSettings, connections] = await Promise.all([
-        query<{ role: string }>(
-          `SELECT role
-             FROM workspace_members
-            WHERE workspace_id = $1
-              AND user_id = $2
+        query<{ role: string; file_host?: { kind: string }; device_platform?: string }>(
+          `SELECT wm.role, w.file_host, dv.platform AS device_platform
+             FROM workspace_members wm JOIN workspaces w ON w.id = wm.workspace_id
+             LEFT JOIN devices dv ON dv.id::text = w.file_host->>'deviceId'
+            WHERE wm.workspace_id = $1
+              AND wm.user_id = $2
             LIMIT 1`,
           [params.wsId, request.user.id]
         ),
@@ -127,6 +128,8 @@ function registerSourceCatalogRoutes(fastify: Parameters<FastifyPluginAsync>[0])
       ]);
 
       const canManage = memberRoleRes.rows[0]?.role === "owner";
+      const deviceFiles = memberRoleRes.rows[0]?.file_host?.kind === "device";
+      const canAttachDeviceFolders = memberRoleRes.rows[0]?.device_platform === "darwin";
       const settingsByProvider = new Map(providerSettings.map((entry) => [entry.provider, entry]));
       const connectionsByProvider = new Map(connections.map((entry) => [entry.provider, entry]));
 
@@ -147,7 +150,8 @@ function registerSourceCatalogRoutes(fastify: Parameters<FastifyPluginAsync>[0])
             name: source.manifest.name,
             description: source.manifest.description,
             provider: source.provider,
-            supportsAttachments: source.supportsAttachments,
+            supportsAttachments: deviceFiles ? canAttachDeviceFolders && source.provider === "google-drive" && connection?.updatedByUserId === request.user.id : source.supportsAttachments,
+            liveFoldersOnly: deviceFiles,
             supportsLiveSync: source.supportsLiveSync,
             attachmentMode: source.attachmentMode,
             requiresAdminCredentials: source.requiresAdminCredentials,
