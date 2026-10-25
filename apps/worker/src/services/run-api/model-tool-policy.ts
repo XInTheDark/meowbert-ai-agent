@@ -1,5 +1,6 @@
 import type { Tool } from "openai/resources/responses/responses";
 import { canonicalizeModelPayload } from "@meowbert/run-executor/agent/model";
+import { normalizeProviderRequestTools } from "@meowbert/run-executor/agent/provider-request-tools";
 import type { RunControl } from "@meowbert/run-executor/agent/ports/run-control";
 import type { ServerRunState } from "../run-host/bootstrap.js";
 import { builtinRunTools, auxiliaryTools, type DeviceToolConsent } from "./builtin-tool-policy.js";
@@ -13,10 +14,11 @@ export function toolContract(tool: Tool): string {
 }
 
 export function createModelToolPolicy(state: ServerRunState, control: RunControl, consent: DeviceToolConsent) {
-  const builtin = builtinRunTools(state, consent);
+  const normalize = (tools: Tool[]) => normalizeProviderRequestTools(tools, state.bootstrap.runtime.modelType);
+  const builtin = normalize(builtinRunTools(state, consent));
   const skills = createSkillToolPolicy(state, control, consent);
   return async (tools: Tool[], purpose: string): Promise<void> => {
-    const allowed = purpose === "turn" ? builtin : auxiliaryTools(purpose);
+    const allowed = purpose === "turn" ? builtin : normalize(auxiliaryTools(purpose));
     const seen = new Set<string>();
     for (const tool of tools) {
       if ((tool.type === "function" || tool.type === "custom") && typeof tool.name !== "string") {
@@ -28,7 +30,7 @@ export function createModelToolPolicy(state: ServerRunState, control: RunControl
       const contract = toolContract(tool);
       if (allowed.some((candidate) => toolContract(candidate) === contract)) continue;
       if (purpose === "turn" && tool.type === "function" && tool.name.includes("__")) {
-        if ((await skills(tool.name)).some((candidate) => toolContract(candidate) === contract)) continue;
+        if (normalize(await skills(tool.name)).some((candidate) => toolContract(candidate) === contract)) continue;
       }
       throw new RunApiFailure("invalid_request", "The model tool does not match this run's allowed tool definitions.");
     }

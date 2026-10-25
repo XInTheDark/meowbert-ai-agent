@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { isSkillEnabledByConfig, isSourceManifest } from "@meowbert/shared";
-import { getSkillEntry, loadSkillManifests } from "@meowbert/run-executor/agent/skill-registry";
+import { loadSkillManifests, type SkillEntry } from "@meowbert/run-executor/agent/skill-registry";
 import { listMcpTools, mcpToolsToFunctionTools, skillToolPrefix, startMcpServer, stopMcpServer } from "@meowbert/run-executor/agent/mcp-client";
 import type { RunControl } from "@meowbert/run-executor/agent/ports/run-control";
 import { config } from "../../lib/config.js";
@@ -31,10 +31,12 @@ async function hostBrowserTools(): Promise<FunctionTool[]> {
 // Discovery mounts only skill assets and app-owned scratch, with no workspace files.
 export function createSkillToolPolicy(state: ServerRunState, control: RunControl, consent: DeviceToolConsent) {
   const cache = new Map<string, Promise<FunctionTool[]>>();
+  let entries: ReturnType<typeof loadSkillManifests> | undefined;
   return async (name: string): Promise<FunctionTool[]> => {
     const root = config.skills?.rootDir;
     if (!root) throw new RunApiFailure("invalid_request", "Skills are unavailable for this run.");
-    const entry = [...loadSkillManifests(root).values()].find((item) => name.startsWith(skillToolPrefix(item.manifest.id)));
+    entries ??= loadSkillManifests(root);
+    const entry = [...entries.values()].find((item) => name.startsWith(skillToolPrefix(item.manifest.id)));
     if (!entry) throw new RunApiFailure("invalid_request", "Unknown model tool.");
     const { manifest } = entry;
     const local = state.job.executionTarget?.kind === "local";
@@ -47,7 +49,7 @@ export function createSkillToolPolicy(state: ServerRunState, control: RunControl
     }
     let pending = cache.get(manifest.id);
     if (!pending) {
-      pending = manifest.id === "host-browser" ? hostBrowserTools() : resolveSkillTools(state, control, manifest.id);
+      pending = manifest.id === "host-browser" ? hostBrowserTools() : resolveSkillTools(state, control, entry, entries);
       cache.set(manifest.id, pending);
       void pending.catch(() => cache.delete(manifest.id));
     }
@@ -56,8 +58,7 @@ export function createSkillToolPolicy(state: ServerRunState, control: RunControl
   };
 }
 
-async function resolveSkillTools(state: ServerRunState, control: RunControl, id: string): Promise<FunctionTool[]> {
-  const entry = getSkillEntry(config.skills!.rootDir, id)!;
+async function resolveSkillTools(state: ServerRunState, control: RunControl, entry: SkillEntry, entries: Map<string, SkillEntry>): Promise<FunctionTool[]> {
   await fs.mkdir(config.runtime.taskScratch.root, { recursive: true });
   const scratch = await fs.mkdtemp(path.join(config.runtime.taskScratch.root, "tool-catalog-"));
   let sandbox: Awaited<ReturnType<typeof workerSandboxManager.createPersistentSandbox>> | null = null;
@@ -67,13 +68,13 @@ async function resolveSkillTools(state: ServerRunState, control: RunControl, id:
       mounts: [{ path: scratch }, { path: config.skills!.rootDir, readOnly: true }], labels: { purpose: "shell-exec" },
       resources: { cpus: 1, memoryMb: 1024, pids: 128 } });
     const sourceId = isSourceManifest(entry.manifest) ? entry.manifest.id : entry.manifest.sourceAccess?.sourceId;
-    const source = sourceId ? getSkillEntry(config.skills!.rootDir, sourceId)?.manifest.source : null;
+    const source = sourceId ? entries.get(sourceId)?.manifest.source : null;
     const env = { MEOWBERT_TASK_DIR: scratch, MEOWBERT_WORKSPACE_ROOT: scratch,
       GOOGLE_WORKSPACE_REFERENCES_JSON: "[]",
       ...(sourceId && source?.provider ? await control.platform.issueSourceAccess({ sourceId, provider: source.provider,
         ticketScope: entry.manifest.sourceAccess ? "source_reference_proxy" : "source_proxy" }) : {}) };
     connection = await startMcpServer(entry.manifest, entry.skillDir, sandbox, 15_000, env);
-    return mcpToolsToFunctionTools(id, await listMcpTools(connection));
+    return mcpToolsToFunctionTools(entry.manifest.id, await listMcpTools(connection));
   } finally {
     try { if (connection) await stopMcpServer(connection); } finally {
       try { await sandbox?.stop(); } finally { await fs.rm(scratch, { recursive: true, force: true }); }

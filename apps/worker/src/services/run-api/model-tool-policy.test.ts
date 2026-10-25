@@ -9,6 +9,26 @@ import { COMPACTION_TOOL_NAME, COMPACTION_OUTPUT_SCHEMA } from "@meowbert/run-ex
 vi.mock("../../lib/config.js", async () => ({ config: { skills: { rootDir: (await import("node:path")).resolve("../../skills") } } }));
 vi.mock("../runtime/sandbox.js", () => ({ workerSandboxManager: {} }));
 import { createModelToolPolicy } from "./model-tool-policy.js";
+import { normalizeProviderRequestTools } from "@meowbert/run-executor/agent/provider-request-tools";
+import * as skillRegistry from "@meowbert/run-executor/agent/skill-registry";
+
+it.each(["local", "cloud"])("accepts Google-normalized builtin and auxiliary contracts for %s transport", async (target) => {
+  const run = state();
+  if (target === "cloud") run.job.executionTarget = { kind: "cloud" };
+  run.bootstrap.runtime.modelType = "google";
+  run.bootstrap.memoryEnabled = true;
+  const validate = createModelToolPolicy(run, control, {});
+  const tools = buildResponseTools(options, [], { runShellMaxTimeoutSeconds: 600 });
+  for (const name of ["query_tasks", "run_shell"]) {
+    const tool = tools.find((item) => "name" in item && item.name === name);
+    expect(tool).toBeDefined();
+    const normalized = normalizeProviderRequestTools([tool!], "google");
+    await expect(validate(normalized, "turn")).resolves.toBeUndefined();
+    await expect(validate(normalized.map((item) => ({ ...item, parameters: { type: "object" } })) as never, "turn"))
+      .rejects.toMatchObject({ code: "invalid_request" });
+  }
+  await expect(validate(normalizeProviderRequestTools([TASK_TITLE_FUNCTION_TOOL], "google"), "title")).resolves.toBeUndefined();
+});
 
 function state(webSearch = false): ServerRunState {
   return { job: { executionTarget: { kind: "local", mode: "host", deviceId: "11111111-1111-4111-8111-111111111111" },
@@ -69,7 +89,11 @@ it("accepts the installed host-browser catalog only with consent and rejects for
     })));
     expect(tools.length).toBeGreaterThan(0);
     const validate = createModelToolPolicy(state(), control, { hostBrowser: true });
+    const manifests = vi.spyOn(skillRegistry, "loadSkillManifests");
     await expect(validate(tools, "turn")).resolves.toBeUndefined();
+    await expect(validate(tools, "turn")).resolves.toBeUndefined();
+    expect(manifests).toHaveBeenCalledOnce();
+    manifests.mockRestore();
     await expect(validate([{ ...tools[0], parameters: {} }], "turn")).rejects.toMatchObject({ code: "invalid_request" });
     await expect(createModelToolPolicy(state(), control, {})([tools[0]], "turn")).rejects.toMatchObject({ code: "invalid_request" });
     expect(open).not.toHaveBeenCalled();
