@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
-  digest: "sha256:first", present: false, onRuns: null as null | ((runs: unknown[]) => void), request: vi.fn(),
+  onEvent: null as null | ((event: string, data?: unknown) => void | Promise<void>), digest: "sha256:first", present: false, onRuns: null as null | ((runs: unknown[]) => void), request: vi.fn(),
   stream: vi.fn(), pull: vi.fn(), fence: vi.fn(), cleanup: vi.fn(), ping: vi.fn()
 }));
 vi.mock("../sandbox-image/manager", () => ({
@@ -9,6 +9,7 @@ vi.mock("../sandbox-image/manager", () => ({
   sandboxImagePresent: async () => state.present,
   ensureSandboxImage: state.pull
 }));
+vi.mock("../sandbox-image/history", () => ({readSandboxHistory:async()=>({image:null,digest:null,lastCheckedAt:null,lastUpdatedAt:null}),saveSandboxHistory:async()=>{}}));
 vi.mock("../sandbox-image/cleanup", () => ({maintainDownloadedSandboxes:async()=>{}}));
 vi.mock("../sandbox-image/resources", () => ({ prepareSandboxSkills: async () => "/skills", stopDesktopContainers: state.cleanup }));
 vi.mock("./sandbox-machine-host", () => ({probeDesktopSandboxStorage:async()=>{}}));
@@ -17,9 +18,10 @@ vi.mock("./local-run", () => ({ startLocalRun: vi.fn(() => ({done:new Promise(()
 vi.mock("./device-api", async () => {
   const actual = await vi.importActual<typeof import("./device-api")>("./device-api");
   return { ...actual, createDeviceApi: (_options: unknown, signal: AbortSignal) => ({ request:state.request,
-    stream: async (_route:string, onRuns:(runs:unknown[])=>void) => {
-      state.stream(); state.onRuns = onRuns;
+    stream: async (_route:string, onRuns:(runs:unknown[])=>void, onEvent:(event:string,data?:unknown)=>void | Promise<void>) => {
+      state.stream(); state.onRuns = onRuns; state.onEvent = onEvent;
       if (state.stream.mock.calls.length === 1) throw new Error("connection lost");
+      await onEvent("ready", { executionEventsVersion: 1 });
       await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), {once:true}));
     }
   }) };
@@ -75,22 +77,25 @@ describe.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("desk
   it("does not download or start runs when first-use consent is declined", async () => {
     const consent = vi.fn().mockResolvedValue(false);
     const executor = await startDesktopLocalExecutor({...options,onSandboxDownloadRequired:consent});
-    await vi.waitFor(() => expect(consent).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(consent).toHaveBeenCalledTimes(1);
     state.onRuns?.([{run_id:"r",queue_state:"admitted",payload_json:{executionTarget:{kind:"local",deviceId:"device",mode:"sandbox"}}}]);
     expect(state.pull).not.toHaveBeenCalled(); expect(startLocalRun).not.toHaveBeenCalled();
     await executor.stop();
   });
-  it("reconnects the stream updates digests and fences active runs on stop", async () => {
+  it("reconnects, updates pushed digests without stopping active runs, and fences only on stop", async () => {
     const executor = await startDesktopLocalExecutor({...options,apiBaseUrl:"https://server.example.test",downloadConsent:true});
-    await vi.waitFor(() => expect(state.pull).toHaveBeenCalledTimes(1));
     await vi.advanceTimersByTimeAsync(5_000);
+    expect(state.pull).toHaveBeenCalledTimes(1);
     expect(state.stream).toHaveBeenCalledTimes(2);
     state.onRuns?.([{run_id:"r",queue_state:"admitted",payload_json:{executionTarget:{kind:"local",deviceId:"device",mode:"sandbox"}}}]);
     expect(startLocalRun).toHaveBeenCalledTimes(1);
     state.digest = "sha256:second";state.present = false;
-    await vi.advanceTimersByTimeAsync(30_000);
+    state.onEvent?.("config");
+    await vi.advanceTimersByTimeAsync(1);
     expect(state.pull).toHaveBeenCalledTimes(2);
     expect(state.request).toHaveBeenCalledWith(expect.any(String),"PATCH",expect.objectContaining({capabilities:expect.objectContaining({sandboxImageDigest:"sha256:second"})}));
+    expect(state.fence).not.toHaveBeenCalled();
     await executor.stop(); expect(state.fence).toHaveBeenCalledTimes(1);
   });
   it("does not advertise Docker readiness or accept a run while Docker is stopped", async () => {
@@ -102,4 +107,41 @@ describe.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("desk
     expect(state.request).toHaveBeenCalledWith(expect.any(String),"PATCH",{capabilities:expect.objectContaining({dockerReady:false,sandboxImageReady:false})});
     await executor.stop();
   });
+  it("does no idle config, capability, Docker, or UI work after startup and manually checks safely", async () => {
+    const executor = await startDesktopLocalExecutor({ ...options, downloadConsent: true });
+    await vi.advanceTimersByTimeAsync(5_000);
+    state.onRuns?.([{ run_id: "active", queue_state: "admitted", payload_json: { executionTarget: { kind: "local", deviceId: "device", mode: "sandbox" } } }]);
+    const requests = state.request.mock.calls.length;
+    const probes = state.ping.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(state.request).toHaveBeenCalledTimes(requests);
+    expect(state.ping).toHaveBeenCalledTimes(probes);
+    state.onEvent?.("config"); await vi.advanceTimersByTimeAsync(1);
+    expect(state.ping).toHaveBeenCalledTimes(probes);
+    await executor.checkForUpdates();
+    expect(state.ping).toHaveBeenCalledTimes(probes + 1);
+    expect(state.fence).not.toHaveBeenCalled();
+    expect(state.cleanup).toHaveBeenCalledTimes(1);
+    await executor.stop();
+  });
+  it("reports setup and download failures as errors, with host readiness separate", async () => {
+    state.pull.mockRejectedValue(new Error("no linux/arm64 build"));
+    const onStatus = vi.fn();
+    const executor = await startDesktopLocalExecutor({ ...options, downloadConsent: true, hostConsent: true, onStatus });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(onStatus).toHaveBeenCalledWith(expect.objectContaining({state:"downloading",sandboxReady:false}));
+    expect(onStatus).toHaveBeenLastCalledWith(expect.objectContaining({state:"error",hostReady:true,sandboxReady:false}));
+    await executor.stop();
+  });
+
+  it("acknowledges pushed presence without rechecking Docker or sending full capabilities", async () => {
+    const executor=await startDesktopLocalExecutor({...options,downloadConsent:true});
+    await vi.advanceTimersByTimeAsync(5_000); const probes=state.ping.mock.calls.length;
+    state.request.mockClear();
+    await state.onEvent?.("ping",{connectionId:"connection"});
+    expect(state.request).toHaveBeenCalledExactlyOnceWith("/api/devices/device/presence","POST",{connectionId:"connection"});
+    expect(state.ping).toHaveBeenCalledTimes(probes);
+    await executor.stop();
+  });
+
 });

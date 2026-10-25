@@ -104,3 +104,14 @@ If a device reports **no matching manifest for linux/arm64**, the server-selecte
 Model requests use the server's configured providers and usage limits. Provider API keys and GitHub App signing keys stay on the server. Local execution does not provide an offline model.
 
 Live Google Drive folders are a separate macOS feature for both Sandbox and Host mode, not a replacement for sharing a server-hosted workspace backend. They use the desktop app's bundled rclone and the built-in NFS client, without macFUSE. Sandbox mode binds only the attached folders into Docker Desktop and verifies file visibility and write access before execution. Windows does not support these mounts. After connection-specific consent, the device receives a credential with access to the connected user's **entire Drive**; choosing a folder does not narrow that credential. Disconnecting Drive revokes its refresh token at Google. See [Live Google Drive folders](/getting-started/desktop-app/live-drive-folders) for consent and revocation details.
+
+
+## Device notifications and updates
+
+Apply database migrations through **148_device_execution_notifications.sql** when deploying this version, and update both the API and desktop app. The API requires a PostgreSQL connection that supports session-level LISTEN notifications; a transaction-pooling proxy is not suitable for that connection. Each API process shares one listener across its connected devices.
+
+Committed dispatch changes push queue updates to the owning device. Image changes, workspace changes and cleanup requests also notify connected desktops. After a disconnection, the desktop reconnects with exponential backoff and fetches current configuration and dispatch state, so a missed notification does not require periodic queue polling. A failed notification listener closes its device streams to trigger that recovery.
+
+While local execution is enabled, the API sends a small heartbeat every 10 seconds. The desktop acknowledges it to renew a 25-second device lease, scoped to that authenticated device and stream connection. Current desktops negotiate this acknowledgement protocol. Older desktops retain their existing presence heartbeat, with a lightweight server lease renewal for compatibility. For current desktops this is one lightweight database update per heartbeat; it does not query the queue or recheck Docker or storage. Without acknowledgements the lease expires and the server stops admitting tasks to that device. Local execution disabled or the app quit means no device heartbeat.
+
+Readiness checks run on startup, relevant server changes, reconnection and the user's manual update action. Successful unchanged configuration reuses its prepared sandbox. Storage identity and access are still checked for each run. Deferred file cleanup uses a one-time deadline and retries after active runs finish, rather than repeatedly scanning workspace folders.

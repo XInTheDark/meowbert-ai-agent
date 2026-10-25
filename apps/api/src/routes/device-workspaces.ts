@@ -14,8 +14,10 @@ export const deviceWorkspaceRoutes: FastifyPluginAsync = async (app) => {
   app.get("/api/devices/:deviceId/tombstones", { preHandler: app.authenticate }, async (request, reply) => {
     const { deviceId } = z.object({ deviceId: z.string().uuid() }).parse(request.params);
     if (!(await listDevices(request.user.id)).some((device) => device.id === deviceId)) return reply.status(404).send({ error: "Device not found" });
-    const result = await query("SELECT id, workspace_id, kind, target_id, relative_path FROM device_file_tombstones WHERE device_id = $1 AND acked_at IS NULL AND not_before <= now() ORDER BY created_at, id LIMIT 100", [deviceId]);
-    return { items: result.rows };
+    const { after } = z.object({ after: z.string().uuid().optional() }).parse(request.query);
+    const result = await query("SELECT id, workspace_id, kind, target_id, relative_path FROM device_file_tombstones WHERE device_id = $1 AND acked_at IS NULL AND not_before <= now() AND ($2::uuid IS NULL OR (created_at, id) > (SELECT created_at, id FROM device_file_tombstones WHERE id = $2 AND device_id = $1)) ORDER BY created_at, id LIMIT 100", [deviceId, after ?? null]);
+    const next = await query("SELECT min(not_before)::text AS due, EXTRACT(EPOCH FROM (min(not_before) - now())) * 1000 AS delay_ms FROM device_file_tombstones WHERE device_id = $1 AND acked_at IS NULL AND not_before > now()", [deviceId]);
+    return { items: result.rows, nextDueAt: next.rows[0]?.due ?? null, nextCheckInMs: next.rows[0]?.delay_ms == null ? null : Math.max(0, Number(next.rows[0].delay_ms)), nextCursor: result.rows.length === 100 ? result.rows[99].id : null };
   });
   app.post("/api/devices/:deviceId/tombstones/ack", { preHandler: app.authenticate }, async (request, reply) => {
     const { deviceId } = z.object({ deviceId: z.string().uuid() }).parse(request.params);

@@ -32,6 +32,12 @@ contextBridge.exposeInMainWorld("meowbertDesktop", {
   pickLocalExecutionStorageRoot: (): Promise<string | null> => ipcRenderer.invoke("desktop:pick-local-execution-storage-root"),
   getLocalExecutionStatus: (): Promise<DesktopLocalExecutionStatus> => ipcRenderer.invoke("desktop:get-local-execution-status"),
   retryLocalExecution: (): Promise<DesktopLocalExecutionStatus> => ipcRenderer.invoke("desktop:retry-local-execution"),
+  checkSandboxUpdates: (): Promise<DesktopLocalExecutionStatus> => ipcRenderer.invoke("desktop:check-sandbox-updates"),
+  onLocalExecutionStatusChanged: (callback: (status: DesktopLocalExecutionStatus) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: DesktopLocalExecutionStatus) => callback(status);
+    ipcRenderer.on("desktop:local-execution-status-changed", listener);
+    return () => { ipcRenderer.removeListener("desktop:local-execution-status-changed", listener); };
+  },
   saveServerProfilesState: (state: DesktopServerProfilesState): Promise<DesktopServerProfilesState> =>
     ipcRenderer.invoke("desktop:save-server-profiles-state", state),
   saveShortcutPreferences: (state: DesktopShortcutPreferences): Promise<DesktopShortcutPreferences> =>

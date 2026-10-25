@@ -44,7 +44,7 @@ import {
   saveShortcutPreferences,
   supportsSecureAuthStorage
 } from "./state";
-import { startConfiguredLocalExecutor, stopLocalExecutor, getLocalExecutionStatus, confirmHostExecutionSettings } from "./executor/lifecycle";
+import { startConfiguredLocalExecutor, stopLocalExecutor, getLocalExecutionStatus, checkLocalExecutionUpdates, onLocalExecutionStatusChanged, confirmHostExecutionSettings } from "./executor/lifecycle";
 import { createDesktopUpdater, type DesktopUpdater } from "./updater";
 import {
   getComputerUseStatus,
@@ -831,6 +831,11 @@ function showDesktopNotification(input: DesktopNotificationInput): void {
 }
 
 function registerIpcHandlers(): void {
+  onLocalExecutionStatusChanged((status) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send("desktop:local-execution-status-changed", status);
+    }
+  });
   if (ipcRegistered) {
     return;
   }
@@ -855,7 +860,8 @@ function registerIpcHandlers(): void {
   });
   ipcMain.handle("desktop:pick-local-execution-storage-root", () => pickLocalExecutionStorageRoot());
   ipcMain.handle("desktop:get-local-execution-status", () => getLocalExecutionStatus());
-  ipcMain.handle("desktop:retry-local-execution", () => startConfiguredLocalExecutor());
+  ipcMain.handle("desktop:retry-local-execution", () => checkLocalExecutionUpdates());
+  ipcMain.handle("desktop:check-sandbox-updates", () => checkLocalExecutionUpdates());
   ipcMain.handle("desktop:get-computer-status", () => getComputerUseStatus());
   ipcMain.handle("desktop:request-accessibility-permission", () => requestAccessibilityPermission());
   ipcMain.handle("desktop:open-screen-recording-settings", () => openScreenRecordingSettings());

@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { LiveFolderManager } from "../live-folders/manager";
 import { cleanupLiveFolderMounts } from "../live-folders/native-mount";
 import { confirmLiveFolderConsent } from "../live-folders/consent";
@@ -7,6 +8,7 @@ import { readBootstrapData, saveLocalExecutionSettings, listLocalExecutionDevice
 import type { DesktopLocalExecutionStatus } from "../../shared";
 import { stopDesktopContainers } from "../sandbox-image/resources";
 import { cleanupHostProcesses } from "./host-processes";
+import { readSandboxHistory } from "../sandbox-image/history";
 import { sandboxDownloadSize } from "../sandbox-image/download-size";
 import { startDesktopLocalExecutor } from "./local-executor";
 
@@ -14,6 +16,15 @@ let executor: Awaited<ReturnType<typeof startDesktopLocalExecutor>> | null = nul
 let pending: Promise<unknown> = Promise.resolve();
 let generation = 0;
 let status: DesktopLocalExecutionStatus = { state: "disabled", message: null };
+const statusEvents = new EventEmitter();
+function setStatus(next: DesktopLocalExecutionStatus): void { status = next; statusEvents.emit("change", status); }
+export function onLocalExecutionStatusChanged(listener: (value: DesktopLocalExecutionStatus) => void): () => void {
+  statusEvents.on("change", listener); return () => { statusEvents.off("change", listener); };
+}
+export async function checkLocalExecutionUpdates(): Promise<DesktopLocalExecutionStatus> {
+  if (!executor) return startConfiguredLocalExecutor();
+  await executor.checkForUpdates(); return status;
+}
 export function getLocalExecutionStatus(): DesktopLocalExecutionStatus { return status; }
 export function stopLocalExecutor(): Promise<void> {
   generation += 1;
@@ -23,7 +34,7 @@ export function stopLocalExecutor(): Promise<void> {
 }
 export function startConfiguredLocalExecutor(): Promise<DesktopLocalExecutionStatus> {
   const currentGeneration = ++generation;
-  status = { state: "starting", message: "Starting local execution…" };
+  setStatus({ ...status, state: "starting", hostReady: false, sandboxReady: false, message: "Starting local execution…" });
   const work = pending.then(async () => {
     const current = executor; executor = null; await current?.stop();
     if (generation !== currentGeneration) return status;
@@ -34,7 +45,7 @@ export function startConfiguredLocalExecutor(): Promise<DesktopLocalExecutionSta
     const bootstrap = await readBootstrapData();
     const settings = bootstrap.localExecutionSettings;
     if (!settings.enabled || (!settings.storageRoot && !Object.keys(settings.workspaceRoots ?? {}).length) || !settings.serverBaseUrl || !bootstrap.token) {
-      status = { state: "disabled", message: null }; return status;
+      setStatus({ ...status, sandbox: await readSandboxHistory(path.join(app.getPath("userData"), "sandbox-resources")), state: "disabled", hostReady: false, sandboxReady: false, message: null }); return status;
     }
     executor = await startDesktopLocalExecutor({
       apiBaseUrl: settings.serverBaseUrl, token: bootstrap.token, deviceId: settings.deviceId,
@@ -70,12 +81,12 @@ export function startConfiguredLocalExecutor(): Promise<DesktopLocalExecutionSta
         await saveLocalExecutionSettings({ ...latest.localExecutionSettings, downloadConsent: true });
         return true;
       },
-      onPendingReason: (message) => { if (generation === currentGeneration) status = { state: "running", message }; }
+      onPendingReason: (message) => { if (generation === currentGeneration) setStatus({ ...status, state: "error", message }); },
+      onStatus: (next) => { if (generation === currentGeneration) setStatus(next); }
     });
-    if (generation === currentGeneration) status = { state: "running", message: "Checking Docker and storage…" };
     return status;
   }).catch((error) => {
-    if (generation === currentGeneration) status = { state: "error", message: error instanceof Error ? error.message : String(error) };
+    if (generation === currentGeneration) setStatus({ ...status, state: "error", message: error instanceof Error ? error.message : String(error) });
     return status;
   });
   pending = work;

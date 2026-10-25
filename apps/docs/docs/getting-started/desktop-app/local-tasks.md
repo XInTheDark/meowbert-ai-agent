@@ -58,14 +58,22 @@ Both modes still need access to the workspace files. Choosing Host does not remo
 
 The sandbox is a separate download from the desktop app. On first use, the app asks before downloading it and shows the approximate size when available. It uses the sandbox release selected by your server.
 
-**Allow sandbox downloads and updates** in **Desktop Preferences → Local Execution** controls permission for downloads and updates. The first-use prompt also offers Host mode as an alternative; Host requires separate consent. Cancelling the prompt does not start a task automatically.
+**Sandbox downloads** in **Desktop Preferences → Local execution** controls permission for downloads and updates. The first-use prompt also offers Host mode as an alternative; Host requires separate consent. Cancelling the prompt does not start a task automatically.
 
 If the download reports **no matching manifest for linux/arm64**, the server-selected image does not contain an Apple Silicon build. The server operator must update to a published image with that platform and restart the worker. Updating the desktop app alone does not change the pinned server image. Host mode can still run without the sandbox image.
+
+### Check for updates
+
+Open **Desktop Preferences → Local execution** and click the refresh icon labelled **Check for sandbox updates**. The app checks the server-selected image and downloads it if needed and permitted. Checking does not restart local execution or stop running tasks. Tasks already running keep their current sandbox; new tasks use the updated image once it is ready.
+
+The same panel shows the installed image, **Last checked**, and **Last updated**. **Not recorded** means the app has no saved timestamp, including images installed before tracking was added.
+
+Sandbox updates also arrive automatically when your server selects a new image, or when the desktop reconnects. The app does not repeatedly download, inspect Docker, or probe your storage while idle. It keeps a lightweight connection heartbeat while local execution is enabled so your server knows the computer is reachable. Disable local execution or quit the app to stop that connection. On macOS, closing the last window leaves the app running.
 
 ## What stays on the server
 
 Local execution changes the machine doing the work, not the model connection. Conversations, task settings and usage are still stored on the server, and tasks use the server's model connection and budget. File content the agent reads goes to the model through the server, including for device workspaces. This is not offline AI.
 
-Closing the desktop app stops local commands and containers. Local tasks do not silently switch to Cloud when your computer is unavailable. Schedules and recurring tasks keep their local device target and wait for that device.
+Quitting the desktop app stops local commands and containers. Local tasks do not silently switch to Cloud when your computer is unavailable. Schedules and recurring tasks keep their local device target and wait for that device.
 
 Use standard tasks. Subagents, Agent Swarm, Project Master and Long Horizon workflows are unavailable locally. Host mode cannot run read-only threads.

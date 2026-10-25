@@ -15,12 +15,14 @@ export function useLocalExecutionPreferences() {
     void platform.getBootstrapData().then((data) => {
       if (!cancelled) setSettings(data.localExecutionSettings);
     }).catch((err) => { if (!cancelled) setError(String(err)); });
-    const refresh = () => void platform.getLocalExecutionStatus().then((value) => {
-      if (!cancelled) setStatus(value);
-    }).catch(() => undefined);
-    refresh();
-    const timer = setInterval(refresh, 2_000);
-    return () => { cancelled = true; clearInterval(timer); };
+    let receivedEvent = false;
+    const unsubscribe = platform.onLocalExecutionStatusChanged((value) => {
+      receivedEvent = true; if (!cancelled) setStatus(value);
+    });
+    void platform.getLocalExecutionStatus().then((value) => {
+      if (!cancelled && !receivedEvent) setStatus(value);
+    }).catch((err) => { if (!cancelled) setError(String(err)); });
+    return () => { cancelled = true; unsubscribe(); };
   }, [platform, activeServerProfile?.baseUrl]);
 
   function updateSettings(patch: Partial<DesktopLocalExecutionSettings>) {
@@ -54,11 +56,11 @@ export function useLocalExecutionPreferences() {
     }
   }
 
-  async function retry() {
+  async function checkForUpdates() {
     setBusy(true);
     setError(null);
     try {
-      setStatus(await platform.retryLocalExecution());
+      setStatus(await platform.checkSandboxUpdates());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -66,5 +68,5 @@ export function useLocalExecutionPreferences() {
     }
   }
 
-  return { settings, status, busy, error, saved, updateSettings, save, pickRoot, retry };
+  return { settings, status, busy, error, saved, updateSettings, save, pickRoot, checkForUpdates };
 }

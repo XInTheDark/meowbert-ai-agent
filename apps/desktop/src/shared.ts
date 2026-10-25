@@ -60,8 +60,16 @@ export interface DesktopLocalExecutionSettings {
 }
 
 export interface DesktopLocalExecutionStatus {
-  state: "disabled" | "starting" | "running" | "error";
+  state: "disabled" | "starting" | "checking" | "downloading" | "running" | "error";
   message: string | null;
+  hostReady?: boolean;
+  sandboxReady?: boolean;
+  sandbox?: {
+    image: string | null;
+    digest: string | null;
+    lastCheckedAt: string | null;
+    lastUpdatedAt: string | null;
+  };
 }
 
 export interface DesktopBootstrapData {

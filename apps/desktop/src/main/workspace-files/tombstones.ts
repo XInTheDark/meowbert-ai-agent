@@ -5,7 +5,17 @@ import { resolveDevicePath, verifyDeviceWorkspace } from "./roots";
 
 interface Tombstone { id: string; workspace_id: string; kind: string; target_id: string; relative_path: string }
 export async function applyDeviceTombstones(input: { api: DeviceApi; deviceId: string; scratchRoot: string; workspaceRoots: Record<string, string>; activeWorkspaceIds: Set<string> }) {
-  const { items } = await input.api.request<{ items: Tombstone[] }>("/api/devices/" + input.deviceId + "/tombstones");
+  let after: string | null = null;
+  let nextDueAt: string | null = null;
+  let retryNeeded = false;
+  let nextDeadline: number | null = null;
+  do {
+  const response: { items: Tombstone[]; nextDueAt?: string | null; nextCheckInMs?: number | null; nextCursor?: string | null } = await input.api.request("/api/devices/" + input.deviceId + "/tombstones" + (after ? "?after=" + encodeURIComponent(after) : ""));
+  const { items } = response;
+  if (response.nextDueAt && (!nextDueAt || Date.parse(response.nextDueAt) < Date.parse(nextDueAt))) nextDueAt = response.nextDueAt;
+  const delay = response.nextCheckInMs ?? (response.nextDueAt ? Math.max(500, Date.parse(response.nextDueAt) - Date.now()) : null);
+  if (delay !== null) nextDeadline = Math.min(nextDeadline ?? Infinity, performance.now() + delay);
+  after = response.nextCursor ?? null;
   for (const item of items) {
     try {
     if (input.activeWorkspaceIds.has(item.workspace_id)) continue;
@@ -24,6 +34,8 @@ export async function applyDeviceTombstones(input: { api: DeviceApi; deviceId: s
       await fs.rm(target, { recursive: true, force: true });
     }
     await input.api.request("/api/devices/" + input.deviceId + "/tombstones/ack", "POST", { ids: [item.id] });
-    } catch (error) { console.warn("Device cleanup will retry", item.id, error); }
+    } catch (error) { retryNeeded = true; console.warn("Device cleanup will retry", item.id, error); }
   }
+  } while (after);
+  return { nextDueAt, nextCheckInMs: nextDeadline === null ? null : Math.max(0, nextDeadline - performance.now()), retryNeeded };
 }

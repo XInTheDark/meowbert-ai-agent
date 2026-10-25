@@ -21,7 +21,7 @@ import type { DeviceApi } from "./device-api";
 import path from "node:path";
 import { waitForRunInputs, StorageNotReadyError } from "../storage/inputs";
 
-export interface DeviceRunNotice { run_id: string; queue_state: string; payload_json: TaskExecutionJob }
+export interface DeviceRunNotice { admitted_at?: string | null; run_id: string; queue_state: string; payload_json: TaskExecutionJob }
 export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceApi, notice: DeviceRunNotice, image: string, skillsRootDir: string, settings: ExecutorSettings, installId: string) {
   const workspaceRoot = options.workspaceRoots?.[notice.payload_json.workspaceId];
   if (workspaceRoot) options = { ...options, storageRoot: workspaceRoot, storageBackendId: "workspace:" + notice.payload_json.workspaceId };

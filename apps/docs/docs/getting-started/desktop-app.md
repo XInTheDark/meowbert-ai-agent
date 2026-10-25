@@ -36,7 +36,17 @@ const windowsDownloadUrl = `${releasesBaseUrl}/latest/download/Meowbert-desktop-
   <li><a :href="releasesPageUrl">All desktop releases</a></li>
 </ul>
 
-> macOS downloads are currently unsigned preview builds. In-app auto-update is enabled on Windows first; macOS auto-update lands once signed and notarized releases are available.
+> macOS downloads are currently unsigned preview builds. In-app auto-update is available on Windows.
+
+### Install or update from Terminal on macOS
+
+Quit Meowbert, then run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/XInTheDark/meowbert-ai-releases/master/install-macos.sh | /bin/bash
+```
+
+The script downloads the latest macOS release, verifies its checksum, installs it in `/Applications`, and removes the temporary downloads. Running it again updates an existing installation; your settings and task data stay in place.
 
 ## Switching servers
 

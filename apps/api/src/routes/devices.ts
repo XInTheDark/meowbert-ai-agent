@@ -1,7 +1,7 @@
 import { claimLocalRun, refuseLocalRunForStorage, resolveWorkerRunApiUrl } from "../services/devices/device-claims.js";
 import path from "node:path";
 import { readStorageMarker } from "@meowbert/shared";
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { config } from "../lib/config.js";
 import { query } from "../lib/db.js";
@@ -13,6 +13,8 @@ import {
   revokeDevice,
   updateDevice
 } from "../services/devices/device-service.js";
+
+import { streamDeviceRuns } from "../services/devices/device-stream.js";
 
 const deviceParams = z.object({ deviceId: z.string().uuid() });
 const runParams = z.object({ deviceId: z.string().uuid(), runId: z.string().uuid() });
@@ -29,47 +31,6 @@ const deviceBody = z.object({
 }).strict();
 const devicePatch = deviceBody.omit({ id: true, platform: true, architecture: true }).partial();
 
-function sendSse(response: FastifyReply, event: string, data: unknown): void {
-  response.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-}
-
-async function streamDeviceRuns(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { deviceId } = deviceParams.parse(request.params);
-  const device = (await listDevices(request.user.id)).find((entry) => entry.id === deviceId);
-  if (!device) {
-    reply.status(404).send({ error: "Device not found" });
-    return;
-  }
-
-  reply.hijack();
-  reply.raw.writeHead(200, {
-    "content-type": "text/event-stream",
-    "cache-control": "no-cache, no-transform",
-    connection: "keep-alive"
-  });
-  sendSse(reply, "ready", { deviceId, connectedAt: new Date().toISOString() });
-  const timer = setInterval(async () => {
-    const alive = await query(
-      `UPDATE devices SET stream_expires_at = now() + interval '15 seconds'
-        WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL RETURNING id`, [deviceId, request.user.id]
-    ).catch(() => null);
-    if (!alive?.rowCount) { reply.raw.end(); return; }
-    const result = await query(
-      `SELECT run_id, task_id, payload_json, queue_state, pending_reason, admitted_at::text
-         FROM task_run_dispatches
-        WHERE queue_state IN ('pending', 'admitted', 'running')
-          AND payload_json->'executionTarget'->>'kind' = 'local'
-          AND payload_json->'executionTarget'->>'deviceId' = $1
-        ORDER BY queued_at ASC
-        LIMIT 20`,
-      [deviceId]
-    ).catch(() => ({ rows: [] }));
-    if (!reply.raw.destroyed) sendSse(reply, "runs", result.rows);
-  }, 2_000);
-  timer.unref();
-  reply.raw.on("close", () => clearInterval(timer));
-}
-
 export const deviceRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/api/projects/:projectId/execution-targets", { preHandler: fastify.authenticate }, async (request) => {
     const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
@@ -85,7 +46,7 @@ export const deviceRoutes: FastifyPluginAsync = async (fastify) => {
     return {
       enabled: configured,
       deviceWorkspaces: (await query<{ id: string; file_host: unknown }>(
-        "SELECT w.id, w.file_host FROM workspaces w JOIN workspace_members wm ON wm.workspace_id = w.id WHERE wm.user_id = $1 AND w.file_host->>'kind' = 'device'", [request.user.id]
+        "SELECT w.id, w.file_host FROM workspaces w JOIN workspace_members wm ON wm.workspace_id = w.id WHERE wm.user_id = $1 AND w.file_host->>'kind' = 'device' ORDER BY w.id", [request.user.id]
       )).rows,
       storageMarkers: Object.fromEntries(await Promise.all(config.storage.backends.map(async (backend) => [backend.id,
         await readStorageMarker(backend.type === "mounted" ? backend.mountPath : path.dirname(backend.workspacesRoot))
@@ -124,7 +85,19 @@ export const deviceRoutes: FastifyPluginAsync = async (fastify) => {
   });
   fastify.get("/api/devices/:deviceId/runs/stream", { preHandler: fastify.authenticate }, async (request, reply) => {
     if (!config.localExecution.enabled) return reply.status(404).send({ error: "Local execution is disabled." });
-    await streamDeviceRuns(request, reply);
+    const { deviceId } = deviceParams.parse(request.params);
+    await streamDeviceRuns(deviceId, request.user.id, reply, request.headers["x-meowbert-device-presence"] === "ack-v1");
+  });
+  fastify.post("/api/devices/:deviceId/presence", { preHandler: fastify.authenticate }, async (request, reply) => {
+    if (!config.localExecution.enabled) return reply.status(404).send({ error: "Local execution is disabled." });
+    const { deviceId } = deviceParams.parse(request.params);
+    const { connectionId } = z.object({ connectionId: z.string().uuid() }).strict().parse(request.body);
+    const alive = await query(
+      "UPDATE devices SET last_seen_at = now(), stream_expires_at = now() + interval '25 seconds' " +
+      "WHERE id = $1 AND user_id = $2 AND stream_connection_id = $3 AND revoked_at IS NULL RETURNING id",
+      [deviceId, request.user.id, connectionId]);
+    if (!alive.rowCount) return reply.status(409).send({ error: "The device connection is no longer active." });
+    return { ok: true };
   });
   fastify.post("/api/devices/:deviceId/runs/:runId/refuse-storage", { preHandler: fastify.authenticate }, async (request, reply) => {
     if (!config.localExecution.enabled) return reply.status(404).send({ error: "Local execution is disabled." });

@@ -55,8 +55,16 @@ export interface DesktopLocalExecutionSettings {
 }
 
 export interface DesktopLocalExecutionStatus {
-  state: "disabled" | "starting" | "running" | "error";
+  state: "disabled" | "starting" | "checking" | "downloading" | "running" | "error";
   message: string | null;
+  hostReady?: boolean;
+  sandboxReady?: boolean;
+  sandbox?: {
+    image: string | null;
+    digest: string | null;
+    lastCheckedAt: string | null;
+    lastUpdatedAt: string | null;
+  };
 }
 
 export interface PublicServerConfig {
@@ -130,6 +138,8 @@ interface DesktopBridge {
   pickLocalExecutionStorageRoot: () => Promise<string | null>;
   getLocalExecutionStatus: () => Promise<DesktopLocalExecutionStatus>;
   retryLocalExecution: () => Promise<DesktopLocalExecutionStatus>;
+  checkSandboxUpdates: () => Promise<DesktopLocalExecutionStatus>;
+  onLocalExecutionStatusChanged: (callback: (status: DesktopLocalExecutionStatus) => void) => () => void;
   saveServerProfilesState: (state: ServerProfilesState) => Promise<ServerProfilesState>;
   saveShortcutPreferences: (state: DesktopShortcutPreferences) => Promise<DesktopShortcutPreferences>;
   saveActiveContext: (state: DesktopActiveContext) => Promise<DesktopActiveContext>;
@@ -165,6 +175,8 @@ export interface PlatformAdapter {
   pickLocalExecutionStorageRoot: () => Promise<string | null>;
   getLocalExecutionStatus: () => Promise<DesktopLocalExecutionStatus>;
   retryLocalExecution: () => Promise<DesktopLocalExecutionStatus>;
+  checkSandboxUpdates: () => Promise<DesktopLocalExecutionStatus>;
+  onLocalExecutionStatusChanged: (callback: (status: DesktopLocalExecutionStatus) => void) => () => void;
   saveServerProfilesState: (state: ServerProfilesState) => Promise<ServerProfilesState>;
   saveShortcutPreferences: (state: DesktopShortcutPreferences) => Promise<DesktopShortcutPreferences>;
   saveActiveContext: (state: DesktopActiveContext) => Promise<DesktopActiveContext>;
@@ -391,6 +403,10 @@ function createWebPlatform(): PlatformAdapter {
     async retryLocalExecution(): Promise<DesktopLocalExecutionStatus> {
       return { state: "disabled", message: "Local execution is only available in Meowbert Desktop." };
     },
+    async checkSandboxUpdates(): Promise<DesktopLocalExecutionStatus> {
+      return { state: "disabled", message: "Local execution is only available in Meowbert Desktop." };
+    },
+    onLocalExecutionStatusChanged: () => () => {},
     async saveServerProfilesState(state: ServerProfilesState): Promise<ServerProfilesState> {
       return writeLocalStorageServerProfilesState(state);
     },
@@ -506,6 +522,8 @@ function createDesktopPlatform(bridge: DesktopBridge): PlatformAdapter {
     pickLocalExecutionStorageRoot: bridge.pickLocalExecutionStorageRoot,
     getLocalExecutionStatus: bridge.getLocalExecutionStatus,
     retryLocalExecution: bridge.retryLocalExecution,
+    checkSandboxUpdates: bridge.checkSandboxUpdates ?? (async () => ({ state: "error", message: "Update Meowbert Desktop to check sandbox updates safely." })),
+    onLocalExecutionStatusChanged: bridge.onLocalExecutionStatusChanged ?? (() => () => {}),
     async saveServerProfilesState(state: ServerProfilesState): Promise<ServerProfilesState> {
       const saved = await bridge.saveServerProfilesState(sanitizeServerProfilesState(state));
       return sanitizeServerProfilesState(saved);

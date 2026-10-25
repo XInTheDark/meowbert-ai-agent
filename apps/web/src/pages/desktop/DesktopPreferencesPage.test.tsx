@@ -39,6 +39,8 @@ const platform = {
   saveLocalExecutionSettings: vi.fn(),
   pickLocalExecutionStorageRoot: vi.fn(),
   retryLocalExecution: vi.fn(),
+  checkSandboxUpdates: vi.fn(),
+  onLocalExecutionStatusChanged: vi.fn(),
   getComputerStatus: vi.fn(),
   requestAccessibilityPermission: vi.fn(),
   openScreenRecordingSettings: vi.fn(),
@@ -51,6 +53,7 @@ let root: Root;
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.resetAllMocks();
+  platform.onLocalExecutionStatusChanged.mockReturnValue(() => {});
   platform.getBootstrapData.mockResolvedValue({ localExecutionSettings: { ...initialSettings } });
   platform.getLocalExecutionStatus.mockResolvedValue({ state: "running", message: null });
   platform.saveLocalExecutionSettings.mockImplementation(async (settings) => settings);
@@ -184,13 +187,33 @@ describe("local execution preferences", () => {
   });
 
   it("retries the connection and updates its visible status", async () => {
-    platform.retryLocalExecution.mockResolvedValue({ state: "error", message: "Docker is not running" });
+    platform.checkSandboxUpdates.mockResolvedValue({ state: "error", message: "Docker is not running" });
     await renderPage();
     await click("Local execution");
-    await click("Retry connection");
-    expect(platform.retryLocalExecution).toHaveBeenCalledOnce();
+    await click("Check for sandbox updates");
+    expect(platform.checkSandboxUpdates).toHaveBeenCalledOnce();
+    expect(platform.retryLocalExecution).not.toHaveBeenCalled();
     expect(container.querySelector('[role="status"]')?.textContent).toContain("Docker is not running");
   });
+  it("receives pushed status and timestamps without polling, and unsubscribes", async () => {
+    vi.useFakeTimers();
+    const unsubscribe = vi.fn();
+    platform.onLocalExecutionStatusChanged.mockReturnValue(unsubscribe);
+    try {
+      await renderPage(); await click("Local execution");
+      const listener = platform.onLocalExecutionStatusChanged.mock.calls[0][0];
+      await act(async () => listener({state:"downloading",message:"Downloading sandbox update…",sandbox:{image:"registry/image@sha256:abc",digest:"sha256:abc",lastCheckedAt:"2026-10-25T01:00:00Z",lastUpdatedAt:null}}));
+      expect(container.textContent).toContain("Downloading sandbox…");
+      expect(container.textContent).toContain("registry/image@sha256:abc");
+      expect(container.querySelector('[data-state="running"]')).toBeNull();
+      expect(container.textContent).toContain("Not recorded");
+      await act(async () => vi.advanceTimersByTimeAsync(120_000));
+      expect(platform.getLocalExecutionStatus).toHaveBeenCalledOnce();
+      await click("Shortcuts");
+      expect(unsubscribe).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+
 });
 
 describe("computer use permissions", () => {

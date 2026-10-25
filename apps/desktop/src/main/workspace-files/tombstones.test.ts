@@ -43,3 +43,27 @@ it("keeps tombstones pending while a workspace folder is disconnected", async ()
   await applyDeviceTombstones({ ...input, workspaceRoots: {} });
   expect(input.request).toHaveBeenCalledTimes(1);
 });
+
+it("pages past active-workspace deletions so they cannot starve later cleanup", async () => {
+  const input=await fixture("scratch","task");
+  input.request.mockReset();
+  input.request.mockResolvedValueOnce({items:[{id:"blocked",workspace_id:"active",kind:"scratch",target_id:"old",relative_path:"old"}],nextCursor:"blocked",nextCheckInMs:90_000})
+    .mockResolvedValueOnce({items:[{id:"cleanup",workspace_id:workspaceId,kind:"scratch",target_id:"task",relative_path:"task"}],nextCursor:null,nextCheckInMs:90_000})
+    .mockResolvedValue({ok:true});
+  input.activeWorkspaceIds.add("active");
+  const result=await applyDeviceTombstones(input);
+  expect(input.request).toHaveBeenNthCalledWith(2,"/api/devices/device/tombstones?after=blocked");
+  expect(input.request).toHaveBeenLastCalledWith("/api/devices/device/tombstones/ack","POST",{ids:["cleanup"]});
+  expect(result.nextCheckInMs).toBeGreaterThan(89_000);
+  expect(result.nextCheckInMs).toBeLessThanOrEqual(90_000);
+});
+
+it("retains an earlier cleanup deadline across pages even if it becomes due during deletion", async () => {
+  const input=await fixture("scratch","task");input.request.mockReset();
+  const clock=vi.spyOn(performance,"now").mockReturnValueOnce(0).mockReturnValue(100_000);
+  try {
+    input.request.mockResolvedValueOnce({items:[],nextCursor:"first-page",nextCheckInMs:90_000})
+      .mockResolvedValueOnce({items:[],nextCursor:null,nextCheckInMs:null});
+    expect((await applyDeviceTombstones(input)).nextCheckInMs).toBe(0);
+  } finally {clock.mockRestore();}
+});

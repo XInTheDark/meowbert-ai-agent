@@ -8,7 +8,8 @@ export async function maintainDownloadedSandboxes(input: {
   resourcesRoot: string; currentImage: string; skillsRoot: string; downloaded: boolean; inUseImages: string[];
 }): Promise<void> {
   const file = path.join(input.resourcesRoot, "downloaded-images.json");
-  const images: DownloadedSandbox[] = await fs.readFile(file, "utf8").then((text) => JSON.parse(text), () => []);
+  const previousText = await fs.readFile(file, "utf8").catch((error) => { if (error.code === "ENOENT") return "[]"; throw error; });
+  const images: DownloadedSandbox[] = JSON.parse(previousText);
   if (input.downloaded && !images.some((image) => image.reference === input.currentImage)) {
     images.push({ reference: input.currentImage, resourceDirectory: path.basename(path.dirname(input.skillsRoot)) });
   }
@@ -26,5 +27,5 @@ export async function maintainDownloadedSandboxes(input: {
       }
     } catch { retained.push(image); }
   }
-  await fs.writeFile(file, JSON.stringify(retained), { mode: 0o600 });
+  if (JSON.stringify(retained) !== previousText) await fs.writeFile(file, JSON.stringify(retained), { mode: 0o600 });
 }

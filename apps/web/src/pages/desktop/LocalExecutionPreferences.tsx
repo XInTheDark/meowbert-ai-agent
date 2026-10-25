@@ -2,6 +2,7 @@ import { FolderOpen, RotateCcw } from "lucide-react";
 import type { DesktopLocalExecutionSettings } from "../../desktop/platform";
 import { DesktopPreferenceRow, DesktopPreferenceSection, DesktopPreferenceSwitch } from "./DesktopPreferenceFields";
 import { LocalExecutionAccessPreferences } from "./LocalExecutionAccessPreferences";
+import { LocalSandboxStatus } from "./LocalSandboxStatus";
 import { useLocalExecutionPreferences } from "./useLocalExecutionPreferences";
 
 export function LocalExecutionPreferences() {
@@ -17,13 +18,14 @@ export function LocalExecutionPreferences() {
       <div className="desktop-execution-status" data-state={status?.state ?? "starting"}>
         <span className="desktop-preferences-status-dot" />
         <div role="status">
-          <strong>{status?.state === "running" ? "Ready for local tasks" : status?.state === "error" ? "Connection needs attention" : status?.state === "disabled" ? "Local execution is off" : "Connecting…"}</strong>
+          <strong>{status?.state === "running" ? "Ready for local tasks" : status?.state === "error" ? (status.hostReady ? "Host ready · Sandbox needs attention" : "Local execution needs attention") : status?.state === "checking" ? "Checking for updates…" : status?.state === "downloading" ? "Downloading sandbox…" : status?.state === "disabled" ? "Local execution is off" : "Connecting…"}</strong>
           {status?.message ? <p>{status.message}</p> : null}
         </div>
-        <button className="icon-btn" type="button" disabled={busy} onClick={() => void preferences.retry()} title="Retry connection" aria-label="Retry connection">
+        <button className="icon-btn" type="button" disabled={busy || !settings.enabled || status?.state === "downloading" || status?.state === "checking"} onClick={() => void preferences.checkForUpdates()} title="Check for sandbox updates" aria-label="Check for sandbox updates">
           <RotateCcw size={15} />
         </button>
       </div>
+      <LocalSandboxStatus sandbox={status?.sandbox} />
       <fieldset className="desktop-preferences-fieldset" disabled={busy}>
         <DesktopPreferenceSection title="Task execution">
           <DesktopPreferenceRow title="Enable on this server" description="Make this computer available for local tasks." controlId="local-enabled">
