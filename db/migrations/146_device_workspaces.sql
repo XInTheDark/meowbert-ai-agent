@@ -98,8 +98,3 @@ END;
 $body$;
 CREATE TRIGGER device_task_target BEFORE INSERT OR UPDATE OF workspace_id, execution_target ON tasks
   FOR EACH ROW EXECUTE FUNCTION enforce_device_task_target();
-
--- Archiving releases device state without deleting the user's workspace folder.
-CREATE TRIGGER device_task_archive AFTER UPDATE OF trashed_at ON tasks
-  FOR EACH ROW WHEN (OLD.trashed_at IS NULL AND NEW.trashed_at IS NOT NULL)
-  EXECUTE FUNCTION record_device_file_deletion();

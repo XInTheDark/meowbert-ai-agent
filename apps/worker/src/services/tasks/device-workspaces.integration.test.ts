@@ -53,9 +53,13 @@ describe.skipIf(!databaseUrl)("device workspace persistence", () => {
     await expect(client.query("UPDATE tasks SET execution_target = $2 WHERE id = $1", [taskId, { kind: "local", mode: "host", deviceId: newDevice }])).rejects.toThrow("cannot reach");
   });
 
-  it("records durable archive tombstones and retains workspace deletion records after cascades", async () => {
+  it("preserves trashed and restored files and records tombstones only on permanent deletion", async () => {
     const { workspaceId, taskId } = await fixture();
     await client.query("UPDATE tasks SET trashed_at = now() WHERE id = $1", [taskId]);
+    expect((await client.query("SELECT * FROM device_file_tombstones")).rows).toEqual([]);
+    await client.query("UPDATE tasks SET trashed_at = NULL WHERE id = $1", [taskId]);
+    expect((await client.query("SELECT * FROM device_file_tombstones")).rows).toEqual([]);
+    await client.query("DELETE FROM tasks WHERE id = $1", [taskId]);
     const pending = (await client.query("SELECT kind, not_before > now() AS delayed FROM device_file_tombstones ORDER BY kind")).rows;
     expect(pending).toEqual([{ kind: "scratch", delayed: true }, { kind: "task", delayed: true }]);
     await client.query("DELETE FROM workspaces WHERE id = $1", [workspaceId]);
