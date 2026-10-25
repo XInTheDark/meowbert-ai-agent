@@ -7,6 +7,10 @@ async function main() {
   const resources = path.resolve(process.argv[2]);
   const archive = path.join(resources, "app.asar");
   const appRequire = createRequire(path.join(archive, "package.json"));
+  for (const name of ["host-skills", "live-folder-runtime"]) {
+    if (fs.existsSync(path.join(archive, "dist", name))) throw new Error(`Duplicate packaged resource: ${name}.`);
+    if (!fs.existsSync(path.join(resources, name))) throw new Error(`Missing packaged resource: ${name}.`);
+  }
   const expectedVersion = require("../package.json").version;
   if (appRequire("./package.json").version !== expectedVersion) throw new Error("Incorrect packaged version.");
   const shared = await import(pathToFileURL(appRequire.resolve("@meowbert/shared")).href);

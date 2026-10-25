@@ -11,6 +11,8 @@ module.exports = {
   },
   files: [
     "dist/**/*",
+    "!dist/host-skills/**/*",
+    "!dist/live-folder-runtime/**/*",
     // ssh2's optional install-time binding targets build-host Node, not Electron.
     "!node_modules/ssh2/lib/protocol/crypto/build/**/*",
     { from: "../../prompt-texts", to: "node_modules/prompt-texts", filter: ["**/*.md"] }
