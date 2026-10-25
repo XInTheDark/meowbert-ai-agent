@@ -17,6 +17,7 @@ import {
 import { activateTaskTimeLimitInTx } from "./time-limit.js";
 import { ensureTaskPromptEntitlement, recordTaskPromptUsage } from "./prompt-usage.js";
 import type { ProjectCanvasIntent } from "../../canvases/project-canvases.js";
+import { attachPendingTaskInputs, lockTaskInputUploads } from "../../files/task-upload-manifest.js";
 
 interface CreateTaskInput {
   taskId?: string;
@@ -66,6 +67,7 @@ async function insertTaskRow(
   input: CreateTaskInput,
   taskId: string
 ): Promise<void> {
+  await lockTaskInputUploads(client, taskId);
   await client.query(
     `INSERT INTO tasks (
       id,
@@ -111,6 +113,7 @@ async function insertTaskRow(
       JSON.stringify(input.executionTarget ?? { kind: "cloud" })
     ]
   );
+  await attachPendingTaskInputs(client, input.environmentId, taskId);
 }
 
 async function insertPrefaceMessages(

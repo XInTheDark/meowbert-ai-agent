@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import { workspaceFilesScope, workspaceFilesRequestSchema, deviceWorkspaceProjectPath, createDefaultProjectSuggestedActions,
   type WorkspaceFileLocation, type WorkspaceFilesRequest } from "@meowbert/shared";
 import { readWorkspaceMemoryMainFile, readProjectMemoryMainFile } from "@meowbert/run-executor/memory/main-files";
@@ -48,6 +49,14 @@ async function readDeviceMemory(context: NonNullable<Awaited<ReturnType<typeof d
   return { enabled: true, suggestedActionsEnabled: false, workspace, project, actions: createDefaultProjectSuggestedActions(), latestRefresh: null, recentRefreshes: [] };
 }
 
+async function recordDeletedInputs(context: NonNullable<Awaited<ReturnType<typeof deviceFileContext>>>, deleted: Awaited<ReturnType<typeof deleteDeviceFiles>>) {
+  const { location, api, settings } = context;
+  if (location.projectId) await api.request("/api/projects/" + location.projectId + "/device-inputs/delete", "POST", {
+    deviceId: settings.deviceId, paths: deleted.deletedPaths.map((value) => location.taskRootPath ? path.posix.join(location.taskRootPath, value) : value)
+  });
+  return deleted;
+}
+
 export async function requestDeviceWorkspaceFiles(input: WorkspaceFilesRequest): Promise<unknown> {
   const request = workspaceFilesRequestSchema.parse(input);
   const context = await deviceFileContext(request.path);
@@ -55,7 +64,8 @@ export async function requestDeviceWorkspaceFiles(input: WorkspaceFilesRequest):
   const { root, url, api, settings, location } = context;
   const requested = url.searchParams.get("path") ?? "";
   const liveFolders = await handleDeviceLiveFolders(context, request);
-  if (liveFolders.handled) return liveFolders.value;
+  if (liveFolders.handled) return url.pathname.endsWith("/delete") && request.method === "POST"
+    ? recordDeletedInputs(context, liveFolders.value as Awaited<ReturnType<typeof deleteDeviceFiles>>) : liveFolders.value;
   if (url.pathname.endsWith("/memory") && request.method === "GET") return readDeviceMemory(context);
   if (url.pathname.endsWith("/suggested-actions")) return { enabled: false, actions: createDefaultProjectSuggestedActions() };
   if (url.pathname.endsWith("/storage")) return { storage: null };
@@ -80,7 +90,7 @@ export async function requestDeviceWorkspaceFiles(input: WorkspaceFilesRequest):
   if (url.pathname.endsWith("/delete") && request.method === "POST") {
     const body = request.body as { paths?: unknown };
     if (!Array.isArray(body?.paths) || !body.paths.every((value) => typeof value === "string")) throw new Error("Select files to delete.");
-    return deleteDeviceFiles(root, body.paths);
+    return recordDeletedInputs(context, await deleteDeviceFiles(root, body.paths));
   }
   throw new Error("This operation is unavailable for a device workspace.");
 }

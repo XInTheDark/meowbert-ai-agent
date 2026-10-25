@@ -21,6 +21,12 @@ vi.mock("../../workspaces/memory-synthesis-events.js", () => ({
   publishMemorySynthesisEvent: vi.fn(async () => undefined)
 }));
 
+vi.mock("../../files/task-upload-manifest.js", () => ({
+  lockTaskInputUploads: vi.fn(), attachPendingTaskInputs: vi.fn()
+}));
+
+import { lockTaskInputUploads, attachPendingTaskInputs } from "../../files/task-upload-manifest.js";
+
 import { query, withTransaction } from "../../../lib/db.js";
 import { taskQueue } from "../../../lib/queue.js";
 import {
@@ -150,6 +156,10 @@ describe("createTaskWithInitialMessage", () => {
       taskId: "task-1",
       userMessageId: "message-1"
     });
+    expect(lockTaskInputUploads).toHaveBeenCalledWith(client, "task-1");
+    expect(attachPendingTaskInputs).toHaveBeenCalledWith(client, "environment-1", "task-1");
+    expect(vi.mocked(lockTaskInputUploads).mock.invocationCallOrder[0]).toBeLessThan(client.query.mock.invocationCallOrder[0]);
+    expect(vi.mocked(attachPendingTaskInputs).mock.invocationCallOrder[0]).toBeGreaterThan(client.query.mock.invocationCallOrder[0]);
     expect(mockedGetPromptEntitlementStatus).toHaveBeenCalledWith("admin-1");
     expect(mockedRecordPromptUsageIfRequired).toHaveBeenCalledWith({
       userId: "admin-1",

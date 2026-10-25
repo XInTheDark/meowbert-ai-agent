@@ -44,6 +44,9 @@ it.each(["projects", "environments"])("uploads, browses, previews and deletes de
     deletedCount: 1, deletedPaths: [inputPath + "/input.txt"]
   });
   await expect(fs.stat(path.join(root, "projects", projectId, inputPath, "input.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(state.request).toHaveBeenCalledWith("/api/projects/" + projectId + "/device-inputs/delete", "POST", {
+    deviceId: "device", paths: [inputPath + "/input.txt"]
+  });
 });
 
 it("keeps Project Context and memory local", async () => {

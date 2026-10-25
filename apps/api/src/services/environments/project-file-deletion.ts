@@ -1,5 +1,6 @@
 import { deleteSelectedPaths, type DeletedFilesResult } from "../files/delete-files.js";
 import { resolveSelectedPathsWithinRoot } from "../files/selected-paths.js";
+import { removeTaskInputUploads } from "../files/task-upload-manifest.js";
 import {
   unlinkSourceFileLinksAtMissingEnvironmentPaths,
   unlinkSourceFileLinksUnderEnvironmentPaths
@@ -28,6 +29,7 @@ export async function deleteProjectFiles(input: {
     localRelativePaths: targets.map((target) => target.relativePath)
   });
   const deleted = await deleteSelectedPaths(targets);
+  await removeTaskInputUploads(input.environmentId, [...deleted.deletedPaths, ...unlinkedMissingPaths]);
 
   return {
     deletedCount: deleted.deletedCount + unlinkedMissingPaths.length,
