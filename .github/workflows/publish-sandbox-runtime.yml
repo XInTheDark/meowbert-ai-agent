@@ -49,6 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/sandbox-runtime" >> "$GITHUB_OUTPUT"
+          echo "legacy_name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/meowbert-sandbox-runtime" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -61,12 +62,15 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.image.outputs.name }}
+          images: |
+            ${{ steps.image.outputs.name }}
+            ${{ steps.image.outputs.legacy_name }}
           tags: |
             type=raw,value=main,enable=${{ github.ref_name == 'main' }}
             type=sha,prefix=sha-
 
       - name: Build and push sandbox runtime image
+        id: build
         uses: docker/build-push-action@v6
         env:
             DOCKER_BUILD_SUMMARY: false
@@ -80,16 +84,42 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Verify both published image names
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          LEGACY_IMAGE_NAME: ${{ steps.image.outputs.legacy_name }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          MANIFEST_FILE="$(mktemp)"
+          trap 'rm -f "$MANIFEST_FILE"' EXIT
+          for image in "$IMAGE_NAME" "$LEGACY_IMAGE_NAME"; do
+            docker buildx imagetools inspect "${image}@${IMAGE_DIGEST}" --raw > "$MANIFEST_FILE"
+            node -e '
+              const fs = require("node:fs");
+              const index = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              for (const architecture of ["amd64", "arm64"]) {
+                if (!index.manifests?.some(({ platform }) => platform?.os === "linux" && platform.architecture === architecture)) {
+                  throw new Error("Published runtime lacks linux/" + architecture);
+                }
+              }
+            ' "$MANIFEST_FILE"
+            echo "Verified ${image}@${IMAGE_DIGEST}: linux/amd64 and linux/arm64"
+          done
+
       - name: Publish summary
         shell: bash
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
+          LEGACY_IMAGE_NAME: ${{ steps.image.outputs.legacy_name }}
           IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           {
             echo "## Sandbox runtime image published"
             echo
             echo "Image: \`$IMAGE_NAME\`"
+            echo "Compatibility image: \`$LEGACY_IMAGE_NAME\`"
             echo
             echo "Tags:"
             while IFS= read -r tag; do
