@@ -1,6 +1,16 @@
 name: Desktop Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Desktop tag matching the package version
+        required: true
+        type: string
+      build_only:
+        description: Package artifacts for manual publication without a release token
+        default: false
+        type: boolean
   push:
     tags:
       - "desktop-*"
@@ -8,12 +18,16 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+
 concurrency:
   group: desktop-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   create-release:
+    if: ${{ !inputs.build_only }}
     name: Create GitHub release
     runs-on: ubuntu-latest
     steps:
@@ -22,7 +36,7 @@ jobs:
 
       - name: Ensure the GitHub release exists
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
           SOURCE_REPOSITORY: ${{ github.repository }}
           TARGET_GH_TOKEN: ${{ secrets.DESKTOP_RELEASES_GH_TOKEN }}
           FALLBACK_GH_TOKEN: ${{ github.token }}
@@ -108,6 +122,7 @@ jobs:
           gh "${args[@]}"
 
   publish:
+    if: ${{ !cancelled() && (needs.create-release.result == 'success' || inputs.build_only) }}
     name: Publish ${{ matrix.label }}
     needs: create-release
     runs-on: ${{ matrix.os }}
@@ -143,19 +158,40 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./apps/desktop/package.json').version")"
-          TAG_SUFFIX="${GITHUB_REF_NAME#desktop-}"
-          if [[ "${GITHUB_REF_NAME}" == "desktop-${VERSION}" || "${GITHUB_REF_NAME}" == "desktop-v${VERSION}" ]]; then
+          TAG_SUFFIX="${RELEASE_TAG#desktop-}"
+          if [[ "${RELEASE_TAG}" == "desktop-${VERSION}" || "${RELEASE_TAG}" == "desktop-v${VERSION}" ]]; then
             exit 0
           fi
 
           if [[ "${TAG_SUFFIX}" =~ ^v?[0-9] ]]; then
-            echo "Expected tag desktop-${VERSION} or desktop-v${VERSION} but received ${GITHUB_REF_NAME}" >&2
+            echo "Expected tag desktop-${VERSION} or desktop-v${VERSION} but received ${RELEASE_TAG}" >&2
             exit 1
           fi
 
-          echo "Skipping strict desktop version check for custom tag ${GITHUB_REF_NAME}"
+          echo "Skipping strict desktop version check for custom tag ${RELEASE_TAG}"
+
+      - name: Package desktop artifacts
+        if: inputs.build_only
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.csc_identity_auto_discovery }}
+        run: npm run package --workspace apps/desktop -- ${{ matrix.publish_args }} --publish never
+
+      - name: Upload packaged desktop artifacts
+        if: inputs.build_only
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/dist-packages/*.dmg
+            apps/desktop/dist-packages/*.zip
+            apps/desktop/dist-packages/*.exe
+            apps/desktop/dist-packages/*.blockmap
+            apps/desktop/dist-packages/latest*.yml
 
       - name: Publish desktop artifacts
+        if: ${{ !inputs.build_only }}
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.csc_identity_auto_discovery }}
@@ -183,7 +219,7 @@ jobs:
             export VITE_DESKTOP_RELEASES_PAGE_URL="${TARGET_RELEASES_PAGE_URL}"
           fi
 
-          if [[ "${GITHUB_REF_NAME}" == "${EXPECTED_TAG}" || "${GITHUB_REF_NAME}" == "${EXPECTED_V_TAG}" ]]; then
+          if [[ "${RELEASE_TAG}" == "${EXPECTED_TAG}" || "${RELEASE_TAG}" == "${EXPECTED_V_TAG}" ]]; then
             npm run package:release --workspace apps/desktop -- ${{ matrix.publish_args }}
             exit 0
           fi
@@ -192,11 +228,11 @@ jobs:
 
           uploaded_files=0
           while IFS= read -r -d '' release_file; do
-            gh release upload "${GITHUB_REF_NAME}" --repo "${TARGET_REPOSITORY}" --clobber "${release_file}"
+            gh release upload "${RELEASE_TAG}" --repo "${TARGET_REPOSITORY}" --clobber "${release_file}"
             uploaded_files=$((uploaded_files + 1))
           done < <(find apps/desktop/dist-packages -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.blockmap" \) -print0)
 
           if [[ "${uploaded_files}" -eq 0 ]]; then
-            echo "No desktop release artifacts were generated for ${GITHUB_REF_NAME}" >&2
+            echo "No desktop release artifacts were generated for ${RELEASE_TAG}" >&2
             exit 1
           fi
