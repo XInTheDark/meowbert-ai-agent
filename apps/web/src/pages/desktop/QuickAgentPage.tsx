@@ -34,12 +34,6 @@ function QuickAgentWindowCard(props: {
 
   return (
     <section className={className}>
-      <div className="quick-agent-drag-bar" aria-hidden="true">
-        <span className="quick-agent-drag-pill">
-          <span className="quick-agent-drag-grip">⋯⋯</span>
-          <span className="quick-agent-drag-label">Quick Agent</span>
-        </span>
-      </div>
       {props.children}
     </section>
   );
@@ -499,6 +493,7 @@ export function QuickAgentPage(props: {
       </QuickAgentWindowCard>
       <EnvironmentFilePickerModal
         api={api ?? createApiClient("")}
+        token={props.token}
         environmentId={selectedEnvironmentId}
         isOpen={isEnvironmentFilePickerOpen}
         onClose={() => setIsEnvironmentFilePickerOpen(false)}

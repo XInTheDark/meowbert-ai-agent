@@ -68,7 +68,7 @@ function buildCanvasAttachment(canvas: ProjectCanvasSummary): TaskAttachment {
 }
 
 export function TaskComposerPage() {
-  const { api, user, activeWorkspaceId, activeEnvironmentId, environments, workspaceSettings, refreshTasks, workspaces } = useWorkspaceApp();
+  const { api, token, user, activeWorkspaceId, activeEnvironmentId, environments, workspaceSettings, refreshTasks, workspaces } = useWorkspaceApp();
   const { capabilities } = useAppRuntime();
   const navigate = useNavigate();
   const location = useLocation();
@@ -521,6 +521,7 @@ export function TaskComposerPage() {
       </div>
       <EnvironmentFilePickerModal
         api={api}
+        token={token}
         environmentId={activeEnvironmentId}
         isOpen={isEnvironmentFilePickerOpen}
         onClose={() => setIsEnvironmentFilePickerOpen(false)}

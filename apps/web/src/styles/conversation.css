@@ -3734,6 +3734,13 @@
   --task-detail-main-content-width: 1120px;
 }
 
+@media (min-width: 1121px) {
+  .task-detail-conversation-shell.has-activity-sidebar > .task-detail-conversation-main > .task-chat-feed,
+  .task-detail-conversation-shell.has-activity-sidebar > .task-detail-conversation-main > .chat-input-container {
+    padding-inline: clamp(1.25rem, 4%, 3rem);
+  }
+}
+
 .task-detail-conversation-shell:not(.has-right-sidebar):not(.has-thread-sidebar):not(.has-message-outline):not(.has-conversation-navigation):not(.has-search-panel) {
   display: flex;
   justify-content: center;

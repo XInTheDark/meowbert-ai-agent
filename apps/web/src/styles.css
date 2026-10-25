@@ -6553,42 +6553,13 @@ a.managed-task-card:hover {
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, transparent), color-mix(in srgb, var(--surface-soft) 90%, transparent));
   box-shadow: var(--shadow-lg);
-}
-
-.quick-agent-drag-bar {
-  display: flex;
-  justify-content: center;
-  padding: 0.05rem 0 0.1rem;
   -webkit-app-region: drag;
-  user-select: none;
-  cursor: grab;
 }
 
-.quick-agent-drag-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.38rem;
-  padding: 0.16rem 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-muted) 72%, var(--surface));
-  color: var(--text-muted);
-  font-size: 0.71rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  pointer-events: none;
-}
-
-.quick-agent-drag-grip {
-  font-size: 0.95rem;
-  line-height: 1;
-  letter-spacing: -0.12em;
-  opacity: 0.72;
-}
-
-.quick-agent-drag-label {
-  line-height: 1;
+.quick-agent-card > *,
+.quick-agent-toolbar button,
+.quick-agent-toolbar select {
+  -webkit-app-region: no-drag;
 }
 
 .quick-agent-empty {
@@ -6606,6 +6577,7 @@ a.managed-task-card:hover {
   gap: 0.5rem;
   flex-wrap: nowrap;
   flex-shrink: 0;
+  -webkit-app-region: drag;
 }
 
 .quick-agent-context-controls {

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { ArrowUp, Home, Upload, X } from "lucide-react";
 import type { ApiClient } from "../../lib/api";
 import { useAppRuntime } from "../../contexts/AppRuntimeContext";
-import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
 import { buildDownloadUrl } from "../../lib/utils";
 import {
   normalizeEnvironmentPathInput,
@@ -26,6 +25,7 @@ interface UploadedEnvironmentFilePayload {
 
 interface EnvironmentFilePickerModalProps {
   api: ApiClient;
+  token: string | null;
   projectId?: string | null;
   environmentId: string | null;
   isOpen: boolean;
@@ -45,7 +45,6 @@ function toTaskAttachment(entry: EnvironmentFileEntry): TaskAttachment {
 }
 
 export function EnvironmentFilePickerModal(props: EnvironmentFilePickerModalProps) {
-  const { token } = useWorkspaceApp();
   const targetEnvironmentId = props.projectId ?? props.environmentId;
   const { platform, capabilities } = useAppRuntime();
   const [cwd, setCwd] = useState("");
@@ -446,7 +445,7 @@ export function EnvironmentFilePickerModal(props: EnvironmentFilePickerModalProp
                 selectedCount={selectedPaths.size}
                 isLoadingPreview={isLoadingPreview}
                 previewDownloadUrl={selectedEntry && targetEnvironmentId ? buildDownloadUrl(targetEnvironmentId, selectedEntry.relativePath) : null}
-                previewToken={token}
+                previewToken={props.token}
                 liveSyncStatus={null}
                 isLiveSyncStatusLoading={false}
                 isLiveSyncMutating={false}

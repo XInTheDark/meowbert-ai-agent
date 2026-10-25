@@ -6,6 +6,10 @@ import http from "node:http";
 import { once } from "node:events";
 import { spawn } from "node:child_process";
 import { chromium } from "playwright";
+import { createQuickAgentSmokeFixture, verifyQuickAgent } from "./verify-quick-agent.mjs";
+import { verifyConversationLayout } from "./verify-conversation-layout.mjs";
+
+const quickAgentFixture = createQuickAgentSmokeFixture();
 
 function rendererEndpoint(child) {
   return new Promise((resolve, reject) => {
@@ -38,6 +42,7 @@ function startServer() {
     response.setHeader("Access-Control-Allow-Private-Network", "true");
     response.setHeader("Content-Type", "application/json");
     if (request.method === "OPTIONS") { response.writeHead(204).end(); return; }
+    if (quickAgentFixture.handleRequest(request, response)) return;
     if (request.url === "/api/auth/registration") {
       response.end(JSON.stringify({ enabled: true, hasUsers: true, forgotPasswordEnabled: true }));
     } else if (request.url === "/api/auth/login") {
@@ -116,6 +121,8 @@ async function main() {
     await page.screenshot({ animations: "disabled", path: path.join(screenshots, "login-narrow.png") });
     assert.deepEqual(errors, [], "Renderer must not throw JavaScript errors");
     console.log("Verified actual packaged login: light/dark styles, fonts, form interaction, and narrow layout.");
+    await verifyQuickAgent(context, page, screenshots, quickAgentFixture);
+    await verifyConversationLayout(page, screenshots);
   } catch (error) {
     if (page) await page.screenshot({ animations: "disabled", path: path.join(screenshots, "failure.png") }).catch(() => undefined);
     throw error;

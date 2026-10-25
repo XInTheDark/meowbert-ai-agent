@@ -563,6 +563,7 @@ function TaskDetailModals({ model }: ModelProps) {
     <>
       <ProjectFilePickerModal
         api={model.context.workspace.api}
+        token={model.context.workspace.token}
         projectId={model.context.taskProjectId!}
         environmentId={model.context.taskProjectId!}
         isOpen={model.view.isProjectFilePickerOpen}
