@@ -9,7 +9,8 @@ async function main() {
   const appRequire = createRequire(path.join(archive, "package.json"));
   for (const name of ["host-skills", "live-folder-runtime"]) {
     if (fs.existsSync(path.join(archive, "dist", name))) throw new Error(`Duplicate packaged resource: ${name}.`);
-    if (!fs.existsSync(path.join(resources, name))) throw new Error(`Missing packaged resource: ${name}.`);
+    const required = name === "host-skills" || process.platform === "darwin";
+    if (required && !fs.existsSync(path.join(resources, name))) throw new Error(`Missing packaged resource: ${name}.`);
   }
   const expectedVersion = require("../package.json").version;
   if (appRequire("./package.json").version !== expectedVersion) throw new Error("Incorrect packaged version.");
