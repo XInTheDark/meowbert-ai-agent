@@ -655,10 +655,6 @@
   border-radius: 0.5rem;
 }
 
-.desktop-shortcut-controls .btn {
-  min-height: 2.75rem;
-}
-
 .btn.ghost:hover:not(:disabled),
 .btn.ghost.active {
   background: var(--surface-muted);

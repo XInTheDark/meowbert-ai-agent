@@ -6508,16 +6508,6 @@ a.managed-task-card:hover {
   text-align: center;
 }
 
-.desktop-preferences-shell {
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: 1rem;
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--brand) 20%, transparent), transparent 34%),
-    radial-gradient(circle at bottom right, color-mix(in srgb, var(--brand-strong) 14%, transparent), transparent 36%),
-    var(--bg);
-}
-
 .quick-agent-shell {
   min-height: 100vh;
   min-height: 100dvh;
@@ -6529,11 +6519,6 @@ a.managed-task-card:hover {
     radial-gradient(circle at top left, color-mix(in srgb, var(--brand) 20%, transparent), transparent 34%),
     radial-gradient(circle at bottom right, color-mix(in srgb, var(--brand-strong) 14%, transparent), transparent 36%),
     var(--bg);
-}
-
-.desktop-preferences-page {
-  width: min(980px, 100%);
-  margin: 0 auto;
 }
 
 .quick-agent-header {
@@ -6552,137 +6537,6 @@ a.managed-task-card:hover {
 .quick-agent-header p {
   margin: 0;
   color: var(--text-muted);
-}
-
-.desktop-preferences-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.desktop-preferences-layout {
-  display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.desktop-preferences-sidebar {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.desktop-preferences-nav-btn {
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  color: var(--text);
-  text-align: left;
-  padding: 0.95rem 1rem;
-  display: grid;
-  gap: 0.35rem;
-  cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
-}
-
-.desktop-preferences-nav-btn:hover {
-  border-color: color-mix(in srgb, var(--brand) 38%, var(--border));
-  background: color-mix(in srgb, var(--surface-raised) 96%, transparent);
-  transform: translateY(-1px);
-}
-
-.desktop-preferences-nav-btn.active {
-  border-color: color-mix(in srgb, var(--brand) 52%, var(--border));
-  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 20%, transparent);
-}
-
-.desktop-preferences-nav-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-weight: 600;
-}
-
-.desktop-preferences-nav-copy {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  line-height: 1.45;
-}
-
-.desktop-preferences-panel {
-  display: grid;
-  gap: 1rem;
-  min-width: 0;
-}
-
-.desktop-preferences-panel-head {
-  margin-bottom: 0;
-}
-
-.desktop-shortcut-section {
-  border: 1px solid var(--border);
-  border-radius: 1.1rem;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  overflow: hidden;
-}
-
-.desktop-shortcut-copy p {
-  margin: 0;
-  color: var(--text-muted);
-}
-
-.desktop-shortcut-tab-copy {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.desktop-shortcut-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.15rem;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
-
-.desktop-shortcut-row:first-of-type {
-  border-top: 0;
-}
-
-.desktop-shortcut-copy {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.desktop-shortcut-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  flex-shrink: 0;
-}
-
-.desktop-shortcut-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.desktop-shortcut-footer > div {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.desktop-shortcut-status {
-  margin: 0;
-}
-
-.desktop-shortcut-status-success {
-  color: var(--success);
 }
 
 .quick-agent-card {
@@ -6852,25 +6706,6 @@ a.managed-task-card:hover {
 .quick-agent-error {
   margin: 0;
   padding: 0 0.2rem;
-}
-
-@media (max-width: 1120px) {
-  .desktop-preferences-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .desktop-preferences-sidebar {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  }
-
-  .desktop-shortcut-row {
-    display: grid;
-  }
-
-  .desktop-shortcut-controls {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
 }
 
 @media (max-height: 420px) {

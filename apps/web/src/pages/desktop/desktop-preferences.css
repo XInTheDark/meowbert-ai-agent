@@ -1,0 +1,487 @@
+.desktop-preferences-shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.desktop-preferences-sidebar {
+  padding: 1.5rem .75rem;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+
+.desktop-preferences-back {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  margin: 0 .75rem 2rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: .8125rem;
+}
+
+.desktop-preferences-back:hover {
+  color: var(--text);
+}
+
+.desktop-preferences-sidebar h1 {
+  margin: 0 .75rem 1rem;
+  font-size: .9375rem;
+  font-weight: 600;
+  letter-spacing: -.02em;
+}
+
+.desktop-preferences-sidebar nav {
+  display: grid;
+  gap: .25rem;
+}
+
+.desktop-preferences-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  width: 100%;
+  padding: .625rem .75rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: .8125rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.desktop-preferences-nav-btn:hover,
+.desktop-preferences-nav-btn.active {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.desktop-preferences-nav-btn.active {
+  font-weight: 600;
+}
+
+.desktop-preferences-content {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 3rem clamp(1.5rem, 4vw, 4rem) 0;
+  scrollbar-gutter: stable;
+}
+
+.desktop-preferences-panel {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding-bottom: 2rem;
+  font-size: .875rem;
+}
+
+.desktop-preferences-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.desktop-preferences-panel-head h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -.035em;
+}
+
+.desktop-preferences-panel-head p {
+  margin: .5rem 0 0;
+  color: var(--text-muted);
+  font-size: .8125rem;
+  line-height: 1.6;
+}
+
+.desktop-preference-section {
+  margin: 0 0 1.75rem;
+}
+
+.desktop-preference-section h3 {
+  margin: 0 0 .625rem;
+  font-size: .8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.desktop-preference-rows {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.desktop-preference-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1rem 0;
+}
+
+.desktop-preference-row + .desktop-preference-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.desktop-preference-copy {
+  min-width: 0;
+}
+
+.desktop-preference-copy > strong,
+.desktop-preference-copy > label {
+  display: block;
+  color: var(--text);
+  font-size: .8125rem;
+  font-weight: 550;
+}
+
+.desktop-preference-copy p {
+  margin: .25rem 0 0;
+  color: var(--text-muted);
+  font-size: .75rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.desktop-preference-copy code {
+  font-family: var(--font-mono);
+  font-size: .6875rem;
+}
+
+.desktop-preference-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .5rem;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.desktop-preference-control input:not([type="checkbox"]),
+.desktop-preference-control select {
+  width: 13rem;
+  max-width: 100%;
+  min-height: 2.125rem;
+  padding: .375rem .625rem;
+  font-size: .8125rem;
+}
+
+.desktop-preference-control select {
+  width: 9rem;
+}
+
+.desktop-preference-control input.desktop-preferences-number {
+  width: 4.5rem;
+}
+
+.desktop-preference-control .desktop-preference-switch {
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.125rem;
+  height: 1.25rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--border);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.desktop-preference-switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: .875rem;
+  height: .875rem;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 150ms ease;
+}
+
+.desktop-preference-control .desktop-preference-switch:checked {
+  background: var(--brand-fill, var(--brand));
+}
+
+.desktop-preference-switch:checked::before {
+  transform: translateX(.875rem);
+  background: var(--brand-contrast, var(--button-text));
+}
+
+.desktop-preferences-shell :is(button, input):disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.desktop-preferences-shell :is(button, a, input, select):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+.desktop-preferences-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.desktop-execution-status {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  padding: .875rem 1rem;
+  margin-bottom: 2rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.desktop-execution-status > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.desktop-execution-status strong {
+  font-size: .8125rem;
+  font-weight: 550;
+}
+
+.desktop-execution-status p {
+  margin: .25rem 0 0;
+  color: var(--text-muted);
+  font-size: .75rem;
+  overflow-wrap: anywhere;
+}
+
+.desktop-preferences-status-dot {
+  width: .4375rem;
+  height: .4375rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.desktop-execution-status[data-state="running"] .desktop-preferences-status-dot {
+  background: var(--success);
+}
+
+.desktop-execution-status[data-state="error"] .desktop-preferences-status-dot {
+  background: var(--danger);
+}
+
+.desktop-execution-status[data-state="starting"] .desktop-preferences-status-dot {
+  background: var(--warning);
+}
+
+.desktop-preferences-hint,
+.desktop-permission-value {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: .75rem;
+  line-height: 1.6;
+}
+
+.desktop-permission-value {
+  text-transform: capitalize;
+}
+
+.desktop-preferences-permission-note {
+  padding: .125rem 0 .5rem;
+  max-width: 64ch;
+}
+
+.desktop-preferences-save-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg);
+}
+
+.desktop-preferences-save-bar > div {
+  min-width: 0;
+}
+
+.desktop-preferences-save-bar p {
+  margin: 0;
+}
+
+.desktop-preferences-feedback {
+  color: var(--success);
+  font-size: .75rem;
+}
+
+.desktop-shortcut-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .75rem;
+}
+
+.desktop-shortcut-scopes {
+  display: inline-flex;
+  gap: .125rem;
+  padding: .1875rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.desktop-shortcut-scopes button {
+  border: 0;
+  border-radius: .375rem;
+  padding: .375rem .875rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: .75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.desktop-shortcut-scopes button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.desktop-preferences-text-btn {
+  padding-left: .25rem;
+  padding-right: .25rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: .75rem;
+}
+
+.desktop-preferences-text-btn:hover {
+  color: var(--text);
+}
+
+.desktop-shortcut-toolbar + .desktop-preferences-hint {
+  margin-bottom: 1.25rem;
+}
+
+.desktop-shortcut-recorder {
+  min-width: 6.5rem;
+  min-height: 2rem;
+  padding: .375rem .625rem;
+  border: 1px solid var(--border);
+  border-radius: .375rem;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: .75rem;
+}
+
+.desktop-shortcut-recorder:hover,
+.desktop-shortcut-recorder.recording {
+  border-color: var(--brand);
+  background: var(--surface-muted);
+}
+
+.desktop-shortcut-recorder kbd,
+.desktop-shortcut-help kbd {
+  font-family: var(--font-mono);
+  font-size: .75rem;
+}
+
+.desktop-shortcut-help {
+  margin: 1rem 0;
+}
+
+.desktop-preferences-unavailable {
+  max-width: 560px;
+  margin: 15vh auto;
+  padding: 2rem;
+}
+
+.desktop-preferences-unavailable h1 {
+  font-size: 1.25rem;
+}
+
+@media (max-width: 800px) {
+  .desktop-preferences-shell {
+    grid-template-columns: 196px minmax(0, 1fr);
+  }
+
+  .desktop-preferences-content {
+    padding: 2rem 1.5rem 0;
+  }
+
+  .desktop-preference-row {
+    gap: 1rem;
+  }
+
+  .desktop-preference-control input:not([type="checkbox"]) {
+    width: 10rem;
+  }
+
+  .desktop-preference-control input.desktop-preferences-number {
+    width: 4.5rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .desktop-preferences-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .desktop-preferences-sidebar {
+    padding: 1rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .desktop-preferences-back {
+    margin: 0 0 1rem;
+  }
+
+  .desktop-preferences-sidebar h1 {
+    margin: 0 0 1rem;
+  }
+
+  .desktop-preferences-sidebar nav {
+    display: flex;
+    gap: .25rem;
+    overflow-x: auto;
+  }
+
+  .desktop-preferences-nav-btn {
+    width: auto;
+    flex: 0 0 auto;
+    padding: .5rem;
+    gap: .375rem;
+    font-size: .75rem;
+  }
+
+  .desktop-preferences-content {
+    padding: 1.5rem 1rem 0;
+  }
+
+  .desktop-preferences-panel-head {
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+
+  .desktop-preference-row:has(input:not([type="checkbox"]), select, .btn, .desktop-shortcut-recorder) {
+    flex-wrap: wrap;
+    gap: .75rem;
+  }
+
+  .desktop-shortcut-toolbar {
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+}
