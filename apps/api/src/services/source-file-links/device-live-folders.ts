@@ -7,6 +7,18 @@ import { fetchGoogleDriveRemoteSnapshot } from "./google-drive-remote.js";
 import { createSourceFileLink } from "./store.js";
 import type { WorkspaceSourceAttachment } from "../sources/source-attachments.js";
 
+async function createAvailableFolderLink(input: Parameters<typeof createSourceFileLink>[0]) {
+  for (let index = 0; index < 200; index += 1) {
+    const localRelativePath = input.localRelativePath + (index ? ` (${index})` : "");
+    try { return await createSourceFileLink({ ...input, localRelativePath }); }
+    catch (error) {
+      const conflict = error as { code?: string; constraint?: string };
+      if (conflict.code !== "23505" || conflict.constraint !== "source_file_links_environment_id_local_relative_path_key") throw error;
+    }
+  }
+  throw Object.assign(new Error("Too many folders with the same name in this location."), { statusCode: 409 });
+}
+
 export async function createDeviceLiveFolderAttachment(input: {
   workspaceId: string; environmentId: string; actorUserId: string; sourceId: string; itemId: string;
   taskId?: string | null; destinationPath?: string | null;
@@ -28,12 +40,11 @@ export async function createDeviceLiveFolderAttachment(input: {
   if (directory !== base && !directory.startsWith(base + "/")) throw new Error("The live-folder destination must stay within the task or Project Context.");
   const remote = await fetchGoogleDriveRemoteSnapshot({ workspaceId: input.workspaceId, sourceId: input.sourceId, itemId: input.itemId, requireWriteAccess: true });
   if (remote.kind !== "folder") throw new Error("Device-hosted workspaces support live Google Drive folders only.");
-  const relativePath = path.posix.join(directory, sanitizeUploadFilename(remote.name));
-  const link = await createSourceFileLink({ ...input, taskId: input.taskId ?? null, provider: "google-drive", linkKind: "folder", remoteItemId: remote.itemId,
-    remoteName: remote.name, remoteMimeType: remote.mimeType, remoteWebUrl: remote.webUrl, localRelativePath: relativePath,
+  const link = await createAvailableFolderLink({ ...input, taskId: input.taskId ?? null, provider: "google-drive", linkKind: "folder", remoteItemId: remote.itemId,
+    remoteName: remote.name, remoteMimeType: remote.mimeType, remoteWebUrl: remote.webUrl, localRelativePath: path.posix.join(directory, sanitizeUploadFilename(remote.name)),
     lastSyncedRemoteEtag: null, lastSyncedRemoteCtag: null, lastSyncedRemoteModifiedAt: null, lastSyncedRemoteSizeBytes: null,
     lastSyncedLocalHash: null, lastSyncedLocalSizeBytes: null, lastSyncedLocalModifiedAt: null });
-  return { kind: "directory", name: path.posix.basename(relativePath), relativePath, sizeBytes: null, createdAt: null, modifiedAt: null,
+  return { kind: "directory", name: path.posix.basename(link.localRelativePath), relativePath: link.localRelativePath, sizeBytes: null, createdAt: null, modifiedAt: null,
     liveSync: { id: link.id, provider: link.provider, sourceId: link.sourceId, linkKind: link.linkKind, remoteName: link.remoteName,
       remoteWebUrl: link.remoteWebUrl, localRelativePath: link.localRelativePath, lastPulledAt: null, lastPushedAt: null, lastSyncError: null } };
 }

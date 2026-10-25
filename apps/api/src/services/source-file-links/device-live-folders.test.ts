@@ -41,3 +41,23 @@ it("refuses ordinary files and destinations outside task or context scope", asyn
   await expect(createDeviceLiveFolderAttachment({ ...input, destinationPath: "../elsewhere" })).rejects.toThrow("within the task or Project Context");
   expect(createSourceFileLink).not.toHaveBeenCalled();
 });
+
+it("allocates distinct names even when another attachment wins the same path concurrently", async () => {
+  const occupied = new Set(["context/Drive"]);
+  vi.mocked(createSourceFileLink).mockImplementation(async (value) => {
+    if (occupied.has(value.localRelativePath)) throw Object.assign(new Error("duplicate path"),
+      { code: "23505", constraint: "source_file_links_environment_id_local_relative_path_key" });
+    occupied.add(value.localRelativePath);
+    return { ...value, id: value.remoteItemId } as never;
+  });
+  const links = await Promise.all(["one", "two"].map((itemId) => createDeviceLiveFolderAttachment({ ...input, itemId })));
+  expect(links.map((link) => link.relativePath).sort()).toEqual(["context/Drive (1)", "context/Drive (2)"]);
+  expect(links[0].liveSync?.localRelativePath).toBe(links[0].relativePath);
+});
+
+it("does not disguise an unrelated insertion error as a path collision", async () => {
+  const error = Object.assign(new Error("foreign key"), { code: "23503" });
+  vi.mocked(createSourceFileLink).mockRejectedValue(error);
+  await expect(createDeviceLiveFolderAttachment(input)).rejects.toBe(error);
+  expect(createSourceFileLink).toHaveBeenCalledOnce();
+});
