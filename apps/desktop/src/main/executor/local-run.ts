@@ -40,8 +40,16 @@ export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceA
     finally { await options.liveFolders?.release(folderConsumer); }
   };
   const done = (async () => {
-    const check = workspaceRoot ? await verifyDeviceWorkspace(workspaceRoot, notice.payload_json.workspaceId).then(() => ({ ok: true })) : await verifyMountedStorage({ mountPath: options.storageRoot, backendId: options.storageBackendId, deviceId: options.deviceId, installId });
-    if (!check.ok || abort.signal.aborted) throw new Error("The workspace storage is unavailable.");
+    try {
+      const check = workspaceRoot ? await verifyDeviceWorkspace(workspaceRoot, notice.payload_json.workspaceId).then(() => ({ ok: true })) : await verifyMountedStorage({ mountPath: options.storageRoot, backendId: options.storageBackendId, deviceId: options.deviceId, installId });
+      if (!check.ok) throw new StorageNotReadyError("The workspace storage is unavailable.");
+    } catch (error) {
+      abort.signal.throwIfAborted();
+      await api.request("/api/devices/" + options.deviceId + "/runs/" + notice.run_id + "/refuse-storage", "POST", {});
+      options.onPendingReason?.("Waiting for storage: the workspace root is unavailable.");
+      return;
+    }
+    abort.signal.throwIfAborted();
     const claim = await api.request<{ token: string }>("/api/devices/" + options.deviceId + "/runs/" + notice.run_id + "/claim", "POST", {});
     const client = createRunApiClient({ baseUrl: options.apiBaseUrl + "/api", runId: notice.run_id, token: claim.token, fetch: options.fetch, signal: abort.signal, requestTimeoutMs: 15_000 });
     const remote = createHttpRunControl(client, { onFenced: () => { void fence(); } });

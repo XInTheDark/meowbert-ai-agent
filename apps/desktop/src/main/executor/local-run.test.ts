@@ -1,12 +1,13 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ bootstrap: vi.fn(), call: vi.fn(), wait: vi.fn(), run: vi.fn(), stop: vi.fn(),
+  verifyStorage: vi.fn(),
   remotePresence: vi.fn(), remoteAction: vi.fn(), localPresence: vi.fn(), localAction: vi.fn() }));
 vi.mock("@meowbert/run-executor/agent/index", () => ({ runAgentJob: state.run }));
 vi.mock("@meowbert/run-executor/run-api/client", () => ({ createRunApiClient: () => ({ call: state.call }) }));
 vi.mock("@meowbert/run-executor/run-api/http-run-control", () => ({ createHttpRunControl: () => ({ bootstrap: state.bootstrap,
   platform: { getDesktopComputerPresence: state.remotePresence, requestDesktopComputerAction: state.remoteAction }, stop: state.stop }) }));
 vi.mock("@meowbert/run-executor/run-api/proxy-model-gateway", () => ({ createProxyModelGateway: () => ({}) }));
-vi.mock("../storage/roots", () => ({ verifyMountedStorage: async () => ({ ok: true }), resolveVerifiedStoragePath: async () => "/mount/project" }));
+vi.mock("../storage/roots", () => ({ verifyMountedStorage: state.verifyStorage, resolveVerifiedStoragePath: async () => "/mount/project" }));
 vi.mock("../storage/inputs", async () => ({ ...await vi.importActual<typeof import("../storage/inputs")>("../storage/inputs"), waitForRunInputs: state.wait }));
 vi.mock("./sandbox-machine-host", () => ({ createDesktopSandboxMachineProvider: () => ({}), probeDesktopSandboxStorage: async () => {} }));
 vi.mock("./local-run-paths", () => ({ localRunRelocationNote: async () => undefined }));
@@ -19,8 +20,23 @@ import { configureLocalRunPlatform } from "./local-run-platform";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.verifyStorage.mockResolvedValue({ ok: true });
   state.bootstrap.mockResolvedValue({ roots: { storageBackendId: "backend", envRootRelative: "project", workspaceRootRelative: "workspace" },
     snapshot: { task: { task_root_path: ".meowbert/task-runs/task" } }, inputs: [{ relativePath: "inputs/file", sizeBytes: 5, sha256: "digest" }] });
+});
+it.each([false, true])("refuses admission immediately when storage disappears before claim, throws=%s", async (throws) => {
+  if (throws) state.verifyStorage.mockRejectedValueOnce(Object.assign(new Error("Gone"), { code: "ENOENT" }));
+  else state.verifyStorage.mockResolvedValueOnce({ ok: false });
+  const api = { request: vi.fn().mockResolvedValue({ pending: true }) };
+  const options = { scratchRoot: "/tmp/meowbert-test-scratch", resourcesRoot: "/tmp/meowbert-test-resources",
+    storageBackendId: "backend", storageRoot: "/mount", apiBaseUrl: "https://server.test", deviceId: "device", onPendingReason: vi.fn() } as unknown as DesktopLocalExecutorOptions;
+  await startLocalRun(options, api as never, { run_id: "run", queue_state: "admitted", payload_json: {} as never },
+    "image", "/skills", {} as never, "install").done;
+  expect(api.request).toHaveBeenCalledExactlyOnceWith("/api/devices/device/runs/run/refuse-storage", "POST", {});
+  expect(state.bootstrap).not.toHaveBeenCalled();
+  expect(state.run).not.toHaveBeenCalled();
+  expect(state.call).not.toHaveBeenCalled();
+  expect(options.onPendingReason).toHaveBeenCalledWith(expect.stringContaining("Waiting for storage"));
 });
 it("releases invisible inputs to pending without starting or failing the run", async () => {
   state.wait.mockRejectedValue(new StorageNotReadyError("waiting for storage"));

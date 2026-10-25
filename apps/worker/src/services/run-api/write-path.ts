@@ -29,6 +29,7 @@ async function assertExtendsBranch(stores: RunApiStores, session: RunApiSession,
 }
 
 async function applyWrite(stores: RunApiStores, session: RunApiSession, method: RunApiMethod, request: RunApiCallRequest): Promise<unknown> {
+  if (session.finishedAt !== null) throw new RunApiFailure("lease_lost", "This run has ended; only retries of completed operations are available.");
   if (method === "control.releaseForStorage") {
     if (!session.holder.startsWith("device:")) throw new RunApiFailure("invalid_request", "Only a device claim can wait for storage.");
     if (!await stores.leases.releaseForStorage({ runId: session.runId, epoch: session.epoch })) {

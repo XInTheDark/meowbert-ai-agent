@@ -13,15 +13,17 @@ vi.mock("../runtime/events.js", () => ({ emitTaskEvent: vi.fn().mockResolvedValu
 vi.mock("../agent-db/index.js", () => ({ resolveContinuationBranchMessageId: vi.fn(), resolveLatestBranchSelectionUserId: vi.fn() }));
 vi.mock("../runtime/debug-task-events.js", () => ({ createTaskDebugLogger: vi.fn() }));
 vi.mock("../../lib/config.js", () => ({ config: { localExecution: { enabled: true } } }));
-const { pool } = await import("./local-execution.test-fixtures.js");
-const { claimLocalRun } = await import("../../../../api/src/services/devices/device-claims.js");
+const { pool, database } = await import("./local-execution.test-fixtures.js");
+const { claimLocalRun, refuseLocalRunForStorage } = await import("../../../../api/src/services/devices/device-claims.js");
 const { expireUnavailableLocalRunsOnce, reclaimExpiredLocalRunLeasesOnce, recoverQueuedTaskRunsOnce } = await import("./task-run-recovery.js");
 const { sqlRunApiStores } = await import("../run-api/sql-stores.js");
 const { taskQueue } = await import("../../lib/queue.js");
 const { markTaskArtifacts } = await import("../agent/artifacts.js");
 const { publishPendingArtifactsOnce } = await import("./artifact-publication.js");
 const { loadTaskOutputFiles } = await import("../agent-db/task-output-files.js");
-const { recordTaskUpload } = await import("../../../../api/src/services/files/task-upload-manifest.js");
+const { recordTaskUpload, lockTaskInputUploads, attachPendingTaskInputs, removeTaskInputUploads } = await import("../../../../api/src/services/files/task-upload-manifest.js");
+const { recordToolCallStarted, listUnfinishedToolCalls, clearInterruptedToolCalls } = await import("../run-host/tool-call-records.js");
+const { resolveRunLeaseHolderUrl } = await import("../../../../api/src/services/runs/run-api-forwarding.js");
 const { loadRunInputManifest } = await import("../run-host/input-manifest.js");
 const { completeTaskRun } = await import("./complete-task-run.js");
 
@@ -52,6 +54,70 @@ describe.skipIf(!process.env.TEST_LOCAL_EXECUTION_DATABASE_URL)("local execution
     await pool.query("INSERT INTO task_run_dispatches(run_id,task_id,workspace_id,environment_id,dispatch_class,queue_state,payload_json,admitted_at) VALUES ($1,$2,$3,$4,'interactive_new','admitted',$5,now())", [runId,taskId,workspaceId,projectId,job]);
     return { taskId,runId };
   }
+  it("keeps composer input integrity before task creation and associates it atomically", async () => {
+    const taskId = randomUUID(); const taskRoot = ".meowbert/task-runs/" + taskId;
+    const file = { name: "pending.txt", relativePath: taskRoot + "/inputs/pending.txt", sizeBytes: 5,
+      sha256: createHash("sha256").update("hello").digest("hex"), createdAt: null, modifiedAt: null };
+    await recordTaskUpload(projectId, file);
+    expect((await pool.query("SELECT size_bytes, sha256 FROM pending_task_inputs WHERE task_id=$1", [taskId])).rows)
+      .toEqual([{ size_bytes: "5", sha256: file.sha256 }]);
+    await database.withTransaction(async (client) => {
+      await lockTaskInputUploads(client, taskId);
+      await client.query("INSERT INTO tasks(id,workspace_id,environment_id,task_root_path) VALUES ($1,$2,$3,$4)", [taskId, workspaceId, projectId, taskRoot]);
+      await attachPendingTaskInputs(client, projectId, taskId);
+    });
+    expect(await loadRunInputManifest(taskId)).toEqual([{ relativePath: "inputs/pending.txt", sizeBytes: 5, sha256: file.sha256 }]);
+    expect((await pool.query("SELECT * FROM pending_task_inputs WHERE task_id=$1", [taskId])).rows).toEqual([]);
+    const updated = { ...file, sizeBytes: 7, sha256: "a".repeat(64) };
+    await recordTaskUpload(projectId, updated);
+    expect(await loadRunInputManifest(taskId)).toEqual([{ relativePath: "inputs/pending.txt", sizeBytes: 7, sha256: updated.sha256 }]);
+  });
+  it("returns a refused storage admission to pending only for the owning device", async () => {
+    const { runId } = await createRun();
+    expect(await refuseLocalRunForStorage({ userId: randomUUID(), deviceId, runId })).toBe(false);
+    expect(await refuseLocalRunForStorage({ userId, deviceId, runId })).toBe(true);
+    const row = (await pool.query("SELECT queue_state,pending_reason,admitted_at,storage_retry_at > now() AS backoff FROM task_run_dispatches WHERE run_id=$1", [runId])).rows[0];
+    expect(row).toEqual({ queue_state: "pending", pending_reason: "waiting_for_storage", admitted_at: null, backoff: true });
+    expect(await refuseLocalRunForStorage({ userId, deviceId, runId })).toBe(false);
+  });
+  it.each([false, true])("does not require deleted staged inputs after creation, folder=%s", async (folder) => {
+    const taskId = randomUUID(); const otherTaskId = randomUUID(); const taskRoot = ".meowbert/task-runs/" + taskId;
+    const file = { name: "a.txt", relativePath: taskRoot + "/inputs/a.txt", sizeBytes: 1, sha256: "a".repeat(64), createdAt: null, modifiedAt: null };
+    const otherProjectId = randomUUID();
+    await pool.query("INSERT INTO environments(id,workspace_id,name,root_path) VALUES ($1,$2,'Other',$3)", [otherProjectId, workspaceId, projectRoot]);
+    await recordTaskUpload(projectId, file);
+    await recordTaskUpload(projectId, { ...file, relativePath: ".meowbert/task-runs/" + otherTaskId + "/inputs/a.txt" });
+    await recordTaskUpload(otherProjectId, file);
+    await removeTaskInputUploads(projectId, [folder ? taskRoot + "/inputs" : file.relativePath]);
+    await database.withTransaction(async (client) => {
+      await lockTaskInputUploads(client, taskId);
+      await client.query("INSERT INTO tasks(id,workspace_id,environment_id,task_root_path) VALUES ($1,$2,$3,$4)", [taskId, workspaceId, projectId, taskRoot]);
+      await attachPendingTaskInputs(client, projectId, taskId);
+    });
+    expect(await loadRunInputManifest(taskId)).toEqual([]);
+    expect((await pool.query("SELECT task_id,environment_id FROM pending_task_inputs WHERE task_id=ANY($1::uuid[]) ORDER BY environment_id,task_id", [[taskId, otherTaskId]])).rows)
+      .toEqual(expect.arrayContaining([{ task_id: taskId, environment_id: otherProjectId }, { task_id: otherTaskId, environment_id: projectId }]));
+  });
+  it("reports and clears unfinished effects left by a previous lease of the same run", async () => {
+    const { taskId, runId } = await createRun();
+    const call = { callId: "interrupted-call", name: "run_shell", arguments: "side-effect" };
+    await recordToolCallStarted(taskId, runId, call);
+    expect(await listUnfinishedToolCalls(taskId)).toEqual([call]);
+    await clearInterruptedToolCalls(taskId, [call.callId]);
+    expect(await listUnfinishedToolCalls(taskId)).toEqual([]);
+  });
+  it("releases terminal execution ownership while retaining the same-epoch retry route", async () => {
+    const { taskId, runId } = await createRun();
+    await claimLocalRun({ userId, deviceId, runId });
+    const lease = (await sqlRunApiStores.leases.claim({ runId, holder: "device:" + deviceId, apiUrl: "http://worker", ttlMs: 60_000 }))!;
+    await sqlRunApiStores.leases.release({ runId, epoch: lease.epoch });
+    const claims = { runId, taskId, epoch: lease.epoch, holder: "device:" + deviceId } as Parameters<typeof resolveRunLeaseHolderUrl>[0];
+    expect(await resolveRunLeaseHolderUrl(claims)).toBe("http://worker");
+    expect((await pool.query("SELECT lease_holder,lease_expires_at FROM task_run_dispatches WHERE run_id=$1", [runId])).rows[0])
+      .toEqual({ lease_holder: null, lease_expires_at: null });
+    await pool.query("UPDATE task_run_dispatches SET lease_epoch=lease_epoch+1,queue_state='finished' WHERE run_id=$1", [runId]);
+    await expect(resolveRunLeaseHolderUrl(claims)).rejects.toMatchObject({ code: "lease_lost" });
+  });
   it("admits a Windows Docker Desktop claim", async () => {
     const { runId } = await createRun();
     await pool.query("UPDATE devices SET platform='win32',architecture='x64' WHERE id=$1", [deviceId]);

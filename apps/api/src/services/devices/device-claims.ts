@@ -1,4 +1,4 @@
-import { withTransaction } from "../../lib/db.js";
+import { query, withTransaction } from "../../lib/db.js";
 import { config } from "../../lib/config.js";
 import { RUN_API_PROTOCOL_VERSION, type TaskExecutionJob } from "@meowbert/shared";
 
@@ -60,4 +60,21 @@ export async function claimLocalRun(input: { userId: string; deviceId: string; r
 
 export function resolveWorkerRunApiUrl(): string | null {
   return config.runApi?.url?.replace(/\/+$/, "") ?? null;
+}
+
+// A device can refuse an admission before claiming a lease if its verified mount disappeared.
+export async function refuseLocalRunForStorage(input: { userId: string; deviceId: string; runId: string }): Promise<boolean> {
+  const result = await query(
+    `UPDATE task_run_dispatches d
+        SET queue_state = 'pending', pending_reason = 'waiting_for_storage', admitted_at = NULL,
+            storage_retry_at = now() + interval '30 seconds', updated_at = now()
+       FROM devices dv
+      WHERE d.run_id = $1 AND dv.id = $2 AND dv.user_id = $3 AND dv.revoked_at IS NULL
+        AND d.queue_state = 'admitted' AND d.lease_device_id IS NULL AND d.lease_holder IS NULL
+        AND d.payload_json->'executionTarget'->>'kind' = 'local'
+        AND d.payload_json->'executionTarget'->>'deviceId' = $2::text
+      RETURNING d.run_id`,
+    [input.runId, input.deviceId, input.userId]
+  );
+  return result.rows.length > 0;
 }

@@ -1,4 +1,4 @@
-import { claimLocalRun, resolveWorkerRunApiUrl } from "../services/devices/device-claims.js";
+import { claimLocalRun, refuseLocalRunForStorage, resolveWorkerRunApiUrl } from "../services/devices/device-claims.js";
 import path from "node:path";
 import { readStorageMarker } from "@meowbert/shared";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
@@ -125,6 +125,14 @@ export const deviceRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/api/devices/:deviceId/runs/stream", { preHandler: fastify.authenticate }, async (request, reply) => {
     if (!config.localExecution.enabled) return reply.status(404).send({ error: "Local execution is disabled." });
     await streamDeviceRuns(request, reply);
+  });
+  fastify.post("/api/devices/:deviceId/runs/:runId/refuse-storage", { preHandler: fastify.authenticate }, async (request, reply) => {
+    if (!config.localExecution.enabled) return reply.status(404).send({ error: "Local execution is disabled." });
+    const { deviceId, runId } = runParams.parse(request.params);
+    if (!await refuseLocalRunForStorage({ userId: request.user.id, deviceId, runId })) {
+      return reply.status(409).send({ error: "The run is no longer admitted to this device." });
+    }
+    return { pending: true };
   });
   fastify.post("/api/devices/:deviceId/runs/:runId/claim", { preHandler: fastify.authenticate }, async (request, reply) => {
     if (!config.localExecution.enabled) return reply.status(404).send({ error: "Local execution is disabled." });

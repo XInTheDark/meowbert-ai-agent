@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { buildTaskRunQueueJobId, type TaskExecutionJob } from "@meowbert/shared";
+import { buildTaskRunQueueJobId, type TaskExecutionJob, type TaskExecutionTarget } from "@meowbert/shared";
 import { withTransaction, query } from "../../lib/db.js";
 import { taskQueue } from "../../lib/queue.js";
 import { emitTaskEvent } from "../runtime/events.js";
-import { markTaskRunDispatchFinished } from "../tasks/task-run-dispatch.js";
+import { insertTaskRunDispatchWithClient, markTaskRunDispatchFinished } from "../tasks/task-run-dispatch.js";
 
 export async function recordRunCompletion(
   runId: string,
@@ -69,10 +69,10 @@ export async function consumeCommandInterruptForStep(runId: string, step: number
   return requestedStep === step;
 }
 
-async function allocateContinuationRun(job: TaskExecutionJob, runMode: TaskExecutionJob["mode"], runId: string): Promise<number> {
+async function allocateContinuationRun(job: TaskExecutionJob, payload: TaskExecutionJob): Promise<number> {
   return withTransaction(async (client) => {
-    const taskLockRes = await client.query<{ id: string }>(
-      `SELECT id
+    const taskLockRes = await client.query<{ id: string; execution_target?: TaskExecutionTarget; initiator_user_id: string | null }>(
+      `SELECT id, execution_target, initiator_user_id
          FROM tasks
         WHERE id = $1
         FOR UPDATE`,
@@ -81,6 +81,7 @@ async function allocateContinuationRun(job: TaskExecutionJob, runMode: TaskExecu
     if ((taskLockRes.rowCount ?? 0) === 0) {
       throw new Error(`Task not found: ${job.taskId}`);
     }
+    payload.executionTarget = taskLockRes.rows[0].execution_target ?? job.executionTarget;
 
     const attemptRes = await client.query<{ attempt_no: number }>(
       `SELECT COALESCE(MAX(attempt_no), 0) + 1 AS attempt_no
@@ -93,7 +94,7 @@ async function allocateContinuationRun(job: TaskExecutionJob, runMode: TaskExecu
     await client.query(
       `INSERT INTO task_runs (id, task_id, attempt_no, run_kind)
        VALUES ($1, $2, $3, $4)`,
-      [runId, job.taskId, nextAttemptNo, runMode]
+      [payload.runId, job.taskId, nextAttemptNo, payload.mode]
     );
 
     await client.query(
@@ -108,6 +109,13 @@ async function allocateContinuationRun(job: TaskExecutionJob, runMode: TaskExecu
       [job.taskId]
     );
 
+    if (payload.executionTarget?.kind === "local") {
+      await insertTaskRunDispatchWithClient(client, {
+        runId: payload.runId, taskId: job.taskId, workspaceId: job.workspaceId, environmentId: job.environmentId,
+        payload, dispatchCategory: "followup",
+        priorityActorUserId: payload.selectionUserId ?? taskLockRes.rows[0].initiator_user_id
+      });
+    }
     return nextAttemptNo;
   });
 }
@@ -124,30 +132,13 @@ function resolveContinuationToolOptions(
     : job.toolOptionsOverride;
 }
 
-async function enqueueContinuationJob(input: {
-  job: TaskExecutionJob;
-  runId: string;
-  jobId: string;
-  runMode: TaskExecutionJob["mode"];
-  branchMessageId?: string | null;
-  selectionUserId?: string | null;
-  toolOptionsOverride?: TaskExecutionJob["toolOptionsOverride"];
-}): Promise<void> {
+async function enqueueContinuationJob(jobId: string, payload: TaskExecutionJob): Promise<void> {
+  if (payload.executionTarget?.kind === "local") return;
   await taskQueue.add(
-    input.jobId,
+    jobId,
+    payload,
     {
-      taskId: input.job.taskId,
-      workspaceId: input.job.workspaceId,
-      environmentId: input.job.environmentId,
-      triggerSource: input.job.triggerSource,
-      runId: input.runId,
-      mode: input.runMode,
-      branchMessageId: input.branchMessageId ?? input.job.branchMessageId,
-      selectionUserId: input.selectionUserId ?? input.job.selectionUserId,
-      toolOptionsOverride: input.toolOptionsOverride
-    },
-    {
-      jobId: input.jobId,
+      jobId,
       attempts: 1,
       removeOnComplete: 200,
       removeOnFail: 200
@@ -167,17 +158,16 @@ export async function enqueueContinuationRun(
   const runId = randomUUID();
   const jobId = buildTaskRunQueueJobId(job.taskId, runId);
   const runMode = overrides.mode ?? job.mode ?? "default";
-  const attemptNo = await allocateContinuationRun(job, runMode, runId);
-
-  await enqueueContinuationJob({
-    job,
-    runId,
-    jobId,
-    runMode,
-    branchMessageId: overrides.branchMessageId,
-    selectionUserId: overrides.selectionUserId,
+  const payload: TaskExecutionJob = {
+    taskId: job.taskId, workspaceId: job.workspaceId, environmentId: job.environmentId, triggerSource: job.triggerSource,
+    runId, mode: runMode,
+    branchMessageId: overrides.branchMessageId ?? job.branchMessageId,
+    selectionUserId: overrides.selectionUserId ?? job.selectionUserId,
     toolOptionsOverride: resolveContinuationToolOptions(job, overrides)
-  });
+  };
+  const attemptNo = await allocateContinuationRun(job, payload);
+
+  await enqueueContinuationJob(jobId, payload);
   await emitTaskEvent(job.taskId, "status", { status: "queued" });
 
   return { runId, attemptNo };

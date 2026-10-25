@@ -87,6 +87,7 @@ export function createRunApiHandler(deps: RunApiHandlerDeps) {
         }
         if (method === "control.heartbeat") return { status: 200, body: { result: await heartbeat(session) } };
         if (isRunApiWriteMethod(method)) return await applyDedupedWrite(stores, session, method, request);
+        if (session.finishedAt !== null) throw new RunApiFailure("lease_lost", "This run has ended.");
         return { status: 200, body: { result: (await RUN_API_CALL_HANDLERS[method as keyof typeof RUN_API_CALL_HANDLERS](session, request.args)) ?? null } };
       } catch (error) {
         return errorReply(error);
@@ -96,6 +97,7 @@ export function createRunApiHandler(deps: RunApiHandlerDeps) {
       try {
         const session = authorize(input.runId, input.authorization);
         await assertCurrentEpoch(stores, session);
+        if (session.finishedAt !== null) throw new RunApiFailure("lease_lost", "This run has ended.");
         if (session.storageWait) throw new RunApiFailure("lease_lost", "This device released its claim to wait for storage.");
         const result = await proxyModelRequest(session, input.body as RunApiModelRequest, { ...deps.model, reservations: stores.reservations }, input.signal);
         return { status: 200, body: result };

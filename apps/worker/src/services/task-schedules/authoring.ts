@@ -246,11 +246,12 @@ export async function editCurrentTaskSchedule(input: EditCurrentTaskScheduleInpu
       enabled_tools_json: unknown;
       run_timeout_seconds: number | null;
       run_deadline_at: string | null;
+      execution_target?: TaskExecutionTarget;
     }>(
-      `SELECT mode, schedule_state, repeat_cron, timezone, enabled_tools_json, run_timeout_seconds, run_deadline_at
-         FROM task_schedules
-        WHERE task_id = $1
-        FOR UPDATE`,
+      `SELECT s.mode, s.schedule_state, s.repeat_cron, s.timezone, s.enabled_tools_json, s.run_timeout_seconds, s.run_deadline_at, t.execution_target
+         FROM task_schedules s JOIN tasks t ON t.id = s.task_id
+        WHERE s.task_id = $1
+        FOR UPDATE OF s`,
       [input.taskId]
     );
 
@@ -287,6 +288,9 @@ export async function editCurrentTaskSchedule(input: EditCurrentTaskScheduleInpu
       input.enabledTools !== null
         ? normalizeEnabledTools(input.enabledTools, normalizeEnabledTools(schedule.enabled_tools_json))
         : normalizeEnabledTools(schedule.enabled_tools_json);
+    if (schedule.execution_target?.kind === "local" && nextEnabledTools?.subtasks) {
+      throw new Error("Subagents are unavailable for local tasks.");
+    }
 
     const nextRunAt =
       mode === "scheduled" && schedule.schedule_state === "active" && nextRepeat

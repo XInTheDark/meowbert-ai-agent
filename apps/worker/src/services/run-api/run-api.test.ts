@@ -103,6 +103,21 @@ afterEach(async () => {
 });
 
 describe("Run API retries", () => {
+  it.each(["control.complete", "control.fail"] as const)("retries a lost %s reply once and refuses new work after release", async (method) => {
+    const { session, control, token } = await claim();
+    const remote = client(token, { fetch: losingFirstResponse((url) => url.includes(method)) });
+    const args = method === "control.complete" ? [{ kind: "ended" }] : [{ errorMessage: "failed", persistedItems: [], currentLeafMessageId: null, agentId: null, reasoningContentCount: 0 }];
+    await remote.call(method, args);
+    expect(method === "control.complete" ? control.complete : control.fail).toHaveBeenCalledOnce();
+    expect(harness.memory.leases.get(RUN_ID)?.live).toBe(false);
+    await expect(remote.call("control.setTaskStatus", ["running"])).rejects.toMatchObject({ code: "lease_lost" });
+    await expect(remote.call("control.bootstrap", [])).rejects.toMatchObject({ code: "lease_lost" });
+    await expect(remote.model({ purpose: "turn", body: { input: [], max_output_tokens: 1 }, timeoutMs: 1_000 }))
+      .rejects.toMatchObject({ code: "lease_lost" });
+    expect(control.setTaskStatus).not.toHaveBeenCalled();
+    expect(session.models.create).not.toHaveBeenCalled();
+  });
+
   it("releases a storage-wait claim once after a lost reply and refuses further device work", async () => {
     const { session, control, token } = await claim();
     session.holder = "device:desktop";

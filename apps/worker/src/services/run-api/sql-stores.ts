@@ -68,7 +68,7 @@ const leases: RunApiStores["leases"] = {
   async release({ runId, epoch }) {
     await query(
       `UPDATE task_run_dispatches
-          SET lease_holder = NULL, lease_api_url = NULL, lease_expires_at = NULL
+          SET lease_holder = NULL, lease_expires_at = NULL
         WHERE run_id = $1 AND lease_epoch = $2`,
       [runId, epoch]
     );
