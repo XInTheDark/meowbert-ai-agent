@@ -97,6 +97,9 @@ export class HostProcesses {
     const exited = new Promise<number | null>((resolve, reject) => {
       child.once("error", reject);
       child.once("exit", (code) => resolve(code));
+      for (const stream of child.stdio) stream?.on("error", (error: NodeJS.ErrnoException) => {
+        if (error.code !== "ECONNRESET" && error.code !== "EPIPE") reject(error);
+      });
       let report = "";
       (child.stdio[4] as Readable).on("data", (chunk) => {
         report += String(chunk);
@@ -119,7 +122,7 @@ export class HostProcesses {
       await this.persist();
     });
     // A command may leave background children in its group even after its shell exits.
-    void exited.then(close).catch(() => undefined);
+    void exited.then(close, close).catch(() => undefined);
     return { stdin: input.stdin ? child.stdin : null, stdout: child.stdout!, stderr: child.stderr,
       close, waitForExit: () => exited };
   }
