@@ -6,7 +6,7 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-vite build && node scripts/build-host-skills.mjs",
     "lint": "tsc -p tsconfig.json --noEmit",
     "package": "npm run build && electron-builder --config electron-builder.config.cjs",
     "package:release": "npm run build && electron-builder --config electron-builder.config.cjs --publish always",
@@ -19,7 +19,10 @@
     "electron-updater": "6.8.9",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-router-dom": "7.18.2"
+    "react-router-dom": "7.18.2",
+    "@playwright/mcp": "0.0.68",
+    "playwright": "1.59.0-alpha-1771104257000",
+    "archiver": "7.0.1"
   },
   "devDependencies": {
     "@types/node": "22.19.11",
@@ -29,7 +32,8 @@
     "electron-vite": "5.0.0",
     "typescript": "5.9.3",
     "vite": "6.4.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "@types/archiver": "7.0.0"
   },
   "description": "Meowbert Desktop",
   "author": "Meowbert"

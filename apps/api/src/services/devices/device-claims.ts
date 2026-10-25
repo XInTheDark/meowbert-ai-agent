@@ -22,16 +22,20 @@ export async function claimLocalRun(input: { userId: string; deviceId: string; r
          AND dv.last_seen_at > now() - interval '30 seconds'
          AND ((dv.platform = 'darwin' AND dv.architecture = 'arm64')
            OR (dv.platform = 'win32' AND dv.architecture IN ('x64', 'arm64')))
-         AND dv.capabilities_json->>'dockerReady' = 'true'
-         AND dv.capabilities_json->>'sandboxImageReady' = 'true'
+         AND ((d.payload_json->'executionTarget'->>'mode' = 'host' AND dv.consent_json->>'hostMode' = 'true')
+           OR (d.payload_json->'executionTarget'->>'mode' = 'sandbox'
+             AND dv.capabilities_json->>'dockerReady' = 'true'
+             AND dv.capabilities_json->>'sandboxImageReady' = 'true'
+             AND ((SELECT sandbox_image_digest FROM platform_settings WHERE id = 1) IS NULL
+               OR dv.capabilities_json->>'sandboxImageDigest' = (SELECT sandbox_image_digest FROM platform_settings WHERE id = 1))))
          AND dv.capabilities_json->>'executorSupported' = 'true'
          AND dv.capabilities_json->>'protocolVersion' = $4::text
-         AND ((SELECT sandbox_image_digest FROM platform_settings WHERE id = 1) IS NULL
-           OR dv.capabilities_json->>'sandboxImageDigest' = (SELECT sandbox_image_digest FROM platform_settings WHERE id = 1))
          AND (SELECT count(*) FROM task_run_dispatches active WHERE active.lease_device_id = dv.id AND active.queue_state = 'running') < dv.max_concurrent_runs
          AND EXISTS (
            SELECT 1 FROM workspaces w WHERE w.id = d.workspace_id
-             AND jsonb_typeof(dv.verified_roots_json->w.storage_backend_id) = 'string'
+             AND jsonb_typeof(dv.verified_roots_json->(CASE WHEN w.file_host->>'kind' = 'device' THEN 'workspace:' || w.id::text ELSE w.storage_backend_id END)) = 'string'
+             AND (w.file_host->>'kind' = 'server' OR w.file_host->>'deviceId' = dv.id::text)
+             AND NOT EXISTS (SELECT 1 FROM workspace_device_relinks relink WHERE relink.workspace_id = w.id)
          )
          AND EXISTS (SELECT 1 FROM task_runs tr JOIN tasks t ON t.id = tr.task_id
            WHERE tr.id = d.run_id AND tr.ended_at IS NULL AND NOT t.cancellation_requested AND t.trashed_at IS NULL)

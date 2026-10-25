@@ -144,6 +144,12 @@ function sanitizeLocalExecutionSettings(input: unknown): DesktopLocalExecutionSe
     ? input as Partial<DesktopLocalExecutionSettings>
     : {};
   return {
+    workspaceRoots: Object.fromEntries(Object.entries(candidate.workspaceRoots ?? {}).filter(([id, root]) => /^[a-f0-9-]{36}$/i.test(id) && typeof root === "string" && path.isAbsolute(root))),
+    defaultMode: candidate.defaultMode === "host" ? "host" : "sandbox",
+    hostConsent: candidate.hostConsent === true,
+    hostShellEnabled: candidate.hostConsent === true && candidate.hostShellEnabled === true,
+    computerUseEnabled: candidate.computerUseEnabled === true,
+    hostBrowserEnabled: candidate.hostBrowserEnabled === true,
     maxConcurrentRuns: typeof candidate.maxConcurrentRuns === "number" && Number.isFinite(candidate.maxConcurrentRuns) ? Math.max(1, Math.min(16, Math.floor(candidate.maxConcurrentRuns))) : 2,
     serverBaseUrl: typeof candidate.serverBaseUrl === "string" ? candidate.serverBaseUrl : null,
     downloadConsent: candidate.downloadConsent === true,

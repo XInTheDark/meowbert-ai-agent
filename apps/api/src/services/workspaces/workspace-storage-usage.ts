@@ -1,3 +1,4 @@
+import { loadWorkspaceFileFeatures } from "./workspace-file-host.js";
 import fsPromises from "node:fs/promises";
 import { buildStorageUsageSummary, resolveWorkspaceStorageUnitRoot, type StorageUsageSummary } from "@meowbert/shared";
 import { hasLocalXfsProjectQuota } from "../storage/local-xfs-project-quotas.js";
@@ -13,6 +14,7 @@ interface WorkspaceStorageUsageInput {
 // network mounts (rclone, NFS) where a walk takes minutes. Only an XFS project quota makes
 // statfs report a single workspace's usage, so other backends have no usage to report.
 export async function getWorkspaceStorageUsage(input: WorkspaceStorageUsageInput): Promise<StorageUsageSummary | null> {
+  if (!(await loadWorkspaceFileFeatures(input.workspaceId)).storageManagement) return null;
   const storageBackendId = await resolveWorkspaceBackendId(input.workspaceId);
   if (!hasLocalXfsProjectQuota(storageBackendId)) {
     return null;

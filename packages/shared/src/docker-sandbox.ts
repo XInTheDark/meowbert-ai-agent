@@ -145,7 +145,7 @@ export interface ManagedSandboxContainerSummary {
   parentContainerId: string | null;
 }
 
-interface StartAttachedProcessInput {
+export interface StartAttachedProcessInput {
   command: string[];
   workingDir: string;
   env?: Record<string, string>;
@@ -257,7 +257,18 @@ export const dockerSandboxTestUtils = {
   waitForExecExit
 };
 
-export class DockerSandboxHandle {
+/** Public command/process contract shared by Docker and desktop host execution. */
+export interface MachineHandle {
+  readonly id: string;
+  readonly kind?: "sandbox" | "host";
+  getMappedHostPort(containerPort: number): Promise<number | null>;
+  executeShellCommand(input: SandboxExecCommandInput): Promise<SandboxExecCommandResult>;
+  startAttachedProcess(input: StartAttachedProcessInput): Promise<SandboxAttachedProcess>;
+  readCrashReport(): Promise<SandboxCrashReport | null>;
+  stop(): Promise<void>;
+}
+
+export class DockerSandboxHandle implements MachineHandle {
   private readonly docker: Docker;
   private readonly config: SandboxConfig;
   private readonly container: Container;

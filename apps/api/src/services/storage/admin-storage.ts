@@ -1,3 +1,4 @@
+import { requireWorkspaceFileFeature } from "../workspaces/workspace-file-host.js";
 import { query, withTransaction } from "../../lib/db.js";
 import { storageBackendRegistry } from "./backend-registry.js";
 import { getDefaultWorkspaceStorageBackendId, updateDefaultWorkspaceStorageBackendId } from "./default-backend.js";
@@ -505,6 +506,7 @@ export async function queueWorkspaceStorageMigration(input: {
   requestedByUserId: string;
   requestSource?: WorkspaceStorageMigrationRequestSource;
 }): Promise<{ id: string; status: string }> {
+  await requireWorkspaceFileFeature(input.workspaceId, "storageManagement");
   storageBackendRegistry.getBackend(input.targetBackendId);
 
   return withTransaction(async (client) => {

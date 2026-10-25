@@ -1,4 +1,4 @@
-import { resolveCanonicalStorageRoot } from "@meowbert/shared";
+import { resolveCanonicalStorageRoot, normalizeWorkspaceFileHost, assertServerWorkspaceFiles } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { storageBackendRegistry } from "../storage/backend-registry.js";
 import { ensureWorkspaceLocalXfsProjectQuota } from "../storage/local-xfs-project-quotas.js";
@@ -20,13 +20,9 @@ async function persistWorkspaceRoot(workspaceId: string, rootPath: string): Prom
 }
 
 export async function resolveWorkspaceBackendId(workspaceId: string, providedBackendId?: string | null): Promise<string> {
-  const trimmedProvided = providedBackendId?.trim();
-  if (trimmedProvided) {
-    return trimmedProvided;
-  }
 
-  const workspaceRes = await query<{ storage_backend_id: string }>(
-    `SELECT storage_backend_id
+  const workspaceRes = await query<{ storage_backend_id: string; file_host?: unknown }>(
+    `SELECT storage_backend_id, file_host
        FROM workspaces
       WHERE id = $1`,
     [workspaceId]
@@ -36,7 +32,9 @@ export async function resolveWorkspaceBackendId(workspaceId: string, providedBac
     throw new Error("Workspace not found");
   }
 
-  return workspaceRes.rows[0]?.storage_backend_id?.trim() || storageBackendRegistry.getConfiguredDefaultBackendId();
+  const row = workspaceRes.rows[0];
+  assertServerWorkspaceFiles(workspaceId, normalizeWorkspaceFileHost(row.file_host, row.storage_backend_id));
+  return providedBackendId?.trim() || row.storage_backend_id?.trim() || storageBackendRegistry.getConfiguredDefaultBackendId();
 }
 
 export async function resolveManagedWorkspaceStorageRoot(input: {

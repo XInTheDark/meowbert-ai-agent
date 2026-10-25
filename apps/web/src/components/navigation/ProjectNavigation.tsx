@@ -1,3 +1,5 @@
+import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
+import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { ChevronLeft, Folder } from "lucide-react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { getProjectMasterEnabled } from "@meowbert/shared/workspace-agent-settings";
@@ -12,7 +14,7 @@ const projectTabs = [
 ];
 
 export function ProjectNavigation() {
-  const { activeWorkspaceId, activeEnvironmentId, environments, workspaceSettings } = useWorkspaceApp();
+  const { activeWorkspaceId, activeEnvironmentId, environments, workspaceSettings, workspaces } = useWorkspaceApp();
   const { pathname } = useLocation();
   const project = environments.find((item) => item.id === activeEnvironmentId);
   if (!project) return null;
@@ -21,7 +23,8 @@ export function ProjectNavigation() {
   const suffix = pathname.slice(base.length).replace(/\/$/, "");
   const focused = suffix.startsWith("/tasks/") || suffix.startsWith("/canvases/");
   // With the Master on, the project root is its conversation, so Tasks points at the full list instead.
-  const tasksPath = getProjectMasterEnabled(workspaceSettings?.modelDefaults) ? "/tasks" : "";
+  const features = workspaceFileFeatures(normalizeWorkspaceFileHost(workspaces?.find((workspace) => workspace.id === activeWorkspaceId)?.fileHost));
+  const tasksPath = features.projectMaster && getProjectMasterEnabled(workspaceSettings?.modelDefaults) ? "/tasks" : "";
   return (
     <header className={`project-navigation${focused ? " focused" : ""}`}>
       {focused ? (
@@ -32,7 +35,7 @@ export function ProjectNavigation() {
         <>
           <div className="project-navigation-identity"><Folder size={19} /><span>{project.name}</span></div>
           <nav className="project-tabs" aria-label="Project tools">
-            {projectTabs.map((tab) => {
+            {projectTabs.filter((tab) => tab.path !== "/canvases" || features.canvases).map((tab) => {
               const path = tab.path === "" ? tasksPath : tab.path;
               return (
                 <NavLink key={tab.label} to={`${base}${path}`} end={path === ""}

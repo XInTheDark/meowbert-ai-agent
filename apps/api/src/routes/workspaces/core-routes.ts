@@ -1,3 +1,6 @@
+import { config } from "../../lib/config.js";
+import { loadWorkspaceFileHost } from "../../services/workspaces/workspace-file-host.js";
+import { workspaceFileFeatures, type WorkspaceFileHost } from "@meowbert/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
@@ -37,7 +40,12 @@ import {
 
 type WorkspaceSettingsPatch = z.infer<typeof workspaceSettingsPatchSchema>;
 
-async function createWorkspaceForUser(userId: string, name: string): Promise<{ id: string; name: string; iconKey: string }> {
+async function createWorkspaceForUser(userId: string, name: string, fileHost?: WorkspaceFileHost): Promise<{ id: string; name: string; iconKey: string }> {
+  if (fileHost?.kind === "device") {
+    if (!config.localExecution.enabled || !config.runApi) throw Object.assign(new Error("Local execution is disabled."), { statusCode: 400 });
+    const owned = await query("SELECT id FROM devices WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL", [fileHost.deviceId, userId]);
+    if (!owned.rowCount) throw Object.assign(new Error("The selected device is unavailable."), { statusCode: 400 });
+  }
   const slug = createWorkspaceSlug(name);
 
   return withTransaction(async (client) => {
@@ -85,10 +93,10 @@ async function createWorkspaceForUser(userId: string, name: string): Promise<{ i
     const defaultStorageBackendId = await getDefaultWorkspaceStorageBackendId(client);
 
     const wsRes = await client.query<{ id: string; icon_key: string }>(
-      `INSERT INTO workspaces (name, slug, storage_backend_id)
-       VALUES ($1, $2, $3)
+      `INSERT INTO workspaces (name, slug, storage_backend_id, file_host)
+       VALUES ($1, $2, $3, $4::jsonb)
        RETURNING id, icon_key`,
-      [name, slug, defaultStorageBackendId]
+      [name, slug, defaultStorageBackendId, fileHost ? JSON.stringify(fileHost) : null]
     );
     const wsId = wsRes.rows[0].id;
 
@@ -324,6 +332,7 @@ async function ensureWorkspaceMemoryBootstrap(wsId: string): Promise<void> {
     return;
   }
 
+  if (!workspaceFileFeatures(await loadWorkspaceFileHost(wsId)).serverFiles) return;
   const workspaceRoot = await ensureWorkspaceStorageRoot(workspaceRes.rows[0]);
   await ensureWorkspaceMemoryFiles(workspaceRoot);
 }
@@ -350,10 +359,10 @@ async function listWorkspacesForBootstrap(userId: string, openedWorkspaceId: str
   memberCount: number;
   visiting?: boolean;
 }>> {
-  const workspacesRes = await query<{ id: string; name: string; icon_key: string; role: string | null; member_count: number }>(
+  const workspacesRes = await query<{ id: string; name: string; icon_key: string; file_host: WorkspaceFileHost; role: string | null; member_count: number }>(
     `SELECT w.id,
             w.name,
-            w.icon_key,
+            w.icon_key, w.file_host,
             wm.role,
             (SELECT COUNT(*)::int FROM workspace_members member_wm WHERE member_wm.workspace_id = w.id) AS member_count
        FROM workspaces w
@@ -367,6 +376,7 @@ async function listWorkspacesForBootstrap(userId: string, openedWorkspaceId: str
     id: workspace.id,
     name: workspace.name,
     iconKey: workspace.icon_key,
+    fileHost: workspace.file_host,
     role: workspace.role ?? "member",
     memberCount: workspace.member_count,
     ...(workspace.role ? {} : { visiting: true })
@@ -506,7 +516,8 @@ export async function registerWorkspaceCoreRoutes(fastify: FastifyInstance): Pro
       workspaces,
       projects,
       workspaceSettings,
-      activeProject
+      activeProject,
+      fileHost: await loadWorkspaceFileHost(params.wsId)
     };
   });
 
@@ -516,7 +527,7 @@ export async function registerWorkspaceCoreRoutes(fastify: FastifyInstance): Pro
     const result = await query<WorkspaceListRow>(
       `SELECT w.id,
               w.name,
-              w.icon_key,
+              w.icon_key, w.file_host,
               wm.role,
               wm.created_at::text AS joined_at,
               w.created_at::text AS created_at,
@@ -566,6 +577,7 @@ export async function registerWorkspaceCoreRoutes(fastify: FastifyInstance): Pro
         id: row.id,
         name: row.name,
         iconKey: row.icon_key,
+        fileHost: row.file_host,
         role: row.role,
         joinedAt: row.joined_at,
         createdAt: row.created_at,
@@ -590,7 +602,7 @@ export async function registerWorkspaceCoreRoutes(fastify: FastifyInstance): Pro
     const body = createWorkspaceSchema.parse(request.body);
 
     try {
-      const result = await createWorkspaceForUser(request.user.id, body.name);
+      const result = await createWorkspaceForUser(request.user.id, body.name, body.fileHost);
       return reply.status(201).send(result);
     } catch (error) {
       if (error instanceof WorkspaceLimitReachedError) {

@@ -1,3 +1,9 @@
+vi.mock("../workspaces/workspace-file-host.js", () => ({
+  loadWorkspaceFileHost: vi.fn(async () => ({ kind: "server", backendId: "backend-1" })),
+  loadWorkspaceFileFeatures: vi.fn(async () => ({ serverFiles: true, forkFiles: true, storageManagement: true, inboundAttachments: true })),
+  requireWorkspaceFileFeature: vi.fn(async () => {})
+}));
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { fetchRemoteSnapshot } = vi.hoisted(() => ({

@@ -87,12 +87,14 @@ interface LocalDeviceDispatchState {
   revokedAt: string | null;
   capabilities: Record<string, unknown>;
   verifiedRoots: Record<string, unknown>;
+  consent?: Record<string, unknown>;
 }
 
 export function resolveLocalDevicePendingReason(input: {
   device: LocalDeviceDispatchState | null;
   storageBackendId: string | null;
   localExecutionEnabled: boolean;
+  mode?: "host" | "sandbox";
   now?: Date;
 }): LocalPendingReason | null {
   if (!input.localExecutionEnabled) return "local_execution_disabled";
@@ -102,8 +104,9 @@ export function resolveLocalDevicePendingReason(input: {
     return "device_offline";
   }
   if (!input.storageBackendId || typeof input.device.verifiedRoots[input.storageBackendId] !== "string") return "storage_unavailable";
-  if (input.device.capabilities.dockerReady !== true) return "docker_unavailable";
-  if (input.device.capabilities.sandboxImageReady !== true || (input.device.requiredImageDigest && input.device.capabilities.sandboxImageDigest !== input.device.requiredImageDigest)) {
+  if (input.mode === "host" && input.device.consent?.hostMode !== true) return "host_consent_required";
+  if (input.mode !== "host" && input.device.capabilities.dockerReady !== true) return "docker_unavailable";
+  if (input.mode !== "host" && (input.device.capabilities.sandboxImageReady !== true || (input.device.requiredImageDigest && input.device.capabilities.sandboxImageDigest !== input.device.requiredImageDigest))) {
     if (input.device.capabilities.sandboxDownloadInProgress === true) return input.device.capabilities.sandboxImageDigest ? "sandbox_updating" : "sandbox_downloading";
     return input.device.capabilities.sandboxImageDigest ? "sandbox_updating" : "sandbox_missing";
   }
@@ -337,7 +340,7 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
                d.task_id,
                d.workspace_id,
                d.environment_id,
-               w.storage_backend_id,
+               CASE WHEN w.file_host->>'kind' = 'device' THEN 'workspace:' || w.id::text ELSE w.storage_backend_id END AS storage_backend_id,
                d.dispatch_class,
                d.payload_json,
                d.queued_at::text,
@@ -372,6 +375,7 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
           JOIN workspaces w
             ON w.id = d.workspace_id
          WHERE d.queue_state = 'pending'
+           AND NOT EXISTS (SELECT 1 FROM workspace_device_relinks relink WHERE relink.workspace_id = d.workspace_id)
            AND d.eligible_at <= now()
            AND (d.storage_retry_at IS NULL OR d.storage_retry_at <= now())
            AND t.status = 'queued'
@@ -464,6 +468,7 @@ async function listLocalDeviceDispatchStates(): Promise<Map<string, LocalDeviceD
     revoked_at: string | null;
     capabilities_json: unknown;
     verified_roots_json: unknown;
+    consent_json: unknown;
     active_runs: number;
   }>(
     `SELECT dv.id,
@@ -474,6 +479,7 @@ async function listLocalDeviceDispatchStates(): Promise<Map<string, LocalDeviceD
             dv.revoked_at::text,
             dv.capabilities_json,
             dv.verified_roots_json,
+            dv.consent_json,
             COUNT(d.run_id)::int AS active_runs
        FROM devices dv
        LEFT JOIN task_run_dispatches d
@@ -492,6 +498,7 @@ async function listLocalDeviceDispatchStates(): Promise<Map<string, LocalDeviceD
     requiredImageDigest: row.sandbox_image_digest,
     revokedAt: row.revoked_at,
     capabilities: row.capabilities_json && typeof row.capabilities_json === "object" ? row.capabilities_json as Record<string, unknown> : {},
+    consent: row.consent_json as Record<string, unknown>,
     verifiedRoots: row.verified_roots_json && typeof row.verified_roots_json === "object" ? row.verified_roots_json as Record<string, unknown> : {}
   }]));
 }
@@ -506,6 +513,7 @@ async function updateLocalPendingReasons(
     const reason = resolveLocalDevicePendingReason({
       device: devices.get(target.deviceId) ?? null,
       storageBackendId: candidate.storage_backend_id,
+      mode: target.mode,
       localExecutionEnabled: config.localExecution.enabled
     });
     await query(
@@ -574,6 +582,7 @@ function selectWorkspaceCandidate(input: {
         if (resolveLocalDevicePendingReason({
           device: input.deviceStates?.get(target.deviceId) ?? null,
           storageBackendId: candidate.storage_backend_id,
+          mode: target.mode,
           localExecutionEnabled: config.localExecution.enabled
         }) !== null) return false;
       }

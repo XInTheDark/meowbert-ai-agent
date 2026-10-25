@@ -21,7 +21,7 @@ const PLATFORM_METHODS = [
 // Fails to compile when a store or host method has no Run API call.
 type Uncovered<T, Covered> = Exclude<keyof T, Covered>;
 const allContextMethodsCovered: Uncovered<RunContextStore, (typeof CONTEXT_METHODS)[number]> extends never ? true : never = true;
-const allPlatformMethodsCovered: Uncovered<PlatformToolHost, (typeof PLATFORM_METHODS)[number]> extends never ? true : never = true;
+const allPlatformMethodsCovered: Uncovered<Omit<PlatformToolHost, "hostShell">, (typeof PLATFORM_METHODS)[number]> extends never ? true : never = true;
 void allContextMethodsCovered;
 void allPlatformMethodsCovered;
 

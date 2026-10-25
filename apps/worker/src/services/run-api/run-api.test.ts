@@ -311,7 +311,7 @@ describe("Model proxy", () => {
 it("refuses server workflow and host tools for a device lease without applying a side effect", async () => {
   const { session, control, token } = await claim();
   session.holder = "device:test";
-  for (const method of ["platform.createSubtask", "platform.createRecurringTask", "platform.requestDesktopComputerAction"] as const) {
+  for (const method of ["platform.createSubtask", "platform.requestDesktopComputerAction"] as const) {
     await expect(client(token).call(method, [{}])).rejects.toMatchObject({ code: "invalid_request" });
   }
   expect(control.platform.createSubtask).not.toHaveBeenCalled();

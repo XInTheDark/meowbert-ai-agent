@@ -1,3 +1,4 @@
+import { loadWorkspaceFileHost } from "../../services/workspaces/workspace-file-host.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   findPlatformAgentPresetById,
@@ -170,7 +171,16 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
   }
 
   const environment = await loadEnvironmentForTaskCreation(params.envId);
-  if (body.executionTarget?.kind !== "local") await ensureEnvironmentStorageRoot(environment);
+  const fileHost = await loadWorkspaceFileHost(environment.workspace_id);
+  if (fileHost.kind === "device") {
+    if (body.interactiveCanvasId || body.tools?.interactiveCanvas) {
+      return reply.status(400).send({ error: "Canvases are unavailable for device-hosted workspaces." });
+    }
+    if (body.executionTarget && (body.executionTarget.kind !== "local" || body.executionTarget.deviceId !== fileHost.deviceId)) {
+      return reply.status(400).send({ error: "Tasks must run on the device that holds this workspace's files." });
+    }
+    body.executionTarget ??= { kind: "local", deviceId: fileHost.deviceId, mode: "sandbox" };
+  } else if (body.executionTarget?.kind !== "local") await ensureEnvironmentStorageRoot(environment);
 
   const selectedAgent = await requireVisiblePlatformAgentSelectionForUser(request.user.id, body.agent);
   const visibleAgentContext = await getVisiblePlatformAgentsForUser(request.user.id);
@@ -197,8 +207,8 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
     const featureError = localTaskFeatureError({ workflow: body.workflow, schedule: body.schedule, swarm: !!swarmSettings, tools: body.tools });
     if (featureError) return reply.status(400).send({ error: featureError });
     const device = await query<{ id: string }>(
-      `SELECT id FROM devices WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND platform = 'darwin' AND architecture = 'arm64'`,
-      [body.executionTarget.deviceId, request.user.id]
+      `SELECT id FROM devices WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND ((platform = 'darwin' AND architecture = 'arm64') OR (platform = 'win32' AND architecture IN ('x64', 'arm64'))) AND ($3 <> 'host' OR consent_json->>'hostMode' = 'true')`,
+      [body.executionTarget.deviceId, request.user.id, body.executionTarget.mode]
     );
     if ((device.rowCount ?? 0) === 0) {
       return reply.status(400).send({ error: "The selected local device is unavailable." });
@@ -206,7 +216,7 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
     try { await loadLocalProjectStorage(params.envId); }
     catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : String(error) }); }
   }
-  if (body.executionTarget?.kind === "local") await ensureEnvironmentStorageRoot(environment);
+  if (fileHost.kind === "server" && body.executionTarget?.kind === "local") await ensureEnvironmentStorageRoot(environment);
   const defaultTimezone = normalizeTimezoneOrThrow(body.clientTimezone);
   if ((body.workflow || swarmSettings) && body.schedule) {
     return reply.status(400).send({ error: "Workflow tasks cannot use schedules in v1." });

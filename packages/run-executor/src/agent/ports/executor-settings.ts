@@ -6,6 +6,9 @@ export interface ExecutorSettings {
   commandTimeoutMs: number;
   maxCommandOutputKb: number;
   shell: string;
+  hostMode?: boolean;
+  hostBrowserEnabled?: boolean;
+  workspaceRelocationNote?: string;
   sharedDependenciesDirectory?: string;
   // Optional image-owned skill assets, separate from the desktop's metadata catalog.
   sandboxSkillsRootDir?: string;

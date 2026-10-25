@@ -1,3 +1,5 @@
+import { workspaceFilesScope } from "@meowbert/shared/workspace-files";
+import { createWorkspaceFiles } from "./workspace-files";
 import { apiBaseUrl } from "./runtime";
 import {
   cachedApiGet,
@@ -58,7 +60,7 @@ export function createApiClient(token: string | null): ApiClient {
     return text ? { error: text } : {};
   }
 
-  async function request<T>(method: string, path: string, body?: unknown, options?: ApiRequestOptions): Promise<T> {
+  async function httpRequest<T>(method: string, path: string, body?: unknown, options?: ApiRequestOptions): Promise<T> {
     const hasBody = body !== undefined;
     const headers: Record<string, string> = {
       ...(token ? { authorization: `Bearer ${token}` } : {})
@@ -83,7 +85,24 @@ export function createApiClient(token: string | null): ApiClient {
     return payload as T;
   }
 
+  const workspaceFiles = createWorkspaceFiles(httpRequest);
+  async function request<T>(method: string, path: string, body?: unknown, options?: ApiRequestOptions): Promise<T> {
+    if (workspaceFilesScope(path)) {
+      const result = await workspaceFiles.handle<T>({ method: method as "GET" | "POST" | "PUT" | "DELETE", path, body });
+      if (result.handled) return result.value as T;
+    }
+    return httpRequest<T>(method, path, body, options);
+  }
   async function requestForm<T>(path: string, formData: FormData): Promise<T> {
+    if ((await workspaceFiles.resolveLocation(path))?.fileHost.kind === "device") {
+      const file = formData.get("file");
+      if (!(file instanceof File)) throw new Error("Choose a file to upload.");
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      const result = await workspaceFiles.handle<T>({ method: "POST", path, file: { name: file.name, type: file.type, dataBase64: btoa(binary) } });
+      if (result.handled) return result.value as T;
+    }
     const response = await fetch(`${apiBaseUrl()}${path}`, {
       method: "POST",
       headers: {

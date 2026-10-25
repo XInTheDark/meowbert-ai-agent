@@ -152,7 +152,19 @@ On first use, the app asks before downloading the sandbox. It uses the server's 
 
 If an uploaded input has not reached your mount yet, the task waits for storage and retries. Outputs show **Syncing** until the server verifies them; they become downloadable when ready. An output that does not arrive within 30 minutes is marked **Missing**.
 
-Local tasks currently exclude host mode, host shell, Computer Use, your own Chrome, threads, schedules, subagents, Agent Swarm, Project Master, and Long Horizon workflows. Device-hosted workspaces and live Drive folders are not available yet.
+Choose **Sandbox** or **Host** beside Local. Sandbox is the default and runs commands in Docker. Host runs commands directly as you and can read or change any of your files. Enabling it requires confirmation in Local Execution preferences. You can also enable **Host shell** for commands outside the sandbox. Host mode uses only host-supported bundled skills and does not install missing runtime tools.
+
+Enable **Computer Use** for screen control, subject to your system's permissions. **Your Chrome** opens Chrome, or Edge when Chrome is unavailable, with a separate persistent Meowbert profile. Log into sites in that window to keep those logins between tasks. Each resource has one task owner at a time. Closing the desktop app stops local commands and containers.
+
+Local tasks support schedules and recurring runs, which wait while their device is offline. Threads, subagents, Agent Swarm, Project Master, Long Horizon workflows and live Drive folder mounts remain unavailable locally.
+
+### Workspaces on this device
+
+In **Manage Workspaces**, choose **On this device**, enter a name and pick a folder. Files stay there, and every task runs on its owning device. What an agent reads still goes to the model through your server; conversations and settings are stored on the server.
+
+Use Files, Project Context, uploads, downloads and memory files in the desktop app on that device. Other devices and the web app can show conversations but direct file views to the owning device. Device workspaces are single-user. Canvases, project terminals, linked-source file sync, server memory search and automatic memory refresh are unavailable.
+
+After reinstalling the app or moving the folder to another computer, use **Relink** in Manage Workspaces and select the existing folder. Its marker must match. Meowbert revokes the old lease and waits before resuming tasks on the new device. Deleting a workspace never deletes its chosen folder. Task/project cleanup reaches offline devices when they reconnect.
 
 ## External browser handoff
 

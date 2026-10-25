@@ -43,7 +43,7 @@ export function LocalExecutionPreferences() {
   return (
     <div>
       <h3>Local Execution</h3>
-      <p className="muted-text">Run standard tasks in Docker Desktop on an Apple Silicon Mac. The server and workspace storage must be on this computer.</p>
+      <p className="muted-text">Run tasks in Docker Desktop or directly on this computer. Server workspaces need a verified storage mount.</p>
       <div className="desktop-shortcut-section">
         <label className="desktop-shortcut-row">
           <span>Enable on this server</span>
@@ -62,9 +62,16 @@ export function LocalExecutionPreferences() {
           <button type="button" className="btn ghost" disabled={busy} onClick={() => void pickRoot()}>Choose Folder</button>
         </div>
       </div>
+      <div className="desktop-shortcut-section">
+        <label className="desktop-shortcut-row"><span>Default mode</span><select aria-label="Default local mode" value={settings.defaultMode ?? "sandbox"} onChange={(event) => setSettings({ ...settings, defaultMode: event.target.value as "sandbox" | "host" })}><option value="sandbox">Sandbox</option><option value="host" disabled={!settings.hostConsent}>Host</option></select></label>
+        <label className="desktop-shortcut-row"><span>Allow host mode</span><input type="checkbox" checked={settings.hostConsent ?? false} onChange={(event) => setSettings({ ...settings, hostConsent: event.target.checked })} /></label>
+        <label className="desktop-shortcut-row"><span>Host shell</span><input type="checkbox" checked={settings.hostShellEnabled ?? false} disabled={!settings.hostConsent} onChange={(event) => setSettings({ ...settings, hostShellEnabled: event.target.checked })} /></label>
+        <label className="desktop-shortcut-row"><span>Computer Use</span><input type="checkbox" checked={settings.computerUseEnabled ?? false} onChange={(event) => setSettings({ ...settings, computerUseEnabled: event.target.checked })} /></label>
+        <label className="desktop-shortcut-row"><span>Your Chrome</span><input type="checkbox" checked={settings.hostBrowserEnabled ?? false} onChange={(event) => setSettings({ ...settings, hostBrowserEnabled: event.target.checked })} /></label>
+      </div>
       <label><input type="checkbox" checked={settings.downloadConsent} onChange={(event) => setSettings({ ...settings, downloadConsent: event.target.checked })} /> Allow sandbox downloads and updates</label>
       <div className="desktop-preferences-actions">
-        <button type="button" className="btn primary" disabled={busy || (settings.enabled && !settings.storageRoot)} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button>
+        <button type="button" className="btn primary" disabled={busy || (settings.enabled && !settings.storageRoot && !Object.keys(settings.workspaceRoots ?? {}).length)} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button>
         <button type="button" className="btn ghost" disabled={busy} onClick={() => void platform.retryLocalExecution().then(setStatus).catch((err) => setError(String(err)))}>Retry</button>
       </div>
       {status ? <p role="status" className="muted-text">{status.message ?? (status.state === "running" ? "Ready for local tasks" : status.state)}</p> : null}

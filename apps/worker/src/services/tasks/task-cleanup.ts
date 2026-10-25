@@ -1,6 +1,6 @@
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { isWithinPath, parseTaskCleanupSettings } from "@meowbert/shared";
+import { isWithinPath, parseTaskCleanupSettings, normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { resolveTaskEnvironmentRoot } from "../runtime/environment-storage.js";
 import { deleteTaskHistoryArchive } from "./task-history.js";
@@ -13,6 +13,7 @@ const TASK_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const TASK_CLEANUP_BATCH_SIZE_PER_ENV = 120;
 
 interface CleanupEnabledEnvironmentRow {
+  file_host?: unknown;
   id: string;
   workspace_id: string;
   root_path: string;
@@ -189,12 +190,9 @@ async function runEnvironmentCleanup(input: {
   workspaceId: string;
   rootPath: string;
   expirationDays: number | null;
+  fileHost?: unknown;
 }): Promise<number> {
-  const envRoot = await resolveTaskEnvironmentRoot({
-    workspaceId: input.workspaceId,
-    environmentId: input.environmentId,
-    rootPath: input.rootPath
-  });
+  const serverFiles = workspaceFileFeatures(normalizeWorkspaceFileHost(input.fileHost)).serverFiles;
   const deleted = input.expirationDays
     ? await deleteOldTaskRows({
         environmentId: input.environmentId,
@@ -216,8 +214,8 @@ async function runEnvironmentCleanup(input: {
     return 0;
   }
 
-  await removeTaskWorkspacePaths({
-    envRoot,
+  if (serverFiles) await removeTaskWorkspacePaths({
+    envRoot: await resolveTaskEnvironmentRoot({ workspaceId: input.workspaceId, environmentId: input.environmentId, rootPath: input.rootPath }),
     taskIds: combinedDeleted.taskIds,
     workspacePaths: combinedDeleted.workspacePaths
   });
@@ -229,9 +227,9 @@ async function runEnvironmentCleanup(input: {
 
 export async function runTaskCleanupOnce(): Promise<TaskCleanupRunSummary> {
   const environmentsRes = await query<CleanupEnabledEnvironmentRow>(
-    `SELECT id, workspace_id, root_path, json_payload
-       FROM environments
-      ORDER BY updated_at DESC, id DESC`
+    `SELECT e.id, e.workspace_id, e.root_path, e.json_payload, w.file_host
+       FROM environments e JOIN workspaces w ON w.id = e.workspace_id
+      ORDER BY e.updated_at DESC, e.id DESC`
   );
 
   let environmentsScanned = 0;
@@ -246,6 +244,7 @@ export async function runTaskCleanupOnce(): Promise<TaskCleanupRunSummary> {
         environmentId: environment.id,
         workspaceId: environment.workspace_id,
         rootPath: environment.root_path,
+        fileHost: environment.file_host,
         expirationDays
       });
 

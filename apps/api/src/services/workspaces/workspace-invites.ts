@@ -1,3 +1,4 @@
+import { requireWorkspaceFileFeature } from "./workspace-file-host.js";
 import type { StorageUsageSummary } from "@meowbert/shared";
 import type { PoolClient } from "pg";
 import { query, withTransaction } from "../../lib/db.js";
@@ -228,6 +229,7 @@ export async function inviteWorkspaceUserByEmail(input: {
   invitedByUserId: string;
   email: string;
 }): Promise<InviteWorkspaceUserResult> {
+  await requireWorkspaceFileFeature(input.workspaceId, "members");
   return withTransaction(async (client) => {
     const normalizedEmail = input.email.trim().toLowerCase();
     const userRes = await client.query<{

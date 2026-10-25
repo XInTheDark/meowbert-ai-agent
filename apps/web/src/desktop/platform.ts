@@ -37,6 +37,12 @@ export interface DesktopActiveContext {
 }
 
 export interface DesktopLocalExecutionSettings {
+  workspaceRoots?: Record<string, string>;
+  defaultMode?: "sandbox" | "host";
+  hostConsent?: boolean;
+  hostShellEnabled?: boolean;
+  computerUseEnabled?: boolean;
+  hostBrowserEnabled?: boolean;
   maxConcurrentRuns: number;
   serverBaseUrl: string | null;
   downloadConsent: boolean;
@@ -112,6 +118,9 @@ type RevealPathInput =
     };
 
 interface DesktopBridge {
+  workspaceFiles?: (input: import("@meowbert/shared").WorkspaceFilesRequest) => Promise<unknown>;
+  createDeviceWorkspace?: (name: string) => Promise<{ id: string } | null>;
+  relinkDeviceWorkspace?: (workspaceId: string) => Promise<{ pending: boolean; readyAt?: string } | null>;
   capabilities: PlatformCapabilities;
   getBootstrapData: () => Promise<PlatformBootstrapData>;
   saveAuthToken: (token: string | null) => Promise<void>;

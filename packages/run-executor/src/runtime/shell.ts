@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
+import type { MachineHandle as DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
 import { assertTaskWritePath, ensureSandboxWritablePath, isWithinPath } from "@meowbert/shared";
 import { resolveTaskInputDir } from "../tasks/task-paths.js";
 

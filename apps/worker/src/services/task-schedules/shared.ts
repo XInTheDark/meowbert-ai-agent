@@ -1,3 +1,4 @@
+import type { TaskExecutionTarget } from "@meowbert/shared";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { CronExpressionParser } from "cron-parser";
@@ -365,9 +366,9 @@ export async function prepareRunWithClient(
   const runId = randomUUID();
   const jobId = buildTaskRunQueueJobId(input.taskId, runId);
 
-  const taskRes = await client.query<{ id: string; initiator_user_id: string | null }>(
+  const taskRes = await client.query<{ id: string; initiator_user_id: string | null; execution_target?: TaskExecutionTarget }>(
     `SELECT id,
-            initiator_user_id
+            initiator_user_id, execution_target
        FROM tasks
       WHERE id = $1
       FOR UPDATE`,
@@ -378,6 +379,9 @@ export async function prepareRunWithClient(
     throw new Error(`Task not found: ${input.taskId}`);
   }
 
+  if (taskRes.rows[0].execution_target?.kind === "local" && input.toolOptionsOverride?.subtasks) {
+    throw new Error("Subagents are unavailable for local tasks.");
+  }
   const attemptResult = await client.query<{ attempt_no: number }>(
     `SELECT COALESCE(MAX(attempt_no), 0) + 1 AS attempt_no
        FROM task_runs
@@ -411,10 +415,11 @@ export async function prepareRunWithClient(
     environmentId: input.environmentId,
     triggerSource: input.source,
     mode: input.mode,
-    toolOptionsOverride: input.toolOptionsOverride
+    toolOptionsOverride: input.toolOptionsOverride,
+    ...(taskRes.rows[0].execution_target ? { executionTarget: taskRes.rows[0].execution_target } : {})
   };
 
-  const schedulerManaged = input.dispatchCategory !== undefined;
+  const schedulerManaged = input.dispatchCategory !== undefined || payload.executionTarget?.kind === "local";
   if (schedulerManaged) {
     await insertTaskRunDispatchWithClient(client, {
       runId,

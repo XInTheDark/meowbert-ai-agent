@@ -1,3 +1,5 @@
+import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
+import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { getNewMessageOrganizationEnabled, getProjectMasterEnabled } from "@meowbert/shared/workspace-agent-settings";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -302,6 +304,7 @@ function AgentSettingsSection(props: {
   personalityOptions: AgentPersonalityOption[];
   availableSkills: SkillSummary[];
   defaultPersonalityId: string | null;
+  serverFiles: boolean;
   disabled: boolean;
 }) {
   return (
@@ -331,13 +334,13 @@ function AgentSettingsSection(props: {
         availableSkills={props.availableSkills}
         onChange={(nextToolset) => props.drafts.setDefaultToolset(normalizeToolOptions(nextToolset, { memorySearch: false }))}
       />
-      <CheckboxSetting
+      {props.serverFiles ? <CheckboxSetting
         checked={props.drafts.projectMasterEnabled}
         disabled={props.disabled}
         onChange={props.drafts.setProjectMasterEnabled}
         title="Project Master"
         description="On by default. Opening a project takes you to its Master, who coordinates tasks for you and reports back. You can still manage tasks yourself."
-      />
+      /> : null}
     </div>
   );
 }
@@ -367,6 +370,7 @@ function CheckboxSetting(props: {
 }
 
 function MemorySettingsSection(props: {
+  serverFiles: boolean;
   memoryEnabled: boolean;
   thoughtPersistenceEnabled: boolean;
   memorySynthesisEnabled: boolean;
@@ -386,7 +390,7 @@ function MemorySettingsSection(props: {
         title="Enable Workspace Memory"
         description="Stores persistent notes in the workspace `.memory` directory and enables Memory search for tasks in this workspace."
       />
-      <CheckboxSetting
+      {props.serverFiles ? <><CheckboxSetting
         checked={props.memorySynthesisEnabled}
         disabled={props.disabled || !props.memoryEnabled}
         onChange={props.onMemorySynthesisEnabledChange}
@@ -399,7 +403,7 @@ function MemorySettingsSection(props: {
         onChange={props.onSuggestedActionsEnabledChange}
         title="Enable Suggested Starter Actions"
         description="Generates and updates project-specific starter prompt suggestions during Memory refresh to show underneath the task composer."
-      />
+      /></> : null}
       <CheckboxSetting
         checked={props.thoughtPersistenceEnabled}
         disabled={props.disabled || !props.memoryEnabled}
@@ -538,6 +542,7 @@ function SandboxSettingsSection(props: {
 }
 
 function WorkspaceSettingsTabBar(props: {
+  membersAvailable: boolean;
   activeTab: WorkspaceSettingsTab;
   isOwner: boolean;
   isSuperAdmin: boolean;
@@ -552,7 +557,7 @@ function WorkspaceSettingsTabBar(props: {
       {props.isSuperAdmin ? (
         <button className={`tab-btn ${props.activeTab === "sandbox" ? "active" : ""}`} onClick={() => props.onTabChange("sandbox")}>Sandbox</button>
       ) : null}
-      {props.isOwner ? (
+      {props.isOwner && props.membersAvailable ? (
         <button className={`tab-btn ${props.activeTab === "members" ? "active" : ""}`} onClick={() => props.onTabChange("members")}>Members</button>
       ) : null}
     </div>
@@ -560,6 +565,7 @@ function WorkspaceSettingsTabBar(props: {
 }
 
 function WorkspaceSettingsEditor(props: {
+  serverFiles: boolean;
   api: ApiClient;
   workspaceId: string;
   activeTab: Exclude<WorkspaceSettingsTab, "members">;
@@ -581,6 +587,7 @@ function WorkspaceSettingsEditor(props: {
       {!props.canSave ? <p className="muted-text">{props.readOnlyMessage}</p> : null}
       {props.activeTab === "agent" ? (
         <AgentSettingsSection
+          serverFiles={props.serverFiles}
           api={props.api}
           workspaceId={props.workspaceId}
           drafts={props.drafts}
@@ -592,6 +599,7 @@ function WorkspaceSettingsEditor(props: {
       ) : null}
       {props.activeTab === "memory" ? (
         <MemorySettingsSection
+          serverFiles={props.serverFiles}
           memoryEnabled={props.drafts.memoryEnabled}
           thoughtPersistenceEnabled={props.drafts.thoughtPersistenceEnabled}
           memorySynthesisEnabled={props.drafts.memorySynthesisEnabled}
@@ -640,6 +648,7 @@ export function WorkspaceSettingsPage() {
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null,
     [activeWorkspaceId, workspaces]
   );
+  const features = workspaceFileFeatures(normalizeWorkspaceFileHost(activeWorkspace?.fileHost));
   const isOwner = activeWorkspace?.role === "owner";
   const isSuperAdmin = user?.is_super_admin === true;
   const canSaveActiveTab = canSaveWorkspaceSettingsTab(activeTab, isOwner, isSuperAdmin);
@@ -648,13 +657,13 @@ export function WorkspaceSettingsPage() {
     : "You can view workspace-wide settings here, but only owners can change them.";
 
   useEffect(() => {
-    if (activeTab === "members" && !isOwner) {
+    if (activeTab === "members" && (!isOwner || !features.members)) {
       setActiveTab("agent");
     }
     if (activeTab === "sandbox" && !isSuperAdmin) {
       setActiveTab("agent");
     }
-  }, [activeTab, isOwner, isSuperAdmin]);
+  }, [activeTab, isOwner, isSuperAdmin, features.members]);
 
   useEffect(() => {
     if (!activeWorkspaceId) {
@@ -763,7 +772,7 @@ export function WorkspaceSettingsPage() {
           </button>
         </div>
 
-        <WorkspaceSettingsTabBar activeTab={activeTab} isOwner={isOwner} isSuperAdmin={isSuperAdmin} onTabChange={setActiveTab} />
+        <WorkspaceSettingsTabBar membersAvailable={features.members} activeTab={activeTab} isOwner={isOwner} isSuperAdmin={isSuperAdmin} onTabChange={setActiveTab} />
 
         {activeTab === "members" ? (
           <div className="stack-form" style={{ marginTop: "1rem" }}>
@@ -771,6 +780,7 @@ export function WorkspaceSettingsPage() {
           </div>
         ) : (
           <WorkspaceSettingsEditor
+            serverFiles={features.serverFiles}
             api={api}
             workspaceId={activeWorkspaceId}
             activeTab={activeTab}

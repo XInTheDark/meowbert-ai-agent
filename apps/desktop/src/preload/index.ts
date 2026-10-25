@@ -22,6 +22,9 @@ const capabilities = ipcRenderer.sendSync("desktop:get-capabilities") as Desktop
 
 contextBridge.exposeInMainWorld("meowbertDesktop", {
   capabilities,
+  workspaceFiles: (input: import("@meowbert/shared").WorkspaceFilesRequest) => ipcRenderer.invoke("desktop:workspace-files", input),
+  createDeviceWorkspace: (name: string) => ipcRenderer.invoke("desktop:create-device-workspace", name),
+  relinkDeviceWorkspace: (workspaceId: string) => ipcRenderer.invoke("desktop:relink-device-workspace", workspaceId),
   getBootstrapData: (): Promise<DesktopBootstrapData> => ipcRenderer.invoke("desktop:get-bootstrap-data"),
   saveAuthToken: (token: string | null): Promise<void> => ipcRenderer.invoke("desktop:save-auth-token", token),
   saveLocalExecutionSettings: (settings: DesktopLocalExecutionSettings): Promise<DesktopLocalExecutionSettings> =>

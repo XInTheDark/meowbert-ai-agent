@@ -1,3 +1,9 @@
+vi.mock("../workspaces/workspace-file-host.js", () => ({
+  loadWorkspaceFileHost: vi.fn(async () => ({ kind: "server", backendId: "backend-1" })),
+  loadWorkspaceFileFeatures: vi.fn(async () => ({ serverFiles: true, forkFiles: true, storageManagement: true, inboundAttachments: true })),
+  requireWorkspaceFileFeature: vi.fn(async () => {})
+}));
+
 import type { QueryResult } from "pg";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,6 +23,7 @@ import { query } from "../../lib/db.js";
 import { createEnvironment } from "./environment-creation.js";
 import { ensureEnvironmentStorageRoot } from "./environment-storage.js";
 import { ensureProjectMemoryFilesForWorkspace } from "../workspaces/workspace-memory.js";
+import { loadWorkspaceFileHost } from "../workspaces/workspace-file-host.js";
 
 function buildRowsResult<Row extends object>(rows: Row[]): QueryResult<Row> {
   return {
@@ -29,6 +36,14 @@ function buildRowsResult<Row extends object>(rows: Row[]): QueryResult<Row> {
 }
 
 describe("createEnvironment", () => {
+  it("creates a device project without provisioning or reading server files", async () => {
+    vi.mocked(query).mockResolvedValueOnce(buildRowsResult([{ id: "device-project" }]));
+    vi.mocked(loadWorkspaceFileHost).mockResolvedValueOnce({ kind: "device", deviceId: "11111111-1111-4111-8111-111111111111" });
+    await expect(createEnvironment({ workspaceId: "device-workspace", name: "Local", createdByUserId: "owner" }))
+      .resolves.toEqual({ id: "device-project", name: "Local", rootPath: "" });
+    expect(ensureEnvironmentStorageRoot).not.toHaveBeenCalled();
+    expect(ensureProjectMemoryFilesForWorkspace).not.toHaveBeenCalled();
+  });
   const mockedQuery = vi.mocked(query);
   const mockedEnsureEnvironmentStorageRoot = vi.mocked(ensureEnvironmentStorageRoot);
   const mockedEnsureProjectMemoryFilesForWorkspace = vi.mocked(ensureProjectMemoryFilesForWorkspace);

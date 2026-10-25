@@ -1,5 +1,6 @@
 import {
   RUN_LEASE_TTL_MS,
+  normalizeWorkspaceFileHost, workspaceFileFeatures,
   isRunApiMethod,
   isRunApiWriteMethod,
   type RunApiCallRequest,
@@ -75,10 +76,15 @@ export function createRunApiHandler(deps: RunApiHandlerDeps) {
         if (session.storageWait && method !== "control.releaseForStorage") throw new RunApiFailure("lease_lost", "This device released its claim to wait for storage.");
         await assertCurrentEpoch(stores, session);
         if (session.holder.startsWith("device:") && [
-          "platform.createRecurringTask", "platform.editCurrentTaskSchedule", "platform.pauseRecurringSchedule",
-          "platform.applyInfiniteWait", "platform.createSubtask", "platform.startSubtasks",
+          "platform.createSubtask", "platform.startSubtasks",
           "platform.requestDesktopComputerAction", "platform.getDesktopComputerPresence", "platform.persistentShell"
-        ].includes(method)) throw new RunApiFailure("invalid_request", "This feature is unavailable for local sandbox runs.");
+        ].includes(method)) throw new RunApiFailure("invalid_request", "This feature is unavailable for local runs.");
+        const features = workspaceFileFeatures(normalizeWorkspaceFileHost(session.fileHost));
+        if ((!features.memorySearch && method === "platform.searchMemory")
+          || (!features.canvases && ["platform.createProjectCanvas", "platform.recordProjectCanvasEntry"].includes(method))
+          || (!features.linkedSources && ["platform.liveSyncStatus", "platform.liveSyncTransfer", "platform.liveSyncFolderSearch"].includes(method))) {
+          throw new RunApiFailure("invalid_request", "This feature is unavailable for device-hosted workspaces.");
+        }
         if (method === "control.heartbeat") return { status: 200, body: { result: await heartbeat(session) } };
         if (isRunApiWriteMethod(method)) return await applyDedupedWrite(stores, session, method, request);
         return { status: 200, body: { result: (await RUN_API_CALL_HANDLERS[method as keyof typeof RUN_API_CALL_HANDLERS](session, request.args)) ?? null } };

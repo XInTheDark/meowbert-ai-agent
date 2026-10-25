@@ -10,5 +10,6 @@
       "server.mjs"
     ],
     "cwd": "{{SKILL_DIR}}"
-  }
+  },
+  "host": "supported"
 }

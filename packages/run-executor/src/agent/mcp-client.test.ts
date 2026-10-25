@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { isSkillEnabledByConfig, type SkillManifest } from "@meowbert/shared";
-import type { DockerSandboxHandle, SandboxAttachedProcess } from "@meowbert/shared/docker-sandbox";
+import type { MachineHandle as DockerSandboxHandle, SandboxAttachedProcess } from "@meowbert/shared/docker-sandbox";
 import {
   buildSandboxStdioEnv,
   callMcpTool,

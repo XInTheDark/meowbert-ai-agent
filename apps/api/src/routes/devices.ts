@@ -76,7 +76,7 @@ export const deviceRoutes: FastifyPluginAsync = async (fastify) => {
     await assertEnvironmentMember(projectId, request.user.id);
     return listProjectExecutionTargets(request.user.id, projectId);
   });
-  fastify.get("/api/local-execution/config", { preHandler: fastify.authenticate }, async () => {
+  fastify.get("/api/local-execution/config", { preHandler: fastify.authenticate }, async (request) => {
     const configured = config.localExecution.enabled && config.runApi !== undefined;
     const digestResult = await query<{ sandbox_image_reference: string | null; sandbox_image_digest: string | null }>(
       `SELECT sandbox_image_reference, sandbox_image_digest FROM platform_settings WHERE id = 1`
@@ -84,6 +84,9 @@ export const deviceRoutes: FastifyPluginAsync = async (fastify) => {
     const image = digestResult.rows[0]?.sandbox_image_reference ?? config.runtime.sandbox.image;
     return {
       enabled: configured,
+      deviceWorkspaces: (await query<{ id: string; file_host: unknown }>(
+        "SELECT w.id, w.file_host FROM workspaces w JOIN workspace_members wm ON wm.workspace_id = w.id WHERE wm.user_id = $1 AND w.file_host->>'kind' = 'device'", [request.user.id]
+      )).rows,
       storageMarkers: Object.fromEntries(await Promise.all(config.storage.backends.map(async (backend) => [backend.id,
         await readStorageMarker(backend.type === "mounted" ? backend.mountPath : path.dirname(backend.workspacesRoot))
       ]))),

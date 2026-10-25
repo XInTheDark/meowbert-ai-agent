@@ -72,3 +72,5 @@ export * from "./workspace-file-host.js";
 export * from "./storage-marker.js";
 
 export * from "./persistent-shell-output.js";
+export * from "./workspace-file-features.js";
+export * from "./workspace-files.js";

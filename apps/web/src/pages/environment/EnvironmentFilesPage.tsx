@@ -1,3 +1,5 @@
+import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
+import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fileScopeRoute, projectFileScope } from "../../components/files/fileScope";
@@ -23,6 +25,7 @@ function NoProjectSelected() {
 export function ProjectFilesPage() {
   const workspaceApp = useWorkspaceApp();
   const { api, token, activeWorkspaceId, setFlash } = workspaceApp;
+  const features = workspaceFileFeatures(normalizeWorkspaceFileHost(workspaceApp.workspaces?.find((workspace) => workspace.id === activeWorkspaceId)?.fileHost));
   const activeProjectId = workspaceApp.activeProjectId ?? workspaceApp.activeEnvironmentId;
   const projects = workspaceApp.projects ?? workspaceApp.environments;
   const navigate = useNavigate();
@@ -35,7 +38,7 @@ export function ProjectFilesPage() {
   const activeProject = useMemo(() => projects.find((project) => project.id === activeProjectId) ?? null, [activeProjectId, projects]);
   const liveSync = useProjectFileLiveSync({
     api,
-    projectId: activeProjectId,
+    projectId: features.linkedSources ? activeProjectId : null,
     cwd: listing.cwd,
     selectedEntry: selection.selectedEntry,
     loadFiles: listing.loadFiles,
@@ -45,7 +48,7 @@ export function ProjectFilesPage() {
     setFlash
   });
   const cleanup = useProjectFileCleanup({
-    projectId: activeProjectId,
+    projectId: features.storageManagement ? activeProjectId : null,
     workspaceId: activeWorkspaceId,
     projectRootPath: activeProject?.root_path ?? null,
     storageSummary: storage.summary,
@@ -74,7 +77,7 @@ export function ProjectFilesPage() {
         if (activeWorkspaceId && target !== activeProjectId) navigate(fileScopeRoute(activeWorkspaceId, target, listing.cwd));
       }}
       onDelete={(paths) => void deletePaths(paths)}
-      toolbarExtras={(
+      toolbarExtras={features.storageManagement ? (
         <ProjectCleanupMenu
           isOpen={isCleanupMenuOpen}
           isLoading={cleanup.isLoading}
@@ -92,7 +95,7 @@ export function ProjectFilesPage() {
             void cleanup.startAiCleanup();
           }}
         />
-      )}
+      ) : null}
       topPanel={cleanup.plan ? (
         <ProjectCleanupPanel
           plan={cleanup.plan}

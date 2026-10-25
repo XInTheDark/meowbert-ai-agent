@@ -1,4 +1,4 @@
-import type { DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
+import type { MachineHandle as DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
 import type { RunSandboxResources } from "./run-bootstrap.js";
 
 export interface MachineSpec {

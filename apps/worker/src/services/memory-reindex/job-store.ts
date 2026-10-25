@@ -1,3 +1,4 @@
+import { normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 
 const STALE_JOB_HEARTBEAT = "5 minutes";
@@ -9,6 +10,7 @@ export interface ClaimedReindexJob {
 }
 
 export interface ReindexWorkspace {
+  file_host?: unknown;
   id: string;
   name: string;
   root_path: string | null;
@@ -44,13 +46,13 @@ export async function claimReindexJob(): Promise<ClaimedReindexJob | null> {
 
 export async function listMemoryEnabledWorkspaces(): Promise<ReindexWorkspace[]> {
   const result = await query<ReindexWorkspace>(
-    `SELECT w.id, w.name, w.root_path, w.storage_backend_id
+    `SELECT w.id, w.name, w.root_path, w.storage_backend_id, w.file_host
        FROM workspaces w
        LEFT JOIN workspace_settings ws ON ws.workspace_id = w.id
       WHERE COALESCE(ws.memory_enabled, true) = true
       ORDER BY w.created_at, w.id`
   );
-  return result.rows;
+  return result.rows.filter((workspace) => workspaceFileFeatures(normalizeWorkspaceFileHost(workspace.file_host)).memorySearch);
 }
 
 export async function setReindexTotal(jobId: string, total: number): Promise<void> {

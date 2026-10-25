@@ -17,6 +17,7 @@ export interface RunModelPolicy {
 // A run whose executor reaches it over the Run API. The session lives in the worker that claimed
 // the run; the API forwards the run's calls here.
 export interface RunApiSession {
+  fileHost?: import("@meowbert/shared").WorkspaceFileHost;
   runId: string;
   taskId: string;
   epoch: number;

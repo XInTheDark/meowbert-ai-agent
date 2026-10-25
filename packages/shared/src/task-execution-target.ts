@@ -6,14 +6,14 @@ export const taskExecutionTargetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("local"),
     deviceId: z.string().uuid(),
-    mode: z.literal("sandbox")
+    mode: z.enum(["sandbox", "host"])
   }).strict()
 ]);
 
 export type TaskExecutionTarget = z.infer<typeof taskExecutionTargetSchema>;
 
 export const TASK_EXECUTION_TARGET_KINDS = ["cloud", "local"] as const;
-export const LOCAL_EXECUTION_MODES = ["sandbox"] as const;
+export const LOCAL_EXECUTION_MODES = ["sandbox", "host"] as const;
 
 export type LocalExecutionMode = (typeof LOCAL_EXECUTION_MODES)[number];
 
@@ -29,6 +29,7 @@ export type LocalPendingReason =
   | "claim_timeout"
   | "waiting_for_storage"
   | "local_execution_disabled"
+  | "host_consent_required"
   | "cancelled";
 
 export const LOCAL_PENDING_REASONS: readonly LocalPendingReason[] = [
@@ -43,6 +44,7 @@ export const LOCAL_PENDING_REASONS: readonly LocalPendingReason[] = [
   "claim_timeout",
   "waiting_for_storage",
   "local_execution_disabled",
+  "host_consent_required",
   "cancelled"
 ];
 

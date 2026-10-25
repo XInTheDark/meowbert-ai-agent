@@ -1,3 +1,4 @@
+import { loadWorkspaceFileFeatures } from "../workspaces/workspace-file-host.js";
 import { randomUUID } from "node:crypto";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
@@ -312,7 +313,9 @@ export async function cloneTaskIntoFork(input: {
     };
   });
 
-  if (input.copyTaskFiles !== true) {
+  if (input.copyTaskFiles !== true
+    || !(await loadWorkspaceFileFeatures(sourceTask.environment_workspace_id)).forkFiles
+    || !(await loadWorkspaceFileFeatures(input.destinationWorkspaceId)).forkFiles) {
     return {
       taskId: fork.taskId,
       workspaceId: fork.workspaceId,

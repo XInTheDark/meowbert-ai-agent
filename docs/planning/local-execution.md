@@ -1,6 +1,6 @@
 # Local Execution: Planning & Specs
 
-Status: Milestones 0–2 implemented in code. Local execution is disabled by default. Automated tests cover the HTTP lifecycle, storage visibility, and Windows path/transport contracts. Live Docker Desktop network-share and packaged-app acceptance on macOS/Windows still require the corresponding hosts and published multi-architecture image.
+Status: Milestones 0–4 implemented in code. Local execution is disabled by default. Automated tests cover the HTTP lifecycle, storage visibility, Windows paths/transport, native host commands and fencing, Computer Use arbitration, device file workflows, and PostgreSQL workspace/tombstone/relink contracts. Live host browser and Computer Use permissions, Docker Desktop network shares, and packaged-app acceptance on macOS/Windows still require the corresponding hosts and published multi-architecture image. Milestone 5 is not implemented.
 
 - Part I explains what we are building and why.
 - Part II specifies the contracts between the pieces.
@@ -215,6 +215,8 @@ The root guards (below) are a safety net, not the mechanism. Every request path 
 | Cleanup on archive/delete | server fs | device, via tombstones |
 | Storage usage, storage migration, XFS quotas | server | off |
 | Members and invites | | off (single user) |
+
+Implementation inventory (milestone 4): API request gates run before file, memory, canvas, shell, membership and source-attachment handlers; source connection metadata and network reads remain available. Task/project creation skips server provisioning. JSON file operations and binary previews use desktop IPC; native downloads and inline media use device delivery. Desktop operations reauthorize their scope through the metadata-only location endpoint and verify the folder marker. Memory refresh/reindex/synthesis and cleanup loops skip device roots; cleanup records durable named-path tombstones. Forks copy conversation only. Storage migration, usage, linked-source attachment and inbound attachment persistence are gated in their owning services. Shared feature policy also hides unavailable UI controls. TEST_LOCAL_WORKSPACE_DATABASE_URL enables an isolated-schema PostgreSQL regression test for host invariants, archive tombstones and delayed relink recovery.
 
 **Guards.** The root helpers (`ensureWorkspaceStorageRoot`, `ensureEnvironmentRootById`, `resolveTaskInputsDirForEnvironment`, and the worker's `resolveTaskWorkspaceRoot` / `resolveTaskEnvironmentRoot`) throw `WorkspaceFilesOnDeviceError` for a device-hosted workspace. Hitting one is a bug in the inventory, logged as an error and returned as a 409.
 
@@ -612,6 +614,12 @@ Decided:
 32. Windows uses the local Docker Desktop Linux-engine named pipe, native image architecture, and /meowbert-host/drives/<drive> or /meowbert-host/unc/<server>/<share> inside the container. Filesystem tools translate those paths back to native paths before existing containment checks. Cloud and macOS paths retain their existing mapping.
 33. Windows reads only image-owned skill manifests/docs into its desktop catalog; Linux binaries, dependencies and symlinks remain at /app/skills in the immutable image. Desktop PDF preparation uses the image's bundled Python in mounted scratch, including force-included attachments; no host Python installation is required.
 34. The Docker Desktop network-share spike is an opt-in integration test using TEST_LOCAL_STORAGE_ROOT, TEST_LOCAL_STORAGE_BACKEND_ID, TEST_LOCAL_STORAGE_INSTALL_ID and TEST_LOCAL_SANDBOX_IMAGE. Code and automated tests do not claim live macOS/Windows share acceptance when no daemon/test hosts are available.
+
+35. Host commands wait behind a pipe gate until their detached group is durably recorded. EOF never starts a command. Fencing terminates then force-kills groups; startup cleans leftover records before readiness. Host MCP servers use Electron's bundled Node, and host-supported skills are bundled at desktop build time without runtime installs.
+36. Computer Use has one task owner across cloud bridge and local calls, with deduplication and queued-action invalidation on release. Your Chrome has one headed persistent profile and an independent task lock. Fencing awaits browser closure, including an in-progress launch.
+37. Migration 146 backfills server file hosts, fixes their host kind, clears device absolute roots, enforces device task targets, and records deletion/archive tombstones. Workspace deletion preserves the chosen folder. Relink revokes epochs immediately, then reassigns unfinished uncancelled dispatches after 90 seconds and clears their old leases for recovery.
+38. Recurring runs and scheduling tools preserve persisted device targets and use device admission. Subagents and workflows stay excluded. Host threads are refused; sandbox threads remain unavailable in this release.
+39. Device inline-file tickets are random, task/server-bound and expire after one minute. A task-local location journal travels with the folder; relocation notes use appendPromptEnvelopeDelta and remain stable until the next move.
 
 Open:
 

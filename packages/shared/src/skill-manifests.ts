@@ -36,6 +36,7 @@ const sourceAccessSchema = z.object({
 });
 
 const rawSkillManifestSchema = z.object({
+  host: z.literal("supported").optional(),
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
@@ -65,6 +66,7 @@ export function parseSkillManifest(raw: unknown): SkillManifest {
   const parsed = rawSkillManifestSchema.parse(raw);
   return {
     id: parsed.id,
+    host: parsed.host,
     name: parsed.name,
     description: parsed.description,
     requiresSuperAdmin: parsed.requiresSuperAdmin,

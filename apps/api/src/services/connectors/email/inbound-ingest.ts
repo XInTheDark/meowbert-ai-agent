@@ -1,3 +1,4 @@
+import { loadWorkspaceFileFeatures } from "../../workspaces/workspace-file-host.js";
 import fs from "node:fs";
 import path from "node:path";
 import { ensureEnvironmentRootById } from "../../storage/environment-paths.js";
@@ -71,6 +72,7 @@ async function saveAttachmentsToEnvironment(input: {
     return [];
   }
 
+  if (!(await loadWorkspaceFileFeatures(input.workspaceId)).inboundAttachments) return [];
   const environmentRoot = await ensureEnvironmentRootById(input.environmentId);
   const dateSegment = normalizeReceivedDateSegment(input.receivedAt);
   const messageSegment = sanitizePathSegment(input.messageId);

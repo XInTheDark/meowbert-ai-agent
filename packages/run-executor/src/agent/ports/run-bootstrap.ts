@@ -8,6 +8,7 @@ import type { GoogleWorkspaceRuntimeReference } from "../google-workspace-refere
 // What the control plane resolves before a run starts. A remote executor receives it when it
 // claims the run, with every credential removed from the snapshot.
 export interface RunBootstrap {
+  fileHost?: import("@meowbert/shared").WorkspaceFileHost;
   snapshot: TaskSnapshot;
   runActorUserId: string | null;
   runActorIsSuperAdmin: boolean;

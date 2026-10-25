@@ -1,3 +1,4 @@
+import { handleHostShell } from "./handlers/host-shell.js";
 import { handleSearchWeb } from "./handlers/web-search.js";
 import { handleConversationOrganization } from "./handlers/conversation-organization.js";
 import { recordWebSearchCall } from "../agent-swarm/activity.js";
@@ -137,6 +138,9 @@ async function dispatchFunctionToolCall(
       return handleConversationOrganization(outputItem, state);
     case APPLY_PATCH_TOOL_NAME:
       return handleApplyPatch(outputItem as ApplyPatchFunctionToolCall, ctx, state);
+
+    case "host_shell":
+      return handleHostShell(outputItem, ctx, state);
 
     case RUN_SHELL_TOOL_NAME:
       return handleRunShell(outputItem, ctx, state);

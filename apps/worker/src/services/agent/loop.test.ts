@@ -124,6 +124,7 @@ function createExecutionContext() {
       selectionUserId: null
     },
     prepared: {
+      settings: {},
       features: cloudRunFeatures,
       control: createFakeRunControl(),
       models: { create: vi.fn(), isQuotaExceeded: vi.fn(async () => false) },

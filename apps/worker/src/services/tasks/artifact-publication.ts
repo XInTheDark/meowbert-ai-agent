@@ -31,7 +31,8 @@ export async function publishPendingArtifactsOnce(): Promise<void> {
      claimed AS (UPDATE task_artifacts a SET publication_next_check_at = now() + interval '1 minute'
        FROM due WHERE a.id = due.id RETURNING a.*)
      SELECT a.*, t.task_root_path, e.root_path FROM claimed a
-       JOIN tasks t ON t.id = a.task_id JOIN environments e ON e.id = t.environment_id`
+       JOIN tasks t ON t.id = a.task_id JOIN environments e ON e.id = t.environment_id JOIN workspaces w ON w.id = e.workspace_id
+       WHERE w.file_host->>'kind' = 'server'`
   );
   for (const artifact of result.rows) {
     const state = await artifactVisibility(artifact);

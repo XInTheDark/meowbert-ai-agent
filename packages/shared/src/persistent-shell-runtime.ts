@@ -1,4 +1,4 @@
-import type { DockerSandboxManager } from "./docker-sandbox.js";
+import type { MachineHandle } from "./docker-sandbox.js";
 import { toSandboxText } from "./docker-sandbox-paths.js";
 
 export interface PersistentShellRuntimeState {
@@ -18,7 +18,7 @@ export interface PersistentShellRuntimeTarget {
 }
 
 export async function requestPersistentShellRuntime<T = PersistentShellRuntimeState>(
-  manager: Pick<DockerSandboxManager, "attachPersistentSandbox">,
+  manager: { attachPersistentSandbox(input: { containerId: string; workingDir: string }): Promise<Pick<MachineHandle, "executeShellCommand">> },
   session: PersistentShellRuntimeTarget,
   request: Record<string, unknown>,
   action: "launch" | "request" = "request"

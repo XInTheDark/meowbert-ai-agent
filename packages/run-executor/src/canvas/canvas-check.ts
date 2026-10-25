@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
+import type { MachineHandle as DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
 import type { InlineArtifactDisplay } from "@meowbert/shared/inline-artifacts";
 
 const CHECK_TIMEOUT_MS = 60_000;

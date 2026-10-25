@@ -1,3 +1,5 @@
+import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
+import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileBrowserEntries } from "../../components/files/FileBrowserEntries";
 import { projectFileScope } from "../../components/files/fileScope";
@@ -34,6 +36,7 @@ function NoProjectSelected() {
 export function ProjectContextPage() {
   const workspaceApp = useWorkspaceApp();
   const { api, token, activeWorkspaceId } = workspaceApp;
+  const features = workspaceFileFeatures(normalizeWorkspaceFileHost(workspaceApp.workspaces?.find((workspace) => workspace.id === activeWorkspaceId)?.fileHost));
   const activeProjectId = workspaceApp.activeProjectId ?? workspaceApp.activeEnvironmentId;
   const projects = workspaceApp.projects ?? workspaceApp.environments;
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
@@ -44,7 +47,7 @@ export function ProjectContextPage() {
   const [noteTargetPath, setNoteTargetPath] = useState<string | null>(null);
   const [isCreateTextFileOpen, setIsCreateTextFileOpen] = useState(false);
   const [selectedSource, setSelectedSource] = useState<WorkspaceSourceSummary | null>(null);
-  const sources = useAttachableSources(api, activeWorkspaceId);
+  const sources = useAttachableSources(api, features.linkedSources ? activeWorkspaceId : null);
 
   const resetSelectionRef = useRef<() => void>(() => undefined);
   const handleLoadStart = useCallback(() => resetSelectionRef.current(), []);

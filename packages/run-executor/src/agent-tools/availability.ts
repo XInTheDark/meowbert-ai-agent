@@ -1,3 +1,4 @@
+import { HOST_SHELL_TOOL } from "./host-shell.js";
 import { ORGANIZATION_TOOLS, ORGANIZATION_TOOL_NAMES, withOrganizationFinalResponse, withOrganizationHistory } from "./conversation-organization.js";
 import { buildCreateTaskFunctionTool, PROJECT_MASTER_TOOL_NAMES } from "./project-master.js";
 import { SUBAGENT_TOOL_NAMES } from "./subagents.js";
@@ -236,6 +237,7 @@ export function buildResponseTools(
     ...CONTEXT_V2_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
     ...COMPUTER_RESPONSE_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
     ...(availability.swarmTools ? buildSwarmFunctionTools(availability.swarmTools, availability.swarmRouter ?? null) : []),
+    ...(availability.allowHostShell ? [HOST_SHELL_TOOL] : []),
     ...skillTools
   ];
 

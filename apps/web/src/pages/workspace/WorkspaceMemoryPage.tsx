@@ -1,3 +1,5 @@
+import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
+import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { useCallback, useEffect, useState } from "react";
 import { FolderOpen, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -27,8 +29,9 @@ interface WorkspaceMemoryResponse {
 }
 
 export function WorkspaceMemoryPage() {
-  const { api, activeWorkspaceId, activeProjectId, environments, setFlash } = useWorkspaceApp();
+  const { api, activeWorkspaceId, activeProjectId, environments, setFlash, workspaces } = useWorkspaceApp();
   const navigate = useNavigate();
+  const features = workspaceFileFeatures(normalizeWorkspaceFileHost(workspaces?.find((workspace) => workspace.id === activeWorkspaceId)?.fileHost));
   const [data, setData] = useState<WorkspaceMemoryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,9 +114,9 @@ export function WorkspaceMemoryPage() {
             <button className="btn ghost" type="button" onClick={() => navigate(`/app/${activeWorkspaceId}/files?path=.memory`)}>
               <FolderOpen size={16} /> Open in Files
             </button>
-            <button className="btn primary" type="button" disabled={!selectedProjectId || refreshing} onClick={() => void queueRefresh()}>
+            {features.memorySynthesis ? <button className="btn primary" type="button" disabled={!selectedProjectId || refreshing} onClick={() => void queueRefresh()}>
               <RefreshCw size={16} /> {refreshing ? "Queueing…" : "Refresh memory"}
-            </button>
+            </button> : null}
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fetchWorkspaceFilePreview } from "../../lib/workspace-file-preview";
 import type { InlineFilePreviewKind } from "./filePreviewKinds";
 
 type AuthenticatedFilePreviewState =
@@ -48,12 +49,7 @@ export function useAuthenticatedFilePreview(
 
     setState({ status: "loading", objectUrl: null, error: null });
 
-    void fetch(input.sourceUrl, {
-      headers: {
-        authorization: `Bearer ${input.token}`
-      },
-      signal: controller.signal
-    })
+    void fetchWorkspaceFilePreview(input.sourceUrl, input.token, controller.signal)
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(await readPreviewError(response));

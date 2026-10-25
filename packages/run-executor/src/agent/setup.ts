@@ -365,6 +365,7 @@ async function buildRunPromptEnvelope(input: {
 }): Promise<ReturnType<typeof createPromptEnvelope>> {
   const { prepared, organization } = input;
   const promptEnvelope = createPromptEnvelope(input.systemPrompt);
+  if (prepared.settings.workspaceRelocationNote) appendPromptEnvelopeDelta(promptEnvelope, { reason: "workspace-relocation", content: prepared.settings.workspaceRelocationNote });
   if (organization) appendPromptEnvelopeDelta(promptEnvelope, { reason: "conversation-organization", content: conversationOrganizationPrompt(organization) });
   if (prepared.isProjectMaster) appendPromptEnvelopeDelta(promptEnvelope, { reason: "project-master", content: buildProjectMasterPrompt() });
   const workflowPrompt = input.workflow.workflowPromptContext;

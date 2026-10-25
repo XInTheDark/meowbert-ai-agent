@@ -1,3 +1,5 @@
+import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
+import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { useEffect } from "react";
 import { getProjectMasterEnabled } from "@meowbert/shared/workspace-agent-settings";
 import { useWorkspaceApp } from "../../contexts/WorkspaceContext";
@@ -11,7 +13,8 @@ export function ProjectEntryPage() {
   const { api, activeWorkspaceId, workspaceSettings, isWorkspaceSettingsLoading, setFlash } = workspaceApp;
   const projectId = workspaceApp.activeProjectId ?? workspaceApp.activeEnvironmentId;
   const projects = workspaceApp.projects ?? workspaceApp.environments;
-  const masterEnabled = getProjectMasterEnabled(workspaceSettings?.modelDefaults);
+  const features = workspaceFileFeatures(normalizeWorkspaceFileHost(workspaceApp.workspaces?.find((workspace) => workspace.id === activeWorkspaceId)?.fileHost));
+  const masterEnabled = features.projectMaster && getProjectMasterEnabled(workspaceSettings?.modelDefaults);
   const master = useProjectMasterTaskId(api, projectId, Boolean(workspaceSettings) && masterEnabled);
   const failureMessage = master.status === "failed" ? master.message : null;
 

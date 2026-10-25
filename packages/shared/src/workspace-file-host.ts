@@ -8,10 +8,14 @@ export const workspaceFileHostSchema = z.discriminatedUnion("kind", [
 
 export type WorkspaceFileHost = z.infer<typeof workspaceFileHostSchema>;
 
-/** Milestone 1 only permits local execution against a server-hosted backend. */
+/** A device workspace can execute only on the device that owns its files. */
 export function canTargetReachFileHost(host: WorkspaceFileHost, target: TaskExecutionTarget): boolean {
   if (host.kind === "server") {
     return target.kind === "cloud" || target.kind === "local";
   }
   return target.kind === "local" && target.deviceId === host.deviceId;
+}
+
+export function normalizeWorkspaceFileHost(value: unknown, backendId = "local-default"): WorkspaceFileHost {
+  return workspaceFileHostSchema.parse(value ?? { kind: "server", backendId });
 }

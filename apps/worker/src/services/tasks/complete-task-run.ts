@@ -31,6 +31,7 @@ export async function completeTaskRun(input: RunDeliveryInput): Promise<boolean>
        SELECT $1, t.workspace_id, delay, now() + (delay * interval '1 second')
          FROM tasks t CROSS JOIN unnest(ARRAY[0, 60, 300]) AS delay
         WHERE t.id = $2 AND t.execution_target->>'kind' = 'local'
+          AND EXISTS (SELECT 1 FROM workspaces w WHERE w.id = t.workspace_id AND w.file_host->>'kind' = 'server')
           AND COALESCE((SELECT memory_enabled FROM workspace_settings WHERE workspace_id = t.workspace_id), true)
        ON CONFLICT (run_id, delay_seconds) DO NOTHING`, [input.runId, input.taskId]
     );

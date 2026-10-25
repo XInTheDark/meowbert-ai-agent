@@ -2,7 +2,7 @@ import type { ConversationOrganizationState } from "../agent/conversation-organi
 import type { PlatformAgentPreset } from "@meowbert/shared";
 import type { SubagentRuntime } from "../subagents/types.js";
 import type { PlatformModelCompatibilityMode, PlatformModelType, TaskExecutionJob, TaskSource } from "@meowbert/shared";
-import type { DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
+import type { MachineHandle as DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import type { TaskMessageToolOptions } from "../agent/types.js";
 import type { McpConnection } from "../agent/mcp-client.js";

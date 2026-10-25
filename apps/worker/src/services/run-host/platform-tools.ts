@@ -258,16 +258,17 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
     createRecurringTask: (input) => {
       const { run, taskId, workspaceId, environmentId } = scope();
       return createRecurringTaskFromTool({
+        message: input.message, mode: input.mode, repeat: input.repeat, timezone: input.timezone,
+        enabledTools: input.enabledTools, currentToolOptions: input.currentToolOptions,
         parentTaskId: taskId,
         workspaceId,
         environmentId,
         source: run.snapshot.task.source,
         connectorContextId: run.snapshot.task.connector_context_id,
-        defaultTimezone: run.snapshot.task.default_timezone || "UTC",
-        ...input
+        defaultTimezone: run.snapshot.task.default_timezone || "UTC"
       });
     },
-    editCurrentTaskSchedule: (input) => editCurrentTaskSchedule({ taskId: scope().taskId, ...input }),
+    editCurrentTaskSchedule: (input) => editCurrentTaskSchedule({ taskId: scope().taskId, repeat: input.repeat, timezone: input.timezone, enabledTools: input.enabledTools }),
     pauseRecurringSchedule: () => pauseRecurringSchedule(scope().taskId),
     applyInfiniteWait: (seconds) => applyInfiniteWait(scope().taskId, seconds),
     createSubtask: (input) => {
@@ -303,7 +304,7 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
         [canvasId, entryPath, taskId, environmentId]
       );
     },
-    markArtifacts: ({ artifacts }) => markTaskArtifacts(scope().taskId, artifacts, scope().run.job.executionTarget?.kind === "local"),
+    markArtifacts: ({ artifacts }) => markTaskArtifacts(scope().taskId, artifacts, scope().run.job.executionTarget?.kind === "local" && scope().run.bootstrap.fileHost?.kind !== "device"),
     unmarkArtifacts: ({ relativePaths }) => unmarkTaskArtifacts(scope().taskId, relativePaths),
     refreshGitHubToken: () => scope().run.refreshGitHubToken(),
     async issueSourceAccess({ sourceId, provider, ticketScope }) {

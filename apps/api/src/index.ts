@@ -1,3 +1,6 @@
+import { deviceWorkspaceRoutes } from "./routes/device-workspaces.js";
+import { workspaceFileLocationRoutes } from "./routes/workspace-file-locations.js";
+import { installWorkspaceFileGates } from "./services/workspaces/workspace-file-gates.js";
 import fs from "node:fs";
 import Fastify, { type FastifyError, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
@@ -303,6 +306,7 @@ async function registerCoreServerPlugins(app: Fastify.FastifyInstance): Promise<
 
 function registerServerErrorHandler(app: Fastify.FastifyInstance): void {
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof Error && error.name === "WorkspaceFilesOnDeviceError") request.log.error(error, "Device workspace root guard reached; missing workflow gate");
     if (error instanceof ZodError) {
       return reply.status(400).send({ error: "Invalid request", issues: error.issues });
     }
@@ -368,6 +372,8 @@ function registerPublicServerRoutes(app: Fastify.FastifyInstance): void {
 }
 
 async function registerApplicationRoutes(app: Fastify.FastifyInstance): Promise<void> {
+  installWorkspaceFileGates(app);
+  await app.register(workspaceFileLocationRoutes);
   await app.register(authRoutes);
   await app.register(workspaceRoutes);
   await app.register(workspaceFileRoutes);
@@ -388,6 +394,7 @@ async function registerApplicationRoutes(app: Fastify.FastifyInstance): Promise<
   await app.register(projectMasterInternalRoutes);
   await app.register(runApiRoutes);
   await app.register(deviceRoutes);
+  await app.register(deviceWorkspaceRoutes);
 }
 
 async function buildServer() {

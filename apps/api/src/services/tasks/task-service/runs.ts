@@ -130,8 +130,8 @@ async function createRunRecord(
   payload: TaskExecutionJob
 ): Promise<number> {
   if (payload.executionTarget?.kind === "local") {
-    if (!["default", "compact_only"].includes(runMode) || input.toolOptionsOverride?.subtasks || input.toolOptionsOverride?.scheduleTask || input.toolOptionsOverride?.computerUse) {
-      throw new Error("Local tasks only support standard sandbox runs.");
+    if (!["default", "compact_only", "scheduled_auto", "infinite_auto", "infinite_checkin"].includes(runMode) || input.toolOptionsOverride?.subtasks) {
+      throw new Error("Local tasks support standard and recurring runs without subagents.");
     }
   }
   const attemptResult = await client.query<{ attempt_no: number }>(

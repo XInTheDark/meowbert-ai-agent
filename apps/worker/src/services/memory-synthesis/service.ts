@@ -1,3 +1,4 @@
+import { normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
 import { randomUUID } from "node:crypto";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
@@ -196,6 +197,8 @@ async function loadMemorySynthesisMetrics(input: MemorySynthesisEvent): Promise<
 }
 
 async function queueAutomaticRequest(input: MemorySynthesisEvent): Promise<boolean> {
+  const workspace = await query<{ file_host?: unknown }>("SELECT file_host FROM workspaces WHERE id = $1", [input.workspaceId]);
+  if (!workspaceFileFeatures(normalizeWorkspaceFileHost(workspace.rows[0]?.file_host)).memorySynthesis) return false;
   const metrics = await loadMemorySynthesisMetrics(input);
   const sessionTokens = Array.isArray(metrics?.session_tokens_json)
     ? metrics.session_tokens_json.map((val) => Number(val) || 0)
@@ -232,6 +235,7 @@ async function claimNextRequest(input?: MemorySynthesisEvent): Promise<Synthesis
       `SELECT id, workspace_id, environment_id, initiator_user_id, source_through_at
          FROM memory_synthesis_requests
         WHERE status = 'queued'
+          AND EXISTS (SELECT 1 FROM workspaces w WHERE w.id = memory_synthesis_requests.workspace_id AND w.file_host->>'kind' = 'server')
           AND ($1::uuid IS NULL OR workspace_id = $1)
           AND ($2::uuid IS NULL OR environment_id = $2)
         ORDER BY created_at ASC
@@ -297,8 +301,8 @@ async function createSynthesisTask(input: {
   const taskId = randomUUID();
   const runId = randomUUID();
   const delta = buildMemoryDelta(input.delta);
-  const environmentRes = await query<{ root_path: string; storage_backend_id: string }>(
-    `SELECT e.root_path, w.storage_backend_id
+  const environmentRes = await query<{ root_path: string; storage_backend_id: string; file_host?: unknown }>(
+    `SELECT e.root_path, w.storage_backend_id, w.file_host
        FROM environments e
        JOIN workspaces w ON w.id = e.workspace_id
       WHERE e.id = $1
@@ -310,6 +314,7 @@ async function createSynthesisTask(input: {
     throw new Error("Project not found for memory synthesis.");
   }
 
+  if (!workspaceFileFeatures(normalizeWorkspaceFileHost(environment.file_host)).memorySynthesis) throw new Error("Memory synthesis is unavailable for device workspaces.");
   const taskRootPath = `.meowbert/task-runs/${taskId}`;
   const taskDir = path.resolve(
     await resolveTaskEnvironmentRoot({

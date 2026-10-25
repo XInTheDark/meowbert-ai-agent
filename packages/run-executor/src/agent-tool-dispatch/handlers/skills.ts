@@ -48,7 +48,7 @@ export async function handleListSkills(
   });
   const catalog = ctx.skillsRootDir
     ? getAvailableSkills(ctx.skillsRootDir, ctx.isSkillAdmin, {
-        isSkillEnabled: (manifest) => isSkillEnabledByConfig(ctx.settings, manifest.id)
+        isSkillEnabled: (manifest) => isSkillEnabledByConfig(ctx.settings, manifest.id) && (!ctx.settings.hostMode || manifest.host === "supported")
       })
     : [];
   const onDemand = (ctx.onDemandSkills ?? []).filter((skill) => !catalog.some((entry) => entry.id === skill.id));

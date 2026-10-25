@@ -10,7 +10,7 @@ vi.mock("../services/workspaces/workspace-access.js", () => ({ assertEnvironment
 import { deviceRoutes } from "./devices.js";
 it("returns the worker's recorded repository and digest for desktop pulls", async () => {
   query.mockResolvedValue({ rows: [{ sandbox_image_reference: "registry.example/worker-image:main", sandbox_image_digest: "sha256:worker" }] });
-  const app = Fastify(); app.decorate("authenticate", async () => {});
+  const app = Fastify(); app.decorate("authenticate", async (request: any) => { request.user = { id: "user-1" }; });
   await app.register(deviceRoutes);
   try {
     const response = await app.inject({ method: "GET", url: "/api/local-execution/config" });

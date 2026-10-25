@@ -1,3 +1,4 @@
+import type { TaskExecutionTarget } from "@meowbert/shared";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import fs from "node:fs";
@@ -85,13 +86,16 @@ export async function createRecurringTaskFromTool(input: CreateRecurringTaskInpu
     : null;
 
   await withTransaction(async (client) => {
-    const parentTaskRes = await client.query<{ initiator_user_id: string | null }>(
-      `SELECT initiator_user_id
+    const parentTaskRes = await client.query<{ initiator_user_id: string | null; execution_target?: TaskExecutionTarget }>(
+      `SELECT initiator_user_id, execution_target
          FROM tasks
         WHERE id = $1`,
       [input.parentTaskId]
     );
     const initiatorUserId = input.initiatorUserId ?? parentTaskRes.rows[0]?.initiator_user_id ?? null;
+    if (parentTaskRes.rows[0]?.execution_target?.kind === "local" && enabledTools?.subtasks) {
+      throw new Error("Subagents are unavailable for local tasks.");
+    }
 
     await client.query(
       `INSERT INTO tasks (
@@ -104,9 +108,9 @@ export async function createRecurringTaskFromTool(input: CreateRecurringTaskInpu
         initiator_user_id,
         connector_context_id,
         default_timezone,
-        task_root_path
+        task_root_path, execution_target
       )
-      VALUES ($1, $2, $3, $4, 'queued', $5, $6, $7, $8, $9)`,
+      VALUES ($1, $2, $3, $4, 'queued', $5, $6, $7, $8, $9, $10::jsonb)`,
       [
         taskId,
         input.workspaceId,
@@ -116,7 +120,8 @@ export async function createRecurringTaskFromTool(input: CreateRecurringTaskInpu
         initiatorUserId,
         input.connectorContextId,
         timezone,
-        `.meowbert/task-runs/${taskId}`
+        `.meowbert/task-runs/${taskId}`,
+        JSON.stringify(parentTaskRes.rows[0]?.execution_target ?? { kind: "cloud" })
       ]
     );
 
@@ -204,7 +209,8 @@ export async function createRecurringTaskFromTool(input: CreateRecurringTaskInpu
         environmentId: input.environmentId,
         triggerSource: input.source,
         mode: recurringRunMode(mode),
-        toolOptionsOverride: enabledTools
+        toolOptionsOverride: enabledTools,
+        ...(parentTaskRes.rows[0]?.execution_target ? { executionTarget: parentTaskRes.rows[0].execution_target } : {})
       },
       dispatchCategory: "background",
       priorityActorUserId: initiatorUserId

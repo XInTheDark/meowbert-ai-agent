@@ -4,7 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { SkillManifest, SkillManifestMcpStdio, SkillManifestMcpSse } from "@meowbert/shared";
-import type { DockerSandboxHandle, SandboxAttachedProcess } from "@meowbert/shared/docker-sandbox";
+import type { MachineHandle as DockerSandboxHandle, SandboxAttachedProcess } from "@meowbert/shared/docker-sandbox";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { compactToolInputSchema } from "./mcp-schema-compaction.js";
 
@@ -174,9 +174,9 @@ class SandboxStdioClientTransport implements Transport {
     }
 
     this.process = await this.sandbox.startAttachedProcess({
-      command: [this.command, ...this.args],
+      command: [this.sandbox.kind === "host" && this.command === "node" ? process.execPath : this.command, ...this.args],
       workingDir: this.cwd,
-      env: buildSandboxStdioEnv(this.env),
+      env: this.sandbox.kind === "host" ? this.env : buildSandboxStdioEnv(this.env),
       tty: false,
       stdin: true
     });

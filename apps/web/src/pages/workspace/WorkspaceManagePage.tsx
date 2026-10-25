@@ -24,6 +24,7 @@ export function WorkspaceManagePage({ token, setFlash }: WorkspaceManagePageProp
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<WorkspaceManageTab>(() => searchParams.get("tab") === "invites" ? "invites" : "workspaces");
   const [newName, setNewName] = useState("");
+  const [onDevice, setOnDevice] = useState(false);
   const controller = useWorkspaceManageController({
     api,
     activeWorkspaceId,
@@ -66,7 +67,7 @@ export function WorkspaceManagePage({ token, setFlash }: WorkspaceManagePageProp
     if (!trimmed) {
       return;
     }
-    await controller.createWorkspace(trimmed);
+    await controller.createWorkspace(trimmed, onDevice);
     setNewName("");
   }
 
@@ -86,6 +87,7 @@ export function WorkspaceManagePage({ token, setFlash }: WorkspaceManagePageProp
             placeholder="New workspace"
             disabled={controller.isCreating}
           />
+          {window.meowbertDesktop?.createDeviceWorkspace ? <select aria-label="Workspace file location" value={onDevice ? "device" : "server"} disabled={controller.isCreating} onChange={(event) => setOnDevice(event.target.value === "device")}><option value="server">On server</option><option value="device">On this device</option></select> : null}
           <button className="btn primary" type="submit" disabled={controller.isCreating || !newName.trim()}>
             <Plus size={16} />
             {controller.isCreating ? "Creating" : "Create"}

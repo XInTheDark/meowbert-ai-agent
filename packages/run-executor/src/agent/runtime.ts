@@ -1,3 +1,4 @@
+import { normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import path from "node:path";
 import {
@@ -9,7 +10,7 @@ import {
   type PlatformModelType,
   type TaskExecutionJob
 } from "@meowbert/shared";
-import type { DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
+import type { MachineHandle as DockerSandboxHandle } from "@meowbert/shared/docker-sandbox";
 import {
   startMcpServer,
   listMcpTools,
@@ -58,6 +59,7 @@ type EnableSkillById = (skillId: string) => Promise<{ doc: string | null; toolNa
 type EnableSourceById = (sourceId: string) => Promise<{ doc: string | null; toolNames: string[] }>;
 
 export interface PreparedAgentRunContext {
+  fileHost?: RunBootstrap["fileHost"];
   control: RunControl;
   models: ModelGateway;
   machine: MachineHost;
@@ -169,6 +171,8 @@ export function resolveRunToolOptions(snapshot: TaskSnapshot, job: TaskExecution
 
 interface SkillManagerInput {
   control: RunControl;
+  hostMode?: boolean;
+  connectSkill?: typeof startMcpServer;
   activeMcpConnections: Map<string, McpConnection>;
   activeSkillTools: FunctionTool[];
   mcpTimeoutMs: number;
@@ -216,11 +220,11 @@ function createManifestEnabler(
       }
       return { doc, toolNames, entry };
     }
-    if (!entry || entry.manifest.requiresSuperAdmin === true && !input.resolvedRunActorIsSuperAdmin) {
+    if (!entry || (input.hostMode && entry.manifest.host !== "supported") || entry.manifest.requiresSuperAdmin === true && !input.resolvedRunActorIsSuperAdmin) {
       throw new Error(`Skill not found: ${manifestId}`);
     }
 
-    const connection = await startMcpServer(
+    const connection = await (input.connectSkill ?? startMcpServer)(
       entry.manifest,
       input.sandboxSkillsRootDir ? path.posix.join(input.sandboxSkillsRootDir, path.basename(entry.skillDir)) : entry.skillDir,
       input.sandbox,
@@ -370,6 +374,7 @@ async function prepareTaskDirectories(
 
 function resolveRunTooling(bootstrap: RunBootstrap, job: TaskExecutionJob, settings: ExecutorSettings) {
   const runToolOptions = resolveRunToolOptions(bootstrap.snapshot, job, bootstrap.memoryEnabled);
+  if (!workspaceFileFeatures(normalizeWorkspaceFileHost(bootstrap.fileHost)).memorySearch) runToolOptions.memorySearch = false;
   // Attached Google files make the Google Workspace skill available, but its large toolset loads
   // only when the agent enables it.
   const onDemandSkills = (bootstrap.googleWorkspaceReferences.length > 0 || bootstrap.hasGoogleWorkspaceFolders)
@@ -377,6 +382,7 @@ function resolveRunTooling(bootstrap: RunBootstrap, job: TaskExecutionJob, setti
     && isSkillEnabledByConfig(settings, GOOGLE_WORKSPACE_SKILL_ID)
     ? [GOOGLE_WORKSPACE_SKILL_ID]
     : [];
+  if (settings.hostBrowserEnabled) onDemandSkills.push("host-browser");
   const skillsRootDir = settings.skills?.rootDir ?? null;
   const hasSourceDependentSkill = skillsRootDir !== null && [...runToolOptions.enabledSkills, ...onDemandSkills].some((skillId) => (
     getSkillEntry(skillsRootDir, skillId)?.manifest.sourceAccess !== undefined
@@ -501,6 +507,7 @@ function assemblePreparedContext(
   const { bootstrap, env } = state;
   const { snapshot, runtime } = bootstrap;
   return {
+    fileHost: bootstrap.fileHost,
     control: env.control,
     models: env.models,
     machine,
@@ -591,6 +598,8 @@ async function prepareRunFromBootstrap(state: PreparedRunState): Promise<Prepare
     const interactiveCanvas = bootstrap.snapshot.interactive_canvas;
     const skillManager = buildSkillManager({
       control: state.env.control,
+      hostMode: state.env.settings.hostMode,
+      connectSkill: state.env.connectSkill,
       ...skillTooling,
       mcpTimeoutMs: bootstrap.snapshot.mcp_timeout_ms,
       resolvedRunActorIsSuperAdmin: bootstrap.runActorIsSuperAdmin,

@@ -1,3 +1,4 @@
+import { loadWorkspaceFileFeatures } from "../../workspaces/workspace-file-host.js";
 import fs from "node:fs";
 import path from "node:path";
 import { ensureSandboxWritablePath } from "@meowbert/shared";
@@ -213,6 +214,7 @@ async function downloadAttachmentsToInputsDir(input: {
     return [];
   }
 
+  if (!(await loadWorkspaceFileFeatures(input.workspaceId)).inboundAttachments) return [];
   const inputsDir = await resolveTaskInputsDirForEnvironment({
     environmentId: input.environmentId,
     taskId: input.taskId

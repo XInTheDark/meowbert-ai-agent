@@ -1,3 +1,4 @@
+import { normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
 import { getVisiblePlatformAgentPresets, resolveCodeModeForModel } from "@meowbert/shared";
 import { getPersistentRuntimeEnabled, getSandboxNetworkEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
 import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
@@ -338,16 +339,18 @@ async function requestModelTurn(input: {
       allowScheduleTools: execution.allowScheduleTools,
       loadedToolGroups: [...execution.loadedToolGroups],
       allowSubtaskTools: execution.allowSubtaskTools,
-      allowPdfFileTool: !execution.prepared.runtimeCompatibilityModes.includes("disablePdfFile"),
+      allowPdfFileTool: !execution.prepared.settings.hostMode && !execution.prepared.runtimeCompatibilityModes.includes("disablePdfFile"),
       newMessageOrganizationEnabled: Boolean(execution.state.dispatchState.organization),
       allowTaskHistoryTools: execution.prepared.memoryEnabled,
       allowProjectMasterTools: execution.prepared.isProjectMaster === true,
       projectMasterTaskRouter: execution.prepared.projectMasterTaskAgent?.router ?? null,
       allowLiveSyncTools: execution.prepared.liveSyncFiles.length > 0,
       allowLiveSyncFolderSearch: execution.prepared.liveSyncFiles.some((file) => file.provider === "google-drive" && file.linkKind === "folder"),
-      allowCanvasTools: execution.prepared.snapshot.task.is_thread !== true
+      allowCanvasTools: workspaceFileFeatures(normalizeWorkspaceFileHost(execution.prepared.fileHost)).canvases
+        && execution.prepared.snapshot.task.is_thread !== true
         && execution.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),
-      allowComputerLocalShell: input.allowComputerLocalShell,
+      allowComputerLocalShell: !execution.prepared.settings.hostMode && execution.job.executionTarget?.kind !== "local" && input.allowComputerLocalShell,
+      allowHostShell: !!execution.prepared.control.platform.hostShell,
       allowComputerVisualTools: input.allowComputerVisualTools,
       allowRefreshGitHubToken: execution.prepared.hasGitHubAppConnection,
       allowStartLongHorizonTask: execution.workflow.allowWorkflowStartLongHorizon,

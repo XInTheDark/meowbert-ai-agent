@@ -1,3 +1,9 @@
+vi.mock("./workspace-file-host.js", () => ({
+  loadWorkspaceFileHost: vi.fn(async () => ({ kind: "server", backendId: "backend-1" })),
+  loadWorkspaceFileFeatures: vi.fn(async () => ({ serverFiles: true, forkFiles: true, storageManagement: true, inboundAttachments: true })),
+  requireWorkspaceFileFeature: vi.fn(async () => {})
+}));
+
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

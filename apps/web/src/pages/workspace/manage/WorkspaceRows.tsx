@@ -1,3 +1,6 @@
+import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
+import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
+import { DeviceWorkspaceRelinkButton } from "../../../components/workspace/DeviceWorkspaceRelinkButton";
 import { Check, Edit2, ExternalLink, Trash2, UserMinus, Users, X } from "lucide-react";
 import type { WorkspaceIconKey } from "@meowbert/shared/workspace-icons";
 import { WorkspaceIcon, WORKSPACE_ICON_OPTIONS } from "../../../components/workspaceIcon/WorkspaceIcon";
@@ -43,6 +46,7 @@ export function WorkspaceRows(props: WorkspaceRowsProps) {
         const isEditing = props.state.editingId === workspace.id;
         const isExpanded = props.state.expandedWorkspaceIds[workspace.id] === true;
         const memberCount = workspace.memberCount;
+        const features = workspaceFileFeatures(normalizeWorkspaceFileHost(workspace.fileHost));
 
         return (
           <div key={workspace.id} className={`workspace-row${isCurrent ? " current" : ""}`}>
@@ -114,9 +118,9 @@ export function WorkspaceRows(props: WorkspaceRowsProps) {
                   <button className="btn primary compact" type="button" onClick={() => props.onOpen(workspace.id)}>
                     <ExternalLink size={14} /> Open
                   </button>
-                  <button className="btn ghost compact" type="button" onClick={() => props.onToggleMembers(workspace.id)}>
+                  {features.members ? <button className="btn ghost compact" type="button" onClick={() => props.onToggleMembers(workspace.id)}>
                     <Users size={14} /> {isExpanded ? "Hide" : "Members"}
-                  </button>
+                  </button> : <DeviceWorkspaceRelinkButton workspaceId={workspace.id} />}
                   {workspace.role === "owner" ? (
                     <>
                       <button className="btn ghost compact" type="button" onClick={() => props.onSetEditingWorkspace(workspace)}>

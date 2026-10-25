@@ -1,3 +1,4 @@
+import { requireWorkspaceFileFeature } from "../workspaces/workspace-file-host.js";
 import { getSourceCatalogEntry } from "./source-catalog.js";
 import { importWorkspaceSourceFileToEnvironment } from "./file-import.js";
 import { createYoutubeMetadataNoteAttachment } from "./youtube-metadata.js";
@@ -86,6 +87,7 @@ export async function attachWorkspaceSource(input: {
     throw new Error(`Source ${source.manifest.name} does not support note attachments.`);
   }
 
+  await requireWorkspaceFileFeature(input.workspaceId, "linkedSources");
   if (!input.environmentRootPath || !input.workspaceRootPath) {
     throw new Error("This source attachment requires a project destination.");
   }

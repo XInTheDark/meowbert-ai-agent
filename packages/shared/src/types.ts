@@ -114,6 +114,7 @@ export interface SkillManifestSourceAccess {
 }
 
 export interface SkillManifest {
+  host?: "supported";
   id: string;
   name: string;
   description: string;

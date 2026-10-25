@@ -1,3 +1,6 @@
+import { downloadDeviceWorkspaceFile, registerDeviceFileProtocol, registerDeviceFileScheme } from "./workspace-files/delivery";
+import { createDeviceWorkspace, relinkDeviceWorkspace } from "./workspace-files/lifecycle";
+import { requestDeviceWorkspaceFiles } from "./workspace-files/service";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,15 +44,17 @@ import {
   saveShortcutPreferences,
   supportsSecureAuthStorage
 } from "./state";
-import { startConfiguredLocalExecutor, stopLocalExecutor, getLocalExecutionStatus } from "./executor/lifecycle";
+import { startConfiguredLocalExecutor, stopLocalExecutor, getLocalExecutionStatus, confirmHostExecutionSettings } from "./executor/lifecycle";
 import { createDesktopUpdater, type DesktopUpdater } from "./updater";
 import {
   getComputerUseStatus,
   openScreenRecordingSettings,
-  performComputerAction,
   requestAccessibilityPermission
 } from "./computer";
+import { computerUseService } from "./computer-use/service";
 import { formatDesktopVersion } from "./version";
+
+registerDeviceFileScheme();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,17 +71,12 @@ let activeComputerUseTaskId: string | null = null;
 let computerUseOverlayIdleTimer: ReturnType<typeof setTimeout> | null = null;
 let computerUseStatusPollTimer: ReturnType<typeof setInterval> | null = null;
 let computerUsePopupState: "active" | "succeeded" | "failed" | "cancelled" = "active";
-const inFlightComputerActions = new Map<string, Promise<DesktopComputerActionResult>>();
-const recentComputerActionResults = new Map<string, DesktopComputerActionResult>();
-const recentComputerActionTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const COMPUTER_USE_POPUP_WIDTH = 352;
 const COMPUTER_USE_POPUP_HEIGHT = 212;
 const COMPUTER_USE_POPUP_MARGIN = 18;
 const COMPUTER_USE_POPUP_IDLE_MS = 90_000;
 const COMPUTER_USE_STATUS_POLL_MS = 5_000;
-const COMPUTER_ACTION_RESULT_TTL_MS = 30_000;
-const COMPUTER_ACTION_DEBUG_ENABLED = !app.isPackaged || process.env.MEOWBERT_DEBUG_COMPUTER_USE === "1";
 
 function desktopCapabilities(): DesktopCapabilities {
   return {
@@ -318,41 +318,6 @@ function clearComputerUseOverlayTimer(): void {
     clearTimeout(computerUseOverlayIdleTimer);
     computerUseOverlayIdleTimer = null;
   }
-}
-
-function logComputerActionDebug(
-  event: string,
-  input: {
-    requestId?: string | null;
-    taskId?: string | null;
-    toolName?: string | null;
-    details?: Record<string, unknown>;
-  }
-): void {
-  if (!COMPUTER_ACTION_DEBUG_ENABLED) {
-    return;
-  }
-
-  console.info("[desktop-computer]", {
-    event,
-    requestId: input.requestId ?? null,
-    taskId: input.taskId ?? null,
-    toolName: input.toolName ?? null,
-    ...(input.details ? { details: input.details } : {})
-  });
-}
-
-function rememberComputerActionResult(requestId: string, result: DesktopComputerActionResult): void {
-  recentComputerActionResults.set(requestId, result);
-  const existingTimer = recentComputerActionTimers.get(requestId);
-  if (existingTimer) {
-    clearTimeout(existingTimer);
-  }
-  const timer = setTimeout(() => {
-    recentComputerActionResults.delete(requestId);
-    recentComputerActionTimers.delete(requestId);
-  }, COMPUTER_ACTION_RESULT_TTL_MS);
-  recentComputerActionTimers.set(requestId, timer);
 }
 
 function clearComputerUseStatusPollTimer(): void {
@@ -732,6 +697,7 @@ async function refreshComputerUsePopupState(taskId: string): Promise<void> {
     }
 
     clearComputerUseStatusPollTimer();
+    computerUseService.release(taskId);
     if (computerUsePopupState !== status) {
       await showComputerUseWindow(taskId, status);
     }
@@ -810,6 +776,7 @@ async function saveUrlToFile(input: DesktopDownloadInput): Promise<DesktopDownlo
     };
   }
 
+  if (await downloadDeviceWorkspaceFile(input.url, result.filePath)) return { canceled: false, filePath: result.filePath };
   const response = await fetch(input.url, {
     headers: input.token ? { authorization: `Bearer ${input.token}` } : undefined
   });
@@ -873,13 +840,16 @@ function registerIpcHandlers(): void {
     event.returnValue = desktopCapabilities();
   });
 
+  ipcMain.handle("desktop:create-device-workspace", async (_event, name: string) => { const result = await createDeviceWorkspace(name); void startConfiguredLocalExecutor(); return result; });
+  ipcMain.handle("desktop:relink-device-workspace", async (_event, workspaceId: string) => { const result = await relinkDeviceWorkspace(workspaceId); void startConfiguredLocalExecutor(); return result; });
+  ipcMain.handle("desktop:workspace-files", (_event, input) => requestDeviceWorkspaceFiles(input));
   ipcMain.handle("desktop:get-bootstrap-data", () => readBootstrapData());
   ipcMain.handle("desktop:save-auth-token", async (_event, token: string | null) => {
     await saveAuthToken(token);
     void startConfiguredLocalExecutor();
   });
   ipcMain.handle("desktop:save-local-execution-settings", async (_event, settings: DesktopLocalExecutionSettings) => {
-    const saved = await saveLocalExecutionSettings(settings);
+    const saved = await saveLocalExecutionSettings(await confirmHostExecutionSettings(settings));
     void startConfiguredLocalExecutor();
     return saved;
   });
@@ -889,108 +859,20 @@ function registerIpcHandlers(): void {
   ipcMain.handle("desktop:get-computer-status", () => getComputerUseStatus());
   ipcMain.handle("desktop:request-accessibility-permission", () => requestAccessibilityPermission());
   ipcMain.handle("desktop:open-screen-recording-settings", () => openScreenRecordingSettings());
-  ipcMain.handle("desktop:perform-computer-action", async (_event, input: DesktopComputerActionInput) => {
-    const normalizedRequestId = input.requestId?.trim() || null;
-    if (normalizedRequestId) {
-      const cachedResult = recentComputerActionResults.get(normalizedRequestId);
-      if (cachedResult) {
-        logComputerActionDebug("return_cached_result", {
-          requestId: normalizedRequestId,
-          taskId: input.taskId,
-          toolName: input.toolName
-        });
-        return cachedResult;
+  computerUseService.configureOverlay({
+    beforeAction(taskId) {
+      if (activeComputerUseTaskId !== taskId) {
+        activeComputerUseTaskId = taskId;
+        computerUsePopupState = "active";
+        hideDesktopWindowsForComputerUse();
+        startComputerUseStatusPolling(taskId);
       }
-
-      const inFlightAction = inFlightComputerActions.get(normalizedRequestId);
-      if (inFlightAction) {
-        logComputerActionDebug("join_in_flight_action", {
-          requestId: normalizedRequestId,
-          taskId: input.taskId,
-          toolName: input.toolName
-        });
-        return inFlightAction;
-      }
-    }
-
-    const actionPromise = (async (): Promise<DesktopComputerActionResult> => {
-      try {
-        const normalizedTaskId = input.taskId?.trim() || null;
-        const managesOverlay = normalizedTaskId !== null && isVisualComputerToolName(input.toolName);
-        const isFirstRequestForTask = managesOverlay && activeComputerUseTaskId !== normalizedTaskId;
-
-        logComputerActionDebug("execute_action", {
-          requestId: normalizedRequestId,
-          taskId: normalizedTaskId,
-          toolName: input.toolName,
-          details: {
-            managesOverlay,
-            isFirstRequestForTask
-          }
-        });
-
-        try {
-          if (managesOverlay) {
-            if (isFirstRequestForTask) {
-              activeComputerUseTaskId = normalizedTaskId;
-              computerUsePopupState = "active";
-              hideDesktopWindowsForComputerUse();
-              startComputerUseStatusPolling(normalizedTaskId);
-            }
-            hideComputerUseWindow();
-          }
-        } catch (error) {
-          console.error("Failed to prepare computer use overlay", error);
-        }
-
-        const result = await performComputerAction(input);
-
-        if (managesOverlay && normalizedTaskId) {
-          try {
-            await showComputerUseWindow(normalizedTaskId, "active");
-          } catch (error) {
-            console.error("Failed to show computer use overlay", error);
-          }
-        }
-
-        logComputerActionDebug("action_completed", {
-          requestId: normalizedRequestId,
-          taskId: normalizedTaskId,
-          toolName: input.toolName,
-          details: {
-            ok: result.ok
-          }
-        });
-        return result;
-      } catch (error) {
-        logComputerActionDebug("action_failed", {
-          requestId: normalizedRequestId,
-          taskId: input.taskId,
-          toolName: input.toolName,
-          details: {
-            error: error instanceof Error ? error.message : String(error)
-          }
-        });
-        throw error;
-      }
-    })();
-
-    if (normalizedRequestId) {
-      inFlightComputerActions.set(normalizedRequestId, actionPromise);
-    }
-
-    try {
-      const result = await actionPromise;
-      if (normalizedRequestId) {
-        rememberComputerActionResult(normalizedRequestId, result);
-      }
-      return result;
-    } finally {
-      if (normalizedRequestId && inFlightComputerActions.get(normalizedRequestId) === actionPromise) {
-        inFlightComputerActions.delete(normalizedRequestId);
-      }
-    }
+      hideComputerUseWindow();
+    },
+    afterAction: (taskId) => showComputerUseWindow(taskId, "active"),
+    release(taskId) { if (activeComputerUseTaskId === taskId) clearComputerUseSession(); }
   });
+  ipcMain.handle("desktop:perform-computer-action", (_event, input: DesktopComputerActionInput) => computerUseService.performAction(input));
   ipcMain.handle(
     "desktop:save-server-profiles-state",
     async (_event, state: DesktopServerProfilesState) => {
@@ -1215,6 +1097,7 @@ app.whenReady().then(async () => {
     focusMainWindow: () => focusMainWindow()
   });
 
+  registerDeviceFileProtocol();
   registerIpcHandlers();
 
   const bootstrap = await readBootstrapData();

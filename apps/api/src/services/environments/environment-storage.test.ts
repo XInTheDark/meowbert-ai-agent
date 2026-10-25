@@ -39,6 +39,7 @@ describe("ensureEnvironmentStorageRoot", () => {
 
   beforeEach(() => {
     mockedQuery.mockReset();
+    mockedQuery.mockResolvedValue({ rows: [{ storage_backend_id: "backend-1" }], rowCount: 1 } as never);
     mockedStorageBackendRegistry.ensureBackendReady.mockReset();
     mockedStorageBackendRegistry.resolveManagedEnvironmentRoot.mockReset();
     mockedStorageBackendRegistry.getConfiguredDefaultBackendId.mockReset();

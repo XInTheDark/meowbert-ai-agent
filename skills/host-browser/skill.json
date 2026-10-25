@@ -1,0 +1,15 @@
+{
+  "id": "host-browser",
+  "name": "Your Chrome",
+  "description": "Use the computer's Chrome or Edge with a persistent Meowbert profile and saved logins.",
+  "host": "supported",
+  "catalogGroup": "web",
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ]
+  },
+  "hidden": true
+}

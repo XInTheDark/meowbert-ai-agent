@@ -49,6 +49,7 @@ export async function claimRunForApi(input: {
     throw error;
   }
   input.sessions.add({
+    fileHost: bootstrap.fileHost,
     runId: job.runId,
     taskId: job.taskId,
     epoch: lease.epoch,

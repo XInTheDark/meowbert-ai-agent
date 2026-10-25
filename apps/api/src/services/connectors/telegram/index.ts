@@ -1,3 +1,4 @@
+import { loadWorkspaceFileFeatures } from "../../workspaces/workspace-file-host.js";
 import fs from "node:fs";
 import path from "node:path";
 import { ensureSandboxWritablePath } from "@meowbert/shared";
@@ -121,6 +122,7 @@ async function downloadTelegramAttachments(input: {
   environmentId: string;
   taskId: string;
 }): Promise<string[]> {
+  if (!(await loadWorkspaceFileFeatures(input.workspaceId)).inboundAttachments) return [];
   const inputsDir = await resolveTaskInputsDirForEnvironment({
     environmentId: input.environmentId,
     taskId: input.taskId

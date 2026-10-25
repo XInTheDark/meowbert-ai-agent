@@ -2,6 +2,7 @@ import { createDefaultEnvironmentJsonPayload, type PlatformModelRouter } from "@
 import type { SwarmToolSet } from "./swarm.js";
 
 export const RUN_SHELL_TOOL_NAME = "run_shell";
+export const HOST_SHELL_TOOL_NAME = "host_shell";
 export const SHELL_SESSION_TOOL_NAME = "shell_session";
 export const REFRESH_GH_TOKEN_TOOL_NAME = "refresh_gh_token";
 export const FINAL_RESPONSE_TOOL_NAME = "final_response";
@@ -80,6 +81,7 @@ export interface ResponseToolAvailability {
   loadedToolGroups?: string[];
   allowSubtaskTools?: boolean;
   allowComputerUse?: boolean;
+  allowHostShell?: boolean;
   allowComputerLocalShell?: boolean;
   allowComputerVisualTools?: boolean;
   allowPdfFileTool?: boolean;

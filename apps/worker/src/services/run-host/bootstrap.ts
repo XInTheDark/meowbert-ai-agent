@@ -1,3 +1,4 @@
+import { normalizeWorkspaceFileHost, workspaceFileFeatures, deviceWorkspaceProjectPath, type WorkspaceFileHost } from "@meowbert/shared";
 import { loadSubagentRuntime, loadSubagentPlatformProvider } from "../subagents/runtime.js";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -217,7 +218,7 @@ async function resolveRoutedRuntime(input: {
   snapshot: TaskSnapshot;
   runId: string;
   debugLogger: TaskDebugLogger;
-  taskInputDir: string;
+  taskInputDir: string | null;
   memoryFiles: {
     memoryMainFile: WorkspaceMemoryMainFile | null;
     projectMemoryMainFile: ProjectMemoryMainFile | null;
@@ -305,7 +306,7 @@ async function resolveRuntimeConfig(
   snapshot: TaskSnapshot,
   resolvedRunActorIsSuperAdmin: boolean,
   debugLogger: TaskDebugLogger,
-  taskInputDir: string,
+  taskInputDir: string | null,
   memoryFiles: {
     memoryMainFile: WorkspaceMemoryMainFile | null;
     projectMemoryMainFile: ProjectMemoryMainFile | null;
@@ -482,6 +483,12 @@ async function readRoutingMemoryFiles(snapshot: TaskSnapshot, workspaceRoot: str
 }
 
 async function loadRunRoots(snapshot: TaskSnapshot, debugLogger: TaskDebugLogger) {
+  const workspace = await query<{ file_host?: WorkspaceFileHost; storage_backend_id: string }>(
+    "SELECT file_host, storage_backend_id FROM workspaces WHERE id = $1", [snapshot.task.workspace_id]
+  );
+  const fileHost = normalizeWorkspaceFileHost(workspace.rows[0]?.file_host, workspace.rows[0]?.storage_backend_id);
+  if (fileHost.kind === "device") return { workspaceRoot: "", envRoot: "", fileHost,
+    storageBackendId: "workspace:" + snapshot.task.workspace_id, workspaceRootRelative: "", envRootRelative: deviceWorkspaceProjectPath(snapshot.environment.id) };
   const envRoot = await debugLogger.stage({
     stage: "startup.environment_root",
     startMessage: "Resolving environment root.",
@@ -529,6 +536,7 @@ async function loadRunRoots(snapshot: TaskSnapshot, debugLogger: TaskDebugLogger
   return {
     envRoot,
     workspaceRoot,
+    fileHost,
     storageBackendId: storageBackendId ?? undefined,
     envRootRelative: relative(envRoot),
     workspaceRootRelative: relative(workspaceRoot)
@@ -598,7 +606,9 @@ async function refreshStartupGitHubAccess(
   };
 }
 
-async function loadRunTooling(snapshot: TaskSnapshot, runActorUserId: string | null) {
+async function loadRunTooling(snapshot: TaskSnapshot, runActorUserId: string | null, fileHost: WorkspaceFileHost) {
+  if (!workspaceFileFeatures(fileHost).serverFiles) return { googleWorkspaceReferences: [], hasGoogleWorkspaceFolders: false,
+    sandboxResources: await resolveUserSandboxContainerResources(runActorUserId), liveSyncFiles: [] };
   const project = {
     workspaceId: snapshot.task.workspace_id,
     environmentId: snapshot.task.environment_id
@@ -637,8 +647,8 @@ export async function loadServerRunState(
   const { snapshot, runActorUserId, runActorIsSuperAdmin } = await loadRunSnapshotAndActor(job, debugLogger);
   const roots = await loadRunRoots(snapshot, debugLogger);
   const taskDir = resolveTaskDir(roots.envRoot, snapshot.task.task_root_path);
-  await registerTaskWorkspace(job.taskId, taskDir);
-  const tooling = await loadRunTooling(snapshot, runActorUserId);
+  if (roots.fileHost.kind === "server") await registerTaskWorkspace(job.taskId, taskDir);
+  const tooling = await loadRunTooling(snapshot, runActorUserId, roots.fileHost);
   const runStartedAt = await debugLogger.stage({
     stage: "startup.run_record",
     startMessage: "Marking run as started.",
@@ -654,7 +664,7 @@ export async function loadServerRunState(
   // environment, so it runs alongside the model route instead of before it.
   const githubPromise = refreshStartupGitHubAccess(refreshGitHubToken, snapshot, debugLogger);
   githubPromise.catch(() => undefined);
-  const memoryFiles = await readRoutingMemoryFiles(snapshot, roots.workspaceRoot);
+  const memoryFiles = roots.fileHost.kind === "device" ? { memoryMainFile: null, projectMemoryMainFile: null } : await readRoutingMemoryFiles(snapshot, roots.workspaceRoot);
   const runtime = await debugLogger.stage({
     stage: "startup.runtime_config",
     startMessage: "Resolving runtime configuration.",
@@ -664,7 +674,7 @@ export async function loadServerRunState(
       snapshot,
       runActorIsSuperAdmin,
       debugLogger,
-      resolveAgentTaskInputDir({ taskDir }),
+      roots.fileHost.kind === "device" ? null : resolveAgentTaskInputDir({ taskDir }),
       memoryFiles,
       job.quickMode === true,
       abortSignal
@@ -699,6 +709,7 @@ export async function loadServerRunState(
     taskDir,
     refreshGitHubToken,
     bootstrap: {
+      fileHost: roots.fileHost,
       snapshot,
       runActorUserId,
       runActorIsSuperAdmin,

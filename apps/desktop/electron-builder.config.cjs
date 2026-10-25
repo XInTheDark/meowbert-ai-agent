@@ -13,6 +13,7 @@ module.exports = {
     "dist/**/*"
   ],
   asar: true,
+  extraResources: [{ from: "dist/host-skills", to: "host-skills" }],
   icon: "build/icon.png",
   mac: {
     category: "public.app-category.developer-tools",

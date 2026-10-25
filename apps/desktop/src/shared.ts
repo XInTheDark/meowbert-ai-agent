@@ -42,6 +42,12 @@ export interface DesktopActiveContext {
 }
 
 export interface DesktopLocalExecutionSettings {
+  workspaceRoots?: Record<string, string>;
+  defaultMode?: "sandbox" | "host";
+  hostConsent?: boolean;
+  hostShellEnabled?: boolean;
+  computerUseEnabled?: boolean;
+  hostBrowserEnabled?: boolean;
   maxConcurrentRuns: number;
   serverBaseUrl: string | null;
   downloadConsent: boolean;

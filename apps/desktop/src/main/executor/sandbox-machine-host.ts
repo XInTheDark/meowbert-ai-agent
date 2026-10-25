@@ -98,8 +98,10 @@ export async function verifyDockerStorage(manager: DockerSandboxManager, options
       "const fs = require('fs');",
       "const path = require('path');",
       "const root = process.cwd();",
-      "const marker = JSON.parse(fs.readFileSync(path.join(root, '.meowbert-storage.json'), 'utf8'));",
-      "if (marker.version !== 1 || marker.backendId !== " + JSON.stringify(options.backendId) + " || marker.installId !== " + JSON.stringify(options.installId) + ") throw Error('Wrong storage backend');",
+      "const marker = JSON.parse(fs.readFileSync(path.join(root, " + JSON.stringify(options.backendId.startsWith("workspace:") ? ".meowbert-workspace.json" : ".meowbert-storage.json") + "), 'utf8'));",
+      options.backendId.startsWith("workspace:")
+        ? "if (marker.version !== 1 || marker.workspaceId !== " + JSON.stringify(options.backendId.slice(10)) + ") throw Error('Wrong workspace');"
+        : "if (marker.version !== 1 || marker.backendId !== " + JSON.stringify(options.backendId) + " || marker.installId !== " + JSON.stringify(options.installId) + ") throw Error('Wrong storage backend');",
       "const probe = path.join(root, '.meowbert-probe-' + " + JSON.stringify(options.deviceId) + " + '-' + require('crypto').randomUUID());",
       "fs.writeFileSync(probe, 'docker-probe', {flag:'wx'}); fs.unlinkSync(probe);"
     ].join(" ");

@@ -31,15 +31,27 @@ beforeEach(() => {
   vi.useFakeTimers(); vi.clearAllMocks(); state.present = false; state.digest = "sha256:first";
   state.pull.mockImplementation(async () => {state.present = true;});
   state.ping.mockResolvedValue(undefined); state.cleanup.mockResolvedValue(undefined);state.fence.mockResolvedValue(undefined);
-  state.request.mockImplementation(async (route:string) => route.endsWith("/config") ? {enabled:true,storageMarkers:{backend:{installId:"install"}},sandboxImage:{reference:"registry/image:main",digest:state.digest},executorSettings:{}} : {});
+  state.request.mockImplementation(async (route:string) => route.endsWith("/tombstones") ? { items: [] } : route.endsWith("/config") ? {enabled:true,storageMarkers:{backend:{installId:"install"}},sandboxImage:{reference:"registry/image:main",digest:state.digest},executorSettings:{}} : {});
 });
 afterEach(() => vi.useRealTimers());
 describe.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("desktop supervisor", () => {
+  it("runs consented host tasks while Docker is unavailable and fences them on stop", async () => {
+    state.ping.mockRejectedValue(new Error("Docker unavailable"));
+    const consent = vi.fn();
+    const executor = await startDesktopLocalExecutor({ ...options, hostConsent: true, onSandboxDownloadRequired: consent });
+    await vi.advanceTimersByTimeAsync(11_000);
+    state.onRuns?.([{ run_id: "host-run", queue_state: "admitted", payload_json: { executionTarget: { kind: "local", deviceId: "device", mode: "host" } } }]);
+    expect(startLocalRun).toHaveBeenCalledOnce();
+    expect(state.pull).not.toHaveBeenCalled();
+    expect(consent).not.toHaveBeenCalled();
+    await executor.stop();
+    expect(state.fence).toHaveBeenCalledOnce();
+  });
   it("does not download or start runs when first-use consent is declined", async () => {
     const consent = vi.fn().mockResolvedValue(false);
     const executor = await startDesktopLocalExecutor({...options,onSandboxDownloadRequired:consent});
     await vi.waitFor(() => expect(consent).toHaveBeenCalledTimes(1));
-    state.onRuns?.([{run_id:"r",queue_state:"admitted",payload_json:{}}]);
+    state.onRuns?.([{run_id:"r",queue_state:"admitted",payload_json:{executionTarget:{kind:"local",deviceId:"device",mode:"sandbox"}}}]);
     expect(state.pull).not.toHaveBeenCalled(); expect(startLocalRun).not.toHaveBeenCalled();
     await executor.stop();
   });
@@ -48,7 +60,7 @@ describe.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("desk
     await vi.waitFor(() => expect(state.pull).toHaveBeenCalledTimes(1));
     await vi.advanceTimersByTimeAsync(5_000);
     expect(state.stream).toHaveBeenCalledTimes(2);
-    state.onRuns?.([{run_id:"r",queue_state:"admitted",payload_json:{}}]);
+    state.onRuns?.([{run_id:"r",queue_state:"admitted",payload_json:{executionTarget:{kind:"local",deviceId:"device",mode:"sandbox"}}}]);
     expect(startLocalRun).toHaveBeenCalledTimes(1);
     state.digest = "sha256:second";state.present = false;
     await vi.advanceTimersByTimeAsync(30_000);
@@ -60,7 +72,7 @@ describe.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("desk
     state.ping.mockRejectedValue(new Error("Docker unavailable"));
     const executor = await startDesktopLocalExecutor({...options,downloadConsent:true});
     await vi.advanceTimersByTimeAsync(11_000);
-    state.onRuns?.([{run_id:"r",queue_state:"admitted",payload_json:{}}]);
+    state.onRuns?.([{run_id:"r",queue_state:"admitted",payload_json:{executionTarget:{kind:"local",deviceId:"device",mode:"sandbox"}}}]);
     expect(startLocalRun).not.toHaveBeenCalled(); expect(state.pull).not.toHaveBeenCalled();
     expect(state.request).toHaveBeenCalledWith(expect.any(String),"PATCH",{capabilities:expect.objectContaining({dockerReady:false,sandboxImageReady:false})});
     await executor.stop();

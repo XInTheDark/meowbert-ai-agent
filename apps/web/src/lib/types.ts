@@ -61,6 +61,7 @@ export interface TaskPagePreferences {
 export type WorkspaceRole = "owner" | "member";
 
 export interface Workspace {
+  fileHost?: import("@meowbert/shared").WorkspaceFileHost;
   id: string;
   name: string;
   iconKey?: WorkspaceIconKey;

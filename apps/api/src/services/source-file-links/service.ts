@@ -1,3 +1,4 @@
+import { requireWorkspaceFileFeature } from "../workspaces/workspace-file-host.js";
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import os from "node:os";
@@ -468,6 +469,7 @@ export async function createLiveSyncSourceAttachment(input: {
   modifiedAt: string | null;
   liveSync: SourceFileLinkSummary;
 }> {
+  await requireWorkspaceFileFeature(input.workspaceId, "linkedSources");
   const provider = resolveLiveSyncProviderForSource(input.sourceId);
   const remoteProvider = getSourceFileLinkRemoteProvider(provider);
   let remote;

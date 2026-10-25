@@ -3,6 +3,7 @@ import type { ModelGateway } from "./model-gateway.js";
 import type { RunControl } from "./run-control.js";
 import type { ExecutorSettings } from "./executor-settings.js";
 import type { RunFeatures } from "./run-features.js";
+import type { startMcpServer } from "../mcp-client.js";
 
 // What an executor needs from wherever it runs: the control plane, the model, and a machine.
 export interface RunEnvironment {
@@ -11,4 +12,5 @@ export interface RunEnvironment {
   machines: MachineProvider;
   settings: ExecutorSettings;
   features: RunFeatures;
+  connectSkill?: typeof startMcpServer;
 }

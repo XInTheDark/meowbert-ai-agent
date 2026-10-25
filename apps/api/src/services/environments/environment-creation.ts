@@ -1,3 +1,4 @@
+import { loadWorkspaceFileHost } from "../workspaces/workspace-file-host.js";
 import { query } from "../../lib/db.js";
 import { ensureEnvironmentStorageRoot } from "./environment-storage.js";
 import { ensureProjectMemoryFilesForWorkspace } from "../workspaces/workspace-memory.js";
@@ -37,6 +38,7 @@ export async function createEnvironment(input: CreateEnvironmentInput): Promise<
   const envId = await insertEnvironment(input);
 
   try {
+    if ((await loadWorkspaceFileHost(input.workspaceId)).kind === "device") return { id: envId, name: input.name, rootPath: "" };
     const rootPath = await ensureEnvironmentStorageRoot({
       id: envId,
       workspace_id: input.workspaceId,

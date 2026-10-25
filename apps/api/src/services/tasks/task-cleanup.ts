@@ -1,3 +1,4 @@
+import { loadWorkspaceFileFeatures } from "../workspaces/workspace-file-host.js";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 import type { PoolClient } from "pg";
@@ -377,18 +378,13 @@ export async function finalizeDeletedTasks(input: {
     };
   }
 
-  const envRoot = await ensureEnvironmentStorageRoot({
-    id: input.environmentId,
-    workspace_id: input.workspaceId,
-    root_path: input.rootPath
-  });
-
-  const pathCleanup = await removeTaskWorkspacePaths({
-    envRoot,
+  const serverFiles = (await loadWorkspaceFileFeatures(input.workspaceId)).serverFiles;
+  const pathCleanup = serverFiles ? await removeTaskWorkspacePaths({
+    envRoot: await ensureEnvironmentStorageRoot({ id: input.environmentId, workspace_id: input.workspaceId, root_path: input.rootPath }),
     taskIds: input.deleted.taskIds,
     taskRootPaths: input.deleted.taskRootPaths,
     workspacePaths: input.deleted.workspacePaths
-  });
+  }) : { deletedPathCount: 0, skippedPathCount: 0, pathErrorCount: 0 };
   await removeTasksScratch(input.workspaceId, input.deleted.taskIds);
   const archiveCleanup = await removeTaskArchiveFiles(input.deleted.archiveKeys);
 
@@ -482,12 +478,6 @@ export async function runEnvironmentTaskCleanup(input: RunEnvironmentTaskCleanup
 
   const limit = normalizeCleanupBatchLimit(input.limit);
   const cutoffIso = computeCutoffIso(input.expirationDays);
-  const envRoot = await ensureEnvironmentStorageRoot({
-    id: input.environmentId,
-    workspace_id: input.workspaceId,
-    root_path: input.rootPath
-  });
-
   const deleted = await deleteOldTaskRows({
     environmentId: input.environmentId,
     cutoffIso,
@@ -504,22 +494,15 @@ export async function runEnvironmentTaskCleanup(input: RunEnvironmentTaskCleanup
     archiveKeys: [...deleted.archiveKeys, ...deletedIncognito.archiveKeys]
   };
 
-  const pathCleanup = await removeTaskWorkspacePaths({
-    envRoot,
-    taskIds: combinedDeleted.taskIds,
-    taskRootPaths: combinedDeleted.taskRootPaths,
-    workspacePaths: combinedDeleted.workspacePaths
-  });
-  await removeTasksScratch(input.workspaceId, combinedDeleted.taskIds);
-  const archiveCleanup = await removeTaskArchiveFiles(combinedDeleted.archiveKeys);
+  const cleanup = await finalizeDeletedTasks({ ...input, deleted: combinedDeleted });
 
   return {
     expirationDays: input.expirationDays,
     cutoffIso,
     deletedTaskCount: combinedDeleted.taskIds.length,
-    deletedPathCount: pathCleanup.deletedPathCount + archiveCleanup.deletedPathCount,
-    skippedPathCount: pathCleanup.skippedPathCount,
-    pathErrorCount: pathCleanup.pathErrorCount + archiveCleanup.pathErrorCount,
+    deletedPathCount: cleanup.deletedPathCount,
+    skippedPathCount: cleanup.skippedPathCount,
+    pathErrorCount: cleanup.pathErrorCount,
     reachedBatchLimit: combinedDeleted.taskIds.length >= limit
   };
 }

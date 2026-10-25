@@ -12,6 +12,7 @@ type JsonRecord = Record<string, unknown>;
 // identity (task, project, workspace, acting user); arguments carry only what the agent chose.
 // The executor records the call, its events and its result; these only return the output.
 export interface PlatformToolHost {
+  hostShell?: (input: { command: string; timeoutMs: number }) => Promise<Record<string, unknown>>;
   queryTasks(filters: TaskHistorySearchInput): Promise<TaskHistorySearchResult>;
   viewTaskHistory(input: { taskId: string; maxMessages: number }): Promise<ViewedTaskHistory | null>;
   readOrganizedTaskHistory(input: {

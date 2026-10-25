@@ -1,3 +1,4 @@
+import { workspaceFileHostSchema, type WorkspaceFileHost } from "@meowbert/shared";
 import { z } from "zod";
 import {
   DEFAULT_ENVIRONMENT_PERSONALITY_ID,
@@ -19,6 +20,7 @@ import { DEFAULT_WORKSPACE_ICON_KEY, WORKSPACE_ICON_KEYS } from "@meowbert/share
 import { query } from "../../lib/db.js";
 
 export const createWorkspaceSchema = z.object({
+  fileHost: workspaceFileHostSchema.optional(),
   name: z.string().min(1).max(80)
 });
 
@@ -303,6 +305,7 @@ export class WorkspaceLimitReachedError extends Error {
 }
 
 export interface WorkspaceListRow {
+  file_host?: WorkspaceFileHost;
   id: string;
   name: string;
   icon_key: string;

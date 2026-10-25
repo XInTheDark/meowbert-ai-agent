@@ -31,7 +31,7 @@ export interface WorkspaceManageController extends WorkspaceManageState {
   loadWorkspaceData: () => Promise<void>;
   loadWorkspaceMembers: (workspaceId: string) => Promise<void>;
   toggleMembers: (workspaceId: string) => Promise<void>;
-  createWorkspace: (name: string) => Promise<void>;
+  createWorkspace: (name: string, onDevice?: boolean) => Promise<void>;
   updateWorkspace: (id: string) => Promise<void>;
   deleteWorkspace: (id: string, name: string) => Promise<void>;
   leaveWorkspace: (workspace: WorkspaceListItem) => Promise<void>;
@@ -187,7 +187,7 @@ export function useWorkspaceManageController(input: UseWorkspaceManageController
     navigate(`/app/${workspaceId}/projects`);
   }, [navigate]);
 
-  const createWorkspace = useCallback(async (name: string): Promise<void> => {
+  const createWorkspace = useCallback(async (name: string, onDevice = false): Promise<void> => {
     const trimmed = name.trim();
     if (!trimmed) {
       return;
@@ -196,7 +196,10 @@ export function useWorkspaceManageController(input: UseWorkspaceManageController
     setIsCreating(true);
     setError(null);
     try {
-      const response = await api.post<{ id: string; name: string; iconKey?: string }>("/api/workspaces", { name: trimmed });
+      const response = onDevice
+        ? await window.meowbertDesktop?.createDeviceWorkspace?.(trimmed)
+        : await api.post<{ id: string; name: string; iconKey?: string }>("/api/workspaces", { name: trimmed });
+      if (!response) return;
       setFlash({ tone: "success", text: "Workspace created." });
       await loadWorkspaceData();
       await onWorkspaceListChanged?.();

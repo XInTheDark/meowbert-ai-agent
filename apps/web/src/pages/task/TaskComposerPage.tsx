@@ -1,3 +1,5 @@
+import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
+import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EyeOff, Zap } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -66,7 +68,7 @@ function buildCanvasAttachment(canvas: ProjectCanvasSummary): TaskAttachment {
 }
 
 export function TaskComposerPage() {
-  const { api, user, activeWorkspaceId, activeEnvironmentId, environments, workspaceSettings, refreshTasks } = useWorkspaceApp();
+  const { api, user, activeWorkspaceId, activeEnvironmentId, environments, workspaceSettings, refreshTasks, workspaces } = useWorkspaceApp();
   const { capabilities } = useAppRuntime();
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,7 +93,9 @@ export function TaskComposerPage() {
     defaultAgentId,
     modelSliderAgentIds
   } = useTaskInputCatalog(api, activeWorkspaceId, user?.is_super_admin === true);
-  const workspaceMemoryEnabled = workspaceSettings?.memoryEnabled === true;
+  const fileHost = normalizeWorkspaceFileHost(workspaces?.find((workspace) => workspace.id === activeWorkspaceId)?.fileHost);
+  const fileFeatures = workspaceFileFeatures(fileHost);
+  const workspaceMemoryEnabled = workspaceSettings?.memoryEnabled === true && fileFeatures.memorySearch;
   const draftDefaults = useMemo(
     () => ({ memorySearch: workspaceMemoryEnabled, defaultToolset: workspaceSettings?.defaultToolset ?? null }),
     [workspaceMemoryEnabled, workspaceSettings?.defaultToolset]
@@ -101,6 +105,7 @@ export function TaskComposerPage() {
     [activeEnvironmentId, draftDefaults, draftsByEnvironment]
   );
   const pendingTaskId = currentDraft.composerTaskId;
+  const isLocalTarget = currentDraft.executionTarget.kind === "local" || fileHost.kind === "device";
 
   const updateDraft = useCallback((updater: (current: TaskInputDraft) => TaskInputDraft) => {
     if (!activeEnvironmentId) {
@@ -297,8 +302,8 @@ export function TaskComposerPage() {
         : undefined;
       const parametersPayload = buildCreateTaskParametersPayload(taskParameters);
       const executionTarget = capabilities.isDesktop ? currentDraft.executionTarget : { kind: "cloud" } as const;
-      if (executionTarget.kind === "local" && (workflow.type !== "standard" || schedulePayload || toolOptions.subtasks || toolOptions.scheduleTask || toolOptions.computerUse || availableAgents.find((agent) => agent.id === selectedAgentId)?.mode === "agent_swarm")) {
-        throw new Error("Local tasks require a standard agent without workflows, schedules, or subtasks.");
+      if (isLocalTarget && (workflow.type !== "standard" || toolOptions.subtasks || availableAgents.find((agent) => agent.id === selectedAgentId)?.mode === "agent_swarm")) {
+        throw new Error("Local tasks require a standard agent without workflows or subtasks.");
       }
 
       const canvasForTask = selectedInteractiveCanvas;
@@ -428,10 +433,11 @@ export function TaskComposerPage() {
             onToggleAttachmentForceInclude={toggleAttachmentForceInclude}
             onAttachFiles={uploadFiles}
             onOpenEnvironmentFiles={() => setIsEnvironmentFilePickerOpen(true)}
-            onOpenCanvases={() => setIsCanvasPickerOpen(true)}
+            onOpenCanvases={fileFeatures.canvases ? () => setIsCanvasPickerOpen(true) : undefined}
             isUploading={isUploading}
             pendingUploads={pendingUploads}
             toolOptions={toolOptions}
+            allowSubtasksOption={!isLocalTarget}
             showMemorySearch={workspaceMemoryEnabled}
             showComputerUse={capabilities.isDesktop}
             onToolOptionsChange={(nextToolOptions) => {
@@ -462,10 +468,10 @@ export function TaskComposerPage() {
               }));
             }}
             taskParametersMode="create"
-            availableSkills={availableSkills}
+            availableSkills={fileFeatures.canvases ? availableSkills : availableSkills.filter((skill) => skill.id !== "html-canvas")}
             availableSources={availableSources}
-            attachableSources={attachableSources}
-            availableAgents={availableAgents}
+            attachableSources={fileFeatures.linkedSources ? attachableSources : []}
+            availableAgents={isLocalTarget ? availableAgents.filter((agent) => agent.mode !== "agent_swarm") : availableAgents}
             selectedAgentId={selectedAgentId}
             defaultAgentId={defaultAgentId}
             modelSliderAgentIds={modelSliderAgentIds}

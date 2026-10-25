@@ -6,7 +6,9 @@
   "mcp": {
     "transport": "stdio",
     "command": "node",
-    "args": ["dist/index.js"],
+    "args": [
+      "dist/index.js"
+    ],
     "cwd": "{{SKILL_DIR}}",
     "env": {
       "DEEP_AI_SEARCH_CONFIG_PATH": "{{SKILL_DIR}}/deep-ai-search.config.json",

@@ -1,3 +1,4 @@
+import { requireWorkspaceFileFeature } from "../workspaces/workspace-file-host.js";
 import fsPromises from "node:fs/promises";
 import { resolveRealPathWithinRoot } from "@meowbert/shared/server-security";
 import { query } from "../../lib/db.js";
@@ -25,6 +26,7 @@ async function resolveTaskInlineFileRow(
     throw new Error(notFoundMessage);
   }
 
+  await requireWorkspaceFileFeature(result.rows[0].workspace_id, "serverFiles");
   const environmentRoot = await ensureEnvironmentStorageRoot({
     id: result.rows[0].environment_id,
     workspace_id: result.rows[0].workspace_id,

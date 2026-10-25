@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getProjectMasterEnabled } from "@meowbert/shared";
+import { getProjectMasterEnabled, normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 
 export class ProjectMasterError extends Error {
@@ -18,11 +18,12 @@ export interface ProjectMasterTask {
 }
 
 export async function isProjectMasterEnabledForWorkspace(workspaceId: string): Promise<boolean> {
-  const result = await query<{ model_defaults_json: Record<string, unknown> | null }>(
-    "SELECT model_defaults_json FROM workspace_settings WHERE workspace_id = $1",
+  const result = await query<{ model_defaults_json: Record<string, unknown> | null; file_host?: unknown }>(
+    "SELECT ws.model_defaults_json, w.file_host FROM workspaces w LEFT JOIN workspace_settings ws ON ws.workspace_id = w.id WHERE w.id = $1",
     [workspaceId]
   );
-  return getProjectMasterEnabled(result.rows[0]?.model_defaults_json);
+  return workspaceFileFeatures(normalizeWorkspaceFileHost(result.rows[0]?.file_host)).projectMaster
+    && getProjectMasterEnabled(result.rows[0]?.model_defaults_json);
 }
 
 export async function getProjectMasterTaskId(environmentId: string): Promise<string | null> {
