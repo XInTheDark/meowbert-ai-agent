@@ -1076,7 +1076,7 @@ export const SEARCH_WEB_TOOL: FunctionTool = {
   type: "function",
   name: SEARCH_WEB_TOOL_NAME,
   description:
-    "Search the web. A separate search agent looks the query up and returns an answer with its source URLs. Ask one specific question per call.",
+    "Search the web. A separate search agent looks the query up, reads the sources, and returns a summarized answer with its source URLs. Because a second model summarizes the sources, results are less direct than raw search results and use many more tokens. When the Deep AI Search `search` tool is available, use it for fast, direct lookups and use this tool only selectively, when you need sources read and synthesized for you. Ask one specific question per call.",
   strict: true,
   parameters: {
     type: "object",
