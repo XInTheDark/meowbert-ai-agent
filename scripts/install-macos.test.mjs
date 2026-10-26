@@ -14,6 +14,17 @@ const macTest = process.platform === "darwin" ? test : test.skip;
 const releaseBase = "https://github.com/XInTheDark/meowbert-ai-releases/releases";
 const archiveName = "Meowbert-desktop-mac-universal.zip";
 
+function latestMacManifest(sha512) {
+  return `version: 2099.1.1
+files:
+  - url: Meowbert-desktop-mac-universal.dmg
+    sha512: ${"B".repeat(86)}==
+  - url: ${archiveName}
+    sha512: ${sha512}
+path: ${archiveName}
+`;
+}
+
 async function createApp(directory, version, bundleId = "ai.meowbert.desktop") {
   await mkdir(path.join(directory, "Contents/MacOS"), { recursive: true });
   await writeFile(path.join(directory, "Contents/Info.plist"), `<?xml version="1.0"?>
@@ -37,9 +48,9 @@ async function createFixture(context, bundleId) {
   await createApp(app, "2099.1.1", bundleId);
   const archive = path.join(directory, archiveName);
   await execFileAsync("/usr/bin/ditto", ["-c", "-k", "--keepParent", app, archive]);
-  const checksum = createHash("sha256").update(await readFile(archive)).digest("hex");
-  const sums = path.join(directory, "SHA256SUMS.txt");
-  await writeFile(sums, `${checksum}  ${archiveName}\n`);
+  const checksum = createHash("sha512").update(await readFile(archive)).digest("base64");
+  const sums = path.join(directory, "latest-mac.yml");
+  await writeFile(sums, latestMacManifest(checksum));
   await writeFile(path.join(bin, "curl"), `#!/bin/bash
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,7 +62,7 @@ printf '%s\n' "$url" >> "$FIXTURE_CURL_LOG"
 case "$url" in
   */latest) printf '%s/tag/desktop-v2099.1.1' "${releaseBase}" ;;
   */download/desktop-v2099.1.1/${archiveName}) /bin/cp "$FIXTURE_ARCHIVE" "$output" ;;
-  */download/desktop-v2099.1.1/SHA256SUMS.txt) /bin/cp "$FIXTURE_SUMS" "$output" ;;
+  */download/desktop-v2099.1.1/latest-mac.yml) /bin/cp "$FIXTURE_SUMS" "$output" ;;
   *) exit 22 ;;
 esac
 `, { mode: 0o755 });
@@ -86,7 +97,7 @@ macTest("installs the resolved latest release and removes its downloads", async 
   assert.deepEqual(requests, [
     `${releaseBase}/latest`,
     `${releaseBase}/download/desktop-v2099.1.1/${archiveName}`,
-    `${releaseBase}/download/desktop-v2099.1.1/SHA256SUMS.txt`
+    `${releaseBase}/download/desktop-v2099.1.1/latest-mac.yml`
   ]);
   await assertClean(fixture);
 });
@@ -104,7 +115,7 @@ macTest("replaces an existing app without leaving its old bundle behind", async 
 macTest("rejects a corrupt download and preserves the existing app", async (context) => {
   const fixture = await createFixture(context);
   await createApp(fixture.destination, "2098.1.1");
-  await writeFile(fixture.sums, `${"0".repeat(64)}  ${archiveName}\n`);
+  await writeFile(fixture.sums, latestMacManifest(`${"A".repeat(86)}==`));
   await assert.rejects(execFileAsync("/bin/bash", [installer], { env: fixture.env }), /checksum did not match/);
   assert.equal(await readFile(path.join(fixture.destination, "version.txt"), "utf8"), "2098.1.1");
   await assertClean(fixture);

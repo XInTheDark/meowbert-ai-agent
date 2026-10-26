@@ -31,12 +31,12 @@ download_release() {
   release_tag="${latest_url##*/}"
   printf 'Downloading Meowbert %s...\n' "$release_tag"
   curl -fL --retry 3 --output "$download_dir/$archive_name" "$release_base/download/$release_tag/$archive_name"
-  curl -fsSL --retry 3 --output "$download_dir/SHA256SUMS.txt" "$release_base/download/$release_tag/SHA256SUMS.txt"
+  curl -fsSL --retry 3 --output "$download_dir/latest-mac.yml" "$release_base/download/$release_tag/latest-mac.yml"
 
-  expected=$(awk -v file="$archive_name" '$2 == file || $2 == "*" file { print $1 }' "$download_dir/SHA256SUMS.txt")
-  [[ "$expected" =~ ^[[:xdigit:]]{64}$ ]] || fail "The release has no valid macOS ZIP checksum."
-  actual=$(shasum -a 256 "$download_dir/$archive_name")
-  [[ "${actual%% *}" == "$expected" ]] || fail "Download checksum did not match; the installed app was not changed."
+  expected=$(awk -v file="$archive_name" '$1 == "-" && $2 == "url:" { match_file = ($3 == file) } match_file && $1 == "sha512:" { print $2; exit }' "$download_dir/latest-mac.yml")
+  [[ "$expected" =~ ^[A-Za-z0-9+/]{86}==$ ]] || fail "The release has no valid macOS ZIP checksum."
+  actual=$(openssl dgst -sha512 -binary "$download_dir/$archive_name" | openssl base64 -A)
+  [[ "$actual" == "$expected" ]] || fail "Download checksum did not match; the installed app was not changed."
   ditto --noqtn -x -k "$download_dir/$archive_name" "$download_dir/unpacked"
 }
 
