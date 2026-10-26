@@ -47,7 +47,7 @@ and set `runtime.sandbox.image` in your config to `meowbert-sandbox-runtime:loca
 | `apps/api` | Fastify API: auth, workspaces, projects, tasks, connectors |
 | `apps/worker` | Agent loop and task execution |
 | `apps/web` | React web app |
-| `apps/desktop` | Electron desktop app |
+| `apps/desktop` | Electron desktop app; [versioning and publishing](apps/desktop/README.md) |
 | `apps/docs` | Documentation site (VitePress) |
 | `apps/sandbox-runtime` | Sandbox container image |
 | `packages/shared` | Code shared by the API, worker, and web app |
