@@ -8,7 +8,7 @@ const encoder = new TextEncoder();
 
 function fixture(response: Response) {
   const fetch = vi.fn().mockResolvedValue(response);
-  return { fetch, client: createRunApiClient({ baseUrl: "https://server/api", runId: "run", token: "lease", fetch }) };
+  return { fetch, client: createRunApiClient({ baseUrl: "https://server/api", runId: "run", token: "lease", fetch, retryDelaysMs: [] }) };
 }
 
 it("reads heartbeat frames and a UTF-8 result split across network chunks", async () => {
@@ -47,4 +47,55 @@ it("rejects a disconnected stream before a result without replaying provider wor
 it("accepts buffered JSON from an older server", async () => {
   const test = fixture(Response.json(result));
   await expect(test.client.model(request)).resolves.toEqual(result);
+});
+
+it.each(["fetch", "stream"])("rejoins the same operation after a lost %s response", async (lost) => {
+  const fetch = vi.fn().mockResolvedValueOnce(Response.json(result));
+  if (lost === "fetch") fetch.mockReset().mockRejectedValueOnce(new TypeError("fetch failed"));
+  else fetch.mockReset().mockResolvedValueOnce(new Response('{"type":"heartbeat"}\n',
+    { headers: { "content-type": RUN_API_MODEL_STREAM_CONTENT_TYPE } }));
+  fetch.mockResolvedValueOnce(Response.json(result));
+  const client = createRunApiClient({ baseUrl: "https://server/api", runId: "run", token: "lease", fetch, retryDelaysMs: [0] });
+  await expect(client.model(request)).resolves.toEqual(result);
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+    "https://server/api/runs/run/model/responses", "https://server/api/runs/run/model/responses/replay"
+  ]);
+  expect(fetch.mock.calls[0][1].body).toBe(fetch.mock.calls[1][1].body);
+});
+
+it("reports an unknown outcome after transport retries are exhausted", async () => {
+  const fetch = vi.fn().mockRejectedValue(new TypeError("terminated"));
+  const client = createRunApiClient({ baseUrl: "https://server/api", runId: "run", token: "lease", fetch, retryDelaysMs: [0, 0] });
+  await expect(client.model(request)).rejects.toMatchObject({ code: "outcome_unknown" });
+  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(new Set(fetch.mock.calls.map(([, init]) => JSON.parse(init.body).operationId)).size).toBe(1);
+});
+
+it.each([502, 503, 504])("reconciles a %s gateway failure using the original operation id", async (status) => {
+  const fetch = vi.fn().mockResolvedValueOnce(Response.json({ error: { code: "internal", message: "Worker unreachable" } }, { status }))
+    .mockResolvedValueOnce(Response.json(result));
+  const client = createRunApiClient({ baseUrl: "https://server/api", runId: "run", token: "lease", fetch, retryDelaysMs: [0] });
+  await expect(client.model(request)).resolves.toEqual(result);
+  expect(fetch.mock.calls[0][1].body).toBe(fetch.mock.calls[1][1].body);
+  expect(fetch.mock.calls[1][0]).toContain("/replay");
+});
+
+it("does not replay work through the ordinary endpoint when an older server lacks replay", async () => {
+  const fetch = vi.fn().mockRejectedValueOnce(new TypeError("terminated"))
+    .mockResolvedValueOnce(Response.json({ error: { code: "invalid_request", message: "Not found" } }, { status: 404 }));
+  const client = createRunApiClient({ baseUrl: "https://server/api", runId: "run", token: "lease", fetch, retryDelaysMs: [0, 0] });
+  await expect(client.model(request)).rejects.toMatchObject({ code: "outcome_unknown" });
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it("cancels promptly while waiting to reconnect", async () => {
+  const controller = new AbortController();
+  const fetch = vi.fn().mockRejectedValue(new TypeError("terminated"));
+  const client = createRunApiClient({ baseUrl: "https://server/api", runId: "run", token: "lease", fetch, retryDelaysMs: [30_000] });
+  const pending = client.model(request, controller.signal);
+  const outcome = expect(pending).rejects.toThrow("TASK_CANCELLED");
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+  controller.abort(new Error("TASK_CANCELLED"));
+  await outcome;
+  expect(fetch).toHaveBeenCalledOnce();
 });

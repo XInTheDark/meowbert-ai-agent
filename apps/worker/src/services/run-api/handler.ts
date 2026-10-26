@@ -22,7 +22,7 @@ export interface RunApiHandlerDeps {
   stores: RunApiStores;
   sessions: RunApiSessions;
   leaseSecret: string;
-  model: Omit<ModelProxyDeps, "reservations">;
+  model: Omit<ModelProxyDeps, "reservations" | "operations">;
 }
 
 function readBearer(authorization: string | undefined): string {
@@ -99,7 +99,7 @@ export function createRunApiHandler(deps: RunApiHandlerDeps) {
         await assertCurrentEpoch(stores, session);
         if (session.finishedAt !== null) throw new RunApiFailure("lease_lost", "This run has ended.");
         if (session.storageWait) throw new RunApiFailure("lease_lost", "This device released its claim to wait for storage.");
-        const result = await proxyModelRequest(session, input.body as RunApiModelRequest, { ...deps.model, reservations: stores.reservations }, input.signal);
+        const result = await proxyModelRequest(session, input.body as RunApiModelRequest, { ...deps.model, reservations: stores.reservations, operations: stores.operations }, input.signal);
         return { status: 200, body: result };
       } catch (error) {
         return errorReply(error);

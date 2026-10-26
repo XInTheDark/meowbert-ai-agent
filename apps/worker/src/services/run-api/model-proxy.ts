@@ -3,8 +3,9 @@ import type { ModelUsageCounts, RunApiModelRequest, RunApiModelResponse } from "
 import { canonicalizeModelPayload } from "@meowbert/run-executor/agent/model";
 import { estimateContextTokens, estimateTokensFromText } from "@meowbert/run-executor/context-compaction/token-estimation";
 import type { RunApiSession, RunModelPolicy } from "./sessions.js";
-import type { UsageReservationStore } from "./stores.js";
+import type { RunOperationStore, UsageReservationStore } from "./stores.js";
 import { RunApiFailure } from "./failure.js";
+import { withModelOperation } from "./model-operations.js";
 
 const PURPOSES = new Set<RunApiModelRequest["purpose"]>(["turn", "compaction", "title", "web_search"]);
 
@@ -88,12 +89,13 @@ export function estimateMaximumUsage(request: RunApiModelRequest, policy: RunMod
 export interface ModelProxyDeps {
   withUserSlot?<T>(userId: string, signal: AbortSignal, run: (signal: AbortSignal) => Promise<T>): Promise<T>;
   reservations: UsageReservationStore;
+  operations: RunOperationStore;
   weighUsage(model: string, counts: ModelUsageCounts): Promise<number>;
   // Bills a request the executor walked away from, at its reserved maximum.
   chargeAbandoned(policy: RunModelPolicy, model: string, counts: ModelUsageCounts): Promise<void>;
 }
 
-async function forwardModelRequest(session: RunApiSession, request: RunApiModelRequest, policy: RunModelPolicy, deps: ModelProxyDeps, signal: AbortSignal): Promise<RunApiModelResponse> {
+async function forwardModelRequest(session: RunApiSession, request: RunApiModelRequest, policy: RunModelPolicy, deps: ModelProxyDeps, signal: AbortSignal, markStarted: () => void): Promise<RunApiModelResponse> {
   if (policy.validateTools) await policy.validateTools((request.body.tools ?? []) as Tool[], request.purpose);
   signal.throwIfAborted();
   const model = policy.model(request.purpose);
@@ -107,6 +109,7 @@ async function forwardModelRequest(session: RunApiSession, request: RunApiModelR
       reservationId = reservation.id;
     }
     signal.throwIfAborted();
+    markStarted();
     try {
       return await session.models.create({ purpose: request.purpose, body: request.body, signal, timeoutMs: request.timeoutMs,
         ...(request.headers ? { headers: request.headers } : {}),
@@ -127,14 +130,10 @@ export async function proxyModelRequest(
 ): Promise<RunApiModelResponse> {
   const policy = session.policy();
   validateModelRequest(request, policy);
-  if (session.modelRequestInFlight) throw new RunApiFailure("invalid_request", "Another model request for this run is in flight.");
-  session.modelRequestInFlight = true;
-  try {
-    const boundedSignal = AbortSignal.any([signal, AbortSignal.timeout(request.timeoutMs)]);
-    const create = (admittedSignal: AbortSignal) => forwardModelRequest(session, request, policy, deps, admittedSignal);
+  return withModelOperation(session, request, deps.operations, signal, async (operationSignal, markStarted) => {
+    const boundedSignal = AbortSignal.any([operationSignal, AbortSignal.timeout(request.timeoutMs)]);
+    const create = (admittedSignal: AbortSignal) => forwardModelRequest(session, request, policy, deps, admittedSignal, markStarted);
     return policy.requestUserId && deps.withUserSlot
       ? await deps.withUserSlot(policy.requestUserId, boundedSignal, create) : await create(boundedSignal);
-  } finally {
-    session.modelRequestInFlight = false;
-  }
+  });
 }

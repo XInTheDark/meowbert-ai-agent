@@ -3,6 +3,7 @@ import type { RunApiCallRequest, RunApiErrorBody, RunApiMethod } from "@meowbert
 import type { AppendRunMessageInput } from "@meowbert/run-executor/agent/ports/run-control";
 import { RUN_API_CALL_HANDLERS } from "./call-handlers.js";
 import { RunApiFailure } from "./failure.js";
+import { abortModelOperation } from "./model-operations.js";
 import { errorReply, storedReply, type RunApiReply } from "./replies.js";
 import type { RunApiSession } from "./sessions.js";
 import type { RunApiStores, StoredOperationResponse } from "./stores.js";
@@ -37,6 +38,7 @@ async function applyWrite(stores: RunApiStores, session: RunApiSession, method: 
     }
     session.finishedAt = Date.now();
     session.storageWait = true;
+    abortModelOperation(session);
     return { pending: true };
   }
   if (method === "control.appendMessage") await assertExtendsBranch(stores, session, request);
@@ -50,6 +52,7 @@ async function applyWrite(stores: RunApiStores, session: RunApiSession, method: 
   if (method === "control.selectBranch") session.leafMessageId = request.args[0] as string;
   if (method === "control.complete" || method === "control.fail") {
     session.finishedAt = Date.now();
+    abortModelOperation(session);
     await stores.leases.release({ runId: session.runId, epoch: session.epoch });
   }
   return result;

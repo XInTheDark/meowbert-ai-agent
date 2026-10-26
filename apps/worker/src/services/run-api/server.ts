@@ -7,7 +7,7 @@ import { streamModelReply } from "./model-stream.js";
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
 
 const CALL_ROUTE = /^\/runs\/([^/]+)\/call\/([a-zA-Z.]+)$/;
-const MODEL_ROUTE = /^\/runs\/([^/]+)\/model\/responses$/;
+const MODEL_ROUTE = /^\/runs\/([^/]+)\/model\/responses(?:\/replay)?$/;
 const CLAIM_ROUTE = /^\/runs\/([^/]+)\/claim$/;
 
 class BodyTooLargeError extends Error {}
@@ -55,7 +55,7 @@ async function route(handler: RunApiHandler, request: http.IncomingMessage, resp
   if (call) {
     return handler.call({ runId: decodeURIComponent(call[1]), method: call[2], authorization, body });
   }
-  // The upstream request stops when the executor goes away mid-request.
+  // A disconnect detaches this waiter. The operation allows a brief reconnect before aborting.
   const controller = new AbortController();
   response.on("close", () => {
     if (!response.writableEnded) controller.abort(new Error("RUN_API_CLIENT_DISCONNECTED"));

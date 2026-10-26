@@ -103,6 +103,63 @@ afterEach(async () => {
 });
 
 describe("Run API retries", () => {
+  it.each(["pending", "completed"])("recovers a lost %s model response without repeating or double billing provider work", async (state) => {
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => { finish = resolve; });
+    const result = { response: { output: [] } as never, weightedTokens: 42 };
+    const models: ModelGateway = {
+      create: vi.fn(async () => { if (state === "pending") await gate; return result; }),
+      isQuotaExceeded: vi.fn(async () => false)
+    };
+    const { token } = await claim({ models });
+    const reserve = vi.spyOn(harness.memory.stores.reservations, "reserve");
+    const release = vi.spyOn(harness.memory.stores.reservations, "release");
+    let calls = 0;
+    const unreliable: typeof fetch = async (url, init) => {
+      calls += 1;
+      const response = await fetch(url, init);
+      if (calls === 1) {
+        await vi.waitFor(() => expect(models.create).toHaveBeenCalledOnce());
+        if (state === "completed") await response.text();
+        else await response.body!.cancel();
+        throw new TypeError("terminated");
+      }
+      finish();
+      return response;
+    };
+    try {
+      const gateway = createProxyModelGateway(client(token, { fetch: unreliable }));
+      await expect(gateway.create({ purpose: "turn", body: { input: [], max_output_tokens: 100 }, timeoutMs: 2_000 }))
+        .resolves.toEqual(result);
+      expect(calls).toBe(2);
+      expect(models.create).toHaveBeenCalledOnce();
+      expect(reserve).toHaveBeenCalledOnce();
+      expect(release).toHaveBeenCalledOnce();
+      expect(harness.chargeAbandoned).not.toHaveBeenCalled();
+    } finally { finish(); }
+  });
+
+  it("aborts active provider work when the worker loses its run session", async () => {
+    let upstreamSignal: AbortSignal | undefined;
+    const models: ModelGateway = {
+      create: vi.fn(async (request) => {
+        upstreamSignal = request.signal;
+        await new Promise<never>((_resolve, reject) => request.signal!.addEventListener("abort", () => reject(request.signal!.reason)));
+        return { response: { output: [] } as never, weightedTokens: 0 };
+      }),
+      isQuotaExceeded: vi.fn(async () => false)
+    };
+    const { token } = await claim({ models });
+    const pending = createProxyModelGateway(client(token)).create({ purpose: "turn", body: { input: [], max_output_tokens: 100 }, timeoutMs: 2_000 });
+    const outcome = expect(pending).rejects.toMatchObject({ code: "lease_lost" });
+    await vi.waitFor(() => expect(upstreamSignal).toBeDefined());
+    harness.sessions.remove(RUN_ID);
+    await outcome;
+    expect(upstreamSignal!.aborted).toBe(true);
+    expect(harness.chargeAbandoned).toHaveBeenCalledOnce();
+    expect(harness.memory.reservations.size).toBe(0);
+  });
+
   it.each(["control.complete", "control.fail"] as const)("retries a lost %s reply once and refuses new work after release", async (method) => {
     const { session, control, token } = await claim();
     const remote = client(token, { fetch: losingFirstResponse((url) => url.includes(method)) });

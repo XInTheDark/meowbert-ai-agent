@@ -25,7 +25,8 @@ import {
   normalizeTitleCandidate,
   parseToolArguments
 } from "./utils.js";
-import { parseMissingToolOutputCallId, resolveModelErrorAction } from "./model-error-actions.js";
+import { isModelSessionConflictError, isRecoverableModelInputError, isTerminalModelError, parseMissingToolOutputCallId, resolveModelErrorAction } from "./model-error-actions.js";
+import { resolveModelRequestSession } from "./model-request-session.js";
 import { normalizeProviderRequestInput } from "./provider-request-input.js";
 import { normalizeProviderRequestTools } from "./provider-request-tools.js";
 import { buildTaskDecisionContext } from "./task-decision-context.js";
@@ -244,7 +245,8 @@ export async function createModelResponseWithRetry(
   let cutOffCount = 0;
   let attempt = 0;
   const requestSessionId = input.requestSessionId ?? taskId;
-  const requestInput = { ...input, requestSessionId };
+  const affinityKey = input.sessionAffinityKey || input.promptCacheKey;
+  const requestInput = { ...input, ...resolveModelRequestSession(input.models, requestSessionId, affinityKey) };
   throwIfAborted(input.abortSignal);
 
   while (attempt <= MODEL_REQUEST_MAX_RETRIES) {
@@ -270,23 +272,28 @@ export async function createModelResponseWithRetry(
       }
 
       lastError = err instanceof Error ? err : new Error(String(err));
-      consecutiveErrorCount += 1;
+      consecutiveErrorCount = isRecoverableModelInputError(err) ? consecutiveErrorCount + 1 : 0;
       if (err instanceof ModelResponseCutOffError) {
         cutOffCount += 1;
       }
 
-      if (resolveModelErrorAction(lastError) !== null) {
+      if (resolveModelErrorAction(lastError) !== null || isTerminalModelError(err)) {
         throw lastError;
+      }
+
+      if (isModelSessionConflictError(err)) {
+        Object.assign(requestInput, resolveModelRequestSession(input.models, requestSessionId, affinityKey, true));
       }
 
       const isMissingToolOutput = parseMissingToolOutputCallId(lastError.message) !== null;
       if (
-        (consecutiveErrorCount >= MODEL_REQUEST_RECOVERY_ERROR_THRESHOLD || isMissingToolOutput)
+        attempt < MODEL_REQUEST_MAX_RETRIES
+        && (consecutiveErrorCount >= MODEL_REQUEST_RECOVERY_ERROR_THRESHOLD || isMissingToolOutput)
         && input.onConsecutiveErrorRecovery
         && await input.onConsecutiveErrorRecovery(lastError.message)
       ) {
         consecutiveErrorCount = 0;
-        attempt = 0;
+        attempt += 1;
         continue;
       }
 

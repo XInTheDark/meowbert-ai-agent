@@ -1,6 +1,7 @@
 import type { RunControl } from "@meowbert/run-executor/agent/ports/run-control";
 import type { ModelCallPurpose, ModelGateway } from "@meowbert/run-executor/agent/ports/model-gateway";
 import type { PlatformUsageBilling } from "@meowbert/shared";
+import { abortModelOperation } from "./model-operations.js";
 
 // What the model proxy needs to know about a run to bill and bound its requests.
 export interface RunModelPolicy {
@@ -48,16 +49,23 @@ export class RunApiSessions {
   }
 
   add(session: RunApiSession): void {
+    const previous = this.sessions.get(session.runId);
+    if (previous && previous !== session) abortModelOperation(previous);
     this.sessions.set(session.runId, session);
   }
 
   // Keeps answering retries for a while, then goes.
   markFinished(runId: string): void {
     const session = this.sessions.get(runId);
-    if (session && session.finishedAt === null) session.finishedAt = Date.now();
+    if (session && session.finishedAt === null) {
+      session.finishedAt = Date.now();
+      abortModelOperation(session);
+    }
   }
 
   remove(runId: string): void {
+    const session = this.sessions.get(runId);
+    if (session) abortModelOperation(session);
     this.sessions.delete(runId);
   }
 

@@ -20,7 +20,7 @@ async function forward(request: FastifyRequest, reply: FastifyReply, runId: stri
   try {
     const claims = verifyRunLease(request.headers.authorization, runId, config.security.jwtSecret);
     const holderUrl = await resolveRunLeaseHolderUrl(claims);
-    // A model request stops upstream when its executor disconnects.
+    // Detach the worker connection when the executor disconnects; it may rejoin its operation.
     const controller = new AbortController();
     reply.raw.on("close", () => {
       if (!reply.raw.writableEnded) controller.abort();
@@ -54,9 +54,11 @@ export const runApiRoutes: FastifyPluginAsync = async (fastify) => {
     return forward(request, reply, params.runId, `/runs/${params.runId}/call/${params.method}`);
   });
 
-  fastify.post("/api/runs/:runId/model/responses", { bodyLimit: RUN_API_BODY_LIMIT_BYTES }, async (request, reply) => {
-    const params = modelParams.parse(request.params);
-    return forward(request, reply, params.runId, `/runs/${params.runId}/model/responses`,
-      request.headers.accept === RUN_API_MODEL_STREAM_CONTENT_TYPE);
-  });
+  for (const suffix of ["", "/replay"]) {
+    fastify.post("/api/runs/:runId/model/responses" + suffix, { bodyLimit: RUN_API_BODY_LIMIT_BYTES }, async (request, reply) => {
+      const params = modelParams.parse(request.params);
+      return forward(request, reply, params.runId, `/runs/${params.runId}/model/responses${suffix}`,
+        request.headers.accept === RUN_API_MODEL_STREAM_CONTENT_TYPE);
+    });
+  }
 };

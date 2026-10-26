@@ -6,6 +6,7 @@ import type { TaskMessageRow } from "./types.js";
 const RECOVERY_NOTICE_PREFIX = "[System: Recent request history was trimmed after a model-request error.]";
 const LEGACY_RECOVERY_NOTICE_PREFIX = "[System: A recent request item was removed after repeated model-request errors.]";
 import {
+  isRecoverableModelInputError,
   parseMissingToolOutput,
   parseMissingToolOutputCallId,
   type MissingToolOutputCallKind
@@ -202,6 +203,7 @@ export async function persistModelRequestRecovery(input: {
   getCurrentLeafMessageId: () => string | null;
   setCurrentLeafMessageId: (messageId: string) => void;
 }): Promise<boolean> {
+  if (!isRecoverableModelInputError(input.errorMessage)) return false;
   const missingToolOutput = parseMissingToolOutput(input.errorMessage);
   const hasReportedCall = missingToolOutput && input.conversationItems.some(
     (item) => isMatchingToolCall(item, missingToolOutput.callId)

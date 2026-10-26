@@ -10,10 +10,11 @@ vi.mock("../../lib/config.js", () => ({ config: { localExecution: { enabled: tru
 import { query } from "../../lib/db.js";
 import { runApiRoutes } from "./index.js";
 
-it("passes model keepalives through the public API before the worker returns a result", async () => {
+it.each(["", "/replay"])("passes model keepalives through the public API%s before the worker returns a result", async (suffix) => {
   let workerResponse!: http.ServerResponse;
   const worker = http.createServer((request, response) => {
     expect(request.headers.accept).toBe(RUN_API_MODEL_STREAM_CONTENT_TYPE);
+    expect(request.url).toBe("/runs/11111111-1111-4111-8111-111111111111/model/responses" + suffix);
     workerResponse = response;
     response.writeHead(200, { "content-type": RUN_API_MODEL_STREAM_CONTENT_TYPE });
     response.write('{"type":"heartbeat"}\n');
@@ -26,7 +27,7 @@ it("passes model keepalives through the public API before the worker returns a r
   try {
     const runId = "11111111-1111-4111-8111-111111111111";
     const token = signRunLeaseToken({ runId, taskId: "task", epoch: 1, holder: "device:desktop" }, "secret");
-    const response = await fetch(`http://127.0.0.1:${(app.server.address() as AddressInfo).port}/api/runs/${runId}/model/responses`, {
+    const response = await fetch(`http://127.0.0.1:${(app.server.address() as AddressInfo).port}/api/runs/${runId}/model/responses${suffix}`, {
       method: "POST", headers: { authorization: `Bearer ${token}`, accept: RUN_API_MODEL_STREAM_CONTENT_TYPE, "content-type": "application/json" },
       body: "{}", signal: AbortSignal.timeout(2_000)
     });

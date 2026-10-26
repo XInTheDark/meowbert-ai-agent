@@ -103,6 +103,10 @@ If a device reports **no matching manifest for linux/arm64**, the server-selecte
 
 Model requests use the server's configured providers and usage limits. Provider API keys and GitHub App signing keys stay on the server. Local execution does not provide an offline model.
 
+Brief model connection losses reconnect to the original request rather than starting another provider call. The worker allows five seconds to reconnect after provider work starts and retains completed results for retries. Cancellation and lease loss still stop active work. If the original result cannot be recovered, the task reports an unknown outcome instead of repeating the request. Connection failures do not remove conversation history.
+
+Update the API, worker and desktop app together to enable model request recovery. This recovery change uses the existing operation table and needs no additional database migration.
+
 Live Google Drive folders are a separate macOS feature for both Sandbox and Host mode, not a replacement for sharing a server-hosted workspace backend. They use the desktop app's bundled rclone and the built-in NFS client, without macFUSE. Sandbox mode binds only the attached folders into Docker Desktop and verifies file visibility and write access before execution. Windows does not support these mounts. After connection-specific consent, the device receives a credential with access to the connected user's **entire Drive**; choosing a folder does not narrow that credential. Disconnecting Drive revokes its refresh token at Google. See [Live Google Drive folders](/getting-started/desktop-app/live-drive-folders) for consent and revocation details.
 
 

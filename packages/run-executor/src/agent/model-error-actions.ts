@@ -60,6 +60,22 @@ export function resolveModelErrorAction(error: unknown): ModelErrorAction | null
   return null;
 }
 
+export function isModelSessionConflictError(error: unknown): boolean {
+  return /this session advanced while the request was waiting/i.test(collectErrorText(error).join("\n"));
+}
+
+export function isRecoverableModelInputError(error: unknown): boolean {
+  if (parseMissingToolOutput(error)) return true;
+  const text = collectErrorText(error).join("\n");
+  return /\b(?:invalid|malformed|corrupted?)\s+(?:image|base64|input|message|conversation|item)\b/i.test(text)
+    || /\b(?:image|base64|input|message|conversation|item)(?:\s+data)?\s+is\s+(?:invalid|malformed|corrupted?)\b/i.test(text);
+}
+
+export function isTerminalModelError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  return ["lease_lost", "outcome_unknown", "operation_conflict", "unauthorized", "quota_exceeded"].includes(String(error.code));
+}
+
 export type MissingToolOutputCallKind = "function_call" | "custom_tool_call" | "apply_patch_call";
 
 export interface MissingToolOutputCall {

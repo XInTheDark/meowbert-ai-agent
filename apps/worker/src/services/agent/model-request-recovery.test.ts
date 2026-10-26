@@ -21,6 +21,19 @@ describe("model request recovery", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["terminated", "connection reset by peer", "Another model request for this run is in flight.", "400 This session advanced while the request was waiting."])("never persists a history repair for %s", async (errorMessage) => {
+    const conversationItems = [{ role: "user", content: "Keep this request" }] as never[];
+    const runPersistedItems = [...conversationItems];
+    const setCurrentLeafMessageId = vi.fn();
+    await expect(persistModelRequestRecovery({
+      control: createTestRunControl({ taskId: "task" }), errorMessage, conversationItems, runPersistedItems,
+      getCurrentLeafMessageId: () => "leaf", setCurrentLeafMessageId
+    })).resolves.toBe(false);
+    expect(conversationItems).toEqual(runPersistedItems);
+    expect(mockedAppendMessage).not.toHaveBeenCalled();
+    expect(setCurrentLeafMessageId).not.toHaveBeenCalled();
+  });
+
   it("replaces recent items from the tail while retaining earlier recovery notices", () => {
     const output = {
       type: "function_call_output",

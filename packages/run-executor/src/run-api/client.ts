@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { readModelStream } from "./model-stream.js";
 import {
   RUN_API_MODEL_STREAM_CONTENT_TYPE,
@@ -36,11 +37,12 @@ export interface RunApiClientOptions {
 
 export interface RunApiClient {
   call(method: RunApiMethod, args: unknown[], extra?: Pick<RunApiCallRequest, "expectedLeafId" | "seq">): Promise<unknown>;
-  // Never retried: a model request that may have reached the provider is not sent twice.
+  // Transport retries rejoin the same durable operation; they never repeat provider work.
   model(request: Omit<RunApiModelRequest, "operationId">, signal?: AbortSignal): Promise<RunApiModelResponse>;
 }
 
 const DEFAULT_RETRY_DELAYS_MS = [250, 1_000, 3_000, 6_000];
+const MODEL_RETRY_DELAYS_MS = [250, 1_000, 3_000];
 
 function isRetryableStatus(status: number): boolean {
   return status === 502 || status === 503 || status === 504;
@@ -56,8 +58,20 @@ async function readError(response: Response): Promise<RunApiError> {
   );
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return delay(ms, undefined, { signal });
+}
+
+async function readModelResult(response: Response): Promise<RunApiModelResponse> {
+  if (!response.ok) throw await readError(response);
+  if (response.headers.get("content-type")?.split(";")[0] === RUN_API_MODEL_STREAM_CONTENT_TYPE) {
+    const result = await readModelStream(response);
+    if (result.status < 200 || result.status >= 300) {
+      throw await readError(Response.json(result.body, { status: result.status }));
+    }
+    return result.body as RunApiModelResponse;
+  }
+  return await response.json() as RunApiModelResponse;
 }
 
 export function createRunApiClient(options: RunApiClientOptions): RunApiClient {
@@ -70,7 +84,7 @@ export function createRunApiClient(options: RunApiClientOptions): RunApiClient {
     const signals = [signal, options.signal].filter((value): value is AbortSignal => value !== undefined);
     if (path.startsWith("/call/") && options.requestTimeoutMs) signals.push(AbortSignal.timeout(options.requestTimeoutMs));
     return fetchImpl(runUrl + path, { method: "POST",
-      headers: { ...headers, ...(path === "/model/responses" ? { accept: RUN_API_MODEL_STREAM_CONTENT_TYPE } : {}) },
+      headers: { ...headers, ...(path.startsWith("/model/responses") ? { accept: RUN_API_MODEL_STREAM_CONTENT_TYPE } : {}) },
       body: JSON.stringify(body), signal: signals.length ? AbortSignal.any(signals) : undefined });
   }
 
@@ -104,16 +118,31 @@ export function createRunApiClient(options: RunApiClientOptions): RunApiClient {
       throw lastError instanceof Error ? lastError : new Error(`Run API call ${method} failed.`);
     },
     async model(request, signal) {
-      const response = await post("/model/responses", { ...request, operationId: randomUUID() }, signal);
-      if (!response.ok) throw await readError(response);
-      if (response.headers.get("content-type")?.split(";")[0] === RUN_API_MODEL_STREAM_CONTENT_TYPE) {
-        const result = await readModelStream(response);
-        if (result.status < 200 || result.status >= 300) {
-          throw await readError(Response.json(result.body, { status: result.status }));
+      const operation = { ...request, operationId: randomUUID() };
+      const retries = options.retryDelaysMs ?? MODEL_RETRY_DELAYS_MS;
+      const signals = [signal, options.signal, AbortSignal.timeout(request.timeoutMs + 30_000)]
+        .filter((value): value is AbortSignal => value !== undefined);
+      const boundedSignal = AbortSignal.any(signals);
+      let lastError: unknown;
+      for (let attempt = 0; attempt <= retries.length; attempt += 1) {
+        try {
+          boundedSignal.throwIfAborted();
+          if (attempt > 0) await sleep(retries[attempt - 1], boundedSignal);
+          // Older servers do not expose replay: a retry must never start duplicate work there.
+          const response = await post(attempt === 0 ? "/model/responses" : "/model/responses/replay", operation, boundedSignal);
+          if (attempt > 0 && response.status === 404) break;
+          if (isRetryableStatus(response.status)) { lastError = await readError(response); continue; }
+          return await readModelResult(response);
+        } catch (error) {
+          if (signal?.aborted) throw signal.reason;
+          if (options.signal?.aborted) throw options.signal.reason;
+          if (error instanceof RunApiError) throw error;
+          lastError = error;
+          if (boundedSignal.aborted) break;
         }
-        return result.body as RunApiModelResponse;
       }
-      return (await response.json()) as RunApiModelResponse;
+      throw new RunApiError("outcome_unknown", "The model response could not be recovered; the original request will not be repeated."
+        + (lastError instanceof Error ? " " + lastError.message : ""), 409);
     }
   };
 }
