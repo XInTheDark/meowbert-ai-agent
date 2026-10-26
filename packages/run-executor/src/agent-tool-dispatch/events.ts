@@ -17,18 +17,27 @@ export interface BuiltinToolExecution {
   interruptible: boolean;
 }
 
+// Each append reads the leaf and moves it, so parallel tool calls inside exec take turns here;
+// otherwise two messages share a parent and one falls off the selected branch.
+const toolMessageQueues = new WeakMap<object, Promise<void>>();
+
 export async function appendToolMessage(
   ctx: ToolDispatchContext,
   payload: Record<string, unknown>
 ): Promise<void> {
   const content = ctx.codeModeParentCallId ? { ...payload, code_mode_parent_call_id: ctx.codeModeParentCallId } : payload;
-  const messageId = await ctx.control.appendMessage({
-    role: "tool",
-    content,
-    parentMessageId: ctx.getCurrentLeafMessageId()
-  });
-  ctx.setCurrentLeafMessageId(messageId);
-  await ctx.control.selectBranch(messageId);
+  const append = async () => {
+    const messageId = await ctx.control.appendMessage({
+      role: "tool",
+      content,
+      parentMessageId: ctx.getCurrentLeafMessageId()
+    });
+    ctx.setCurrentLeafMessageId(messageId);
+    await ctx.control.selectBranch(messageId);
+  };
+  const queued = (toolMessageQueues.get(ctx.control) ?? Promise.resolve()).then(append);
+  toolMessageQueues.set(ctx.control, queued.catch(() => undefined));
+  await queued;
 }
 
 export async function startBuiltinToolExecution(

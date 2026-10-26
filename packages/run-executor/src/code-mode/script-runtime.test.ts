@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runCodeModeScript } from "./script-runtime.js";
+import { MAX_PARALLEL_TOOL_CALLS, runCodeModeScript } from "./script-runtime.js";
 
 function echoTools() {
   const calls: Array<{ name: string; args: unknown }> = [];
@@ -31,24 +31,45 @@ describe("runCodeModeScript", () => {
     expect(result.logs).toBe("checked a.txt.bak {\n  \"ok\": true\n}");
   });
 
-  it("runs tool calls one at a time even when the script starts them together", async () => {
+  it("runs tool calls the script starts together in parallel, up to the limit", async () => {
     let running = 0;
     let maxRunning = 0;
+    const count = MAX_PARALLEL_TOOL_CALLS + 4;
     const result = await runCodeModeScript({
-      code: "return (await Promise.all([1, 2, 3].map((n) => tools.step({ n })))).length;",
+      code: `return (await Promise.all(Array.from({ length: ${count} }, (_, n) => tools.step({ n })))).map((out) => out.n);`,
       toolNames: ["step"],
-      callTool: async () => {
+      callTool: async (_name, args) => {
         running += 1;
         maxRunning = Math.max(maxRunning, running);
         await new Promise((resolve) => setTimeout(resolve, 5));
         running -= 1;
-        return {};
+        return args;
       },
       timeoutMs: 5_000
     });
 
-    expect(result.result).toBe(3);
-    expect(maxRunning).toBe(1);
+    expect(result.result).toEqual(Array.from({ length: count }, (_, n) => n));
+    expect(maxRunning).toBe(MAX_PARALLEL_TOOL_CALLS);
+  });
+
+  it("waits for every parallel call in flight and skips queued ones on timeout", async () => {
+    let started = 0;
+    let finished = 0;
+    const result = await runCodeModeScript({
+      code: `await Promise.all(Array.from({ length: ${MAX_PARALLEL_TOOL_CALLS + 2} }, () => tools.slow({})));`,
+      toolNames: ["slow"],
+      callTool: async () => {
+        started += 1;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        finished += 1;
+        return {};
+      },
+      timeoutMs: 100
+    });
+
+    expect(result.timedOut).toBe(true);
+    expect(started).toBe(MAX_PARALLEL_TOOL_CALLS);
+    expect(finished).toBe(MAX_PARALLEL_TOOL_CALLS);
   });
 
   it("lets the script catch a failed tool call", async () => {

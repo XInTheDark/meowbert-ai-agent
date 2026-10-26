@@ -10,11 +10,13 @@ import { SEARCH_TOOLS_TOOL_NAME } from "./search-tools-tool.js";
 const SCRIPT_MEMORY_LIMIT_BYTES = 64 * 1024 * 1024;
 const SCRIPT_MAX_STACK_BYTES = 1024 * 1024;
 const MAX_LOG_CHARS = 1_000_000;
+export const MAX_PARALLEL_TOOL_CALLS = 8;
 
 export interface CodeModeScriptInput {
   code: string;
   toolNames: string[];
-  // Runs one tool call and resolves to its JSON-serializable result. Calls never overlap.
+  // Runs one tool call and resolves to its JSON-serializable result. Up to
+  // MAX_PARALLEL_TOOL_CALLS calls may run at once.
   callTool: (name: string, args: unknown) => Promise<unknown>;
   timeoutMs: number;
   signal?: AbortSignal;
@@ -80,7 +82,8 @@ class ScriptHost {
   private readonly logParts: string[] = [];
   private logChars = 0;
   private droppedLogChars = 0;
-  private queue: Promise<void> = Promise.resolve();
+  private readonly inFlight = new Set<Promise<void>>();
+  private readonly waiting: Array<() => void> = [];
   private disposed = false;
   private stopped = false;
 
@@ -111,10 +114,11 @@ class ScriptHost {
     }).consume((fn) => this.context.setProp(this.context.global, "__hostCallTool", fn));
   }
 
-  // Stops new tool calls and waits for the one in flight, so nothing runs after the script ends.
+  // Stops new tool calls and waits for those in flight, so nothing runs after the script ends.
   async stop(): Promise<void> {
     this.stopped = true;
-    await this.queue;
+    this.waiting.splice(0).forEach((start) => start());
+    await Promise.all(this.inFlight);
   }
 
   markDisposed(): void {
@@ -136,7 +140,7 @@ class ScriptHost {
   }
 
   private enqueueCall(name: string, argsJson: string, settle: (resultJson: string, error: string | null) => void): void {
-    this.queue = this.queue.then(async () => {
+    const run = async () => {
       if (this.stopped) {
         settle("", "exec stopped before this tool call could run.");
         return;
@@ -147,7 +151,16 @@ class ScriptHost {
       } catch (error) {
         settle("", error instanceof Error ? error.message : String(error));
       }
-    });
+    };
+    const start = () => {
+      const call = run().finally(() => {
+        this.inFlight.delete(call);
+        this.waiting.shift()?.();
+      });
+      this.inFlight.add(call);
+    };
+    if (this.inFlight.size < MAX_PARALLEL_TOOL_CALLS) start();
+    else this.waiting.push(start);
   }
 }
 
