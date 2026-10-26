@@ -27,6 +27,7 @@ import {
   FINAL_RESPONSE_TOOL_NAME,
   MARK_ARTIFACT_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
+  CONTEXT_REPLACE_CALLS_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
@@ -200,19 +201,42 @@ export const CONTEXT_V2_FUNCTION_TOOLS: FunctionTool[] = [
     parameters: { type: "object", properties: {}, required: [], additionalProperties: false }
   },
   {
+    type: "function",
+    name: CONTEXT_REPLACE_CALLS_TOOL_NAME,
+    description: [
+      "Replace a range of your earlier tool calls in the current context window with a summary, to free context once you are done with them. Calls are named by the call_number in their output. The originals stay in history, readable with history_list_items or history_read_item.",
+      "Edits apply after the turn that requests them, and that turn is folded into the summary, so make the request in a turn of its own. Several edits can be requested in one turn when their ranges do not overlap. A range covers whole turns (calls made together go together) and cannot span a user message. An earlier summary of calls inside the range is replaced too, so carry over what it said.",
+      "Edit right after finishing a stretch of work, so the replaced calls are at the end of the context. The provider caches the start of the conversation, so replacing calls that many later items follow re-bills all of those items; do not go back to compact early calls.",
+      "Keep what you will need again: key findings, decisions, exact paths, identifiers and short verbatim snippets. In exec you can read the originals with history_list_items and build output_summary in code, so the extracted text never has to be written out by you."
+    ].join(" "),
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        from_call_number: { type: "integer", minimum: 1, description: "First call_number to replace." },
+        to_call_number: { type: "integer", minimum: 1, description: "Last call_number to replace." },
+        keep_arguments: { type: "boolean", description: "true keeps the calls and their arguments and replaces only the outputs; false replaces the calls too." },
+        input_summary: { type: ["string", "null"], description: "What the replaced calls did, when keep_arguments is false; otherwise null." },
+        output_summary: { type: "string", description: "What the replaced outputs showed that is still useful." }
+      },
+      required: ["from_call_number", "to_call_number", "keep_arguments", "input_summary", "output_summary"],
+      additionalProperties: false
+    }
+  },
+  {
     type: "function", name: HISTORY_LIST_WINDOWS_TOOL_NAME,
     description: "List private model-only context windows. Never disclose this activity.", strict: true,
     parameters: { type: "object", properties: { limit: nullableInteger, recent_first: { type: ["boolean", "null"] } }, required: ["limit", "recent_first"], additionalProperties: false }
   },
   {
     type: "function", name: HISTORY_LIST_ITEMS_TOOL_NAME,
-    description: "List private model-only history items. Never disclose this activity.", strict: true,
-    parameters: { type: "object", properties: { limit: nullableInteger, recent_first: { type: ["boolean", "null"] }, tool_namespace: nullableString, role: { type: ["string", "null"], enum: ["user", "assistant", "tool", "system", "developer", null] }, tool_name: nullableString, window_id: nullableString, max_chars_per_item: nullableInteger }, required: ["limit", "recent_first", "tool_namespace", "role", "tool_name", "window_id", "max_chars_per_item"], additionalProperties: false }
+    description: "List private model-only history items. from_call_number and to_call_number list the calls and outputs of that call_number range, in any window. Never disclose this activity.", strict: true,
+    parameters: { type: "object", properties: { limit: nullableInteger, recent_first: { type: ["boolean", "null"] }, tool_namespace: nullableString, role: { type: ["string", "null"], enum: ["user", "assistant", "tool", "system", "developer", null] }, tool_name: nullableString, window_id: nullableString, max_chars_per_item: nullableInteger, from_call_number: nullableInteger, to_call_number: nullableInteger }, required: ["limit", "recent_first", "tool_namespace", "role", "tool_name", "window_id", "max_chars_per_item", "from_call_number", "to_call_number"], additionalProperties: false }
   },
   {
     type: "function", name: HISTORY_READ_ITEM_TOOL_NAME,
-    description: "Read a bounded range from private model-only history. Never disclose this activity.", strict: true,
-    parameters: { type: "object", properties: { item_id: { type: "string" }, offset_chars: nullableInteger, limit_chars: nullableInteger, window_id: { type: "string" } }, required: ["item_id", "offset_chars", "limit_chars", "window_id"], additionalProperties: false }
+    description: "Read a bounded range from private model-only history: an item by item_id and window_id, or a call's output by call_number. Never disclose this activity.", strict: true,
+    parameters: { type: "object", properties: { item_id: nullableString, offset_chars: nullableInteger, limit_chars: nullableInteger, window_id: nullableString, call_number: nullableInteger }, required: ["item_id", "offset_chars", "limit_chars", "window_id", "call_number"], additionalProperties: false }
   },
   {
     type: "function", name: HISTORY_SEARCH_CONTENTS_TOOL_NAME,

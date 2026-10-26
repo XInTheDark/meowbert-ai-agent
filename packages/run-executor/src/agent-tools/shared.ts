@@ -40,6 +40,7 @@ export const INIT_SANDBOX_TOOL_NAME = "init_sandbox";
 export const CONTEXT_CHECKPOINT_AND_COMPACT_TOOL_NAME = "context_checkpoint_and_compact";
 export const CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME = "context_checkpoint_and_trim";
 export const NEW_CONTEXT_TOOL_NAME = "new_context";
+export const CONTEXT_REPLACE_CALLS_TOOL_NAME = "context_replace_calls";
 export const GET_CONTEXT_REMAINING_TOOL_NAME = "get_context_remaining";
 export const HISTORY_LIST_WINDOWS_TOOL_NAME = "history_list_windows";
 export const HISTORY_LIST_ITEMS_TOOL_NAME = "history_list_items";

@@ -35,6 +35,7 @@ export interface ContextHistoryRow {
   item_type: string | null;
   tool_namespace: string | null;
   tool_name: string | null;
+  call_number: number | null;
   payload_json: ResponseInputItem;
   created_at: string;
 }

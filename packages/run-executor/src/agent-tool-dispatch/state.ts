@@ -64,24 +64,27 @@ export function prepareToolOutputForModel(toolName: string, output: unknown): un
   return preparedOutput;
 }
 
-export function serializeToolOutput(output: unknown, state?: ToolDispatchState): string {
+// `callId` adds the call's number as the first key; see context-management-v2/call-numbers.ts.
+export function serializeToolOutput(output: unknown, state?: ToolDispatchState, callId?: string): string {
   if (!state) {
     return JSON.stringify(output);
   }
 
+  const callNumber = callId ? state.callNumbers?.get(callId) : undefined;
+  const numbered = callNumber === undefined ? {} : { call_number: callNumber };
   const context = buildContextNotice(state);
   if (typeof output === "object" && output !== null && !Array.isArray(output)) {
     const outputRecord = output as Record<string, unknown>;
     if (!("context" in outputRecord)) {
-      return JSON.stringify({ ...outputRecord, context });
+      return JSON.stringify({ ...numbered, ...outputRecord, context });
     }
   }
 
-  return JSON.stringify({ result: output, context });
+  return JSON.stringify({ ...numbered, result: output, context });
 }
 
-export function serializeTextToolOutput(output: string, state: ToolDispatchState): string {
-  return serializeToolOutput(output, state);
+export function serializeTextToolOutput(output: string, state: ToolDispatchState, callId?: string): string {
+  return serializeToolOutput(output, state, callId);
 }
 
 function record(state: ToolDispatchState, items: ResponseInputItem[]): ResponseInputItem[] {
@@ -100,7 +103,7 @@ export function recordFunctionCallResult(
   const outputItem: ResponseInputItem = {
     type: "function_call_output",
     call_id: callId,
-    output: serializeToolOutput(prepareToolOutputForModel(toolName, result.output), state)
+    output: serializeToolOutput(prepareToolOutputForModel(toolName, result.output), state, callId)
   };
   return record(state, [outputItem, ...(result.shownItems ?? [])]);
 }
@@ -109,7 +112,7 @@ export function recordCustomToolCallOutput(state: ToolDispatchState, callId: str
   return record(state, [{
     type: "custom_tool_call_output",
     call_id: callId,
-    output: serializeTextToolOutput(output, state)
+    output: serializeTextToolOutput(output, state, callId)
   } as ResponseInputItem]);
 }
 
@@ -119,7 +122,7 @@ export function recordApplyPatchCallOutput(
   output: string,
   status: "completed" | "failed"
 ): ResponseInputItem[] {
-  return record(state, [createApplyPatchCallOutput(callId, status, serializeTextToolOutput(output, state))]);
+  return record(state, [createApplyPatchCallOutput(callId, status, serializeTextToolOutput(output, state, callId))]);
 }
 
 export function hasCustomToolOutput(state: ToolDispatchState, callId: string): boolean {

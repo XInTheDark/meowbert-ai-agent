@@ -201,6 +201,14 @@ export async function loadWindowItems(taskId: string, windowId: string): Promise
   return result.rows.map((row) => row.payload_json);
 }
 
+export async function loadLastCallNumber(taskId: string): Promise<number> {
+  const result = await query<{ call_number: number | null }>(
+    "SELECT MAX(call_number) AS call_number FROM task_context_history_items WHERE task_id = $1",
+    [taskId]
+  );
+  return result.rows[0]?.call_number ?? 0;
+}
+
 export async function recordContextHistoryRecords(
   state: ContextWindowRef,
   records: ContextHistoryRecord[]
@@ -221,15 +229,15 @@ export async function recordContextHistoryRecords(
     const flushBatch = async (): Promise<void> => {
       if (batch.length === 0) return;
       await client.query(
-        `INSERT INTO task_context_history_items (id, task_id, window_id, context_node_id, ordinal, role, item_type, tool_namespace, tool_name, payload_json)
-         SELECT item.id::uuid, $1::uuid, $2::uuid, $3::uuid, item.ordinal, item.role, item.item_type, item.tool_namespace, item.tool_name, item.payload_json
-           FROM jsonb_to_recordset($4::jsonb) AS item(id text, ordinal integer, role text, item_type text, tool_namespace text, tool_name text, payload_json jsonb)`,
+        `INSERT INTO task_context_history_items (id, task_id, window_id, context_node_id, ordinal, role, item_type, tool_namespace, tool_name, call_number, payload_json)
+         SELECT item.id::uuid, $1::uuid, $2::uuid, $3::uuid, item.ordinal, item.role, item.item_type, item.tool_namespace, item.tool_name, item.call_number, item.payload_json
+           FROM jsonb_to_recordset($4::jsonb) AS item(id text, ordinal integer, role text, item_type text, tool_namespace text, tool_name text, call_number integer, payload_json jsonb)`,
         [state.taskId, state.windowId, state.contextNodeId, `[${batch.join(",")}]`]
       );
       batch = [];
       batchBytes = 2;
     };
-    for (const { id, item } of records) {
+    for (const { id, item, callNumber } of records) {
       ordinal += 1;
       const metadata = getHistoryMetadata(item);
       const row = JSON.stringify({
@@ -239,6 +247,7 @@ export async function recordContextHistoryRecords(
         item_type: metadata.itemType,
         tool_namespace: metadata.toolNamespace,
         tool_name: metadata.toolName,
+        call_number: callNumber ?? null,
         payload_json: item
       });
       const rowBytes = Buffer.byteLength(row, "utf8") + (batch.length > 0 ? 1 : 0);

@@ -12,6 +12,7 @@ import type { WorkspaceImageDetail } from "../workspaces/workspace-model-setting
 import type { LoadedWorkflowRunContext } from "../task-workflows/context-types.js";
 import type { ContextManagementV2State } from "../context-management-v2/types.js";
 import type { ContextWindowUsage } from "../context-management-v2/token-usage.js";
+import type { ContextEditRequest } from "../context-management-v2/context-edits.js";
 import type { RunControl } from "../agent/ports/run-control.js";
 import type { ExecutorSettings } from "../agent/ports/executor-settings.js";
 import type { RunFeatures } from "../agent/ports/run-features.js";
@@ -139,6 +140,11 @@ export interface ToolDispatchState {
       }
     | null;
   pendingContextV2Reset?: boolean;
+  // V2 call numbers assigned in this run, by provider call id, and the highest number in use.
+  callNumbers?: Map<string, number>;
+  lastCallNumber?: number;
+  // Context edits requested this turn, applied together at the turn boundary.
+  pendingContextEdits?: ContextEditRequest[];
 }
 
 export interface ToolDispatchResult {

@@ -17,8 +17,10 @@ describe("buildCodeModeToolSet", () => {
     const directNames = responseTools.map(toolName);
     const nestedNames = nestedTools.map((tool) => tool.name);
 
-    expect(directNames).toEqual(expect.arrayContaining(["final_response", "wait", "new_context", "enable_skill", "web_search", "exec"]));
+    expect(directNames).toEqual(expect.arrayContaining(["final_response", "wait", "new_context", "notes_write_file", "enable_skill", "web_search", "exec"]));
     expect(nestedNames).toEqual(expect.arrayContaining(["run_shell", "memory_search", "spawn_subagent", "view_image", "view_pdf_file"]));
+    // A script reads earlier outputs and replaces them without the model writing them out.
+    expect(nestedNames).toEqual(expect.arrayContaining(["history_list_items", "history_read_item", "context_replace_calls"]));
     expect(directNames.filter((name) => nestedNames.includes(name))).toEqual([]);
     expect(responseTools.length + nestedTools.length).toBe(tools.length + 2);
     expect(directNames).toContain("search_tools");
@@ -72,6 +74,12 @@ describe("buildCodeModeToolSet", () => {
     const runShell = buildResponseTools(options, [], {}).filter((tool) => toolName(tool) === "run_shell");
 
     expect(buildCodeModeToolSet(runShell, 600).responseTools.map(toolName)).toEqual(["exec", "search_tools"]);
+  });
+
+  it("keeps only note writes direct while a checkpoint note is due", () => {
+    const tools = buildResponseTools(options, [], { contextManagementVersion: "v2", contextRecoveryPhase: "needs_note" });
+
+    expect(buildCodeModeToolSet(tools, 600)).toEqual({ responseTools: tools, nestedTools: [] });
   });
 
   it("leaves the tool list alone when nothing can move behind exec", () => {

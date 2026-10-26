@@ -118,13 +118,26 @@ export const historyListItemsArgumentsSchema = z.object({
   role: z.enum(["user", "assistant", "tool", "system", "developer"]).nullable(),
   tool_name: z.string().nullable(),
   window_id: z.string().uuid().nullable(),
-  max_chars_per_item: z.number().int().min(1).max(100_000).nullable()
+  max_chars_per_item: z.number().int().min(1).max(100_000).nullable(),
+  from_call_number: z.number().int().min(1).nullable(),
+  to_call_number: z.number().int().min(1).nullable()
 }).strict();
 export const historyReadItemArgumentsSchema = z.object({
-  item_id: z.string().uuid(),
+  item_id: z.string().uuid().nullable(),
   offset_chars: z.number().int().min(0).nullable(),
   limit_chars: z.number().int().min(1).max(100_000).nullable(),
-  window_id: z.string().uuid()
+  window_id: z.string().uuid().nullable(),
+  call_number: z.number().int().min(1).nullable()
+}).strict().refine(
+  (value) => value.call_number !== null || (value.item_id !== null && value.window_id !== null),
+  "Pass call_number, or item_id with window_id."
+);
+export const contextReplaceCallsArgumentsSchema = z.object({
+  from_call_number: z.number().int().min(1),
+  to_call_number: z.number().int().min(1),
+  keep_arguments: z.boolean(),
+  input_summary: z.string().nullable(),
+  output_summary: z.string().min(1)
 }).strict();
 export const historySearchContentsArgumentsSchema = z.object({
   query: z.string().min(1),

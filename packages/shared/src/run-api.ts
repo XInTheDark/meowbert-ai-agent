@@ -24,6 +24,7 @@ export const RUN_API_READ_METHODS = [
   "control.loadConversationNavigation",
   "control.heartbeat",
   "context.loadWindowItems",
+  "context.loadLastCallNumber",
   "context.loadNotesSummary",
   "context.listWindows",
   "context.listItems",

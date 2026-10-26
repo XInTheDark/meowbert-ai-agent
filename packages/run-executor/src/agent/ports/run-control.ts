@@ -108,6 +108,7 @@ export interface OpenedContextWindow {
 export interface ContextHistoryRecord {
   id: string;
   item: ResponseInputItem;
+  callNumber?: number;
 }
 
 export interface ContextNotesSummary {
@@ -130,13 +131,25 @@ export interface RunContextStore {
   openWindow(branchLeafMessageId: string | null): Promise<OpenedContextWindow>;
   loadWindowItems(windowId: string): Promise<ResponseInputItem[]>;
   recordItems(window: ContextWindowRef, records: ContextHistoryRecord[]): Promise<void>;
+  // The highest call number recorded for the task, or 0.
+  loadLastCallNumber(): Promise<number>;
   loadNotesSummary(contextNodeId: string): Promise<ContextNotesSummary>;
   startNewWindow(window: ContextWindowRef, branchLeafMessageId: string | null, reason: string): Promise<{ windowId: string; contextNodeId: string }>;
   linkVisibleMessage(window: ContextWindowRef, visibleMessageId: string): Promise<string>;
   writeNote(window: ContextWindowRef, input: { path: string; text: string; append: boolean }): Promise<{ path: string; bytes: number }>;
   listWindows(window: ContextWindowRef, input: { limit?: number | null; recent_first?: boolean | null }): Promise<{ windows: Array<{ window_id: string; item_count: number }> }>;
-  listItems(window: ContextWindowRef, input: ContextHistoryFilter & { max_chars_per_item?: number | null }): Promise<{ items: ContextHistoryItemSummary[] }>;
-  readItem(window: ContextWindowRef, input: { window_id: string; item_id: string; offset_chars?: number | null; limit_chars?: number | null }): Promise<Record<string, unknown>>;
+  listItems(window: ContextWindowRef, input: ContextHistoryFilter & {
+    max_chars_per_item?: number | null;
+    from_call_number?: number | null;
+    to_call_number?: number | null;
+  }): Promise<{ items: ContextHistoryItemSummary[] }>;
+  readItem(window: ContextWindowRef, input: {
+    window_id?: string | null;
+    item_id?: string | null;
+    call_number?: number | null;
+    offset_chars?: number | null;
+    limit_chars?: number | null;
+  }): Promise<Record<string, unknown>>;
   searchHistory(window: ContextWindowRef, input: ContextHistoryFilter & { query: string }): Promise<{ items: ContextHistoryItemSummary[] }>;
   listNotes(window: ContextWindowRef, input: {
     prefix?: string | null;
@@ -149,6 +162,7 @@ export interface RunContextStore {
 
 export interface ContextHistoryItemSummary {
   item_id: string;
+  call_number?: number;
   role: string;
   tool_namespace: string | null;
   tool_name: string | null;

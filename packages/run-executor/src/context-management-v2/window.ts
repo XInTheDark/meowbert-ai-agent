@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { ContextHistoryRecord, RunContextStore } from "../agent/ports/run-control.js";
 import { mergeContextSeedItems } from "./history.js";
+import { getProviderCallId, readOutputCallNumber } from "./call-numbers.js";
+import { applyContextEdits } from "./context-edits.js";
 import { buildContextWindowPrompt, buildThreadHint, getContextBudgetPromptState } from "./prompts.js";
 import type { ContextManagementState, ContextManagementV2State } from "./types.js";
 
@@ -24,15 +26,23 @@ function addOpaqueItemMarker(item: ResponseInputItem, id: string): void {
 // Gives each item its history id and, unless `preserveItems` is set, appends the id marker the
 // agent uses to reference it. Markers are written into the items in place, so the live
 // conversation carries the same text that history stores.
+// `callNumbers` numbers tool calls recorded before their output; outputs carry their own number.
 export function prepareContextHistoryRecords(
   items: ResponseInputItem[],
-  options: { preserveItems?: boolean } = {}
+  options: RecordContextItemsOptions = {}
 ): ContextHistoryRecord[] {
   return items.map((item) => {
     const id = randomUUID();
     if (!options.preserveItems) addOpaqueItemMarker(item, id);
-    return { id, item };
+    const callId = getProviderCallId(item);
+    const callNumber = (callId ? options.callNumbers?.get(callId) : undefined) ?? readOutputCallNumber(item);
+    return { id, item, ...(callNumber !== null ? { callNumber } : {}) };
   });
+}
+
+interface RecordContextItemsOptions {
+  preserveItems?: boolean;
+  callNumbers?: ReadonlyMap<string, number>;
 }
 
 // `preserveItems` stores items exactly as given, without history id markers; a swarm lane's inherited
@@ -41,7 +51,7 @@ export async function recordContextItems(
   store: RunContextStore,
   state: ContextManagementV2State,
   items: ResponseInputItem[],
-  options: { preserveItems?: boolean } = {}
+  options: RecordContextItemsOptions = {}
 ): Promise<void> {
   if (items.length === 0) return;
   await store.recordItems(state, prepareContextHistoryRecords(items, options));
@@ -78,10 +88,11 @@ export async function resolveContextManagementState(store: RunContextStore, inpu
     return { state, conversationItems: [] };
   }
   const existing = await store.loadWindowItems(state.windowId);
+  // Seeds hold the original calls, so they are merged with the window's unedited history first.
   const merged = mergeContextSeedItems(existing, input.seedItems);
   Object.assign(state, getContextBudgetPromptState(merged.conversationItems));
   await recordContextItems(store, state, merged.newItems);
-  return { state, conversationItems: merged.conversationItems };
+  return { state, conversationItems: applyContextEdits(merged.conversationItems) };
 }
 
 export async function buildV2WindowDeveloperItems(store: RunContextStore, input: {

@@ -22,7 +22,7 @@ vi.mock("@meowbert/run-executor/agent-tool-dispatch/handlers/apply-patch", () =>
 
 import { GET_CONTEXT_REMAINING_TOOL_NAME } from "@meowbert/run-executor/agent-tools/index";
 import { dispatchResponseOutput } from "@meowbert/run-executor/agent-tool-dispatch/dispatch";
-import { createTestRunControl } from "../run-host/test-run-environment.test-fixtures.js";
+import { createFakeRunControl } from "../run-host/test-run-environment.test-fixtures.js";
 
 const contextManagementV2: ContextManagementV2State = {
   version: "v2",
@@ -47,7 +47,7 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
       commandStep: 0
     };
     const ctx = {
-      control: createTestRunControl(),
+      control: createFakeRunControl(),
       contextManagementV2,
       compatibilityModes: [],
       assertNotCancelled: async () => {}
@@ -77,7 +77,7 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
       commandStep: 0
     };
     const ctx = {
-      control: createTestRunControl(),
+      control: createFakeRunControl(),
       contextManagementV2,
       compatibilityModes: [],
       assertNotCancelled: async () => {}
@@ -113,7 +113,7 @@ describe("dispatchResponseOutput Context Management V2 persistence", () => {
       commandStep: 0
     };
     const ctx = {
-      control: createTestRunControl(),
+      control: createFakeRunControl(),
       contextManagementV2,
       compatibilityModes: [],
       assertNotCancelled: async () => {}

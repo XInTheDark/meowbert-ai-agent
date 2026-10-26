@@ -1,6 +1,8 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import {
   contextEmptyArgumentsSchema,
+  contextReplaceCallsArgumentsSchema,
+  CONTEXT_REPLACE_CALLS_TOOL_NAME,
   historyListItemsArgumentsSchema,
   historyListWindowsArgumentsSchema,
   historyReadItemArgumentsSchema,
@@ -22,12 +24,15 @@ import {
   NOTES_WRITE_FILE_TOOL_NAME
 } from "../../agent-tools/index.js";
 import { searchContextNotes } from "../../context-management-v2/window.js";
+import { validateContextEdit } from "../../context-management-v2/context-edits.js";
+import { EXEC_TOOL_NAME } from "../../code-mode/exec-tool.js";
 import { getContextWindowTokenStatus } from "../../context-management-v2/token-usage.js";
 import type { ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 
 const V2_TOOL_NAMES = new Set([
   NEW_CONTEXT_TOOL_NAME,
+  CONTEXT_REPLACE_CALLS_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
   HISTORY_LIST_WINDOWS_TOOL_NAME,
   HISTORY_LIST_ITEMS_TOOL_NAME,
@@ -42,6 +47,30 @@ const V2_TOOL_NAMES = new Set([
 
 export function isContextManagementV2Tool(name: string): boolean {
   return V2_TOOL_NAMES.has(name);
+}
+
+const CONTEXT_EDIT_REQUEST_TOOL_NAMES = new Set([EXEC_TOOL_NAME, CONTEXT_REPLACE_CALLS_TOOL_NAME]);
+
+// Queues the edit for the turn boundary; see context-management-v2/context-edits.ts.
+function queueContextEdit(call: ResponseFunctionToolCall, raw: unknown, ctx: ToolDispatchContext, state: ToolDispatchState): unknown {
+  const args = contextReplaceCallsArgumentsSchema.parse(raw);
+  const request = {
+    fromCallNumber: args.from_call_number,
+    toCallNumber: args.to_call_number,
+    keepArguments: args.keep_arguments,
+    inputSummary: args.input_summary,
+    outputSummary: args.output_summary
+  };
+  const pending = state.pendingContextEdits ?? [];
+  const error = validateContextEdit(state.conversationItems, request, {
+    knownCallNumbers: state.callNumbers,
+    requestingCallId: ctx.codeModeParentCallId ?? call.call_id,
+    allowedRequestToolNames: CONTEXT_EDIT_REQUEST_TOOL_NAMES,
+    pending
+  });
+  if (error) throw new Error(error);
+  state.pendingContextEdits = [...pending, request];
+  return { queued: true, note: "The calls are replaced once this turn ends." };
 }
 
 function parseArguments(call: ResponseFunctionToolCall): unknown {
@@ -71,6 +100,9 @@ export async function handleContextManagementV2Tool(
       state.pendingContextV2Reset = true;
       context.pendingReset = true;
       output = "A new context window will start without summarizing conversation history.";
+      break;
+    case CONTEXT_REPLACE_CALLS_TOOL_NAME:
+      output = queueContextEdit(call, raw, ctx, state);
       break;
     case GET_CONTEXT_REMAINING_TOOL_NAME:
       contextEmptyArgumentsSchema.parse(raw);

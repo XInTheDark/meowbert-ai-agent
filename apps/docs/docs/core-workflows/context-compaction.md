@@ -87,6 +87,23 @@ As the base context budget runs low, the agent receives a reminder to save progr
 
 By default, the base budget is 90% of the configured model context window, the reminder threshold is 6,144 remaining tokens, and the hard limit is 95%. A configured `auto_compact_token_limit` can lower the base budget; `effective_context_window_percent` changes the hard limit.
 
+### Replacing finished tool calls
+
+Within a window, the agent can also shrink its context without starting a new one. Every tool result it sees carries a `call_number`, counting up across the whole task. After finishing a stretch of work, such as exploring part of a codebase or reading a set of documents, the agent can replace that range of calls with a short summary of what it found:
+
+```
+Before:  call 10: read src/parser.ts → 4,000 lines
+         call 11: search for "tokenize" → 60 matches
+         call 12: read src/lexer.ts → 2,500 lines
+After:   summary of calls 10-12: "The bug is in parser.ts:212; lexer.ts is fine. Snippet: …"
+```
+
+It can keep the calls themselves and replace only their outputs, or replace both. The original calls stay in private history, so the agent can read them again if it needs exact details. Your task transcript always shows every call as it ran.
+
+In code mode, the agent can read earlier outputs with a script, pull out the exact snippets it needs, and pass them straight into the summary. The extracted text never has to be written out by the model, which saves tokens.
+
+Replacing calls works best for the calls the agent just made. Providers cache the start of the conversation, so replacing calls that many later messages follow makes the next request re-read all of those messages at full price. The agent is told to replace calls right after it finishes with them, not to go back and compact old ones. A summary cannot cover one of your messages, and it is only as complete as the agent writes it.
+
 The earlier V1 option uses checkpoint-and-compact and checkpoint-and-trim tools. These operate on the legacy compaction flow described above.
 
 The context notice in tool results reports exact API input-token usage for the request that produced the tool call. This reading is one request behind because the current tool result was not part of that completed request. V2 budget tracking and the remaining-token tool also include response output tokens and estimate locally added items after the latest model response, following Codex's total-context accounting approach. Before a provider usage sample is available, V2 estimates the prompt and history instead. These estimates are approximate; a large tool result or a provider context-overflow error can still force a new window before a checkpoint is saved.

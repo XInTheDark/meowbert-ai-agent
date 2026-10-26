@@ -43,7 +43,7 @@ describe("Context Management V2 tool calls", () => {
       contextUsage: { usedTokens: 64_000, maxContextTokens: 256_000, percent: 25 },
       commandStep: 0
     } as ToolDispatchState;
-    const control = { context: { writeNote: mocks.writeNote }, recordToolCallStart: async () => {}, recordToolCallResult: async () => {} };
+    const control = { context: { writeNote: mocks.writeNote, loadLastCallNumber: async () => 0 }, recordToolCallStart: async () => {}, recordToolCallResult: async () => {} };
     const ctx = { control, contextManagementV2, compatibilityModes: [], assertNotCancelled: async () => {} } as unknown as ToolDispatchContext;
 
     await dispatchResponseOutput([call], ctx, state);
@@ -52,6 +52,7 @@ describe("Context Management V2 tool calls", () => {
     expect(output).toMatchObject({ call_id: "call-1" });
     expect(mocks.recordContextItems).toHaveBeenLastCalledWith(control.context, contextManagementV2, [output]);
     expect(JSON.parse((output as { output: string }).output)).toEqual({
+      call_number: 1,
       updated: true,
       context: "Model request that produced this tool call: 64000 / 256000 tokens (25%)."
     });

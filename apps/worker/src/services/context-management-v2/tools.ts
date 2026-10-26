@@ -42,10 +42,12 @@ export async function listContextItems(state: ContextWindowRef, input: {
   tool_name?: string | null;
   window_id?: string | null;
   max_chars_per_item?: number | null;
+  from_call_number?: number | null;
+  to_call_number?: number | null;
 }) {
   const result = await query<ContextHistoryRow>(
     `${accessibleNodesCte(7)}
-     SELECT i.id, i.ordinal, i.role, i.item_type, i.tool_namespace, i.tool_name, i.payload_json, i.created_at
+     SELECT i.id, i.ordinal, i.role, i.item_type, i.tool_namespace, i.tool_name, i.call_number, i.payload_json, i.created_at
        FROM task_context_history_items i
        JOIN task_context_windows w ON w.id = i.window_id
        JOIN context_lineage ON context_lineage.id = i.context_node_id
@@ -54,14 +56,20 @@ export async function listContextItems(state: ContextWindowRef, input: {
         AND ($3::text IS NULL OR i.role = $3)
         AND ($4::text IS NULL OR i.tool_namespace = $4)
         AND ($5::text IS NULL OR i.tool_name = $5)
+        AND ($8::integer IS NULL OR i.call_number >= $8)
+        AND ($9::integer IS NULL OR i.call_number <= $9)
       ORDER BY w.ordinal ${input.recent_first ? "DESC" : "ASC"}, i.ordinal ${input.recent_first ? "DESC" : "ASC"}
       LIMIT $6`,
-    [state.taskId, input.window_id ?? null, input.role ?? null, input.tool_namespace ?? null, input.tool_name ?? null, limit(input.limit), state.contextNodeId]
+    [
+      state.taskId, input.window_id ?? null, input.role ?? null, input.tool_namespace ?? null, input.tool_name ?? null,
+      limit(input.limit), state.contextNodeId, input.from_call_number ?? null, input.to_call_number ?? null
+    ]
   );
   const maxChars = Math.min(100_000, Math.max(1, Math.floor(input.max_chars_per_item ?? 2_000)));
   return {
     items: result.rows.map((row) => ({
       item_id: row.id,
+      ...(row.call_number !== null ? { call_number: row.call_number } : {}),
       role: row.role,
       tool_namespace: row.tool_namespace,
       tool_name: row.tool_name,
@@ -70,26 +78,41 @@ export async function listContextItems(state: ContextWindowRef, input: {
   };
 }
 
+// By item id, or by call number, which reads that call's output.
 export async function readContextItem(state: ContextWindowRef, input: {
-  window_id: string;
-  item_id: string;
+  window_id?: string | null;
+  item_id?: string | null;
+  call_number?: number | null;
   offset_chars?: number | null;
   limit_chars?: number | null;
 }) {
+  const byCall = input.item_id ? null : input.call_number ?? null;
   const result = await query<ContextHistoryRow>(
     `${accessibleNodesCte(4)}
-     SELECT i.id, i.ordinal, i.role, i.item_type, i.tool_namespace, i.tool_name, i.payload_json, i.created_at
+     SELECT i.id, i.ordinal, i.role, i.item_type, i.tool_namespace, i.tool_name, i.call_number, i.payload_json, i.created_at
        FROM task_context_history_items i
        JOIN context_lineage ON context_lineage.id = i.context_node_id
-      WHERE i.task_id = $1 AND i.window_id = $2 AND i.id = $3`,
-    [state.taskId, input.window_id, input.item_id, state.contextNodeId]
+      WHERE i.task_id = $1
+        AND ($2::uuid IS NULL OR i.window_id = $2::uuid)
+        AND ($3::uuid IS NULL OR i.id = $3::uuid)
+        AND ($5::integer IS NULL OR (i.call_number = $5 AND i.role = 'tool'))
+        AND ($3::uuid IS NOT NULL OR $5::integer IS NOT NULL)
+      ORDER BY i.created_at DESC
+      LIMIT 1`,
+    [state.taskId, byCall === null ? input.window_id ?? null : null, input.item_id ?? null, state.contextNodeId, byCall]
   );
   const row = result.rows[0];
   if (!row) return { error: "History item was not found." };
   const text = itemText(row.payload_json);
   const offset = Math.max(0, Math.floor(input.offset_chars ?? 0));
   const length = Math.min(100_000, Math.max(1, Math.floor(input.limit_chars ?? 10_000)));
-  return { item_id: row.id, content: text.slice(offset, offset + length), offset_chars: offset, total_chars: text.length };
+  return {
+    item_id: row.id,
+    ...(row.call_number !== null ? { call_number: row.call_number } : {}),
+    content: text.slice(offset, offset + length),
+    offset_chars: offset,
+    total_chars: text.length
+  };
 }
 
 export async function searchContextHistory(state: ContextWindowRef, input: {
@@ -103,7 +126,7 @@ export async function searchContextHistory(state: ContextWindowRef, input: {
 }) {
   const result = await query<ContextHistoryRow>(
     `${accessibleNodesCte(7)}
-     SELECT i.id, i.ordinal, i.role, i.item_type, i.tool_namespace, i.tool_name, i.payload_json, i.created_at
+     SELECT i.id, i.ordinal, i.role, i.item_type, i.tool_namespace, i.tool_name, i.call_number, i.payload_json, i.created_at
        FROM task_context_history_items i
        JOIN task_context_windows w ON w.id = i.window_id
        JOIN context_lineage ON context_lineage.id = i.context_node_id
@@ -120,6 +143,7 @@ export async function searchContextHistory(state: ContextWindowRef, input: {
   return {
     items: result.rows.map((row) => ({
       item_id: row.id,
+      ...(row.call_number !== null ? { call_number: row.call_number } : {}),
       role: row.role,
       tool_namespace: row.tool_namespace,
       tool_name: row.tool_name,

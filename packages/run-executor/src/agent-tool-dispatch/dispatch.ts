@@ -108,6 +108,7 @@ import { toolErrorResult, type ToolCallResult } from "./tool-call-result.js";
 import { CUT_OFF_TOOL_CALL_ERROR, isCutOffFunctionCall } from "../agent/model-response-cut-off.js";
 import type { ToolDispatchContext, ToolDispatchResult, ToolDispatchState } from "./types.js";
 import { recordContextItems } from "../context-management-v2/window.js";
+import { getHighestCallNumber, getProviderCallId, isToolCallItem } from "../context-management-v2/call-numbers.js";
 import { trackRepeatedToolCall } from "./repeated-tool-calls.js";
 import { getErrorMessage } from "./utils.js";
 
@@ -125,6 +126,11 @@ async function dispatchFunctionToolCall(
   const featureResult = ctx.features.handleToolCall(outputItem, ctx, state);
   if (featureResult) {
     return featureResult;
+  }
+  // Top-level context tools are handled in dispatchResponseOutput; these come from exec.
+  if (ctx.contextManagementV2 && isContextManagementV2Tool(outputItem.name)) {
+    return handleContextManagementV2Tool(outputItem, ctx, state)
+      .catch((error: unknown) => toolErrorResult(getErrorMessage(error)));
   }
   switch (outputItem.name) {
     case EXEC_TOOL_NAME:
@@ -368,6 +374,7 @@ async function recordResponseItems(
   state: ToolDispatchState
 ): Promise<void> {
   const recorded: ResponseInputItem[] = [];
+  if (ctx.contextManagementV2) await assignCallNumbers(items, ctx, state);
   for (const item of items) {
     if (hasRecordedToolOutput(item, state)) {
       continue;
@@ -384,7 +391,20 @@ async function recordResponseItems(
     recorded.push(inputItem);
   }
   if (ctx.contextManagementV2 && recorded.length > 0) {
-    await recordContextItems(ctx.control.context, ctx.contextManagementV2, recorded);
+    await recordContextItems(ctx.control.context, ctx.contextManagementV2, recorded, { callNumbers: state.callNumbers });
+  }
+}
+
+// Numbers each new top-level call, continuing from the highest number the task has used.
+async function assignCallNumbers(items: ResponseOutputItem[], ctx: ToolDispatchContext, state: ToolDispatchState): Promise<void> {
+  state.callNumbers ??= new Map();
+  state.lastCallNumber ??= Math.max(await ctx.control.context.loadLastCallNumber(), getHighestCallNumber(state.conversationItems));
+  for (const item of items) {
+    const inputItem = item as unknown as ResponseInputItem;
+    const callId = getProviderCallId(inputItem);
+    if (!isToolCallItem(inputItem) || !callId || state.callNumbers.has(callId) || hasRecordedToolOutput(item, state)) continue;
+    state.lastCallNumber += 1;
+    state.callNumbers.set(callId, state.lastCallNumber);
   }
 }
 

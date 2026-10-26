@@ -21,6 +21,7 @@ function createFixture() {
     freezeVersion: vi.fn(async () => "v2" as const),
     openWindow: vi.fn(async () => window),
     loadWindowItems: vi.fn(async (id: string) => history.get(id) ?? []),
+    loadLastCallNumber: vi.fn(async () => 0),
     recordItems: vi.fn(async (state, records) => {
       history.set(state.windowId, [...(history.get(state.windowId) ?? []), ...records.map((record) => record.item)]);
     }),

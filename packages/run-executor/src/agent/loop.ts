@@ -14,6 +14,7 @@ import { checkpointAndTrimContext, persistContextCheckpoint } from "../context-m
 import { getResponseTotalTokens } from "../context-management-v2/token-usage.js";
 import { maybeAdvanceV2ContextWindow, prepareV2ContextWindowUsage } from "./context-window-budget.js";
 import { resetV2ContextWindow, selectContextOverflowRecoveryItems } from "./context-window.js";
+import { applyPendingContextEdits } from "./context-edits.js";
 import { createModelResponseWithRetry, type ModelToolChoice } from "./model.js";
 import { resolveModelErrorAction } from "./model-error-actions.js";
 import { persistModelRequestRecovery } from "./model-request-recovery.js";
@@ -780,7 +781,11 @@ async function processModelTurnResult(
   await execution.prepared.features.afterModelTurn(execution, turn.weightedTokens);
   if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
   if (execution.state.dispatchState.pendingContextV2Reset) {
+    execution.state.dispatchState.pendingContextEdits = [];
     await resetV2ContextWindow(execution, "manual");
+    return "continue";
+  }
+  if (await applyPendingContextEdits(execution)) {
     return "continue";
   }
   if (await applyPendingContextManagementAction(execution, step)) {
