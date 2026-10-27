@@ -57,6 +57,21 @@ describe("CanvasFrame", () => {
     expect(wrapper.style.height).toBe("480px");
   });
 
+  it("accepts selections only from its frame while the user enabled selection", async () => {
+    const onElementSelect = vi.fn();
+    const frame = await render({ onElementSelect });
+    const element = { tagName: "button", selector: "#buy", text: "Buy", attributes: {}, screenLabel: null };
+    await postFromFrame(frame, { type: "selection", element });
+    expect(onElementSelect).not.toHaveBeenCalled();
+    await render({ onElementSelect, selectionEnabled: true });
+    await postFromFrame(frame, { type: "selection", element }, window);
+    expect(onElementSelect).not.toHaveBeenCalled();
+    await postFromFrame(frame, { type: "selection", element });
+    expect(onElementSelect).toHaveBeenCalledWith(element);
+    await postFromFrame(frame, { type: "selection", element: null });
+    expect(onElementSelect).toHaveBeenLastCalledWith(null);
+  });
+
   it("says the page could not be loaded when it never starts the canvas runtime", async () => {
     vi.useFakeTimers();
     const frame = await render();

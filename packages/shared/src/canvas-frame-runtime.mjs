@@ -5,11 +5,13 @@
 // injects the same script, so the agent verifies a page under the conditions the user sees.
 // Plain JavaScript so the sandbox image can load it without the compiled shared package.
 
+import { CANVAS_SELECTION_RUNTIME_SOURCE } from "./canvas-selection-runtime.mjs";
+
 export const CANVAS_FRAME_MESSAGE_SOURCE = "meowbert-canvas";
 export const CANVAS_FRAME_NAME_PREFIX = "meowbert-canvas:";
 export const CANVAS_FRAME_SANDBOX = "allow-scripts allow-forms allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox";
 
-export const CANVAS_FRAME_RUNTIME_SOURCE = String.raw`(function () {
+const FRAME_RUNTIME_SOURCE = String.raw`(function () {
   "use strict";
   if (window.__meowbertCanvasRuntime) return;
   window.__meowbertCanvasRuntime = { version: 1 };
@@ -297,6 +299,8 @@ export const CANVAS_FRAME_RUNTIME_SOURCE = String.raw`(function () {
 
   post("hello", {});
 }());`;
+
+export const CANVAS_FRAME_RUNTIME_SOURCE = `${FRAME_RUNTIME_SOURCE}\n${CANVAS_SELECTION_RUNTIME_SOURCE}`;
 
 // Kept on one line so the page's own script errors report the line numbers of its source file.
 const RUNTIME_TAG = `<script data-meowbert-canvas-runtime>${CANVAS_FRAME_RUNTIME_SOURCE.replace(/\n\s*/g, " ")}</script>`;

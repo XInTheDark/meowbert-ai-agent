@@ -28,6 +28,8 @@ Hover over an inline canvas to open it beside the chat, reload it, or open it in
 
 When Meowbert changes a canvas, open views reload on their own.
 
+To ask about a specific part, click **Select an element** in the canvas panel, then click the heading, button, image, or section you mean. Type your request beneath the canvas and send it; Meowbert receives the selected element's context with your message. Selection does not edit the page directly. Press **Esc** or clear the selection to return to normal interaction.
+
 ## When something breaks
 
 Meowbert opens every page before showing it to you and fixes the errors it finds. If a page still fails in your browser, the canvas says so instead of showing a blank box: you see the error, a **Retry** button, and a **Fix** button that sends the errors to Meowbert.

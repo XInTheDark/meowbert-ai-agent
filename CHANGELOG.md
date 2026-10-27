@@ -1,5 +1,12 @@
 # Changelog
 
+## Oct 27, 2026
+
+### Canvas
+
+- **Point to what you want changed** — Use **Select an element** in the canvas panel, click a heading, button, image, or section, and send your request with its context. Press **Esc** to return to normal interaction.
+- **More focused design iterations** — Canvas guidance now keeps variation labels stable, explores deliberate differences, and uses selected-element context to find the right source while preserving unrelated content and styling.
+
 ## Oct 25, 2026
 
 ### Local execution

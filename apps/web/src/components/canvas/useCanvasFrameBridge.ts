@@ -4,6 +4,7 @@ import {
   buildCanvasFrameName,
   parseCanvasFrameMessage,
   type CanvasFrameError,
+  type CanvasElementSelection,
   type CanvasFrameMessage,
   type CanvasFrameTheme
 } from "@meowbert/shared/canvas-frame";
@@ -95,6 +96,8 @@ export function useCanvasFrameBridge(input: {
   loadKey: string;
   storageKey: string;
   theme: CanvasFrameTheme;
+  selectionEnabled?: boolean;
+  onElementSelect?: (element: CanvasElementSelection | null) => void;
 }) {
   const [keyed, setKeyed] = useState<KeyedState>({ loadKey: input.loadKey, hello: false, state: INITIAL_STATE });
   const loadKeyRef = useRef(input.loadKey);
@@ -121,6 +124,10 @@ export function useCanvasFrameBridge(input: {
       if (!input.frameRef.current || event.source !== input.frameRef.current.contentWindow) return;
       const message = parseCanvasFrameMessage(event.data);
       if (!message) return;
+      if (message.type === "selection") {
+        if (input.selectionEnabled) input.onElementSelect?.(message.element);
+        return;
+      }
       if (message.type === "storage") writeCanvasStorage(input.storageKey, message.items);
       update((current) => ({
         ...current,
@@ -130,7 +137,13 @@ export function useCanvasFrameBridge(input: {
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [acceptHeight, input.frameRef, input.storageKey, update]);
+  }, [acceptHeight, input.frameRef, input.storageKey, input.selectionEnabled, input.onElementSelect, update]);
+
+  useEffect(() => {
+    input.frameRef.current?.contentWindow?.postMessage({
+      source: CANVAS_FRAME_MESSAGE_SOURCE, type: "selection-mode", enabled: input.selectionEnabled === true
+    }, "*");
+  }, [input.frameRef, input.loadKey, input.selectionEnabled, keyed.loadKey, keyed.hello]);
 
   useEffect(() => {
     input.frameRef.current?.contentWindow?.postMessage({ source: CANVAS_FRAME_MESSAGE_SOURCE, type: "theme", theme: input.theme }, "*");

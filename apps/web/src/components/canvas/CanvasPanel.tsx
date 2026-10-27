@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { ExternalLink, FolderOpen, Monitor, RotateCw, Smartphone, Tablet, X } from "lucide-react";
 import { CanvasFrame } from "./CanvasFrame";
+import { CanvasSelectButton, CanvasSelectionPrompt } from "./CanvasSelectionControls";
+import { buildCanvasSelectionPrompt } from "./canvasSelectionPrompt";
+import { useCanvasSelection } from "./useCanvasSelection";
 import type { CanvasHost } from "./CanvasHostContext";
 import {
   buildCanvasFixPrompt,
@@ -52,12 +55,15 @@ export function CanvasPanel(props: {
   const { host, activeView } = props;
   const source = host.resolveSource(activeView);
   const sendPrompt = host.sendPrompt;
+  const reloadToken = host.reloadTokenFor(activeView) + reloadNonce;
+  const selection = useCanvasSelection(`${getCanvasViewKey(activeView)}#${reloadToken}`);
 
   return (
     <section className="canvas-panel" aria-label="Canvas">
       <header className="canvas-panel-header">
         <CanvasPanelTabs views={props.views} activeKey={getCanvasViewKey(activeView)} onSelect={props.onSelect} />
         <div className="canvas-panel-actions">
+          {sendPrompt ? <CanvasSelectButton active={selection.enabled} onClick={selection.toggle} disabled={!source} /> : null}
           <div className="canvas-panel-viewports" role="group" aria-label="Preview width">
             {VIEWPORTS.map((option) => (
               <button key={option.id} type="button" className={`icon-btn${viewport === option.id ? " active" : ""}`}
@@ -92,7 +98,9 @@ export function CanvasPanel(props: {
             title={getCanvasViewTitle(activeView)}
             storageKey={getCanvasStorageKey(activeView, host.taskId)}
             sizing={{ mode: "fill" }}
-            reloadToken={host.reloadTokenFor(activeView) + reloadNonce}
+            reloadToken={reloadToken}
+            selectionEnabled={selection.enabled}
+            onElementSelect={selection.select}
             onRunRequest={sendPrompt ? (request) => sendPrompt(request.prompt) : undefined}
             onFixRequest={sendPrompt ? (errors) => sendPrompt(buildCanvasFixPrompt(activeView, errors)) : undefined}
           />
@@ -100,6 +108,13 @@ export function CanvasPanel(props: {
           <div className="canvas-card-unavailable">Loading canvas…</div>
         )}
       </div>
+      {selection.enabled && sendPrompt ? (
+        <CanvasSelectionPrompt key={selection.element?.selector ?? "pick"} element={selection.element} onDismiss={selection.clear}
+          onSend={(instruction) => {
+            if (selection.element) sendPrompt(buildCanvasSelectionPrompt(activeView.relativePath, selection.element, instruction));
+            selection.clear();
+          }} />
+      ) : null}
     </section>
   );
 }

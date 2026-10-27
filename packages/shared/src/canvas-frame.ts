@@ -20,6 +20,14 @@ export interface CanvasFrameTheme {
   tokens: Record<string, string>;
 }
 
+export interface CanvasElementSelection {
+  tagName: string;
+  selector: string;
+  text: string;
+  attributes: Record<string, string>;
+  screenLabel: string | null;
+}
+
 /** State the parent hands the frame through the iframe name, readable before page scripts run. */
 export interface CanvasFrameInit {
   theme: CanvasFrameTheme | null;
@@ -32,6 +40,7 @@ export type CanvasFrameMessage =
   | { type: "resize"; height: number }
   | { type: "error"; error: CanvasFrameError }
   | { type: "storage"; area: "local"; items: Record<string, string> }
+  | { type: "selection"; element: CanvasElementSelection | null }
   | { type: "run"; prompt: string; title: string | null };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,6 +63,20 @@ function parseFrameError(value: unknown): CanvasFrameError | null {
   };
 }
 
+function parseElementSelection(value: unknown): CanvasElementSelection | null {
+  if (!isRecord(value) || typeof value.tagName !== "string" || typeof value.selector !== "string") return null;
+  const allowedAttributes = new Set(["id", "class", "role", "aria-label", "alt", "title", "data-meowbert-id"]);
+  const attributes = Object.fromEntries(Object.entries(asStringRecord(value.attributes))
+    .filter(([key]) => allowedAttributes.has(key)).map(([key, text]) => [key, text.slice(0, 300)]));
+  return {
+    tagName: value.tagName.slice(0, 40),
+    selector: value.selector.slice(0, 1200),
+    text: typeof value.text === "string" ? value.text.slice(0, 1500) : "",
+    attributes,
+    screenLabel: typeof value.screenLabel === "string" ? value.screenLabel.slice(0, 200) : null
+  };
+}
+
 /** Validates a message posted by the canvas runtime; anything else from the frame is ignored. */
 export function parseCanvasFrameMessage(data: unknown): CanvasFrameMessage | null {
   if (!isRecord(data) || data.source !== CANVAS_FRAME_MESSAGE_SOURCE) return null;
@@ -73,6 +96,10 @@ export function parseCanvasFrameMessage(data: unknown): CanvasFrameMessage | nul
     }
     case "storage":
       return data.area === "local" ? { type: "storage", area: "local", items: asStringRecord(data.items) } : null;
+    case "selection": {
+      const element = data.element === null ? null : parseElementSelection(data.element);
+      return element || data.element === null ? { type: "selection", element } : null;
+    }
     case "run":
       return typeof data.prompt === "string" && data.prompt.trim().length > 0
         ? { type: "run", prompt: data.prompt.trim().slice(0, 8000), title: typeof data.title === "string" ? data.title : null }

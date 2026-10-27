@@ -170,6 +170,35 @@
   font-size: 0.85rem;
 }
 
+.canvas-selection-prompt {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.8rem;
+}
+
+.canvas-selection-prompt input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.canvas-selection-target {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.canvas-selection-prompt > .muted-text {
+  flex: 1;
+}
+
 /* Cards in replies */
 
 .chat-bubble.assistant.canvas-artifact-entry {
@@ -312,7 +341,7 @@
 .canvas-panel {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   border-left: 1px solid var(--border);
   background: var(--surface-soft);
 }

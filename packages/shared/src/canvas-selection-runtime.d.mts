@@ -1,0 +1,1 @@
+export const CANVAS_SELECTION_RUNTIME_SOURCE: string;

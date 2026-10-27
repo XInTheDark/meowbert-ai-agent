@@ -26,6 +26,19 @@ describe("injectCanvasFrameRuntime", () => {
 });
 
 describe("parseCanvasFrameMessage", () => {
+  it("validates and bounds element context instead of accepting arbitrary frame data", () => {
+    const message = parseCanvasFrameMessage({ source: "meowbert-canvas", type: "selection", element: {
+      tagName: "button", selector: "#buy", text: "x".repeat(2000),
+      attributes: { id: "buy", onclick: "run()", value: "private", class: 4 }, screenLabel: "Checkout"
+    } });
+    expect(message).toEqual({ type: "selection", element: {
+      tagName: "button", selector: "#buy", text: "x".repeat(1500), attributes: { id: "buy" }, screenLabel: "Checkout"
+    } });
+    expect(parseCanvasFrameMessage({ source: "meowbert-canvas", type: "selection", element: {} })).toBeNull();
+    expect(parseCanvasFrameMessage({ source: "meowbert-canvas", type: "selection", element: null }))
+      .toEqual({ type: "selection", element: null });
+  });
+
   it("ignores messages that are not from the runtime", () => {
     expect(parseCanvasFrameMessage({ type: "run", prompt: "go" })).toBeNull();
     expect(parseCanvasFrameMessage({ source: "meowbert-canvas", type: "run", prompt: "  " })).toBeNull();

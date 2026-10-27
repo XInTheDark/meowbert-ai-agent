@@ -20,6 +20,7 @@ on:
       - "skills/**"
       - "packages/shared/src/path-containment.mjs"
       - "packages/shared/src/canvas-frame-runtime.mjs"
+      - "packages/shared/src/canvas-selection-runtime.mjs"
 
 permissions:
   contents: read

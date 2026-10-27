@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { CANVAS_FRAME_SANDBOX, type CanvasFrameError } from "@meowbert/shared/canvas-frame";
+import { CANVAS_FRAME_SANDBOX, type CanvasElementSelection, type CanvasFrameError } from "@meowbert/shared/canvas-frame";
 import { useCanvasTheme } from "./canvasFrameTheme";
 import { CanvasFrameIssues, CanvasFrameNotice, CanvasRunRequestBar } from "./CanvasFrameOverlays";
 import { useCanvasFrameBridge, type CanvasRunRequest } from "./useCanvasFrameBridge";
@@ -20,6 +20,8 @@ export interface CanvasFrameProps {
   className?: string;
   onRunRequest?: (request: CanvasRunRequest) => void;
   onFixRequest?: (errors: CanvasFrameError[]) => void;
+  selectionEnabled?: boolean;
+  onElementSelect?: (element: CanvasElementSelection | null) => void;
 }
 
 function useStableSource(src: string, srcKey: string, reloadToken: number): string {
@@ -51,7 +53,10 @@ export function CanvasFrame(props: CanvasFrameProps) {
   const [retryCount, setRetryCount] = useState(0);
   const src = useStableSource(props.src, props.srcKey, reloadToken + retryCount);
   const loadKey = `${props.srcKey}#${reloadToken}#${retryCount}`;
-  const bridge = useCanvasFrameBridge({ frameRef, loadKey, storageKey: props.storageKey, theme });
+  const bridge = useCanvasFrameBridge({
+    frameRef, loadKey, storageKey: props.storageKey, theme,
+    selectionEnabled: props.selectionEnabled, onElementSelect: props.onElementSelect
+  });
   const { status, blank, errors, height, runRequest } = bridge.state;
   const failed = status === "unreachable" || (status === "ready" && blank && errors.length > 0);
 
@@ -69,7 +74,10 @@ export function CanvasFrame(props: CanvasFrameProps) {
         src={src}
         title={props.title}
         sandbox={CANVAS_FRAME_SANDBOX}
-        onLoad={bridge.handleFrameLoad}
+        onLoad={() => {
+          bridge.handleFrameLoad();
+          if (props.selectionEnabled) props.onElementSelect?.(null);
+        }}
       />
       {failed ? (
         <CanvasFrameNotice
