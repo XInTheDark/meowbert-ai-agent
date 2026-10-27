@@ -66,7 +66,7 @@ const configSchema = z.object({
   // Legacy model fallback; provider connections are managed in Admin.
   openai: z.object({
     defaultModel: z.string().min(1).default("o4-mini")
-  }).default({}),
+  }).prefault({}),
   memory: z.object({
     indexCacheRoot: z.string().min(1).optional()
   }).optional(),
@@ -92,7 +92,7 @@ const configSchema = z.object({
   }).optional(),
   localExecution: z.object({
     enabled: z.boolean().default(false)
-  }).default({}),
+  }).prefault({}),
   security: z.object({
     jwtSecret: z.string().min(1),
     jwtTtl: z.string().min(1)

@@ -74,7 +74,7 @@ const modelRouterTargetSchema = z.object({
   id: z.string().min(1).max(240),
   description: z.string().min(1).max(4_000),
   model: z.string().min(1).max(240),
-  payload: z.record(z.unknown()).default({})
+  payload: z.record(z.string(), z.unknown()).default({})
 });
 const modelRouterSchema = z.object({
   id: z.string().min(1).max(240),

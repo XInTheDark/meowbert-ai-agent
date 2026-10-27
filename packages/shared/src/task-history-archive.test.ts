@@ -16,14 +16,14 @@ const gunzip = promisify(gunzipCallback);
 const gzip = promisify(gzipCallback);
 
 const lifecycleIds = {
-  task: "11111111-1111-1111-1111-111111111111",
-  workspace: "22222222-2222-2222-2222-222222222222",
-  environment: "33333333-3333-3333-3333-333333333333",
-  message: "44444444-4444-4444-4444-444444444444",
-  event: "55555555-5555-5555-5555-555555555555",
-  revision: "66666666-6666-6666-6666-666666666666",
-  contextItem: "88888888-8888-8888-8888-888888888888",
-  note: "99999999-9999-9999-9999-999999999999"
+  task: "11111111-1111-4111-8111-111111111111",
+  workspace: "22222222-2222-4222-8222-222222222222",
+  environment: "33333333-3333-4333-8333-333333333333",
+  message: "44444444-4444-4444-8444-444444444444",
+  event: "55555555-5555-4555-8555-555555555555",
+  revision: "66666666-6666-4666-8666-666666666666",
+  contextItem: "88888888-8888-4888-8888-888888888888",
+  note: "99999999-9999-4999-8999-999999999999"
 } as const;
 
 function buildLifecycleSnapshot(state: "warm" | "archiving" | "archived", archiveKey: string | null) {
@@ -96,9 +96,9 @@ describe("ensureTaskHistoryWarm", () => {
         if (text.includes("FROM tasks t") && text.includes("LEFT JOIN task_schedules ts")) {
           return {
             rows: [{
-              id: "11111111-1111-1111-1111-111111111111",
-              workspace_id: "22222222-2222-2222-2222-222222222222",
-              environment_id: "33333333-3333-3333-3333-333333333333",
+              id: "11111111-1111-4111-8111-111111111111",
+              workspace_id: "22222222-2222-4222-8222-222222222222",
+              environment_id: "33333333-3333-4333-8333-333333333333",
               status: "completed",
               schedule_state: null,
               task_history_state: "warm",
@@ -118,7 +118,7 @@ describe("ensureTaskHistoryWarm", () => {
       }
     };
 
-    const result = await ensureTaskHistoryWarm("11111111-1111-1111-1111-111111111111", {
+    const result = await ensureTaskHistoryWarm("11111111-1111-4111-8111-111111111111", {
       archiveConfig: {
         enabled: true,
         mountPath: "/tmp/archive-mount",
@@ -235,9 +235,9 @@ describe("archiveTaskHistory", () => {
         if (text.includes("FROM tasks t") && text.includes("LEFT JOIN task_schedules ts")) {
           return {
             rows: [{
-              id: "11111111-1111-1111-1111-111111111111",
-              workspace_id: "22222222-2222-2222-2222-222222222222",
-              environment_id: "33333333-3333-3333-3333-333333333333",
+              id: "11111111-1111-4111-8111-111111111111",
+              workspace_id: "22222222-2222-4222-8222-222222222222",
+              environment_id: "33333333-3333-4333-8333-333333333333",
               status: "completed",
               schedule_state: null,
               task_history_state: "warm",
@@ -257,7 +257,7 @@ describe("archiveTaskHistory", () => {
       }
     };
 
-    await expect(archiveTaskHistory("11111111-1111-1111-1111-111111111111", {
+    await expect(archiveTaskHistory("11111111-1111-4111-8111-111111111111", {
       archiveConfig: {
         enabled: true,
         mountPath: "/dev/null",
@@ -278,7 +278,7 @@ describe("archiveTaskHistory", () => {
     expect(failureUpdate?.text).toContain(
       "task_history_archive_failed_attempts = task_history_archive_failed_attempts + 1"
     );
-    expect(failureUpdate?.params?.[0]).toBe("11111111-1111-1111-1111-111111111111");
+    expect(failureUpdate?.params?.[0]).toBe("11111111-1111-4111-8111-111111111111");
     expect(executedSql.some((sql) => sql.includes("task_history_state = 'archiving'"))).toBe(true);
   });
 });

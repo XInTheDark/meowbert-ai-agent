@@ -15,7 +15,7 @@ const requestBody = z.object({
   referenceToken: z.string().min(1).max(20_000),
   method: z.string().min(1).max(20),
   url: z.string().url().max(8_000),
-  headers: z.record(z.string()).default({}),
+  headers: z.record(z.string(), z.string()).default({}),
   bodyBase64: z.string().max(20_000_000).nullable().default(null)
 }).strict();
 

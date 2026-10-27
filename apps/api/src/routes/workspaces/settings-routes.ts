@@ -274,7 +274,7 @@ export async function registerWorkspaceSettingsAuxRoutes(fastify: FastifyInstanc
             id: z.string().uuid().optional(),
             priority: z.number().int(),
             ruleType: z.enum(["default_env", "prefix_env", "keyword_map", "llm_fallback"]),
-            ruleJson: z.record(z.unknown()),
+            ruleJson: z.record(z.string(), z.unknown()),
             enabled: z.boolean()
           })
         )

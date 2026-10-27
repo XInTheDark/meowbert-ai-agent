@@ -24,10 +24,10 @@ const deviceBody = z.object({
   platform: z.string().trim().min(1).max(80),
   architecture: z.string().trim().min(1).max(80),
   executorVersion: z.string().trim().min(1).max(80),
-  capabilities: z.record(z.unknown()).optional(),
-  consent: z.record(z.unknown()).optional(),
+  capabilities: z.record(z.string(), z.unknown()).optional(),
+  consent: z.record(z.string(), z.unknown()).optional(),
   maxConcurrentRuns: z.number().int().positive().max(16).optional(),
-  verifiedRoots: z.record(z.unknown()).optional()
+  verifiedRoots: z.record(z.string(), z.unknown()).optional()
 }).strict();
 const devicePatch = deviceBody.omit({ id: true, platform: true, architecture: true }).partial();
 

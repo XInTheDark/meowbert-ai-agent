@@ -23,7 +23,7 @@
     "openai": "6.33.0",
     "pg": "8.18.0",
     "web-push": "3.6.7",
-    "zod": "3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "22.19.11",

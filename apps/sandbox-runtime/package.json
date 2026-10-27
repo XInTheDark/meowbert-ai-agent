@@ -21,6 +21,6 @@
     "playwright": "1.59.0-alpha-1771104257000",
     "pptxgenjs": "git+https://github.com/gitbrent/PptxGenJS.git#56c5244780ba6f1773a33817edb8929f4ca6ecfc",
     "turndown": "7.2.2",
-    "zod": "3.25.76"
+    "zod": "4.6.7"
   }
 }
