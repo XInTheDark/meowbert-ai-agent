@@ -17,6 +17,16 @@ import {
   type CanvasView
 } from "./canvasViews";
 
+function CanvasCommentsButton(props: { open: boolean; count: number; onClick: () => void }) {
+  return (
+    <button type="button" className={`icon-btn canvas-comments-toggle${props.open ? " active" : ""}`} title="Comments"
+      aria-label="Comments" aria-pressed={props.open} onClick={props.onClick}>
+      <MessageSquare size={14} aria-hidden="true" />
+      {props.count ? <span className="canvas-comments-badge" aria-hidden="true">{props.count > 9 ? "9+" : props.count}</span> : null}
+    </button>
+  );
+}
+
 function CanvasPanelTabs(props: { views: CanvasView[]; activeKey: string; onSelect: (view: CanvasView) => void }) {
   if (props.views.length < 2) {
     const view = props.views[0];
@@ -62,15 +72,27 @@ export function CanvasPanel(props: {
   const selection = useCanvasSelection(`${getCanvasViewKey(pageView)}#${reloadToken}`);
   const comments = useCanvasComments(host.comments, pageView, reloadToken);
   const documentView = kind?.key === getCanvasViewKey(activeView) && kind.kind === "document";
+  const commenting = Boolean(host.comments) && selection.enabled && selection.intent === "comment";
+  const openComments = comments.items.filter((comment) => !comment.resolved).length;
+
+  async function submitSelection(body: string) {
+    const element = selection.element;
+    if (!element) return;
+    if (selection.intent === "comment") {
+      if (await comments.add(element, body)) selection.clearIfSelected(element);
+      return;
+    }
+    sendPrompt?.(buildCanvasSelectionPrompt(pageView.relativePath, element, body));
+    selection.clear();
+  }
 
   return (
     <section className="canvas-panel" aria-label="Canvas">
       <header className="canvas-panel-header">
         <CanvasPanelTabs views={props.views} activeKey={getCanvasViewKey(activeView)} onSelect={props.onSelect} />
         <div className="canvas-panel-actions">
-          {sendPrompt ? <CanvasSelectButton active={selection.enabled} onClick={selection.toggle} disabled={!source} /> : null}
-          {host.comments ? <button type="button" className={`icon-btn${commentsOpen ? " active" : ""}`} title="Comments"
-            aria-label="Comments" aria-pressed={commentsOpen} onClick={() => setCommentsOpen(!commentsOpen)}><MessageSquare size={14} /></button> : null}
+          {sendPrompt ? <CanvasSelectButton active={selection.enabled && selection.intent === "ask"} onClick={() => selection.toggle("ask")} disabled={!source} /> : null}
+          {host.comments ? <CanvasCommentsButton open={commentsOpen} count={openComments} onClick={() => setCommentsOpen(!commentsOpen)} /> : null}
           <CanvasViewportControls document={documentView} fit={documentFit} onFit={setDocumentFit} viewport={viewport} onViewport={setViewport} />
           <button type="button" className="icon-btn" onClick={() => setReloadNonce((value) => value + 1)} title="Reload" aria-label="Reload">
             <RotateCw size={14} aria-hidden="true" />
@@ -113,20 +135,15 @@ export function CanvasPanel(props: {
         )}
       </div>
       <div className="canvas-panel-footer">
-      {commentsOpen && host.comments ? <CanvasComments items={comments.items} pending={comments.pending} error={comments.error}
-        onResolve={(id, resolved) => { void comments.resolve(id, resolved); }}
-        onAsk={sendPrompt ? (comment) => sendPrompt(buildCanvasSelectionPrompt(comment.relativePath, comment.element, comment.body)) : undefined} /> : null}
-      {selection.enabled && sendPrompt ? (
-        <CanvasSelectionPrompt key={selection.element?.selector ?? "pick"} element={selection.element} onDismiss={selection.clear}
-          saving={comments.pending} onSave={host.comments ? async (body) => {
-            setCommentsOpen(true);
-            if (selection.element && await comments.add(selection.element, body)) selection.clearIfSelected(selection.element);
-          } : undefined}
-          onSend={(instruction) => {
-            if (selection.element) sendPrompt(buildCanvasSelectionPrompt(pageView.relativePath, selection.element, instruction));
-            selection.clear();
-          }} />
-      ) : null}
+        {commentsOpen && host.comments ? <CanvasComments items={comments.items} pending={comments.pending} error={comments.error}
+          adding={commenting} onAdd={() => selection.toggle("comment")} onClose={() => setCommentsOpen(false)}
+          onResolve={(id, resolved) => { void comments.resolve(id, resolved); }}
+          onAsk={sendPrompt ? (comment) => sendPrompt(buildCanvasSelectionPrompt(comment.relativePath, comment.element, comment.body)) : undefined} /> : null}
+        {selection.enabled && (commenting || sendPrompt) ? (
+          <CanvasSelectionPrompt key={`${selection.intent}:${selection.element?.selector ?? "pick"}`} intent={selection.intent}
+            element={selection.element} onDismiss={selection.clear} pending={commenting && comments.pending}
+            onSubmit={(body) => { void submitSelection(body); }} />
+        ) : null}
       </div>
     </section>
   );

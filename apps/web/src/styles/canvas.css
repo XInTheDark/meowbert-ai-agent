@@ -171,32 +171,105 @@
 }
 
 .canvas-selection-prompt {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.5rem;
+  padding: 0.45rem 0.45rem 0.5rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--border));
+  border-radius: var(--radius-lg);
   background: var(--surface);
-  font-size: 0.8rem;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.08);
+  font-size: 0.82rem;
 }
 
-.canvas-selection-prompt input {
+.canvas-selection-prompt.is-picking {
+  padding-block: 0.3rem;
+}
+
+.canvas-selection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.canvas-selection-head .icon-btn {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--text-muted);
+}
+
+.canvas-selection-target {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  color: var(--brand);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.canvas-selection-target svg {
+  flex: none;
+}
+
+.canvas-selection-target span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-selection-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+}
+
+.canvas-selection-hint::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--brand);
+  animation: canvas-selection-pulse 1.4s ease-in-out infinite;
+}
+
+.canvas-selection-hint kbd {
+  padding: 0 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+@keyframes canvas-selection-pulse {
+  50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-selection-hint::before { animation: none; }
+}
+
+.canvas-selection-input {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.canvas-selection-input input {
   flex: 1;
   min-width: 0;
   width: auto;
 }
 
-.canvas-selection-target {
-  max-width: 9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-muted);
-}
-
-.canvas-selection-prompt > .muted-text {
-  flex: 1;
+.canvas-selection-input .btn.primary:not(.icon-btn) {
+  padding: 0.35rem 0.8rem;
 }
 
 /* Cards in replies */
@@ -416,13 +489,180 @@
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
 }
 
-.canvas-panel-footer { min-height:0; overflow:auto; max-height:40vh; }
-.canvas-comments { padding:0.5rem 0.75rem; border-top:1px solid var(--border); font-size:0.82rem; }
-.canvas-comments article { display:flex; gap:0.5rem; align-items:center; padding:0.5rem 0; border-bottom:1px solid var(--border); }
-.canvas-comments article > div { flex:1; min-width:0; }
-.canvas-comments p { margin:0.2rem 0; overflow-wrap:anywhere; white-space:pre-wrap; }
-.canvas-comments small { color:var(--text-muted); }
-.canvas-comments .is-resolved { opacity:0.6; }
+.canvas-panel-footer {
+  min-height: 0;
+  max-height: 45vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+
+.canvas-comments-toggle {
+  position: relative;
+}
+
+.canvas-comments-badge {
+  position: absolute;
+  top: 0.05rem;
+  right: 0.05rem;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--brand-fill, var(--brand));
+  color: var(--brand-contrast, var(--button-text));
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 0.95rem;
+  text-align: center;
+}
+
+.canvas-comments {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.82rem;
+}
+
+.canvas-comments-header {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+
+.canvas-comments-header strong {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.canvas-comments-header .icon-btn {
+  color: var(--text-muted);
+}
+
+.canvas-comments-header .icon-btn:hover,
+.canvas-comments-header .icon-btn.active {
+  color: var(--text);
+}
+
+.canvas-comments-count {
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.canvas-comments > .error-text {
+  margin: 0.5rem 0.85rem 0;
+}
+
+.canvas-comments-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.6rem 0.75rem;
+  padding: 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.canvas-comments-empty:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--border));
+  color: var(--text);
+}
+
+.canvas-comments-empty:disabled {
+  cursor: default;
+  color: var(--brand);
+}
+
+.canvas-comments ul {
+  min-height: 0;
+  margin: 0;
+  padding: 0.25rem 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.canvas-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem 0.45rem 0.85rem;
+}
+
+.canvas-comment + .canvas-comment {
+  border-top: 1px solid var(--border-subtle, var(--border));
+}
+
+.canvas-comment-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.canvas-comment-target {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.canvas-comment p {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.canvas-comment-actions {
+  flex: none;
+  display: flex;
+  gap: 0.1rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.canvas-comment:hover .canvas-comment-actions,
+.canvas-comment:focus-within .canvas-comment-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .canvas-comment-actions { opacity: 1; }
+}
+
+.canvas-comment-actions .icon-btn {
+  width: 1.6rem;
+  height: 1.6rem;
+  color: var(--text-muted);
+}
+
+.canvas-comment-actions .icon-btn:hover {
+  color: var(--text);
+}
+
+.canvas-comment.is-resolved .canvas-comment-content {
+  opacity: 0.55;
+}
+
+.canvas-comment.is-resolved p {
+  text-decoration: line-through;
+}
 
 .canvas-panel-body {
   min-height: 0;

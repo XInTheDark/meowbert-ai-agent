@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { ArrowUp, MessageSquarePlus, MousePointer2, X } from "lucide-react";
+import { ArrowUp, MousePointer2, MousePointerClick, X } from "lucide-react";
 import type { CanvasElementSelection } from "@meowbert/shared/canvas-frame";
+import type { CanvasSelectionIntent } from "./useCanvasSelection";
 
 export function CanvasSelectButton(props: { active: boolean; onClick: () => void; disabled?: boolean }) {
   return (
@@ -11,40 +12,58 @@ export function CanvasSelectButton(props: { active: boolean; onClick: () => void
   );
 }
 
+export function describeCanvasElement(element: CanvasElementSelection): string {
+  return element.attributes["aria-label"] || element.text.slice(0, 60) || `<${element.tagName}>`;
+}
+
+/** Composer under the canvas for the picked element: asks Meowbert or saves a comment, depending on intent. */
 export function CanvasSelectionPrompt(props: {
+  intent: CanvasSelectionIntent;
   element: CanvasElementSelection | null;
-  onSend: (instruction: string) => void;
+  onSubmit: (body: string) => void;
   onDismiss: () => void;
-  onSave?: (instruction: string) => void;
-  saving?: boolean;
+  pending?: boolean;
 }) {
-  const [instruction, setInstruction] = useState("");
+  const [body, setBody] = useState("");
+  const comment = props.intent === "comment";
+  const ready = Boolean(props.element && body.trim() && !props.pending);
   return (
-    <form className="canvas-selection-prompt" onKeyDown={(event) => {
+    <form className={`canvas-selection-prompt${props.element ? "" : " is-picking"}`} onKeyDown={(event) => {
       if (event.key === "Escape") props.onDismiss();
     }} onSubmit={(event) => {
       event.preventDefault();
-      if (props.element && instruction.trim()) props.onSend(instruction);
+      if (ready) props.onSubmit(body);
     }}>
-      {props.element ? (
-        <>
+      <div className="canvas-selection-head">
+        {props.element ? (
           <span className="canvas-selection-target" title={props.element.selector}>
-            {props.element.attributes["aria-label"] || props.element.text.slice(0, 60) || props.element.tagName}
+            <MousePointerClick size={13} aria-hidden="true" />
+            <span>{describeCanvasElement(props.element)}</span>
           </span>
-          <input autoFocus value={instruction} onChange={(event) => setInstruction(event.target.value)}
-            placeholder="Ask about this element" aria-label="Ask about selected element" />
-          {props.onSave ? <button type="button" className="icon-btn" disabled={props.saving || !instruction.trim()}
-            title="Save comment" aria-label="Save comment" onClick={() => props.onSave?.(instruction)}>
-            <MessageSquarePlus size={15} aria-hidden="true" />
-          </button> : null}
-          <button type="submit" className="btn primary icon-btn" disabled={!instruction.trim()} aria-label="Send selection request">
-            <ArrowUp size={15} aria-hidden="true" />
-          </button>
-        </>
-      ) : <span className="muted-text">Click an element. Esc to cancel.</span>}
-      <button type="button" className="icon-btn" onClick={props.onDismiss} aria-label="Clear selection">
-        <X size={15} aria-hidden="true" />
-      </button>
+        ) : (
+          <span className="canvas-selection-hint">
+            {comment ? "Click an element to comment on" : "Click an element to ask about"}
+            <kbd>Esc</kbd>
+          </span>
+        )}
+        <button type="button" className="icon-btn" onClick={props.onDismiss} title="Cancel" aria-label="Clear selection">
+          <X size={14} aria-hidden="true" />
+        </button>
+      </div>
+      {props.element ? (
+        <div className="canvas-selection-input">
+          <input autoFocus value={body} onChange={(event) => setBody(event.target.value)}
+            placeholder={comment ? "Add a comment" : "Ask Meowbert about this"}
+            aria-label={comment ? "Comment on selected element" : "Ask about selected element"} />
+          {comment ? (
+            <button type="submit" className="btn primary" disabled={!ready} aria-label="Save comment">Save</button>
+          ) : (
+            <button type="submit" className="btn primary icon-btn" disabled={!ready} aria-label="Send selection request">
+              <ArrowUp size={15} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      ) : null}
     </form>
   );
 }

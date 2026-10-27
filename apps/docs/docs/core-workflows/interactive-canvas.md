@@ -30,7 +30,7 @@ When Meowbert changes a canvas, open views reload on their own and retain their 
 
 To ask about a specific part, click **Select an element** in the canvas panel, then click the heading, button, image, or section you mean. Type your request beneath the canvas and send it; Meowbert receives the selected element's context with your message. Selection does not edit the page directly. Press **Esc** or clear the selection to return to normal interaction.
 
-To keep feedback for later, type it against the selection and click **Save comment**. Open **Comments** to review saved feedback, resolve or reopen a comment, or send it with **Ask Meowbert**. Saving a comment does not start an AI task. Comments sync across devices: project-canvas comments stay with that canvas across tasks, and one-off canvas comments stay with their task and file. They retain the selected text and element context; if the design changes, Meowbert uses that saved context to locate the corresponding source.
+To keep feedback for later, open **Comments** and click **Add comment** (or **Select an element to leave a comment** when there are none yet), click the element, then type your comment and click **Save**. The **Comments** list shows open feedback first; resolve or reopen a comment, or send it with **Ask Meowbert**. Saving a comment does not start an AI task. Comments sync across devices: project-canvas comments stay with that canvas across tasks, and one-off canvas comments stay with their task and file. They retain the selected text and element context; if the design changes, Meowbert uses that saved context to locate the corresponding source.
 
 ## Documents, design systems, and exports
 

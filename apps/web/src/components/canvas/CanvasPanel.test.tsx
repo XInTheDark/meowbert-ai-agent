@@ -104,7 +104,8 @@ describe("CanvasPanel selection", () => {
       resolve: vi.fn().mockResolvedValue({ ...comment, resolved: true }) };
     const currentHost = { ...host, comments: store };
     await render(view, currentHost);
-    await click("Select an element");
+    await click("Comments");
+    await click("Add comment");
     await pick();
     const input = container.querySelector<HTMLInputElement>("input")!;
     await act(async () => Simulate.change(input, { target: { value: comment.body } } as unknown as Parameters<typeof Simulate.change>[1]));
@@ -120,15 +121,30 @@ describe("CanvasPanel selection", () => {
     await render({ ...view, relativePath: "other.html" }, currentHost);
     await render(view, currentHost);
     expect(container.textContent).toContain(comment.body);
-    await act(async () => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Ask Meowbert")!.click());
+    await click("Ask Meowbert");
     expect(sendPrompt).toHaveBeenCalledTimes(1);
     expect(sendPrompt.mock.calls[0][0]).toContain("#buy");
+  });
+
+  it("starts commenting from the empty comments list, even on canvases that cannot send requests", async () => {
+    const comment = { id: "comment", relativePath: view.relativePath, element, body: "Too loud", resolved: false, createdAt: "2026-10-27T00:00:00Z" };
+    const store = { list: vi.fn().mockResolvedValue([]), add: vi.fn().mockResolvedValue(comment), resolve: vi.fn() };
+    await render(view, { ...host, sendPrompt: undefined, comments: store });
+    await click("Comments");
+    await act(async () => container.querySelector<HTMLButtonElement>(".canvas-comments-empty")!.click());
+    await pick();
+    await draft(comment.body);
+    await act(async () => container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(store.add).toHaveBeenCalledWith(view, element, comment.body);
+    expect(container.querySelector("form")).toBeNull();
+    expect(container.textContent).toContain(comment.body);
   });
 
   it("retains the draft and exposes errors when comment saving fails", async () => {
     const store = { list: vi.fn().mockResolvedValue([]), add: vi.fn().mockRejectedValue(new Error("Offline")), resolve: vi.fn() };
     await render(view, { ...host, comments: store });
-    await click("Select an element");
+    await click("Comments");
+    await click("Add comment");
     await pick();
     const input = container.querySelector<HTMLInputElement>("input")!;
     await act(async () => Simulate.change(input, { target: { value: "Keep this feedback" } } as unknown as Parameters<typeof Simulate.change>[1]));
@@ -142,7 +158,8 @@ describe("CanvasPanel selection", () => {
     const save = deferred<CanvasComment>();
     const store = { list: vi.fn().mockResolvedValue([]), add: vi.fn().mockReturnValue(save.promise), resolve: vi.fn() };
     await render(view, { ...host, comments: store });
-    await click("Select an element");
+    await click("Comments");
+    await click("Add comment");
     await pick();
     await draft("Feedback for Buy");
     await click("Save comment");
@@ -152,6 +169,7 @@ describe("CanvasPanel selection", () => {
       resolved: false, createdAt: "2026-10-27T00:00:00Z" }));
     expect(container.querySelector<HTMLInputElement>("input")?.value).toBe("Unsaved feedback for Cancel");
     expect(container.querySelector(".canvas-selection-target")?.textContent).toBe("Cancel");
+    expect(container.querySelector('input[aria-label="Comment on selected element"]')).not.toBeNull();
     expect(container.textContent).toContain("Feedback for Buy");
   });
 
@@ -173,9 +191,9 @@ describe("CanvasPanel selection", () => {
     expect(store.list).toHaveBeenLastCalledWith(pricing);
     await click("Comments");
     expect(container.textContent).toContain(comment.body);
-    await act(async () => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Ask Meowbert")!.click());
+    await click("Ask Meowbert");
     expect(sendPrompt.mock.calls[0][0]).toContain(pricing.relativePath);
-    await click("Select an element");
+    await click("Add comment");
     await pick();
     await draft(comment.body);
     await click("Save comment");
@@ -201,7 +219,8 @@ describe("CanvasPanel selection", () => {
     const store = { list: vi.fn().mockResolvedValueOnce([existing]).mockReturnValueOnce(reload.promise),
       add: vi.fn().mockReturnValue(save.promise), resolve: vi.fn() };
     await render(view, { ...host, comments: store });
-    await click("Select an element");
+    await click("Comments");
+    await click("Add comment");
     await pick();
     await draft(saved.body);
     await click("Save comment");
