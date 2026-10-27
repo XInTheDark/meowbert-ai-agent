@@ -5,16 +5,22 @@ import { chromium } from "playwright";
 import { PDFDocument } from "pdf-lib";
 import { ensurePlaywrightBrowserInstalled } from "./playwright-browser-utils.mjs";
 import { resolveTaskScopedUserPath } from "./task-path-utils.mjs";
+import { freezeHtmlCanvasAnimations } from "./html-canvas-animation.mjs";
 
 export const HTML_CANVAS_PAGE_SELECTOR = "[data-meowbert-page]";
 
 const TEMPLATE_FILES = {
+  document: "document.html",
+  prototype: "prototype.html",
+  animation: "animation.html",
   "slide-deck": "slide-deck.html",
   "report-pages": "report-pages.html"
 };
 
 // Files a template loads by relative path; scaffold copies them beside the output.
 const TEMPLATE_COMPANION_FILES = {
+  document: ["meowbert-document.js"],
+  prototype: ["meowbert-starters.css"],
   "slide-deck": ["meowbert-deck.js"]
 };
 
@@ -114,16 +120,7 @@ async function stabilizePage(page, waitForSelector, timeoutMs) {
   if (waitForSelector) {
     await page.waitForSelector(waitForSelector, { timeout: timeoutMs });
   }
-  await page.addStyleTag({
-    content: `
-      *,
-      *::before,
-      *::after {
-        animation: none !important;
-        transition: none !important;
-      }
-    `
-  });
+  await freezeHtmlCanvasAnimations(page);
 }
 
 async function screenshotSinglePage(page, previewDir, fileName = "page-1.png") {
@@ -131,7 +128,7 @@ async function screenshotSinglePage(page, previewDir, fileName = "page-1.png") {
   await page.screenshot({
     path: outputPath,
     fullPage: true,
-    animations: "disabled"
+    animations: "allow"
   });
   return [outputPath];
 }
@@ -140,7 +137,7 @@ async function screenshotViewportPage(page, previewDir, fileName) {
   const outputPath = path.join(previewDir, fileName);
   await page.screenshot({
     path: outputPath,
-    animations: "disabled"
+    animations: "allow"
   });
   return outputPath;
 }
@@ -158,7 +155,7 @@ async function screenshotPageElements(page, selector, previewDir) {
     const outputPath = path.join(previewDir, `page-${String(index + 1).padStart(2, "0")}.png`);
     await elements.nth(index).screenshot({
       path: outputPath,
-      animations: "disabled"
+      animations: "allow"
     });
     outputPaths.push(outputPath);
   }
@@ -227,6 +224,7 @@ async function maybeWritePdf(page, outputDir, pdfFileName, createPdf) {
 
   const pdfPath = path.join(outputDir, pdfFileName);
   await page.emulateMedia({ media: "print" });
+  await freezeHtmlCanvasAnimations(page);
   await page.pdf({
     path: pdfPath,
     printBackground: true,
@@ -454,6 +452,7 @@ async function collectPageElementOverflowWarnings(page, selector) {
 
 async function renderPageToPdfFile(page, pdfPath, viewport) {
   await page.emulateMedia({ media: "print" });
+  await freezeHtmlCanvasAnimations(page);
   await page.pdf({
     path: pdfPath,
     printBackground: true,

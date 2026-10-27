@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" data-meowbert-kind="document">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <script src="./meowbert-document.js" defer></script>
+  <style>
+    body { margin:0; background:#e8e9eb; font:12pt/1.6 Georgia, serif; }
+    h1, h2 { font-family:Arial, sans-serif; line-height:1.15; }
+    h1 { font-size:32pt; margin:0 0 12pt; }
+    h2 { font-size:20pt; margin:28pt 0 12pt; }
+    .subtitle { color:#555; font-size:15pt; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:8pt; border-bottom:1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <!-- flow is continuous onscreen and paginated by PDF printing; use mode=pages with data-meowbert-page children for composed pages. -->
+  <meowbert-document mode="flow" paper="a4">
+    <header data-meowbert-id="document-title">
+      <h1>{{TITLE}}</h1>
+      <p class="subtitle">{{SUBTITLE}}</p>
+    </header>
+    <section data-meowbert-id="document-body">
+      <h2>Overview</h2>
+      <p>Replace this with the document’s content. Text flows naturally and remains selectable in the PDF.</p>
+    </section>
+  </meowbert-document>
+</body>
+</html>

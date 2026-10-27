@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-meowbert-kind="web">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <style>
+    body { margin:0; display:grid; min-height:100vh; place-content:center; background:#f8f7f4; color:#202124; font:18px/1.5 system-ui,sans-serif; }
+    main { max-width:40rem; padding:32px; }
+    .reveal { animation:reveal 1.2s both; }
+    @keyframes reveal { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+    button { padding:8px 14px; font:inherit; cursor:pointer; }
+    @media (prefers-reduced-motion:reduce) { .reveal { animation:none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="reveal" data-meowbert-id="animated-content"><h1>{{TITLE}}</h1><p>{{SUBTITLE}}</p></section>
+    <button type="button" data-meowbert-screen-only id="replay">Replay</button>
+  </main>
+  <script>
+    document.getElementById("replay").addEventListener("click", () => {
+      for (const animation of document.getAnimations()) { animation.currentTime = 0; animation.play(); }
+    });
+  </script>
+</body>
+</html>

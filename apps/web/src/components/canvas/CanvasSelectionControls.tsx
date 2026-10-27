@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUp, MousePointer2, X } from "lucide-react";
+import { ArrowUp, MessageSquarePlus, MousePointer2, X } from "lucide-react";
 import type { CanvasElementSelection } from "@meowbert/shared/canvas-frame";
 
 export function CanvasSelectButton(props: { active: boolean; onClick: () => void; disabled?: boolean }) {
@@ -15,6 +15,8 @@ export function CanvasSelectionPrompt(props: {
   element: CanvasElementSelection | null;
   onSend: (instruction: string) => void;
   onDismiss: () => void;
+  onSave?: (instruction: string) => void;
+  saving?: boolean;
 }) {
   const [instruction, setInstruction] = useState("");
   return (
@@ -31,6 +33,10 @@ export function CanvasSelectionPrompt(props: {
           </span>
           <input autoFocus value={instruction} onChange={(event) => setInstruction(event.target.value)}
             placeholder="Ask about this element" aria-label="Ask about selected element" />
+          {props.onSave ? <button type="button" className="icon-btn" disabled={props.saving || !instruction.trim()}
+            title="Save comment" aria-label="Save comment" onClick={() => props.onSave?.(instruction)}>
+            <MessageSquarePlus size={15} aria-hidden="true" />
+          </button> : null}
           <button type="submit" className="btn primary icon-btn" disabled={!instruction.trim()} aria-label="Send selection request">
             <ArrowUp size={15} aria-hidden="true" />
           </button>

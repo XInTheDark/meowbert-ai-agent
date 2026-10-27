@@ -14,7 +14,9 @@ export function useCanvasSelection(key: string) {
   const select = useCallback((element: CanvasElementSelection | null) => {
     setState({ key, enabled: element !== null, element });
   }, [key]);
-  const clear = useCallback(() => setState({ key, enabled: false, element: null }), [key]);
+  const clear = useCallback(() => setState((state) => state.key === key ? { key, enabled: false, element: null } : state), [key]);
+  const clearIfSelected = useCallback((element: CanvasElementSelection) => setState((state) =>
+    state.key === key && state.element === element ? { key, enabled: false, element: null } : state), [key]);
   const toggle = () => setState({ key, enabled: !current.enabled, element: null });
-  return { enabled: current.enabled, element: current.element, select, clear, toggle };
+  return { enabled: current.enabled, element: current.element, select, clear, clearIfSelected, toggle };
 }

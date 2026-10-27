@@ -17,6 +17,11 @@ function installCanvasSelection() {
     var parts = [];
     for (var node = element; node && node.nodeType === 1 && parts.length < 8; node = node.parentElement) {
       var part = node.localName;
+      var stableId = node.getAttribute("data-meowbert-id");
+      if (stableId && document.querySelectorAll('[data-meowbert-id="' + escape(stableId) + '"]').length === 1) {
+        parts.unshift(part + '[data-meowbert-id="' + escape(stableId) + '"]');
+        break;
+      }
       if (node.id && document.querySelectorAll("#" + escape(node.id)).length === 1) {
         parts.unshift(part + "#" + escape(node.id));
         break;

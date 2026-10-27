@@ -1,4 +1,5 @@
 import { registerTaskNavigationRoutes } from "./tasks/navigation-routes.js";
+import { registerCanvasCommentRoutes } from "./canvas-comment-routes.js";
 import type { FastifyPluginAsync } from "fastify";
 import { registerTaskCreateRoutes } from "./tasks/create-routes.js";
 import { registerTaskDebugRoutes } from "./tasks/debug-routes.js";
@@ -14,6 +15,7 @@ import { registerTaskThreadRoutes } from "./tasks/thread-routes.js";
 import { registerTaskUsageRoutes } from "./tasks/usage-routes.js";
 
 export const taskRoutes: FastifyPluginAsync = async (fastify) => {
+  await registerCanvasCommentRoutes(fastify);
   await registerTaskCreateRoutes(fastify);
   await registerTaskDetailRoutes(fastify);
   await registerTaskNavigationRoutes(fastify);

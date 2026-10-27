@@ -228,6 +228,14 @@ describe("renderHtmlCanvasDocument", () => {
 });
 
 describe("scaffoldHtmlCanvasTemplate", () => {
+  it.each(["document", "prototype", "animation"])("copies dependencies for the %s starter", async (template) => {
+    const taskDir = await createTempDir("meowbert-starter-");
+    const outputPath = path.join(taskDir, "index.html");
+    const result = await scaffoldHtmlCanvasTemplate({ template, outputPath, title: "Title" });
+    expect(await fs.readFile(outputPath, "utf8")).toContain("Title");
+    for (const companion of result.companion_paths) await expect(fs.stat(companion)).resolves.toBeTruthy();
+    expect(result.companion_paths.length).toBe(template === "animation" ? 0 : 1);
+  });
   it("copies the deck component beside a scaffolded slide deck", async () => {
     const taskDir = await createTempDir("meowbert-deck-scaffold-");
     const outputPath = path.join(taskDir, "deck", "pitch.html");

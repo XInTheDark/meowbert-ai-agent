@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CanvasHost } from "../../../components/canvas/CanvasHostContext";
+import { createCanvasCommentClient } from "../../../components/canvas/canvasCommentClient";
 import { getCanvasViewKey, type CanvasView } from "../../../components/canvas/canvasViews";
 import { useProjectCanvasTickets } from "../../../components/canvas/useProjectCanvasTickets";
 import { buildProjectCanvasPreviewUrl } from "../../../lib/projectCanvases";
@@ -96,8 +97,10 @@ export function useTaskCanvas(input: {
   }, [input.projectCanvases, input.requestedCanvasId, panel.open]);
 
   const { taskId, projectId, inlineFileTicket, sendPrompt } = input;
+  const comments = useMemo(() => input.token ? createCanvasCommentClient(input.token, taskId) : undefined, [input.token, taskId]);
   const host = useMemo<CanvasHost>(() => ({
     taskId,
+    comments,
     resolveSource: (view) => {
       if (view.canvasId) {
         const ticket = getProjectCanvasTicket(view.canvasId);
@@ -112,7 +115,7 @@ export function useTaskCanvas(input: {
     reloadTokenFor: (view) => revisions[getCanvasViewKey(view)] ?? 0,
     openInPanel: panel.open,
     sendPrompt
-  }), [getProjectCanvasTicket, inlineFileTicket, panel.open, projectId, revisions, sendPrompt, taskId]);
+  }), [comments, getProjectCanvasTicket, inlineFileTicket, panel.open, projectId, revisions, sendPrompt, taskId]);
 
   return { host, panel };
 }

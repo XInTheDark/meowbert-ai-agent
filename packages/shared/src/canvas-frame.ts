@@ -20,6 +20,8 @@ export interface CanvasFrameTheme {
   tokens: Record<string, string>;
 }
 
+export type CanvasDocumentKind = "web" | "document" | "slides";
+
 export interface CanvasElementSelection {
   tagName: string;
   selector: string;
@@ -32,12 +34,16 @@ export interface CanvasElementSelection {
 export interface CanvasFrameInit {
   theme: CanvasFrameTheme | null;
   storage: { local?: Record<string, string> };
+  scroll?: { x: number; y: number };
+  documentFit?: boolean;
 }
 
 export type CanvasFrameMessage =
   | { type: "hello" }
-  | { type: "ready" | "content"; blank: boolean; title: string | null }
+  | { type: "location"; href: string }
+  | { type: "ready" | "content"; blank: boolean; title: string | null; kind: CanvasDocumentKind }
   | { type: "resize"; height: number }
+  | { type: "scroll"; x: number; y: number }
   | { type: "error"; error: CanvasFrameError }
   | { type: "storage"; area: "local"; items: Record<string, string> }
   | { type: "selection"; element: CanvasElementSelection | null }
@@ -83,13 +89,19 @@ export function parseCanvasFrameMessage(data: unknown): CanvasFrameMessage | nul
   switch (data.type) {
     case "hello":
       return { type: "hello" };
+    case "location":
+      return typeof data.href === "string" && data.href.length <= 8000 ? { type: "location", href: data.href } : null;
     case "ready":
     case "content":
-      return { type: data.type, blank: data.blank === true, title: typeof data.title === "string" ? data.title : null };
+      return { type: data.type, blank: data.blank === true, title: typeof data.title === "string" ? data.title : null,
+        kind: data.kind === "document" || data.kind === "slides" ? data.kind : "web" };
     case "resize":
       return typeof data.height === "number" && Number.isFinite(data.height) && data.height >= 0
         ? { type: "resize", height: data.height }
         : null;
+    case "scroll":
+      return typeof data.x === "number" && Number.isFinite(data.x) && typeof data.y === "number" && Number.isFinite(data.y)
+        ? { type: "scroll", x: Math.max(0, Math.min(10_000_000, data.x)), y: Math.max(0, Math.min(10_000_000, data.y)) } : null;
     case "error": {
       const error = parseFrameError(data.error);
       return error ? { type: "error", error } : null;

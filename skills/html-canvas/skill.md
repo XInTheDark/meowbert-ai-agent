@@ -1,6 +1,6 @@
 # Canvas
 
-Use this skill for browser-based visual artifacts: interactive explanations, prototypes, dashboards, HTML slide decks, multi-page sites, small apps, and custom page compositions. You are working as the relevant expert for the medium (slide designer, prototyper, information designer, and so on), so avoid web-page conventions unless you are actually making a web page.
+Use this skill for browser-based visual artifacts: interactive explanations, prototypes, dashboards, designed documents, HTML slide decks, multi-page sites, small apps, and custom page compositions. You are working as the relevant expert for the medium (slide designer, document designer, prototyper, information designer), so avoid web-page conventions unless you are actually making a web page.
 
 The HTML source is the editable source of truth. PNG and PDF files are review and delivery artifacts derived from it.
 
@@ -8,13 +8,15 @@ The HTML source is the editable source of truth. PNG and PDF files are review an
 
 - Prefer Word (`docx-studio` or `openai-doc`) for general documents with no specified format, editable Office output, and existing Word templates. Export the same Word document when a matching PDF is needed.
 - For new PDF-only reports, proposals, guides, and handouts, prefer `typst`. Check `list_skills` and activate it with `enable_skill` (`{"skill": "typst"}`) before authoring. Branding, attractive typography, or a custom cover alone does not call for HTML.
-- Use Canvas when the user requests HTML or interactive output, when reusing existing HTML, or when the composition is awkward to express with a document engine. For editable PowerPoint output, use a presentation skill.
+- Use Canvas when the user asks for a document in Canvas, HTML or interactive output, when reusing existing HTML, or when the composition is awkward to express with a document engine. Reports, proposals, letters, and handouts belong here when Canvas is the requested medium. Keep native Word or PowerPoint when that is the requested editable format.
 
 These are defaults, not conversion requirements. Preserve the user's format choice and useful existing source. The page-oriented rules below apply after choosing Canvas, not to every document request.
 
 ## Design guide
 
 Before you build an artifact or substantially restyle one, read `/app/skills/html-canvas/design-guide.md` in full and follow it. It covers the quality bar, what to settle before building, design principles, and format-specific guidance. Small edits within an existing design can skip it.
+
+When the user points to a brand or design-system folder, read `/app/skills/html-canvas/design-systems.md` and the folder's guidance, tokens, and relevant examples. Reuse that visual language; no registration or server-side design-system storage is needed. For documents or reusable frames, read `/app/skills/html-canvas/starters.md`.
 
 ## Working with the user
 
@@ -57,7 +59,7 @@ Pick the structure that matches the artifact:
 - **Single page or interactive piece:** one HTML file.
 - **Slide deck:** one HTML file built on `<meowbert-deck>`. Start from the `slide-deck` scaffold, which copies `meowbert-deck.js` beside the deck. Each slide is a `<section data-meowbert-page data-label="…" data-notes="…">` child of the deck. The component scales slides to the screen, handles keyboard navigation, an overview grid (G), speaker notes (N), and keeps the slide number in the URL. It also prints and renders one slide per page, so previews and PDF export need nothing extra. Do not position slides yourself, and do not split a deck into one file per slide unless the user asks. Show it in the panel.
 - **Multi-page site or prototype:** separate HTML files in one folder, linked with relative `<a href="pricing.html">` links, sharing assets and CSS beside them. Show the entry page; links and assets work inside the view.
-- **Paged document:** explicit page wrappers marked with `data-meowbert-page` (see the `report-pages` scaffold).
+- **Designed document:** start from `document`. Use its flowing mode for prose (continuous onscreen, paginated in PDF), or explicit `data-meowbert-page` children in `mode="pages"` for composed layouts. A4, Letter, and Legal are supported. `report-pages` remains available for explicit A4 layouts.
 
 Implementation rules:
 
@@ -77,6 +79,10 @@ Implementation rules:
 - `html_canvas_scaffold`: copy a starter into the workspace. Use it when it saves time; one-off artifacts can start as purpose-built HTML.
   - `slide-deck`: single-file deck on `<meowbert-deck>`.
   - `report-pages`: explicit A4 page wrappers.
+  - `document`: flowing or composed documents with a paper-size-aware shell.
+  - `prototype`: browser/device frames and an image placeholder stylesheet.
+  - `animation`: live CSS animation with Replay and reduced-motion support.
+- `html_canvas_export_html`: export to a separate standalone HTML file, inlining local static assets. Bundle module scripts first. See `starters.md` for supported dependencies and CLI usage.
 - `html_canvas_render`: render an HTML file or a directory into preview PNGs, `preview-index.html`, diagnostics, and an optional PDF. A single file captures each `[data-meowbert-page]` element as a page; a directory captures each HTML file as a page. Set `viewport_width`/`viewport_height` to the slide or page size, and use `create_pdf` once the previews look right.
 - `scripts/html-canvas-cli.mjs`: CLI wrapper for shell-first scaffold, render and check workflows.
 

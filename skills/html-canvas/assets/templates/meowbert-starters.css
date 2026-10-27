@@ -1,0 +1,8 @@
+/* Optional presentation frames. Put ordinary HTML content inside them. */
+.browser-frame { border:1px solid #bfc3cb; border-radius:10px; overflow:hidden; background:white; color:#202124; }
+.browser-frame > .browser-bar { padding:10px 16px; background:#f1f2f4; border-bottom:1px solid #d6d9df; font:13px/1.4 system-ui,sans-serif; color:#59616d; }
+.device-frame { box-sizing:border-box; width:390px; max-width:100%; min-height:720px; padding:12px; border:8px solid #25282d; border-radius:40px; background:white; color:#202124; overflow:hidden; }
+.device-frame > .device-screen { border-radius:22px; min-height:680px; overflow:hidden; }
+.image-placeholder { display:grid; place-content:center; aspect-ratio:16/9; margin:0; padding:20px; background:#eceef1; color:#59616d; text-align:center; font:14px/1.5 system-ui,sans-serif; }
+.image-placeholder img { width:100%; height:100%; object-fit:cover; }
+@media print { .browser-frame, .device-frame { break-inside:avoid; box-shadow:none; } }

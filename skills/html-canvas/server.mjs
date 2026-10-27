@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { exportHtmlCanvasDocument } from "../shared/html-canvas-export.mjs";
 import {
   HTML_CANVAS_PAGE_SELECTOR,
   listHtmlCanvasTemplates,
@@ -26,9 +27,9 @@ const server = new McpServer({
 
 server.tool(
   "html_canvas_scaffold",
-  "Copy a bundled starter into the workspace. `slide-deck` is a single-file deck built on <meowbert-deck> (copies meowbert-deck.js beside it); `report-pages` has explicit A4 page wrappers.",
+  "Copy a bundled starter: document for flowing or composed documents, slide-deck for presentations, report-pages for explicit A4 pages. Companion scripts are copied beside the HTML.",
   {
-    template: z.enum(["slide-deck", "report-pages"]).describe("Starter template to copy."),
+    template: z.enum(["document", "slide-deck", "report-pages", "prototype", "animation"]).describe("Starter template to copy."),
     output_path: z
       .string()
       .min(1)
@@ -121,4 +122,10 @@ server.tool(
 );
 
 const transport = new StdioServerTransport();
+server.tool(
+  "html_canvas_export_html",
+  "Export static HTML to one standalone HTML file by inlining local CSS, classic scripts, images and fonts. Bundle module scripts first; copy external assets into the document folder.",
+  { input_path: z.string().min(1), output_path: z.string().min(1) },
+  async ({ input_path, output_path }) => asToolResult(await exportHtmlCanvasDocument({ inputPath: input_path, outputPath: output_path }))
+);
 await server.connect(transport);

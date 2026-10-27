@@ -22,6 +22,10 @@ export interface CanvasFrameProps {
   onFixRequest?: (errors: CanvasFrameError[]) => void;
   selectionEnabled?: boolean;
   onElementSelect?: (element: CanvasElementSelection | null) => void;
+  documentFit?: boolean;
+  relativePath?: string;
+  onDocumentPath?: (path: string) => void;
+  onDocumentKind?: (kind: import("@meowbert/shared/canvas-frame").CanvasDocumentKind) => void;
 }
 
 function useStableSource(src: string, srcKey: string, reloadToken: number): string {
@@ -54,8 +58,10 @@ export function CanvasFrame(props: CanvasFrameProps) {
   const src = useStableSource(props.src, props.srcKey, reloadToken + retryCount);
   const loadKey = `${props.srcKey}#${reloadToken}#${retryCount}`;
   const bridge = useCanvasFrameBridge({
-    frameRef, loadKey, storageKey: props.storageKey, theme,
-    selectionEnabled: props.selectionEnabled, onElementSelect: props.onElementSelect
+    frameRef, loadKey, viewKey: props.srcKey, storageKey: props.storageKey, theme, src,
+    relativePath: props.relativePath, onDocumentPath: props.onDocumentPath,
+    selectionEnabled: props.selectionEnabled, onElementSelect: props.onElementSelect,
+    documentFit: props.documentFit, onDocumentKind: props.onDocumentKind
   });
   const { status, blank, errors, height, runRequest } = bridge.state;
   const failed = status === "unreachable" || (status === "ready" && blank && errors.length > 0);

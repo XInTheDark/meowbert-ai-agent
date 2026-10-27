@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { ExternalLink, FolderOpen, Monitor, RotateCw, Smartphone, Tablet, X } from "lucide-react";
+import { ExternalLink, FolderOpen, MessageSquare, RotateCw, X } from "lucide-react";
+import type { CanvasDocumentKind } from "@meowbert/shared/canvas-frame";
+import { CanvasViewportControls, type PanelViewport } from "./CanvasViewportControls";
+import { CanvasComments } from "./CanvasComments";
+import { useCanvasComments } from "./useCanvasComments";
 import { CanvasFrame } from "./CanvasFrame";
 import { CanvasSelectButton, CanvasSelectionPrompt } from "./CanvasSelectionControls";
 import { buildCanvasSelectionPrompt } from "./canvasSelectionPrompt";
@@ -12,14 +16,6 @@ import {
   getCanvasViewTitle,
   type CanvasView
 } from "./canvasViews";
-
-type PanelViewport = "desktop" | "tablet" | "phone";
-
-const VIEWPORTS: Array<{ id: PanelViewport; label: string; icon: JSX.Element }> = [
-  { id: "desktop", label: "Full width", icon: <Monitor size={14} aria-hidden="true" /> },
-  { id: "tablet", label: "Tablet width", icon: <Tablet size={14} aria-hidden="true" /> },
-  { id: "phone", label: "Phone width", icon: <Smartphone size={14} aria-hidden="true" /> }
-];
 
 function CanvasPanelTabs(props: { views: CanvasView[]; activeKey: string; onSelect: (view: CanvasView) => void }) {
   if (props.views.length < 2) {
@@ -52,11 +48,20 @@ export function CanvasPanel(props: {
 }) {
   const [viewport, setViewport] = useState<PanelViewport>("desktop");
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [documentFit, setDocumentFit] = useState(true);
+  const [kind, setKind] = useState<{ key: string; kind: CanvasDocumentKind } | null>(null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [documentPath, setDocumentPath] = useState<{ key: string; path: string } | null>(null);
   const { host, activeView } = props;
   const source = host.resolveSource(activeView);
   const sendPrompt = host.sendPrompt;
   const reloadToken = host.reloadTokenFor(activeView) + reloadNonce;
-  const selection = useCanvasSelection(`${getCanvasViewKey(activeView)}#${reloadToken}`);
+  const loadKey = `${getCanvasViewKey(activeView)}#${reloadToken}`;
+  const pageView = documentPath?.key === loadKey && documentPath.path !== activeView.relativePath
+    ? { ...activeView, relativePath: documentPath.path } : activeView;
+  const selection = useCanvasSelection(`${getCanvasViewKey(pageView)}#${reloadToken}`);
+  const comments = useCanvasComments(host.comments, pageView, reloadToken);
+  const documentView = kind?.key === getCanvasViewKey(activeView) && kind.kind === "document";
 
   return (
     <section className="canvas-panel" aria-label="Canvas">
@@ -64,14 +69,9 @@ export function CanvasPanel(props: {
         <CanvasPanelTabs views={props.views} activeKey={getCanvasViewKey(activeView)} onSelect={props.onSelect} />
         <div className="canvas-panel-actions">
           {sendPrompt ? <CanvasSelectButton active={selection.enabled} onClick={selection.toggle} disabled={!source} /> : null}
-          <div className="canvas-panel-viewports" role="group" aria-label="Preview width">
-            {VIEWPORTS.map((option) => (
-              <button key={option.id} type="button" className={`icon-btn${viewport === option.id ? " active" : ""}`}
-                onClick={() => setViewport(option.id)} title={option.label} aria-label={option.label} aria-pressed={viewport === option.id}>
-                {option.icon}
-              </button>
-            ))}
-          </div>
+          {host.comments ? <button type="button" className={`icon-btn${commentsOpen ? " active" : ""}`} title="Comments"
+            aria-label="Comments" aria-pressed={commentsOpen} onClick={() => setCommentsOpen(!commentsOpen)}><MessageSquare size={14} /></button> : null}
+          <CanvasViewportControls document={documentView} fit={documentFit} onFit={setDocumentFit} viewport={viewport} onViewport={setViewport} />
           <button type="button" className="icon-btn" onClick={() => setReloadNonce((value) => value + 1)} title="Reload" aria-label="Reload">
             <RotateCw size={14} aria-hidden="true" />
           </button>
@@ -90,7 +90,7 @@ export function CanvasPanel(props: {
           </button>
         </div>
       </header>
-      <div className={`canvas-panel-body viewport-${viewport}`}>
+      <div className={`canvas-panel-body viewport-${documentView ? "desktop" : viewport}`}>
         {source ? (
           <CanvasFrame
             src={source.src}
@@ -101,20 +101,33 @@ export function CanvasPanel(props: {
             reloadToken={reloadToken}
             selectionEnabled={selection.enabled}
             onElementSelect={selection.select}
+            documentFit={documentFit}
+            relativePath={activeView.relativePath}
+            onDocumentPath={(path) => setDocumentPath((current) => current?.key === loadKey && current.path === path ? current : { key: loadKey, path })}
+            onDocumentKind={(nextKind) => setKind({ key: getCanvasViewKey(activeView), kind: nextKind })}
             onRunRequest={sendPrompt ? (request) => sendPrompt(request.prompt) : undefined}
-            onFixRequest={sendPrompt ? (errors) => sendPrompt(buildCanvasFixPrompt(activeView, errors)) : undefined}
+            onFixRequest={sendPrompt ? (errors) => sendPrompt(buildCanvasFixPrompt(pageView, errors)) : undefined}
           />
         ) : (
           <div className="canvas-card-unavailable">Loading canvas…</div>
         )}
       </div>
+      <div className="canvas-panel-footer">
+      {commentsOpen && host.comments ? <CanvasComments items={comments.items} pending={comments.pending} error={comments.error}
+        onResolve={(id, resolved) => { void comments.resolve(id, resolved); }}
+        onAsk={sendPrompt ? (comment) => sendPrompt(buildCanvasSelectionPrompt(comment.relativePath, comment.element, comment.body)) : undefined} /> : null}
       {selection.enabled && sendPrompt ? (
         <CanvasSelectionPrompt key={selection.element?.selector ?? "pick"} element={selection.element} onDismiss={selection.clear}
+          saving={comments.pending} onSave={host.comments ? async (body) => {
+            setCommentsOpen(true);
+            if (selection.element && await comments.add(selection.element, body)) selection.clearIfSelected(selection.element);
+          } : undefined}
           onSend={(instruction) => {
-            if (selection.element) sendPrompt(buildCanvasSelectionPrompt(activeView.relativePath, selection.element, instruction));
+            if (selection.element) sendPrompt(buildCanvasSelectionPrompt(pageView.relativePath, selection.element, instruction));
             selection.clear();
           }} />
       ) : null}
+      </div>
     </section>
   );
 }

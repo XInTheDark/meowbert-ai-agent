@@ -9,6 +9,7 @@ import {
   type CanvasFrameTheme
 } from "@meowbert/shared/canvas-frame";
 import { readCanvasStorage, writeCanvasStorage } from "./canvasFrameStorage";
+import { resolveCanvasDocumentPath } from "./canvasDocumentPath";
 
 export type CanvasFrameStatus = "loading" | "ready" | "unreachable";
 
@@ -95,9 +96,15 @@ export function useCanvasFrameBridge(input: {
   frameRef: RefObject<HTMLIFrameElement>;
   loadKey: string;
   storageKey: string;
+  viewKey: string;
   theme: CanvasFrameTheme;
+  src: string;
+  relativePath?: string;
+  onDocumentPath?: (path: string) => void;
   selectionEnabled?: boolean;
   onElementSelect?: (element: CanvasElementSelection | null) => void;
+  documentFit?: boolean;
+  onDocumentKind?: (kind: import("@meowbert/shared/canvas-frame").CanvasDocumentKind) => void;
 }) {
   const [keyed, setKeyed] = useState<KeyedState>({ loadKey: input.loadKey, hello: false, state: INITIAL_STATE });
   const loadKeyRef = useRef(input.loadKey);
@@ -107,11 +114,16 @@ export function useCanvasFrameBridge(input: {
     setKeyed((current) => change(stateFor(current, loadKeyRef.current)));
   }, []);
   const initialTheme = useRef(input.theme);
+  const initialFit = useRef(input.documentFit);
+  const scrollPositions = useRef(new Map<string, { x: number; y: number }>());
+  const scrollKey = `${input.storageKey}:${input.viewKey}`;
   initialTheme.current = input.theme;
+  initialFit.current = input.documentFit;
   // Read once per load: changing an iframe's name later would overwrite what the page stored in it.
   const frameName = useMemo(
-    () => buildCanvasFrameName({ theme: initialTheme.current, storage: { local: readCanvasStorage(input.storageKey) } }),
-    [input.loadKey, input.storageKey]
+    () => buildCanvasFrameName({ theme: initialTheme.current, documentFit: initialFit.current !== false,
+      storage: { local: readCanvasStorage(input.storageKey) }, scroll: scrollPositions.current.get(scrollKey) }),
+    [input.loadKey, input.storageKey, scrollKey]
   );
 
   useEffect(() => {
@@ -124,6 +136,16 @@ export function useCanvasFrameBridge(input: {
       if (!input.frameRef.current || event.source !== input.frameRef.current.contentWindow) return;
       const message = parseCanvasFrameMessage(event.data);
       if (!message) return;
+      if (message.type === "location") {
+        const path = resolveCanvasDocumentPath(input.src, input.relativePath ?? "", message.href);
+        if (path) input.onDocumentPath?.(path);
+        return;
+      }
+      if (message.type === "scroll") {
+        scrollPositions.current.set(scrollKey, { x: message.x, y: message.y });
+        return;
+      }
+      if (message.type === "ready" || message.type === "content") input.onDocumentKind?.(message.kind);
       if (message.type === "selection") {
         if (input.selectionEnabled) input.onElementSelect?.(message.element);
         return;
@@ -137,7 +159,13 @@ export function useCanvasFrameBridge(input: {
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [acceptHeight, input.frameRef, input.storageKey, input.selectionEnabled, input.onElementSelect, update]);
+  }, [acceptHeight, input.frameRef, input.src, input.relativePath, input.onDocumentPath, input.storageKey, input.selectionEnabled, input.onElementSelect, input.onDocumentKind, scrollKey, update]);
+
+  useEffect(() => {
+    input.frameRef.current?.contentWindow?.postMessage({
+      source: CANVAS_FRAME_MESSAGE_SOURCE, type: "document-view", fit: input.documentFit !== false
+    }, "*");
+  }, [input.frameRef, input.loadKey, input.documentFit, keyed.hello, keyed.state.status]);
 
   useEffect(() => {
     input.frameRef.current?.contentWindow?.postMessage({

@@ -17,6 +17,7 @@ export * from "./memory-embeddings.js";
 export * from "./task-cleanup.js";
 export * from "./inline-artifacts.js";
 export * from "./project-canvas-paths.js";
+export type { CanvasComment } from "./canvas-comments.js";
 export * from "./task-message-metadata.js";
 export * from "./usage-cost.js";
 export * from "./token-usage-stats.js";

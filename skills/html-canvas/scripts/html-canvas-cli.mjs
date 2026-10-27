@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { checkCanvasDocument } from "../../shared/canvas-check-utils.mjs";
 import { renderHtmlCanvasDocument, scaffoldHtmlCanvasTemplate } from "../../shared/html-canvas-utils.mjs";
+import { exportHtmlCanvasDocument } from "../../shared/html-canvas-export.mjs";
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -93,6 +94,7 @@ function printHelp() {
   node scripts/html-canvas-cli.mjs scaffold --template slide-deck --output ./canvas/deck.html [--title "..."] [--subtitle "..."]
   node scripts/html-canvas-cli.mjs render --input ./canvas/deck.html --output-dir ./canvas/output [--layout slides|pages|single] [--orientation portrait|landscape] [--create-pdf]
   node scripts/html-canvas-cli.mjs check --input ./canvas/index.html --root ./canvas --screenshot ./canvas/check.png [--display inline|panel] [--theme light|dark]
+  node scripts/html-canvas-cli.mjs export-html --input ./canvas/index.html --output ./canvas/standalone.html
   node scripts/html-canvas-cli.mjs render --input ./canvas/slides --output-dir ./canvas/output [--layout slides|pages|single] [--orientation portrait|landscape] [--create-pdf]
 `);
 }
@@ -112,6 +114,8 @@ async function main() {
     result = await runRender(options);
   } else if (command === "check") {
     result = await runCheck(options);
+  } else if (command === "export-html") {
+    result = await exportHtmlCanvasDocument({ inputPath: requireString(options, "input"), outputPath: requireString(options, "output") });
   } else {
     throw new Error(`Unsupported command "${command}".`);
   }

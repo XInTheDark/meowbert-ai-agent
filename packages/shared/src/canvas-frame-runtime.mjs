@@ -149,6 +149,7 @@ const FRAME_RUNTIME_SOURCE = String.raw`(function () {
     }
   }
   applyTheme(init.theme);
+  document.documentElement.setAttribute("data-meowbert-document-fit", init.documentFit === false ? "false" : "true");
 
   var errorCount = 0;
   function reportError(error) {
@@ -239,7 +240,9 @@ const FRAME_RUNTIME_SOURCE = String.raw`(function () {
   var lastHeight = -1;
   function reportContent(type) {
     var blank = !document.body || !hasVisibleContent(document.body);
-    if (type === "ready" || blank !== lastBlank) post(type, { blank: blank, title: document.title || null });
+    var kind = document.documentElement.getAttribute("data-meowbert-kind")
+      || (document.querySelector("meowbert-document") ? "document" : document.querySelector("meowbert-deck") ? "slides" : "web");
+    if (type === "ready" || blank !== lastBlank) post(type, { blank: blank, title: document.title || null, kind: kind });
     lastBlank = blank;
   }
   function reportSize() {
@@ -250,9 +253,22 @@ const FRAME_RUNTIME_SOURCE = String.raw`(function () {
   }
 
   var loaded = false;
+  function restoreScroll() {
+    if (init.scroll) window.scrollTo(Number(init.scroll.x) || 0, Number(init.scroll.y) || 0);
+    var pending = false;
+    window.addEventListener("scroll", function () {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () {
+        pending = false;
+        post("scroll", { x: window.scrollX, y: window.scrollY });
+      });
+    }, { passive: true });
+  }
   function onLoaded() {
     if (loaded) return;
     loaded = true;
+    restoreScroll();
     reportContent("ready");
     reportSize();
     [600, 2000, 5000].forEach(function (delay) {
@@ -278,6 +294,11 @@ const FRAME_RUNTIME_SOURCE = String.raw`(function () {
       writeInit();
       applyTheme(data.theme);
     }
+    if (data.type === "document-view") {
+      init.documentFit = data.fit !== false;
+      writeInit();
+      document.documentElement.setAttribute("data-meowbert-document-fit", init.documentFit ? "true" : "false");
+    }
   });
 
   var meowbert = {
@@ -297,6 +318,7 @@ const FRAME_RUNTIME_SOURCE = String.raw`(function () {
   };
   try { Object.defineProperty(window, "meowbert", { value: Object.freeze(meowbert) }); } catch (error) {}
 
+  post("location", { href: window.location.href });
   post("hello", {});
 }());`;
 

@@ -83,6 +83,27 @@ describe("CanvasFrame", () => {
     expect(container.textContent).toContain("This page couldn't be loaded");
   });
 
+  it("restores scroll on reload without carrying it to another document", async () => {
+    const frame = await render();
+    await postFromFrame(frame, { type: "scroll", x: 0, y: 640 });
+    const reloaded = await render({ reloadToken: 1 });
+    expect(JSON.parse(reloaded.name.slice("meowbert-canvas:".length)).scroll).toEqual({ x: 0, y: 640 });
+    const other = await render({ srcKey: "other.html", reloadToken: 1 });
+    expect(JSON.parse(other.name.slice("meowbert-canvas:".length)).scroll).toBeUndefined();
+  });
+
+  it("initializes a reload with the selected zoom mode and its saved scroll", async () => {
+    const frame = await render();
+    const initialName = frame.name;
+    await render({ documentFit: false });
+    expect(frame.name).toBe(initialName);
+    await postFromFrame(frame, { type: "scroll", x: 0, y: 2000 });
+    const reloaded = await render({ reloadToken: 1, documentFit: false });
+    expect(JSON.parse(reloaded.name.slice("meowbert-canvas:".length))).toMatchObject({
+      documentFit: false, scroll: { x: 0, y: 2000 }
+    });
+  });
+
   it("sends a page's request only after the user confirms it", async () => {
     const onRunRequest = vi.fn();
     const frame = await render({ onRunRequest });
