@@ -104,6 +104,14 @@ In code mode, the agent can read earlier outputs with a script, pull out the exa
 
 Replacing calls works best for the calls the agent just made. Providers cache the start of the conversation, so replacing calls that many later messages follow makes the next request re-read all of those messages at full price. The agent is told to replace calls right after it finishes with them, not to go back and compact old ones. A summary cannot cover one of your messages, and it is only as complete as the agent writes it.
 
+### Idle compaction for the Project Master
+
+The Project Master is one long conversation that wakes up whenever a task reports back, often long after its last turn. By then the provider's prompt cache has usually expired, so the next turn pays full price for the whole window.
+
+To avoid that, Meowbert compacts an idle Master while its cache is still warm. Once 80% of the cache lifetime has passed since the start of the Master's last model request, and no new turn has happened, Meowbert runs one extra turn. That turn sends the same conversation the next turn would, plus a short instruction to update its notes, so it reads from the cache. Only the notes and history tools work in that turn, and nothing reaches the user. Afterwards the Master starts a fresh window, and its next wake begins from its notes instead of the full history.
+
+Idle compaction is skipped when the last request used fewer tokens than the minimum, when a task report is already waiting (the Master is about to wake anyway), or when the cache has already expired. See [Idle compaction settings](#idle-compaction-settings) to change the cache lifetime and threshold.
+
 The earlier V1 option uses checkpoint-and-compact and checkpoint-and-trim tools. These operate on the legacy compaction flow described above.
 
 The context notice in tool results reports exact API input-token usage for the request that produced the tool call. This reading is one request behind because the current tool result was not part of that completed request. V2 budget tracking and the remaining-token tool also include response output tokens and estimate locally added items after the latest model response, following Codex's total-context accounting approach. Before a provider usage sample is available, V2 estimates the prompt and history instead. These estimates are approximate; a large tool result or a provider context-overflow error can still force a new window before a checkpoint is saved.
@@ -139,6 +147,32 @@ If you're using models with larger or smaller context windows than the default, 
 ```
 
 Setting it too high won't cause errors but may delay compaction longer than necessary. Setting it too low will cause more frequent compaction, adding latency and cost.
+
+### Idle compaction settings
+
+Three Model metadata keys control Project Master idle compaction. Like `context_window`, each one is read from the exact model entry first, then from `default`.
+
+| Key | Description | Default |
+|---|---|---|
+| `prompt_cache_ttl_seconds` | How long the provider keeps a prompt cache, counted from the start of the request that wrote it | `3600` |
+| `idle_compaction` | Set to `false` to turn idle compaction off | `true` |
+| `idle_compaction_min_tokens` | Skip idle compaction when the last request used fewer input tokens than this | `50000` |
+
+```json
+{
+  "gpt-5.4": {
+    "context_window": 1000000,
+    "prompt_cache_ttl_seconds": 300
+  },
+  "default": {
+    "context_window": 256000,
+    "type": "openai",
+    "idle_compaction_min_tokens": 80000
+  }
+}
+```
+
+Set `prompt_cache_ttl_seconds` to what your provider actually keeps. If it's longer than the real cache lifetime, the compaction turn runs on an expired cache and pays full price.
 
 ### Changing the provider type
 

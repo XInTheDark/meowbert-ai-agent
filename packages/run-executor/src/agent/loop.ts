@@ -19,6 +19,8 @@ import { createModelResponseWithRetry, type ModelToolChoice } from "./model.js";
 import { resolveModelErrorAction } from "./model-error-actions.js";
 import { persistModelRequestRecovery } from "./model-request-recovery.js";
 import { dispatchResponseOutput, type ToolDispatchContext } from "../agent-tool-dispatch/index.js";
+import { isContextManagementV2Tool } from "../agent-tool-dispatch/handlers/context-management-v2.js";
+import { isIdleCompactionRun } from "./idle-compaction.js";
 import { buildAgentTurnRequest } from "./turn-request.js";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "./prompt-envelope.js";
@@ -249,6 +251,7 @@ async function recordModelResponseUsage(input: {
   step: number;
   promptPrefixHash: string;
   promptRevision: string;
+  requestStartedAt: string;
 }): Promise<void> {
   const windowUsage = prepareV2ContextWindowUsage(input.execution);
   if (windowUsage) windowUsage.lastResponseTotalTokens = getResponseTotalTokens(input.response.usage);
@@ -288,7 +291,8 @@ async function recordModelResponseUsage(input: {
     inputTokens,
     cachedTokens: input.response.usage.input_tokens_details?.cached_tokens,
     prefixHash: input.promptPrefixHash,
-    promptRevision: input.promptRevision
+    promptRevision: input.promptRevision,
+    request: { startedAt: input.requestStartedAt, model: input.execution.prepared.runtimeModel }
   });
 }
 
@@ -381,6 +385,8 @@ async function requestModelTurn(input: {
   const requestItemCount = execution.state.dispatchState.conversationItems.length;
 
   await execution.prepared.control.emitEvent("thinking_start", { step });
+  // Taken before retries, so a retried request is timed from its first attempt, never later.
+  const requestStartedAt = new Date().toISOString();
   let recoveredItemCount = 0;
   const { response, weightedTokens } = await createModelResponseWithRetry(
       execution.prepared.control,
@@ -449,7 +455,8 @@ async function requestModelTurn(input: {
     response,
     step,
     promptPrefixHash: turnRequest.promptPrefixHash,
-    promptRevision: turnRequest.promptRevision
+    promptRevision: turnRequest.promptRevision,
+    requestStartedAt
   });
   await assertStepNotAborted(execution);
 
@@ -610,6 +617,7 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     connectorContextId: execution.prepared.snapshot.task.connector_context_id,
     defaultTimezone: execution.prepared.snapshot.task.default_timezone || "UTC",
     runMode: execution.job.mode ?? "default",
+    notesOnly: isIdleCompactionRun(execution.job),
     runToolOptions: execution.prepared.runToolOptions,
     isThreadTask: execution.prepared.snapshot.task.is_thread,
     shellToolMaxTimeoutMs: execution.prepared.snapshot.shell_tool_max_timeout_ms,
@@ -768,6 +776,15 @@ async function applyPendingContextManagementAction(
   return true;
 }
 
+// The window is cleared after the idle turn anyway, so context edits and resets wait for that.
+function continueIdleCompaction(execution: AgentExecutionContext, response: ModelTurnResponse): "continue" | "break" {
+  const { dispatchState } = execution.state;
+  dispatchState.pendingContextEdits = [];
+  dispatchState.pendingContextV2Reset = false;
+  const wroteNotes = response.output.some((item) => item.type === "function_call" && isContextManagementV2Tool(item.name));
+  return wroteNotes ? "continue" : "break";
+}
+
 async function processModelTurnResult(
   execution: AgentExecutionContext,
   step: number,
@@ -782,6 +799,7 @@ async function processModelTurnResult(
     execution.state.dispatchState
   );
   await execution.prepared.features.afterModelTurn(execution, turn.weightedTokens);
+  if (isIdleCompactionRun(execution.job)) return continueIdleCompaction(execution, response);
   if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
   if (execution.state.dispatchState.pendingContextV2Reset) {
     execution.state.dispatchState.pendingContextEdits = [];
@@ -874,8 +892,11 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
   }
 
   const availability = resolveStepAvailability(execution, step);
-  await execution.prepared.features.beforeStep(execution);
-  maybeAppendWindingDownNotice(execution, availability);
+  // An idle turn takes no new work: inboxes stay for the next real run, and it has no answer to wind down to.
+  if (!isIdleCompactionRun(execution.job)) {
+    await execution.prepared.features.beforeStep(execution);
+    maybeAppendWindingDownNotice(execution, availability);
+  }
   await maybeRunAutoCompaction(execution, step);
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);
   const turn = await requestModelTurnWithRecovery({

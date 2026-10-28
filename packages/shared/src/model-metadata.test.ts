@@ -7,6 +7,7 @@ import {
   resolveCompatibilityModesForModel,
   resolveContextManagementVersionForModel,
   resolveContextWindowForModel,
+  resolveIdleCompactionForModel,
   resolveModelTypeForModel
 } from "./model-metadata.js";
 
@@ -265,5 +266,34 @@ describe("resolveCompatibilityModesForModel", () => {
 
   it("resolves the disablePdfFile compatibility mode", () => {
     expect(resolveCompatibilityModesForModel("gpt-5.4-no-pdf", metadata)).toEqual(["disablePdfFile"]);
+  });
+});
+
+describe("resolveIdleCompactionForModel", () => {
+  const metadata = {
+    default: { context_window: 256_000, idle_compaction_min_tokens: 80_000 },
+    "gpt-5.4": { prompt_cache_ttl_seconds: 300, idle_compaction: false },
+    "broken-model": { prompt_cache_ttl_seconds: "soon", idle_compaction: "yes" }
+  };
+
+  it("takes each setting from the model, then the default entry, then the built-in default", () => {
+    expect(resolveIdleCompactionForModel("gpt-5.4", metadata)).toEqual({
+      enabled: false,
+      promptCacheTtlSeconds: 300,
+      minTokens: 80_000
+    });
+    expect(resolveIdleCompactionForModel("unknown-model", {})).toEqual({
+      enabled: true,
+      promptCacheTtlSeconds: 3600,
+      minTokens: 50_000
+    });
+  });
+
+  it("ignores invalid values", () => {
+    expect(resolveIdleCompactionForModel("broken-model", metadata)).toEqual({
+      enabled: true,
+      promptCacheTtlSeconds: 3600,
+      minTokens: 80_000
+    });
   });
 });

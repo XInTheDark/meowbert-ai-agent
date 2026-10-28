@@ -13,7 +13,8 @@ import {
   truncate,
   resolveEffectiveCompactionBackend,
   type CompactContextInput,
-  type CompactContextResult
+  type CompactContextResult,
+  type MeasuredModelRequest
 } from "./shared.js";
 import { selectCompactionLiveTailItems } from "./summary.js";
 
@@ -437,6 +438,7 @@ export async function emitActualContextUsage(input: {
   cachedTokens?: number;
   prefixHash?: string;
   promptRevision?: string;
+  request?: MeasuredModelRequest;
 }): Promise<void> {
   const usage = buildUsageSnapshot({
     usedTokens: input.inputTokens,
@@ -449,5 +451,5 @@ export async function emitActualContextUsage(input: {
     promptRevision: input.promptRevision
   });
 
-  await emitContextUsage(input.control, usage);
+  await emitContextUsage(input.control, usage, input.request);
 }

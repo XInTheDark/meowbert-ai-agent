@@ -55,6 +55,8 @@ export interface ToolDispatchContext {
   connectorContextId: string | null;
   defaultTimezone: string;
   runMode: TaskExecutionJob["mode"];
+  // Idle compaction turns may only use the notes and history tools; any other call gets an error.
+  notesOnly?: boolean;
   runToolOptions: TaskMessageToolOptions;
   isThreadTask: boolean;
   shellToolMaxTimeoutMs: number;

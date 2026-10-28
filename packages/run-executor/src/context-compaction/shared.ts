@@ -228,7 +228,18 @@ export function buildUsageSnapshot(input: {
   };
 }
 
-export async function emitContextUsage(control: RunControl, usage: ContextUsageSnapshot): Promise<void> {
+// A provider-measured snapshot names the model request it measured, so idle compaction can tell
+// how long that request's prompt cache stays warm.
+export interface MeasuredModelRequest {
+  startedAt: string;
+  model: string;
+}
+
+export async function emitContextUsage(
+  control: RunControl,
+  usage: ContextUsageSnapshot,
+  request?: MeasuredModelRequest
+): Promise<void> {
   await control.emitEvent("context_usage", {
     usedTokens: usage.usedTokens,
     maxContextTokens: usage.maxContextTokens,
@@ -239,7 +250,8 @@ export async function emitContextUsage(control: RunControl, usage: ContextUsageS
     ...(typeof usage.cachedTokens === "number" ? { cachedTokens: usage.cachedTokens } : {}),
     ...(typeof usage.cacheHitRatio === "number" ? { cacheHitRatio: usage.cacheHitRatio } : {}),
     ...(typeof usage.prefixHash === "string" ? { prefixHash: usage.prefixHash } : {}),
-    ...(typeof usage.promptRevision === "string" ? { promptRevision: usage.promptRevision } : {})
+    ...(typeof usage.promptRevision === "string" ? { promptRevision: usage.promptRevision } : {}),
+    ...(request ? { requestStartedAt: request.startedAt, model: request.model } : {})
   });
 }
 

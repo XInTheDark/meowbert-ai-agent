@@ -4,6 +4,10 @@ export interface PlatformModelMetadataEntry extends Record<string, unknown> {
   context_management?: PlatformContextManagementVersion;
   context_window?: number;
   type?: PlatformModelType;
+  // How long the provider keeps a prompt cache, counted from the start of the request that wrote it.
+  prompt_cache_ttl_seconds?: number;
+  idle_compaction?: boolean;
+  idle_compaction_min_tokens?: number;
 }
 
 export type PlatformModelMetadata = Record<string, PlatformModelMetadataEntry>;
@@ -13,6 +17,8 @@ export type PlatformContextManagementVersion = "v1" | "v2";
 
 export const DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 256_000;
 export const DEFAULT_MODEL_TYPE: PlatformModelType = "openai";
+export const DEFAULT_PROMPT_CACHE_TTL_SECONDS = 3600;
+export const DEFAULT_IDLE_COMPACTION_MIN_TOKENS = 50_000;
 
 export const DEFAULT_PLATFORM_MODEL_METADATA: PlatformModelMetadata = {
   default: {
@@ -60,6 +66,25 @@ function normalizeModelKey(value: unknown): string | null {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : null;
+}
+
+function normalizeIdleCompactionFields(entry: PlatformModelMetadataEntry): void {
+  for (const key of ["prompt_cache_ttl_seconds", "idle_compaction_min_tokens"] as const) {
+    const value = normalizePositiveInteger(entry[key]);
+    if (value === null) {
+      delete entry[key];
+    } else {
+      entry[key] = value;
+    }
+  }
+  if (typeof entry.idle_compaction !== "boolean") {
+    delete entry.idle_compaction;
+  }
 }
 
 function normalizeContextWindow(value: unknown): number | null {
@@ -150,6 +175,7 @@ function normalizeEntry(rawEntry: unknown, fallbackToDefaultContextWindow: boole
   if (typeof entry.code_mode !== "boolean") {
     delete entry.code_mode;
   }
+  normalizeIdleCompactionFields(entry);
 
   if (fallbackToDefaultContextWindow && !entry.type) {
     entry.type = DEFAULT_MODEL_TYPE;
@@ -261,4 +287,23 @@ export function resolveCodeModeForModel(model: string | null | undefined, rawMet
   }
 
   return metadata.default?.code_mode !== false;
+}
+
+export interface IdleCompactionSettings {
+  enabled: boolean;
+  promptCacheTtlSeconds: number;
+  minTokens: number;
+}
+
+// Each setting comes from the model's entry, then the default entry, then the built-in default.
+export function resolveIdleCompactionForModel(model: string | null | undefined, rawMetadata: unknown): IdleCompactionSettings {
+  const metadata = normalizePlatformModelMetadata(rawMetadata);
+  const normalizedModel = normalizeModelKey(model);
+  const exact = normalizedModel ? metadata[normalizedModel] : undefined;
+  const defaults = metadata.default;
+  return {
+    enabled: (exact?.idle_compaction ?? defaults?.idle_compaction) !== false,
+    promptCacheTtlSeconds: exact?.prompt_cache_ttl_seconds ?? defaults?.prompt_cache_ttl_seconds ?? DEFAULT_PROMPT_CACHE_TTL_SECONDS,
+    minTokens: exact?.idle_compaction_min_tokens ?? defaults?.idle_compaction_min_tokens ?? DEFAULT_IDLE_COMPACTION_MIN_TOKENS
+  };
 }

@@ -57,4 +57,31 @@ describe("Context Management V2 tool calls", () => {
       context: "Model request that produced this tool call: 64000 / 256000 tokens (25%)."
     });
   });
+
+  it("runs only notes tools in a notes-only turn and refuses the rest", async () => {
+    mocks.writeNote.mockClear();
+    mocks.writeNote.mockResolvedValue({ path: "notes/continuity.md", updated: true });
+    const noteCall = {
+      type: "function_call",
+      call_id: "call-note",
+      name: NOTES_WRITE_FILE_TOOL_NAME,
+      arguments: JSON.stringify({ path: "notes/continuity.md", text: "Waiting on the deploy report." })
+    } as never;
+    const answerCall = {
+      type: "function_call",
+      call_id: "call-answer",
+      name: "final_response",
+      arguments: JSON.stringify({ response: "All done.", notify: true })
+    } as never;
+    const state = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as unknown as ToolDispatchState;
+    const control = { context: { writeNote: mocks.writeNote, loadLastCallNumber: async () => 0 }, recordToolCallStart: async () => {}, recordToolCallResult: async () => {} };
+    const ctx = { control, contextManagementV2, notesOnly: true, compatibilityModes: [], assertNotCancelled: async () => {} } as unknown as ToolDispatchContext;
+
+    const result = await dispatchResponseOutput([noteCall, answerCall], ctx, state);
+
+    expect(mocks.writeNote).toHaveBeenCalledTimes(1);
+    expect(result.finalResponse).toBeNull();
+    const refused = state.runPersistedItems.find((item) => item.type === "function_call_output" && item.call_id === "call-answer");
+    expect((refused as { output: string }).output).toContain("Only the notes and history tools are available");
+  });
 });

@@ -53,7 +53,8 @@ export interface TaskExecutionJob {
   selectionUserId?: string;
   toolOptionsOverride?: TaskRunToolOptions;
   quickMode?: boolean;
-  contextAction?: "compact" | "clear";
+  // "idle" saves notes and starts a fresh context window while the prompt cache is still warm.
+  contextAction?: "compact" | "clear" | "idle";
   executionTarget?: TaskExecutionTarget;
 }
 

@@ -3,6 +3,8 @@ import { resetV2ContextWindow } from "./context-window.js";
 import { persistContextCheckpoint } from "../context-management/index.js";
 import { reconstructResponseInputItems } from "./utils.js";
 import { buildCompactionRunFields } from "./compaction-input.js";
+import { runIdleCompaction } from "./idle-compaction.js";
+import { runAgentStepLoop } from "./loop.js";
 import type { AgentExecutionContext } from "./execution-types.js";
 
 // The task goes back to the status it had before the compaction was requested.
@@ -50,6 +52,17 @@ export async function maybeHandleCompactOnlyRun(execution: AgentExecutionContext
       reasoningItemsOmitted: true,
       itemCount: reconstructedItems.length,
       contextManagementVersion: execution.state.contextManagement.version
+    });
+    await finishCompactOnlyRun(execution);
+    return true;
+  }
+
+  if (execution.job.contextAction === "idle" && execution.state.contextManagement.version === "v2") {
+    await runIdleCompaction(execution, runAgentStepLoop);
+    await execution.prepared.control.emitEvent("log", {
+      message: "Idle context compaction completed.",
+      trigger: "idle",
+      contextManagementVersion: "v2"
     });
     await finishCompactOnlyRun(execution);
     return true;

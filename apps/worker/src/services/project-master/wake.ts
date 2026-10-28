@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import type { TaskStatus } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { enqueueSubagentRun } from "../subagents/dispatch.js";
 
@@ -12,15 +13,16 @@ export type MasterWakeOutcome =
   | { kind: "due_later"; delayMs: number }
   | { kind: "skipped" };
 
-interface IdleMaster {
+export interface IdleMaster {
   workspace_id: string;
   environment_id: string;
   initiator_user_id: string | null;
+  status: TaskStatus;
 }
 
-async function lockIdleEnabledMaster(client: PoolClient, masterTaskId: string): Promise<IdleMaster | null> {
+export async function lockIdleEnabledMaster(client: PoolClient, masterTaskId: string): Promise<IdleMaster | null> {
   const result = await client.query<IdleMaster>(
-    `SELECT t.workspace_id, t.environment_id, t.initiator_user_id
+    `SELECT t.workspace_id, t.environment_id, t.initiator_user_id, t.status
        FROM tasks t
        LEFT JOIN workspace_settings ws ON ws.workspace_id = t.workspace_id
       WHERE t.id = $1
@@ -56,7 +58,7 @@ async function loadPendingReports(
 
 // Runs as the member who asked for the work and replies in the chat they last used. Reports with
 // no requester, or one who has left the workspace, fall back to whoever last viewed the Master.
-async function resolveWakeRoute(
+export async function resolveWakeRoute(
   client: PoolClient,
   masterTaskId: string,
   master: IdleMaster,

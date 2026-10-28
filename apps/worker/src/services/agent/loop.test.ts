@@ -788,7 +788,8 @@ describe("runAgentStepLoop", () => {
       inputTokens: 120,
       cachedTokens: 20,
       prefixHash: "prefix-hash",
-      promptRevision: "prompt-revision"
+      promptRevision: "prompt-revision",
+      request: { model: "gpt-test", startedAt: expect.any(String) }
     });
   });
 

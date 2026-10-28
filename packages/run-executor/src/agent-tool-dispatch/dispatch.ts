@@ -417,6 +417,25 @@ async function assignCallNumbers(items: ResponseOutputItem[], ctx: ToolDispatchC
   }
 }
 
+const NOTES_ONLY_ERROR = "Only the notes and history tools are available right now.";
+
+// Answers a tool call that a notes-only turn may not run. Returns false for items that are not tool calls.
+async function rejectOutsideNotes(item: ResponseOutputItem, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<boolean> {
+  if (isApplyPatchCallItem(item)) {
+    await recordInContext(ctx, recordApplyPatchCallOutput(state, item.call_id, NOTES_ONLY_ERROR, "failed"));
+    return true;
+  }
+  if (isApplyPatchCustomToolCallItem(item) || isCustomToolCallItem(item)) {
+    await recordInContext(ctx, recordCustomToolCallOutput(state, item.call_id, `Error: ${NOTES_ONLY_ERROR}`));
+    return true;
+  }
+  if (isFunctionCallItem(item)) {
+    await recordInContext(ctx, recordFunctionCallResult(state, item.call_id, item.name, toolErrorResult(NOTES_ONLY_ERROR)));
+    return true;
+  }
+  return false;
+}
+
 export async function dispatchResponseOutput(
   outputItems: ResponseOutputItem[],
   ctx: ToolDispatchContext,
@@ -478,6 +497,11 @@ export async function dispatchResponseOutput(
         }));
       }
       await recordInContext(ctx, recordFunctionCallResult(state, outputItem.call_id, outputItem.name, result));
+      continue;
+    }
+
+    if (ctx.notesOnly && await rejectOutsideNotes(outputItem, ctx, state)) {
+      sawToolCall = true;
       continue;
     }
 
