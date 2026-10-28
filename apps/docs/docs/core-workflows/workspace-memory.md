@@ -33,7 +33,20 @@ Avoid treating `.memory` like throwaway scratch space. Temporary task artifacts 
 
 ## Keeping Memory organized
 
-Meowbert keeps Memory as a small set of topic files rather than one long note. Each file opens with a one-line description and is organized under headings, and `MEMORY.md` links to them. If you edit Memory by hand, following the same shape helps the agent find things.
+Meowbert keeps Memory as a set of topic files rather than one long note. Each file opens with a one-line description and is organized under headings, and `MEMORY.md` links to them. Topic files can be as detailed as they need to be, since search finds what's in them; what agents leave out is anything a later task wouldn't use, such as progress logs. If you edit Memory by hand, following the same shape helps the agent find things.
+
+## File index
+
+When an agent reads a file a later task will likely need, usually something in Project Context, it can save a detailed summary of it to Memory. An entry can cover one file, a folder, or a few related files. Later tasks check for an entry before rereading, and work from it when it still matches.
+
+Each entry records how its files looked when they were read, so an agent can tell when one has changed and update the entry. Entries live under `index/` in the workspace or Project memory folder, mirroring the paths they describe:
+
+```text
+context/specs/api.yaml   →  .memory/projects/<project-id>/index/context/specs/api.yaml.md
+context/specs/           →  .memory/projects/<project-id>/index/context/specs/__folder__.md
+```
+
+Entries are ordinary Memory files: Memory search finds them, and you can edit or delete them like any other note.
 
 ## MEMORY.md — your always-on context
 
