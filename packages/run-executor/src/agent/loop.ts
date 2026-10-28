@@ -351,6 +351,8 @@ async function requestModelTurn(input: {
       allowCanvasTools: workspaceFileFeatures(normalizeWorkspaceFileHost(execution.prepared.fileHost)).canvases
         && execution.prepared.snapshot.task.is_thread !== true
         && execution.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),
+      allowFileIndexTools: execution.prepared.memoryEnabled,
+      allowFileIndexSave: execution.prepared.snapshot.task.is_thread !== true,
       allowComputerLocalShell: !execution.prepared.settings.hostMode && execution.job.executionTarget?.kind !== "local" && input.allowComputerLocalShell,
       allowHostShell: !!execution.prepared.control.platform.hostShell,
       allowComputerVisualTools: input.allowComputerVisualTools,
@@ -570,6 +572,7 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     subagentFastAgent: specializedModels.subagentFastAgent,
     subagentPresets: getVisiblePlatformAgentPresets(presets, execution.prepared.resolvedRunActorIsSuperAdmin),
     allowTaskHistoryTools: execution.prepared.memoryEnabled,
+    memoryEnabled: execution.prepared.memoryEnabled,
     isProjectMaster: execution.prepared.isProjectMaster === true,
     projectMasterTaskAgent: execution.prepared.projectMasterTaskAgent ?? null,
     runId: execution.job.runId,

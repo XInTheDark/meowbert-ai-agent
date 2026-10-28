@@ -156,9 +156,9 @@ async function applyIncrementalMemoryChanges(input: {
 }
 
 async function syncWorkspaceMemoryWithinLock(entry: WorkspaceMemoryWatcherEntry, startedAt: string): Promise<void> {
-  const currentFiles = await scanMemoryFiles(entry.paths.memoryDir);
-  const embeddingConfig = await resolveMemoryEmbeddingConfig();
   const manifest = await readMemoryManifest(entry.paths);
+  const currentFiles = await scanMemoryFiles(entry.paths.memoryDir, manifest?.files);
+  const embeddingConfig = await resolveMemoryEmbeddingConfig();
   const connection = entry.connection ?? await openMemoryConnection(entry.paths);
   const shouldCloseConnection = entry.connection === null;
 

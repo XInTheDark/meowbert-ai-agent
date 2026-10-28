@@ -36,6 +36,8 @@ export interface PersistedMemoryFileRecord {
   sha256: string;
   sizeBytes: number;
   modifiedAtMs: number;
+  // When the hash was computed. Older manifests lack it, which makes the next scan re-hash.
+  hashedAtMs?: number;
 }
 
 export interface MemoryTrackedFile extends PersistedMemoryFileRecord {
@@ -226,7 +228,8 @@ export async function writeMemoryManifest(
         {
           sha256: file.sha256,
           sizeBytes: file.sizeBytes,
-          modifiedAtMs: file.modifiedAtMs
+          modifiedAtMs: file.modifiedAtMs,
+          hashedAtMs: file.hashedAtMs
         }
       ])
     ),

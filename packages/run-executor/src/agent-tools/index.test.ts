@@ -463,6 +463,15 @@ describe("buildResponseTools", () => {
     expect(enabled.filter((tool) => tool.type === "function" && taskHistoryToolNames.includes(tool.name))).toHaveLength(2);
   });
 
+  it("offers index lookups with Memory and saves only to runs that can write", () => {
+    const options = { webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false, computerUse: false, enabledSkills: [], enabledSources: [] };
+    const names = (availability: Parameters<typeof buildResponseTools>[2]) => buildResponseTools(options, [], availability)
+      .flatMap((tool) => (tool.type === "function" && tool.name.startsWith("index_") ? [tool.name] : []));
+    expect(names({ allowFileIndexTools: true, allowFileIndexSave: true })).toEqual(["index_lookup", "index_save"]);
+    expect(names({ allowFileIndexTools: true, allowFileIndexSave: false })).toEqual(["index_lookup"]);
+    expect(names({ allowFileIndexTools: false, allowFileIndexSave: true })).toEqual([]);
+  });
+
   it("exposes the canvas tools only when canvas tools are allowed", () => {
     const tools = buildResponseTools(
       {

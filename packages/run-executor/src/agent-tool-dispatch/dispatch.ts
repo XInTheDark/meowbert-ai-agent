@@ -27,6 +27,8 @@ import {
   LIST_SKILLS_TOOL_NAME,
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
   MEMORY_SEARCH_TOOL_NAME,
+  INDEX_LOOKUP_TOOL_NAME,
+  INDEX_SAVE_TOOL_NAME,
   SEARCH_WEB_TOOL_NAME,
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
@@ -67,6 +69,7 @@ import { handleContextManagementTool } from "./handlers/context-management.js";
 import { handleContextManagementV2Tool, isContextManagementV2Tool } from "./handlers/context-management-v2.js";
 import { handleViewImage, handleViewPdf } from "./handlers/files.js";
 import { handleQueryTasks, handleViewTaskHistory, handleMemorySearch } from "./handlers/history.js";
+import { handleIndexLookup, handleIndexSave } from "./handlers/file-index.js";
 import { handleCreateProjectCanvas } from "./handlers/create-project-canvas.js";
 import { handleShowCanvas } from "./handlers/show-canvas.js";
 import {
@@ -223,6 +226,12 @@ async function dispatchFunctionToolCall(
 
     case MEMORY_SEARCH_TOOL_NAME:
       return handleMemorySearch(outputItem, ctx, state);
+
+    case INDEX_LOOKUP_TOOL_NAME:
+      return handleIndexLookup(outputItem, ctx, state);
+
+    case INDEX_SAVE_TOOL_NAME:
+      return handleIndexSave(outputItem, ctx, state);
 
     case SEARCH_WEB_TOOL_NAME:
       return handleSearchWeb(outputItem, ctx, state);

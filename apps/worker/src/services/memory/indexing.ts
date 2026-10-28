@@ -63,10 +63,26 @@ async function hashFile(filePath: string): Promise<string> {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
+// A file written within this long of being hashed may have changed again without moving its mtime
+// (coarse mtimes on network storage, clock skew between hosts), so its hash is not reused.
+const MEMORY_HASH_SETTLE_MS = 10_000;
+
+// Memory can be on network storage, so a file whose size and mtime match the last scan keeps its
+// recorded hash instead of being read again.
+function reusableHash(
+  previous: PersistedMemoryFileRecord | undefined,
+  stats: { size: number; mtimeMs: number }
+): PersistedMemoryFileRecord | null {
+  if (!previous || previous.sizeBytes !== stats.size || previous.modifiedAtMs !== stats.mtimeMs) return null;
+  if (typeof previous.hashedAtMs !== "number" || previous.hashedAtMs - previous.modifiedAtMs < MEMORY_HASH_SETTLE_MS) return null;
+  return previous;
+}
+
 async function scanMemoryFilesRecursive(
   rootDir: string,
   currentDir: string,
-  results: MemoryTrackedFile[]
+  results: MemoryTrackedFile[],
+  previousFiles: Record<string, PersistedMemoryFileRecord>
 ): Promise<void> {
   const entries = await fsPromises.readdir(currentDir, { withFileTypes: true });
 
@@ -74,11 +90,11 @@ async function scanMemoryFilesRecursive(
     const absolutePath = path.resolve(currentDir, entry.name);
 
     if (entry.isDirectory()) {
-      await scanMemoryFilesRecursive(rootDir, absolutePath, results);
+      await scanMemoryFilesRecursive(rootDir, absolutePath, results, previousFiles);
       continue;
     }
 
-    if (!entry.isFile() || !(await isSupportedMemoryFile(absolutePath))) {
+    if (!entry.isFile()) {
       continue;
     }
 
@@ -88,23 +104,34 @@ async function scanMemoryFilesRecursive(
     }
 
     const relativeInsideMemory = path.relative(rootDir, absolutePath).split(path.sep).join("/");
+    const relativePath = `${WORKSPACE_MEMORY_DIRNAME}/${relativeInsideMemory}`;
+    const reused = reusableHash(previousFiles[relativePath], stats);
+    if (!reused && !(await isSupportedMemoryFile(absolutePath))) {
+      continue;
+    }
+
+    const hashedAtMs = reused?.hashedAtMs ?? Date.now();
     results.push({
       absolutePath,
-      relativePath: `${WORKSPACE_MEMORY_DIRNAME}/${relativeInsideMemory}`,
-      sha256: await hashFile(absolutePath),
+      relativePath,
+      sha256: reused?.sha256 ?? await hashFile(absolutePath),
       sizeBytes: stats.size,
-      modifiedAtMs: stats.mtimeMs
+      modifiedAtMs: stats.mtimeMs,
+      hashedAtMs
     });
   }
 }
 
-export async function scanMemoryFiles(memoryDir: string): Promise<MemoryTrackedFile[]> {
+export async function scanMemoryFiles(
+  memoryDir: string,
+  previousFiles: Record<string, PersistedMemoryFileRecord> = {}
+): Promise<MemoryTrackedFile[]> {
   const results: MemoryTrackedFile[] = [];
   if (!(await pathExists(memoryDir))) {
     return results;
   }
 
-  await scanMemoryFilesRecursive(memoryDir, memoryDir, results);
+  await scanMemoryFilesRecursive(memoryDir, memoryDir, results, previousFiles);
   results.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
   return results;
 }

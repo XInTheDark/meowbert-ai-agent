@@ -77,9 +77,10 @@ export interface SystemPromptRuntimeOptions {
     entries: Array<{
       relativePath: string;
       absolutePath: string;
-      kind: "file" | "directory";
+      kind: "file" | "directory" | "path";
       note: string | null;
     }>;
+    omittedCount: number;
   } | null;
   interactiveCanvas?: {
     id: string;
@@ -117,6 +118,23 @@ function buildToolUsageNotes(options: SystemPromptRuntimeOptions): string {
   return notes.join("\n");
 }
 
+function buildFileIndexSection(options: SystemPromptRuntimeOptions): string {
+  return [
+    "### File Index",
+    "",
+    "Memory also keeps an index of files and folders that runs have read, mostly project context, so later runs don't have to read them again. Each entry records how its sources looked when they were read, and `index_lookup` tells you whether they have changed since.",
+    "- When you're about to read a file or folder an earlier run may have indexed, `index_lookup` is a cheap first check. Work from a fresh entry when it covers what you need. Open the source when you need exact wording or detail the entry doesn't have, when it has changed, or when it's short enough that reading it is just as quick.",
+    ...(options.taskFilesystemReadOnly
+      ? []
+      : [
+          "- After reading something a later run will likely need, save it with `index_save`: a detailed summary of what it contains and how it relates to this project, close enough to the source that a later run can work from it. One entry can cover a file, a folder, or a few related files. When a source has changed, read what's new and save it with `append_update`, and rewrite the entry with `replace` once updates pile up.",
+          "- Entries are ordinary Memory files, so you can edit or delete them directly. Use `index_save` whenever you've reread a source, since it records how the source looks now."
+        ])
+  ].join("\n");
+}
+
+const PROJECT_CONTEXT_KIND_LABELS = { file: "File", directory: "Directory", path: "Path" } as const;
+
 function buildProjectContextSection(options: SystemPromptRuntimeOptions): string {
   const projectContext = options.projectContext;
   if (!projectContext || projectContext.entries.length === 0) {
@@ -130,10 +148,12 @@ function buildProjectContextSection(options: SystemPromptRuntimeOptions): string
     "- These files live under the environment root, not inside `$TASK_DIR`.",
     "- When opening them from shell or tools, prefer either the absolute path below or `$ENV_ROOT/<environment path>`.",
     `- **Context directory**: \`${projectContext.rootPath}\` (same location as \`$ENV_ROOT/context\`)`,
+    `- Only the top level of the context directory is listed here, plus paths the user added notes to. List a folder when you need what's inside it${options.memoryEnabled ? ", or use `index_lookup` to see what earlier runs saved about it" : ""}.`,
     "",
     ...projectContext.entries.map((entry) => (
-      `- **${entry.kind === "directory" ? "Directory" : "File"}**: \`${entry.absolutePath}\` (open via \`$ENV_ROOT/${entry.relativePath}\`; environment path: \`${entry.relativePath}\`)${entry.note ? ` — Note: ${entry.note}` : ""}`
-    ))
+      `- **${PROJECT_CONTEXT_KIND_LABELS[entry.kind]}**: \`${entry.absolutePath}\` (open via \`$ENV_ROOT/${entry.relativePath}\`; environment path: \`${entry.relativePath}\`)${entry.note ? ` — Note: ${entry.note}` : ""}`
+    )),
+    ...(projectContext.omittedCount > 0 ? [`- …and ${projectContext.omittedCount} more entries at the top level.`] : [])
   ].join("\n");
 }
 
@@ -392,26 +412,24 @@ export function buildSystemPrompt(
       ? [
           "## Memory",
           "",
-          "This workspace has Memory enabled. The `.memory` directory is your long-term knowledge store, and this project also has its own memory subdirectory inside it.",
-          "Memory is for persistent, reusable knowledge that a future agent is likely to need. It is not a conversation summary, transcript, or running task log.",
+          "This workspace has Memory enabled. The `.memory` directory is your long-term knowledge store, shared by every later run in this workspace, and this project has its own folder inside it.",
+          "Memory is a real filesystem with good search, so its files can be as detailed as they need to be. What matters is signal: everything in it should still be true and useful to a later run working on something else.",
           "",
           `- **Workspace main file** (\`MEMORY.md\`): \`${memoryMainFilePath}\` — use this for global workspace knowledge, user preferences, cross-project conventions, and facts that should apply across projects.`,
           ...(projectMemoryMainFilePath
             ? [`- **Project main file** (\`MEMORY.md\`): \`${projectMemoryMainFilePath}\` — use this for project-specific plans, decisions, next steps, task queues, local commands, and facts that should only follow this project.`]
             : [`- Project memory normally lives under \`${path.resolve(memoryDir, PROJECT_MEMORY_PARENT_DIRNAME)}\`; use it for project-specific plans, decisions, next steps, task queues, local commands, and facts that should only follow this project.`]),
-          "- Save only durable facts, decisions, constraints, preferences, workflows, canonical references, and long-lived project context. Store broadly reusable workspace knowledge in workspace memory; store project-specific knowledge in project memory.",
-          "- Do not store turn-by-turn progress, temporary investigation notes, routine task outcomes, or a recap of what was said in a conversation. Use `.thinking` for short-lived working context instead.",
-          "- Give Memory a clear structure. Group knowledge into topic files (and a shallow folder or two when a topic grows), named so their content is obvious. Start each file with a one-line description, organize it under headings, and keep `MEMORY.md` as a short overview that links to those files. Detail belongs in the topic files, where `memory_search` can find it.",
-          "- When the user gives you new context shaped like a folder (a repository, a document collection, a synced or attached directory) that future runs will likely come back to, index it once you have explored it: write a short map of its layout, key files, and what lives where to an index file in the matching memory directory (for example `index-<folder-name>.md`), then add one line to that `MEMORY.md` noting the index exists, with a one-sentence summary of the folder. Build it from targeted listings rather than recursive scans, refresh it when the folder changes meaningfully, and skip it for one-off files.",
-          "- Before saving something, ask whether a future run working on a different task would still find it true and useful. If it only matters to the work in front of you, leave it out.",
-          "- Update Memory when a durable, reusable fact or decision changes; do not create an entry merely because a conversation happened.",
-          "- Periodically clean up clearly useless entries: remove obsolete or temporary notes, consolidate duplicates, and trim details that no longer help future runs. Use judgment and preserve anything still plausibly useful.",
+          "- Both `MEMORY.md` files are loaded into every run, so keep them short: an overview of what matters most that links to the topic files holding the detail.",
+          "- Put the detail in topic files, one subject per file (and a shallow folder or two when a subject grows), named so their content is obvious and starting with a one-line description. Be thorough there: decisions with their reasons, exact commands, how things work, and specifics a later run would otherwise have to rediscover.",
+          "- Keep noise out. Progress logs, temporary investigation notes, unchecked guesses and conversation recaps usually don't belong here; use `.thinking` for short-lived working context. Some recaps are worth keeping, such as a running summary of what you've taught the user so far, so use your judgment.",
+          "- When something changes, update the file that covers it instead of adding one that contradicts it, and remove notes that are stale or duplicated. Preserve anything still plausibly useful.",
           "- Prefix every new Memory entry with the current date and time.",
           "- If you pick up something important or notice either `MEMORY.md` has gone stale, take a moment to update it before wrapping up the task.",
-          "- Edit and consolidate existing notes instead of scattering duplicates across files.",
           options.allowMemorySearch
             ? "- Use `memory_search` to quickly find relevant entries before opening or editing files by hand. Use `scope: \"current_project\"` when the answer should come from project memory, `scope: \"workspace\"` for global memory, and `scope: \"all\"` when either layer could matter."
             : "- The `memory_search` tool isn't available this run, but you can still browse and edit `.memory` directly through the filesystem.",
+          "",
+          buildFileIndexSection(options),
           "",
           ...(thoughtPersistenceEnabled
             ? [

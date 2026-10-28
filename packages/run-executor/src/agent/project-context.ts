@@ -1,69 +1,33 @@
+import type { Dirent } from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { getProjectContextNote } from "@meowbert/shared/project-context";
+import { getProjectContextNotes, isProjectContextPath } from "@meowbert/shared/project-context";
 
 export interface ProjectContextPromptEntry {
   relativePath: string;
   absolutePath: string;
-  kind: "file" | "directory";
+  // "path" is a deeper path the user noted; its kind isn't looked up.
+  kind: "file" | "directory" | "path";
   note: string | null;
 }
 
 export interface ProjectContextPromptData {
   rootPath: string;
   entries: ProjectContextPromptEntry[];
+  omittedCount: number;
 }
 
-function toWebPath(value: string): string {
-  return value.split(path.sep).join("/");
-}
+const TOP_LEVEL_ENTRY_LIMIT = 100;
 
-async function collectProjectContextEntries(input: {
-  envRoot: string;
-  currentPath: string;
-  envPayload: Record<string, unknown>;
-  excludedDirectories: Set<string>;
-}): Promise<ProjectContextPromptEntry[]> {
-  const directoryEntries = await fsPromises.readdir(input.currentPath, { withFileTypes: true });
-  const sortedEntries = [...directoryEntries].sort((left, right) => left.name.localeCompare(right.name));
-  const collected: ProjectContextPromptEntry[] = [];
-
-  for (const directoryEntry of sortedEntries) {
-    const absolutePath = path.join(input.currentPath, directoryEntry.name);
-    if (input.excludedDirectories.has(absolutePath)) continue;
-    const stats = await fsPromises.lstat(absolutePath).catch(() => null);
-    if (!stats) {
-      continue;
-    }
-
-    const relativePath = toWebPath(path.relative(input.envRoot, absolutePath));
-    if (stats.isDirectory()) {
-      collected.push({
-        relativePath,
-        absolutePath,
-        kind: "directory",
-        note: getProjectContextNote(input.envPayload, relativePath)
-      });
-      collected.push(...await collectProjectContextEntries({
-        envRoot: input.envRoot,
-        currentPath: absolutePath,
-        envPayload: input.envPayload,
-        excludedDirectories: input.excludedDirectories
-      }));
-      continue;
-    }
-
-    if (stats.isFile()) {
-      collected.push({
-        relativePath,
-        absolutePath,
-        kind: "file",
-        note: getProjectContextNote(input.envPayload, relativePath)
-      });
-    }
-  }
-
-  return collected;
+// Context can sit on network storage, so a run reads one listing of `context/` itself and nothing
+// below it. Deeper paths appear only when the user noted them or linked them as a folder; the agent
+// lists further on its own when it needs to.
+async function listTopLevel(rootPath: string, linkedPaths: Set<string>): Promise<Dirent[]> {
+  if (linkedPaths.has(rootPath)) return [];
+  const entries = await fsPromises.readdir(rootPath, { withFileTypes: true }).catch(() => []);
+  return entries
+    .filter((entry) => (entry.isFile() || entry.isDirectory()) && !linkedPaths.has(path.join(rootPath, entry.name)))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export async function loadProjectContextPromptData(
@@ -72,24 +36,29 @@ export async function loadProjectContextPromptData(
   linkedDirectories: Array<{ relativePath: string; absolutePath: string }> = []
 ): Promise<ProjectContextPromptData | null> {
   const rootPath = path.resolve(envRoot, "context");
-  const folders = linkedDirectories.filter((value) => value.relativePath === "context" || value.relativePath.startsWith("context/"));
-  const excludedDirectories = new Set(folders.map((value) => path.resolve(envRoot, value.relativePath)));
-  const stats = excludedDirectories.has(rootPath) ? null : await fsPromises.lstat(rootPath).catch(() => null);
-  const entries = stats?.isDirectory() ? await collectProjectContextEntries({
-    envRoot,
-    currentPath: rootPath,
-    envPayload,
-    excludedDirectories
-  }) : [];
-  entries.push(...folders.map((folder): ProjectContextPromptEntry => ({ ...folder, kind: "directory",
-    note: getProjectContextNote(envPayload, folder.relativePath) })));
-  entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-  if (entries.length === 0) {
-    return null;
+  const notes = getProjectContextNotes(envPayload);
+  const linked = linkedDirectories.filter((value) => isProjectContextPath(value.relativePath));
+  const topLevel = await listTopLevel(rootPath, new Set(linked.map((value) => path.resolve(envRoot, value.relativePath))));
+
+  const entries = new Map<string, ProjectContextPromptEntry>();
+  for (const entry of topLevel.slice(0, TOP_LEVEL_ENTRY_LIMIT)) {
+    const relativePath = `context/${entry.name}`;
+    entries.set(relativePath, { relativePath, absolutePath: path.join(rootPath, entry.name),
+      kind: entry.isDirectory() ? "directory" : "file", note: notes[relativePath] ?? null });
+  }
+  for (const folder of linked) {
+    entries.set(folder.relativePath, { ...folder, kind: "directory", note: notes[folder.relativePath] ?? null });
+  }
+  for (const [relativePath, note] of Object.entries(notes)) {
+    if (relativePath === "context" || !isProjectContextPath(relativePath) || entries.has(relativePath)) continue;
+    entries.set(relativePath, { relativePath, absolutePath: path.resolve(envRoot, relativePath), kind: "path", note });
   }
 
+  const omittedCount = Math.max(0, topLevel.length - TOP_LEVEL_ENTRY_LIMIT);
+  if (entries.size === 0 && omittedCount === 0) return null;
   return {
     rootPath,
-    entries
+    entries: [...entries.values()].sort((left, right) => left.relativePath.localeCompare(right.relativePath)),
+    omittedCount
   };
 }

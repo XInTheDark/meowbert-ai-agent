@@ -38,6 +38,8 @@ import {
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
   LIST_SKILLS_TOOL_NAME,
   MEMORY_SEARCH_TOOL_NAME,
+  INDEX_LOOKUP_TOOL_NAME,
+  INDEX_SAVE_TOOL_NAME,
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
   SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
@@ -526,6 +528,56 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
         }
       },
       required: ["query", "limit", "scope", "paths"],
+      additionalProperties: false
+    }
+  },
+  {
+    type: "function",
+    name: INDEX_LOOKUP_TOOL_NAME,
+    description:
+      "Look up the Memory index for a file or folder: summaries past runs saved for it, groups that include it, summaries of the folders above it, and, for a folder, what is indexed inside it. Each entry says whether its sources changed since it was saved. Reads only the index and one stat per source.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "File or folder, absolute or relative to the project root (for example `context/specs`)."
+        }
+      },
+      required: ["path"],
+      additionalProperties: false
+    }
+  },
+  {
+    type: "function",
+    name: INDEX_SAVE_TOOL_NAME,
+    description:
+      "Save a Memory index entry for files or folders you have read, recording how each source looks now so later lookups can tell when it changes. Returns the entry file, which you can also edit directly.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        sources: {
+          type: "array",
+          description: "The files and folders this entry covers, absolute or relative to the project root. One path for a file or folder entry, several for a group.",
+          items: { type: "string" }
+        },
+        summary: {
+          type: "string",
+          description: "Markdown summary of what the sources contain and how they relate to the project. With append_update, only what changed."
+        },
+        mode: {
+          type: "string",
+          enum: ["replace", "append_update"],
+          description: "replace writes the whole entry; append_update adds a dated update section to the existing entry."
+        },
+        name: {
+          type: ["string", "null"],
+          description: "Short name for an entry covering several paths; null for a single file or folder."
+        }
+      },
+      required: ["sources", "summary", "mode", "name"],
       additionalProperties: false
     }
   },

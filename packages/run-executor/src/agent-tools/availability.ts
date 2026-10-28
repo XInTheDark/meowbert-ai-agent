@@ -31,6 +31,8 @@ import {
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
   MEMORY_SEARCH_TOOL_NAME,
+  INDEX_LOOKUP_TOOL_NAME,
+  INDEX_SAVE_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
@@ -139,6 +141,14 @@ function isToolEnabled(
 
   if (tool.name === MEMORY_SEARCH_TOOL_NAME) {
     return options.memorySearch === true;
+  }
+
+  if (tool.name === INDEX_LOOKUP_TOOL_NAME) {
+    return availability.allowFileIndexTools === true;
+  }
+
+  if (tool.name === INDEX_SAVE_TOOL_NAME) {
+    return availability.allowFileIndexTools === true && availability.allowFileIndexSave === true;
   }
 
   if (tool.name === VIEW_TASK_HISTORY_TOOL_NAME && availability.newMessageOrganizationEnabled) return true;

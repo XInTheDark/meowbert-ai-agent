@@ -13,6 +13,8 @@ export const TASK_TITLE_TOOL_NAME = "set_task_title";
 export const VIEW_IMAGE_TOOL_NAME = "view_image";
 export const VIEW_PDF_FILE_TOOL_NAME = "view_pdf_file";
 export const MEMORY_SEARCH_TOOL_NAME = "memory_search";
+export const INDEX_LOOKUP_TOOL_NAME = "index_lookup";
+export const INDEX_SAVE_TOOL_NAME = "index_save";
 export const SEARCH_WEB_TOOL_NAME = "search_web";
 export const LIST_LIVE_SYNC_FILES_TOOL_NAME = "list_live_sync_files";
 export const GET_LIVE_SYNC_STATUS_TOOL_NAME = "get_live_sync_status";
@@ -94,6 +96,9 @@ export interface ResponseToolAvailability {
   allowLiveSyncFileTools?: boolean;
   allowLiveSyncFolderSearch?: boolean;
   allowCanvasTools?: boolean;
+  // The file index lives in Memory; read-only runs can look entries up but not save them.
+  allowFileIndexTools?: boolean;
+  allowFileIndexSave?: boolean;
   allowStopTask?: boolean;
   allowWaitTool?: boolean;
   allowRefreshGitHubToken?: boolean;

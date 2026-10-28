@@ -238,6 +238,17 @@ export const memorySearchArgumentsSchema = z.object({
   paths: z.array(z.string().min(1)).max(10).nullable().optional()
 }).strict();
 
+export const indexLookupArgumentsSchema = z.object({
+  path: z.string().min(1)
+}).strict();
+
+export const indexSaveArgumentsSchema = z.object({
+  sources: z.array(z.string().min(1)).min(1).max(50),
+  summary: z.string().min(1),
+  mode: z.enum(["replace", "append_update"]),
+  name: z.string().min(1).max(120).nullable().optional()
+}).strict();
+
 export const listLiveSyncFilesArgumentsSchema = z.object({});
 
 export const liveSyncStatusArgumentsSchema = z.object({

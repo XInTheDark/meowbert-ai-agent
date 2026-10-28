@@ -1,5 +1,13 @@
 # Changelog
 
+## Oct 28, 2026
+
+### Memory
+
+- **Agents remember what they've read** — With Memory on, agents can save a detailed summary of a file, a folder or a group of related files as they read them, and check those summaries in later tasks instead of rereading. Each summary notes how its files looked when read, so an agent can tell when one has changed and update it. Summaries are ordinary Memory files, so Memory search finds them and you can edit them. Mostly used for Project Context, but any file in the workspace can be indexed.
+- **More detailed Memory notes** — Agents keep `MEMORY.md` short but now write fuller topic files, with a focus on keeping out notes a later task wouldn't use rather than on keeping files brief.
+- **Faster task starts with large Project Context** — Tasks now read only the top level of the context folder, plus paths you've added notes to, instead of every file inside it. Memory search also stops re-reading unchanged Memory files after each task.
+
 ## Oct 27, 2026
 
 ### Canvas

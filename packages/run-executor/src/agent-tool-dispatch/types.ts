@@ -28,6 +28,7 @@ export interface ToolDispatchContext {
   subagentFastAgent?: string | null;
   subagentPresets?: PlatformAgentPreset[];
   allowTaskHistoryTools?: boolean;
+  memoryEnabled?: boolean;
   isProjectMaster?: boolean;
   projectMasterTaskAgent?: ProjectMasterTaskAgent | null;
   runId: string;

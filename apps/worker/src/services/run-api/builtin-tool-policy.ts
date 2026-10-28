@@ -35,6 +35,7 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
       allowLiveSyncFileTools: features.linkedSources,
       allowLiveSyncFolderSearch: bootstrap.liveSyncFiles.some((file) => file.provider === "google-drive" && file.linkKind === "folder"),
       allowCanvasTools: features.canvases && !snapshot.task.is_thread && options.enabledSkills.includes("html-canvas"),
+      allowFileIndexTools: bootstrap.memoryEnabled, allowFileIndexSave: !snapshot.task.is_thread,
       allowComputerLocalShell: !local, allowComputerVisualTools: !local || consent.computerUse === true,
       allowHostShell: local && consent.hostShell === true, allowRefreshGitHubToken: bootstrap.github.hasAppConnection,
       allowStartLongHorizonTask: !local, allowRequestClarification: !local, allowSubmitResponse: !local, allowSubmitReview: !local,
