@@ -184,6 +184,18 @@ describe("Google Drive mount manager", () => {
     await unlinkGoogleDriveFolderMount("leftovers", "attachment:user");
   });
 
+  it("moves a file or symlink at the mount point aside before mounting", async () => {
+    vi.setSystemTime(new Date("2026-10-10T10:20:01.000Z"));
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.mocked(fs.rmdir).mockRejectedValueOnce(Object.assign(new Error("not a directory"), { code: "ENOTDIR" }));
+
+    await acquireGoogleDriveFolderMount({ link: { ...link, id: "symlinked" }, consumerId: "attachment:user", mountPoint: "/env/poster" });
+
+    expect(fs.rename).toHaveBeenCalledWith("/env/poster", "/env/poster (unsynced 2026-10-10 10-20-01)");
+    expect(vi.mocked(spawn).mock.calls.at(-1)![1]).toContain("/env/poster");
+    await unlinkGoogleDriveFolderMount("symlinked", "attachment:user");
+  });
+
   it("reports a missing FUSE helper promptly without exposing rclone output", async () => {
     const mountPoint = "/env/context/missing-fuse";
     const execImplementation = vi.mocked(execFile).getMockImplementation()!;

@@ -89,14 +89,15 @@ function unsyncedCopyPath(mountPoint: string): string {
 }
 
 // rclone refuses a non-empty mount point. Files land there when something wrote to the folder while
-// it was unmounted (e.g. a running task across an API restart), so move them aside where the user can
-// see them instead of hiding them under the mount.
+// it was unmounted (e.g. a running task across an API restart), and a synced storage folder can carry
+// a file or symlink at that path from another device. Move it aside where the user can see it instead
+// of hiding it under the mount.
 async function prepareEmptyMountPoint(mountPoint: string): Promise<void> {
   try {
     await fs.rmdir(mountPoint);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOTEMPTY" || code === "EEXIST") {
+    if (code === "ENOTEMPTY" || code === "EEXIST" || code === "ENOTDIR") {
       const copyPath = unsyncedCopyPath(mountPoint);
       await fs.rename(mountPoint, copyPath);
       console.warn(`[google-drive] moved local files out of the live folder mount point to ${copyPath}`);
