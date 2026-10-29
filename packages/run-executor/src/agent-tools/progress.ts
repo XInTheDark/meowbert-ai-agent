@@ -17,8 +17,9 @@ export const UPDATE_PROGRESS_TOOL: FunctionTool = {
   type: "function",
   name: UPDATE_PROGRESS_TOOL_NAME,
   description: [
-    "Show the user where you are in a task that takes more than a few tool calls. Call it once you see the shape of the work, then again when a step finishes or your plan changes.",
-    "Always send it in parallel with your other tool calls in the same turn, never as a turn of its own. Each call replaces the whole list, so add, drop or reword steps whenever the work changes."
+    "Show the user your plan for a task that takes more than a few tool calls: a goal and its steps.",
+    "Call it only when the plan changes: once you see the shape of the work, then when a step finishes or you add, drop or reword steps. What each call is doing belongs in that call's summary, not here.",
+    "Always send it in parallel with your other tool calls in the same turn. Each call replaces the whole list."
   ].join(" "),
   strict: true,
   parameters: {
