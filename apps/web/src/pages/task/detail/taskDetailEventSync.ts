@@ -75,6 +75,11 @@ export function shouldRefreshTaskSnapshotForEventType(type: string): boolean {
   return TASK_SNAPSHOT_REFRESH_EVENT_TYPES.has(type);
 }
 
+// Queued follow-ups were added, removed or delivered.
+export function isQueuedMessagesEvent(event: Pick<LiveEvent, "type" | "payload">): boolean {
+  return event.type === "log" && event.payload.phase === "queued_messages";
+}
+
 export function createCoalescedRefreshController(
   run: () => Promise<void>,
   delayMs: number

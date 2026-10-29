@@ -75,6 +75,10 @@ interface UseTaskDetailActionsInput {
   pendingFollowUp: PendingFollowUpControls;
 }
 
+function isTaskRunActive(status: string): boolean {
+  return ["running", "starting", "queued"].includes(status);
+}
+
 function useTaskInterruptActions(input: UseTaskDetailActionsInput) {
   const [isCompacting, setIsCompacting] = useState(false);
   const [isClearingContext, setIsClearingContext] = useState(false);
@@ -171,7 +175,8 @@ function useTaskFollowUpAction(
 
   async function submitFollowUp(request: { message: string; attachments: UseTaskDetailActionsInput["attachments"]; editingMessageId: string | null }) {
     if (!input.taskId || !input.taskDetail) throw new Error("Task is not loaded.");
-    if (["running", "starting", "queued"].includes(input.taskDetail.task.status)) {
+    // An edit branches the conversation, so it stops the run; other follow-ups queue for it.
+    if (request.editingMessageId && isTaskRunActive(input.taskDetail.task.status)) {
       await requestInterruptAndMarkTask();
     }
     const response = await sendTaskFollowUp({
@@ -209,9 +214,11 @@ function useTaskFollowUpAction(
     input.setError(null);
     // New messages show in the conversation and leave the composer at once; edits wait for the server.
     const sendsOptimistically = !input.editingMessageId && message.trim().length > 0;
+    // A message for a running task waits in the queue above the composer rather than the conversation.
+    const showsPendingBubble = sendsOptimistically && !isTaskRunActive(input.taskDetail.task.status);
     const sentDraft = { followUp: input.followUp, quotes: input.quotedFollowUpSelections };
     if (sendsOptimistically) {
-      input.pendingFollowUp.begin(message);
+      if (showsPendingBubble) input.pendingFollowUp.begin(message);
       input.cancelPendingConversationDraftPersist();
       input.setFollowUp("");
       input.setQuotedFollowUpSelections([]);
@@ -248,7 +255,7 @@ function useTaskFollowUpAction(
     if (!message.trim() || !input.taskId || !input.taskDetail || isBusy) return;
     setIsBusy(true);
     input.setError(null);
-    input.pendingFollowUp.begin(message);
+    if (!isTaskRunActive(input.taskDetail.task.status)) input.pendingFollowUp.begin(message);
     try {
       const response = await submitFollowUp({ message, attachments: [], editingMessageId: null });
       input.pendingFollowUp.confirm(response.messageId ?? null);

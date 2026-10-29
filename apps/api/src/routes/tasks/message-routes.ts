@@ -11,6 +11,7 @@ import { findNearestUserAncestorMessage } from "../../services/tasks/task-messag
 import {
   appendTaskUserMessageAndEnqueue,
   buildUserMessageContent,
+  queueTaskUserMessageIfRunActive,
   replaceTaskMessageAndEnqueue,
   setTaskBranchSelection
 } from "../../services/tasks/task-service/index.js";
@@ -91,6 +92,37 @@ async function handlePostTaskMessage(request: FastifyRequest, reply: FastifyRepl
       environmentId: access.environmentId
     });
   }
+  const interactiveCanvasIntent = body.interactiveCanvasIntent ?? (body.interactiveCanvasId ? "update" : undefined);
+  // Talking to the Master on the web moves its replies (and proactive updates) back to the web.
+  const connectorContextId = isMaster ? null : undefined;
+  // A run in flight takes the message at its next model turn instead of being interrupted.
+  const queued = await queueTaskUserMessageIfRunActive({
+    taskId: params.taskId,
+    userId: request.user.id,
+    content: buildUserMessageContent({
+      message: body.message,
+      attachments: body.attachments,
+      tools: body.tools,
+      agent: selectedAgent,
+      taskAgent
+    }),
+    interactiveCanvasId: body.interactiveCanvasId ?? undefined,
+    interactiveCanvasIntent,
+    connectorContextId
+  });
+  if (queued) {
+    if (body.interactiveCanvasId) {
+      await touchProjectCanvasTask({ canvasId: body.interactiveCanvasId, taskId: params.taskId });
+    }
+    await recordPromptUsageIfRequired({
+      userId: request.user.id,
+      mode: entitlement.mode,
+      taskId: params.taskId,
+      taskMessageId: null
+    });
+    return { taskId: params.taskId, mode: "queued" as const, queuedMessageId: queued.queuedMessageId };
+  }
+
   const run = await appendTaskUserMessageAndEnqueue({
     taskId: params.taskId,
     workspaceId: access.workspaceId,
@@ -103,10 +135,9 @@ async function handlePostTaskMessage(request: FastifyRequest, reply: FastifyRepl
     taskAgent,
     userId: request.user.id,
     interactiveCanvasId: body.interactiveCanvasId ?? undefined,
-    interactiveCanvasIntent: body.interactiveCanvasIntent ?? (body.interactiveCanvasId ? "update" : undefined),
+    interactiveCanvasIntent,
     interruptQueued: true,
-    // Talking to the Master on the web moves its replies (and proactive updates) back to the web.
-    connectorContextId: isMaster ? null : undefined
+    connectorContextId
   });
   if (body.interactiveCanvasId) {
     await touchProjectCanvasTask({

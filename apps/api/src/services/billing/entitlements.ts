@@ -92,7 +92,7 @@ export async function recordPromptUsageIfRequired(input: {
   userId: string;
   mode: UserAccessMode;
   taskId: string;
-  taskMessageId: string;
+  taskMessageId: string | null;
 }): Promise<void> {
   if (input.mode !== "free") {
     return;

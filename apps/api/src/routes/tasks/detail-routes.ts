@@ -6,7 +6,7 @@ import { query } from "../../lib/db.js";
 import { listTaskCanvases } from "../../services/canvases/project-canvases.js";
 import { listTaskThreadCounts } from "../../services/tasks/task-threads.js";
 import { selectTaskMessageMetadataContent } from "../../services/tasks/task-message-metadata-content.js";
-import { resolveActiveLeafMessageId } from "../../services/tasks/task-service/index.js";
+import { listTaskQueuedMessages, resolveActiveLeafMessageId } from "../../services/tasks/task-service/index.js";
 import { getAdminSettings } from "../../services/admin/admin-settings.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { getTaskWorkflowOverview } from "../../services/tasks/task-workflows.js";
@@ -602,7 +602,7 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
     await ensureTaskHistoryWarm(params.taskId);
   }
 
-  const [taskRes, messages, contextUsageRes, lastIdleCompactionAt, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow] = await Promise.all([
+  const [taskRes, messages, contextUsageRes, lastIdleCompactionAt, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow, queuedMessages] = await Promise.all([
     loadTaskDetailRecord(params.taskId),
     loadTaskMessages(params.taskId, queryInput.messageDetail),
     query<ContextUsageRow>(
@@ -635,7 +635,8 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
     ),
     listTaskThreadCounts(params.taskId),
     getAdminSettings(),
-    getTaskWorkflowOverview(params.taskId)
+    getTaskWorkflowOverview(params.taskId),
+    listTaskQueuedMessages(params.taskId)
   ]);
 
   if ((taskRes.rowCount ?? 0) === 0) {
@@ -666,7 +667,8 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
         }
       : null,
     last_idle_compaction_at: lastIdleCompactionAt,
-    workflow
+    workflow,
+    queued_messages: queuedMessages
   };
 }
 

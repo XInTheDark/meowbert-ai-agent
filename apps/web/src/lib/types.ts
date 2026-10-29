@@ -273,6 +273,14 @@ export interface TaskDetail {
   latest_context_usage?: TaskContextUsage | null;
   last_idle_compaction_at?: string | null;
   workflow?: TaskWorkflowOverview | null;
+  // Follow-ups waiting for the running task's next turn.
+  queued_messages?: TaskQueuedMessage[];
+}
+
+export interface TaskQueuedMessage {
+  id: string;
+  text: string;
+  created_at: string;
 }
 
 export interface ProjectCanvasSummary {

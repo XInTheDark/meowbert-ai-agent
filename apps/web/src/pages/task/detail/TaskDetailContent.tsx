@@ -15,6 +15,7 @@ import { getEffectiveTaskStatus } from "../../../lib/utils";
 import { TaskDetailArtifactsPane } from "./TaskDetailArtifactsPane";
 import { TaskDetailConversationPane } from "./TaskDetailConversationPane";
 import { ProjectMasterComposerSuggestions } from "./ProjectMasterComposerSuggestions";
+import { QueuedFollowUps } from "./QueuedFollowUps";
 import { ProjectMasterGreeting } from "./ProjectMasterGreeting";
 import { TaskConversationSearchPanel } from "./TaskConversationSearchPanel";
 import { TaskDetailDebugPane } from "./TaskDetailDebugPane";
@@ -318,15 +319,26 @@ function TaskConversationMain({ model }: ModelProps) {
         showScrollToBottomButton={model.actions.messageDisplayPreferences.showScrollToBottomButton}
         onScrollToBottomRequested={model.controllers.search.handleScrollToBottomRequested}
         emptyConversation={task.is_project_master && !events.isThinking ? <ProjectMasterGreeting /> : null}
-        composerAccessory={task.is_project_master ? (
-          <ProjectMasterComposerSuggestions
-            api={model.context.workspace.api}
-            workspaceId={model.context.taskWorkspaceId}
-            projectId={model.context.taskProjectId}
-            visible={!model.composer.followUp.trim() && !model.composer.editingMessageId}
-            onSelect={(action) => model.composer.setFollowUp(action.prompt)}
-          />
-        ) : null}
+        composerAccessory={(
+          <>
+            <QueuedFollowUps
+              api={model.context.workspace.api}
+              taskId={model.context.taskId}
+              messages={model.context.data.taskDetail?.queued_messages ?? []}
+              onChanged={model.context.data.loadTask}
+              onError={model.context.setError}
+            />
+            {task.is_project_master ? (
+              <ProjectMasterComposerSuggestions
+                api={model.context.workspace.api}
+                workspaceId={model.context.taskWorkspaceId}
+                projectId={model.context.taskProjectId}
+                visible={!model.composer.followUp.trim() && !model.composer.editingMessageId}
+                onSelect={(action) => model.composer.setFollowUp(action.prompt)}
+              />
+            ) : null}
+          </>
+        )}
       />
     </div>
   );

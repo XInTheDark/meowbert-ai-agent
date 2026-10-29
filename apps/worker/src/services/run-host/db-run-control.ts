@@ -15,7 +15,17 @@ import { createDbContextStore } from "../context-management-v2/db-store.js";
 import type { RunControl } from "@meowbert/run-executor/agent/ports/run-control";
 import type { ServerRunState } from "./bootstrap.js";
 import { createDbPlatformToolHost } from "./platform-tools.js";
+import { startRunForQueuedMessages } from "../queued-messages/after-run.js";
 import { clearInterruptedToolCalls, recordToolCallFinished, recordToolCallStarted } from "./tool-call-records.js";
+
+// The run has already settled; a failed handoff leaves the messages queued for the user.
+async function startRunForQueuedMessagesSafely(job: TaskExecutionJob): Promise<void> {
+  try {
+    await startRunForQueuedMessages(job);
+  } catch (error) {
+    console.error("Unable to start a run for queued messages", error);
+  }
+}
 
 export interface DbRunControl extends RunControl {
   // The control plane's state for the run, available once `bootstrap` has resolved.
@@ -110,7 +120,14 @@ export function createDbRunControl(
     resolveInterruptedToolCalls: (callIds) => clearInterruptedToolCalls(taskId, callIds),
     context: createDbContextStore(taskId),
     platform: createDbPlatformToolHost(serverState),
-    complete: async (completion) => (await import("./run-completion.js")).completeServerRun(serverState(), completion),
-    fail: async (failure) => (await import("./run-failure.js")).failServerRun(job, failure)
+    async complete(completion) {
+      const result = await (await import("./run-completion.js")).completeServerRun(serverState(), completion);
+      await startRunForQueuedMessagesSafely(job);
+      return result;
+    },
+    async fail(failure) {
+      await (await import("./run-failure.js")).failServerRun(job, failure);
+      await startRunForQueuedMessagesSafely(job);
+    }
   };
 }

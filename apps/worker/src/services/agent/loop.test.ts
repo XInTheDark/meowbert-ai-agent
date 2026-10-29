@@ -88,6 +88,10 @@ vi.mock("@meowbert/run-executor/agent/queued-prompt-deltas", () => ({
   appendQueuedPromptDeltas: vi.fn()
 }));
 
+vi.mock("../queued-messages/inbox.js", () => ({
+  appendQueuedUserMessages: vi.fn()
+}));
+
 vi.mock("../task-workflows/service.js", () => ({
   loadLongHorizonBudgetTelemetry: vi.fn(),
   startLongHorizonTask: vi.fn(),

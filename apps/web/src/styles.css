@@ -7029,3 +7029,47 @@ a.managed-task-card:hover {
 /* Transcript: full-width rows, prompt caret for the user, bullet for the agent. */
 
 /* Inline code is colored text, not a pill. */
+
+.queued-follow-ups {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.queued-follow-up {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+
+.queued-follow-up-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.queued-follow-up-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queued-follow-up-send {
+  flex-shrink: 0;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.queued-follow-up-remove {
+  flex-shrink: 0;
+  padding: 0.2rem;
+}

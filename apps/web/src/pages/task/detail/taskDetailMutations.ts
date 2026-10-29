@@ -14,11 +14,13 @@ export type TaskScheduleAction = "pause" | "resume" | "run-now";
 
 export interface TaskFollowUpResponse {
   taskId: string;
-  mode: "enqueued" | "interrupting";
+  mode: "enqueued" | "interrupting" | "queued";
   runId?: string;
   attemptNo?: number;
   messageId?: string;
   activeLeafMessageId?: string;
+  // Set when the message waits for the running task's next turn.
+  queuedMessageId?: string;
 }
 
 function buildWorkflowPayload(workflow: TaskWorkflowComposerConfig, previous?: TaskWorkflowOverview | null): Record<string, unknown> {
@@ -137,6 +139,15 @@ export async function sendTaskFollowUp(args: {
     ...(args.selectedAgentId ? { agent: { id: args.selectedAgentId } } : {}),
     ...(args.masterTaskAgent && !args.editingMessageId ? { taskAgent: args.masterTaskAgent } : {})
   });
+}
+
+// Sends a queued message straight away, interrupting the run.
+export async function sendQueuedTaskMessageNow(api: ApiClient, taskId: string, queuedMessageId: string): Promise<TaskFollowUpResponse> {
+  return api.post<TaskFollowUpResponse>(`/api/tasks/${taskId}/queued-messages/${queuedMessageId}/send-now`, {});
+}
+
+export async function removeQueuedTaskMessage(api: ApiClient, taskId: string, queuedMessageId: string): Promise<void> {
+  await api.delete(`/api/tasks/${taskId}/queued-messages/${queuedMessageId}`);
 }
 
 export async function switchTaskBranch(

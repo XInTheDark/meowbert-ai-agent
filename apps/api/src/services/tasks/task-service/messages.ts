@@ -10,7 +10,7 @@ import { activateTaskTimeLimitInTx } from "./time-limit.js";
 import { publishMemorySynthesisEvent } from "../../workspaces/memory-synthesis-events.js";
 import { applySelectedSwarmPresetInTx, resolveSelectedSwarmPreset } from "../../agent-swarm/preset-selection.js";
 import type { ProjectCanvasIntent } from "../../canvases/project-canvases.js";
-import { recordProjectMasterReplyContextInTx } from "../../project-master/reply-contexts.js";
+import { applyFollowUpTaskSettingsInTx } from "./follow-up-settings.js";
 import {
   buildUserMessageContent,
   type TaskMessageAttachment,
@@ -98,47 +98,9 @@ export async function appendTaskUserMessageAndEnqueue(input: {
 
     await activateTaskTimeLimitInTx(client, input.taskId, insertedMessage.rows[0].created_at);
 
-    if (input.connectorContextId !== undefined) {
-      await client.query(
-        `UPDATE tasks
-            SET connector_context_id = $2,
-                updated_at = now()
-          WHERE id = $1`,
-        [input.taskId, input.connectorContextId]
-      );
-      if (input.userId) {
-        await recordProjectMasterReplyContextInTx(client, {
-          taskId: input.taskId,
-          userId: input.userId,
-          connectorContextId: input.connectorContextId
-        });
-      }
-    }
-
-    if (input.interactiveCanvasId !== undefined || input.interactiveCanvasIntent !== undefined) {
-      await client.query(
-        `UPDATE tasks
-            SET interactive_canvas_id = COALESCE($2, interactive_canvas_id),
-                interactive_canvas_intent = COALESCE($3, interactive_canvas_intent),
-                updated_at = now()
-          WHERE id = $1`,
-        [
-          input.taskId,
-          input.interactiveCanvasId ?? null,
-          input.interactiveCanvasIntent ?? (input.interactiveCanvasId ? "update" : null)
-        ]
-      );
-    }
+    await applyFollowUpTaskSettingsInTx(client, input);
 
     if (input.userId) {
-      await client.query(
-        `UPDATE tasks
-            SET initiator_user_id = $2,
-                updated_at = now()
-          WHERE id = $1
-            AND initiator_user_id IS NULL`,
-        [input.taskId, input.userId]
-      );
       await setTaskBranchSelection({
         taskId: input.taskId,
         userId: input.userId,

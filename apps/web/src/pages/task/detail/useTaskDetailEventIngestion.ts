@@ -13,6 +13,7 @@ import { parseIncomingTaskEvent } from "./taskDetailEventHelpers";
 import {
   advanceTaskEventCursor,
   getNewestTaskEventCursor,
+  isQueuedMessagesEvent,
   shouldRefreshTaskSnapshotForEventType
 } from "./taskDetailEventSync";
 import type { TaskDetailEventsState, UseTaskDetailEventsOptions } from "./taskDetailEventTypes";
@@ -119,7 +120,7 @@ function useTaskLiveEventIngestion(
       });
     }
 
-    if (shouldRefreshTaskSnapshotForEventType(event.type)) {
+    if (shouldRefreshTaskSnapshotForEventType(event.type) || isQueuedMessagesEvent(event)) {
       scheduleTaskSnapshotRefresh();
     }
   }, [

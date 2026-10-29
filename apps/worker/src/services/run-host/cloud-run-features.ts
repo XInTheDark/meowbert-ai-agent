@@ -17,6 +17,7 @@ import { appendSubagentInbox } from "../subagents/inbox.js";
 import { assertSubagentsFinished } from "../subagents/mail.js";
 import { parkForSubagentMail } from "../subagents/wait.js";
 import { appendProjectMasterInbox } from "../project-master/inbox.js";
+import { appendQueuedUserMessages } from "../queued-messages/inbox.js";
 import {
   loadLongHorizonBudgetTelemetry,
   loadWorkflowRunContext,
@@ -87,6 +88,7 @@ export const cloudRunFeatures: RunFeatures = {
   },
   prepareLaneRun,
   async beforeStep(execution) {
+    await appendQueuedUserMessages(execution);
     await appendSubagentInbox(execution);
     await appendProjectMasterInbox(execution);
     await prepareSwarmStep(execution);

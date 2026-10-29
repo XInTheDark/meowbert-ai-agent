@@ -11,6 +11,7 @@ vi.mock("../../services/workspaces/workspace-access.js", () => ({
 }));
 
 vi.mock("../../services/tasks/task-service/index.js", () => ({
+  listTaskQueuedMessages: vi.fn(async () => []),
   resolveActiveLeafMessageId: vi.fn(async () => "msg-assistant")
 }));
 
