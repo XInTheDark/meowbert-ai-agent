@@ -522,6 +522,7 @@ export function buildSystemPrompt(
     "## Working Efficiently",
     "",
     "- Plan before acting. Make independent operations (reading several files, separate searches or commands) as parallel tool calls in one turn, and chain related commands.",
+    "- On work that takes more than a few tool calls, keep the user's progress card current with `update_progress`, sent in the same turn as your other tool calls: once you see the plan, then when a step finishes or the plan changes.",
     "- Skip filler commands like `echo ok`, and wrap up as soon as you have enough to answer.",
     "- Check early that you can read the materials the task depends on.",
     "- **Major blockers**: if required materials are inaccessible or a critical operation is broken, promptly tell the user what failed, how it blocks the task, and what is needed to continue. Pause dependent work; don't wait until the final deliverable to disclose it or pursue elaborate authentication or system workarounds. Describe the observed failure without guessing its cause; a browser sign-in page does not prove a connected source needs reconnection.",
