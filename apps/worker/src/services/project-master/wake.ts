@@ -20,7 +20,7 @@ export interface IdleMaster {
   status: TaskStatus;
 }
 
-export async function lockIdleEnabledMaster(client: PoolClient, masterTaskId: string): Promise<IdleMaster | null> {
+async function lockIdleEnabledMaster(client: PoolClient, masterTaskId: string): Promise<IdleMaster | null> {
   const result = await client.query<IdleMaster>(
     `SELECT t.workspace_id, t.environment_id, t.initiator_user_id, t.status
        FROM tasks t

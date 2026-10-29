@@ -7,6 +7,7 @@ interface PlatformSettingsTabProps {
   requireEmailVerificationOnSignup: boolean;
   enableForgotPassword: boolean;
   enablePromptCaching: boolean;
+  idleCompactionForTasks: boolean;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;
@@ -22,6 +23,7 @@ interface PlatformSettingsTabProps {
   onRequireEmailVerificationOnSignupChange: (value: boolean) => void;
   onEnableForgotPasswordChange: (value: boolean) => void;
   onEnablePromptCachingChange: (value: boolean) => void;
+  onIdleCompactionForTasksChange: (value: boolean) => void;
   onDebugModeChange: (value: boolean) => void;
   onDefaultFreeMessageLimitChange: (value: number | null) => void;
   onMaxTaskRunRetriesChange: (value: number) => void;
@@ -238,7 +240,12 @@ function SchedulingSettingsSection(props: Pick<
 
 function AdvancedSettingsSection(props: Pick<
   PlatformSettingsTabProps,
-  "enablePromptCaching" | "onEnablePromptCachingChange" | "debugMode" | "onDebugModeChange"
+  | "enablePromptCaching"
+  | "onEnablePromptCachingChange"
+  | "idleCompactionForTasks"
+  | "onIdleCompactionForTasksChange"
+  | "debugMode"
+  | "onDebugModeChange"
 >) {
   return (
     <div className="stack-form">
@@ -247,6 +254,12 @@ function AdvancedSettingsSection(props: Pick<
         title="Enable prompt caching"
         description="Use prompt caching on model requests so compatible providers can reuse cached prompt prefixes."
         onChange={props.onEnablePromptCachingChange}
+      />
+      <SettingsCheckboxField
+        checked={props.idleCompactionForTasks}
+        title="Idle compaction for all tasks"
+        description="Compact idle top-level tasks while their prompt cache is still warm, like the Project Master. Models with idle_compaction set to false in Model metadata are skipped."
+        onChange={props.onIdleCompactionForTasksChange}
       />
       <SettingsCheckboxField
         checked={props.debugMode}

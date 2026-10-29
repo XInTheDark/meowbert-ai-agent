@@ -34,6 +34,7 @@ interface AdminSettingsRow {
   enable_forgot_password: boolean;
   require_email_verification_on_signup: boolean;
   enable_prompt_caching: boolean;
+  idle_compaction_for_tasks: boolean;
   debug_mode: boolean;
   default_free_message_limit: number | null;
   max_task_run_retries: number;
@@ -52,6 +53,7 @@ export interface AdminSettings {
   enableForgotPassword: boolean;
   requireEmailVerificationOnSignup: boolean;
   enablePromptCaching: boolean;
+  idleCompactionForTasks: boolean;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;
@@ -112,6 +114,7 @@ function mapAdminSettings(row: AdminSettingsRow | undefined): AdminSettings {
     enableForgotPassword: row?.enable_forgot_password ?? false,
     requireEmailVerificationOnSignup: row?.require_email_verification_on_signup ?? false,
     enablePromptCaching: row?.enable_prompt_caching ?? true,
+    idleCompactionForTasks: row?.idle_compaction_for_tasks ?? false,
     debugMode: row?.debug_mode ?? false,
     defaultFreeMessageLimit: row?.default_free_message_limit ?? null,
     maxTaskRunRetries: row?.max_task_run_retries ?? 5,
@@ -146,7 +149,8 @@ export async function getAdminSettings(client?: PoolClient): Promise<AdminSettin
        model_routers_json,
        agent_presets_json,
        specialized_models_json,
-       model_slider_agent_ids_json
+       model_slider_agent_ids_json,
+       idle_compaction_for_tasks
      FROM platform_settings
      WHERE id = 1`,
     [],
@@ -218,7 +222,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
     JSON.stringify(normalizedModelRouters),
     JSON.stringify(normalizedAgentPresets),
     JSON.stringify(normalizedSpecializedModels),
-    JSON.stringify(normalizedModelSliderAgentIds)
+    JSON.stringify(normalizedModelSliderAgentIds),
+    input.idleCompactionForTasks
   ];
 
   const updated = await query<AdminSettingsRow>(
@@ -238,6 +243,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
             agent_presets_json = $13::jsonb,
             specialized_models_json = $14::jsonb,
             model_slider_agent_ids_json = $15::jsonb,
+            idle_compaction_for_tasks = $16,
             updated_at = now()
       WHERE id = 1
     RETURNING
@@ -255,7 +261,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       model_routers_json,
       agent_presets_json,
       specialized_models_json,
-      model_slider_agent_ids_json`,
+      model_slider_agent_ids_json,
+      idle_compaction_for_tasks`,
     params
   );
 
@@ -280,9 +287,10 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       model_routers_json,
       agent_presets_json,
       specialized_models_json,
-      model_slider_agent_ids_json
+      model_slider_agent_ids_json,
+      idle_compaction_for_tasks
     )
-    VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb)
+    VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16)
     ON CONFLICT (id)
     DO UPDATE
       SET allow_user_signup = EXCLUDED.allow_user_signup,
@@ -300,6 +308,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
           agent_presets_json = EXCLUDED.agent_presets_json,
           specialized_models_json = EXCLUDED.specialized_models_json,
           model_slider_agent_ids_json = EXCLUDED.model_slider_agent_ids_json,
+          idle_compaction_for_tasks = EXCLUDED.idle_compaction_for_tasks,
           updated_at = now()
     RETURNING
       allow_user_signup,
@@ -316,7 +325,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       model_routers_json,
       agent_presets_json,
       specialized_models_json,
-      model_slider_agent_ids_json`,
+      model_slider_agent_ids_json,
+      idle_compaction_for_tasks`,
     params
   );
 

@@ -126,6 +126,20 @@ describe("TaskDetailTopbar", () => {
     expect(html).not.toContain("Context —");
   });
 
+  it("marks the context pill after an idle compaction", () => {
+    const usage = { usedTokens: 64_000, maxContextTokens: 256_000 };
+    const plain = renderToStaticMarkup(<TaskDetailTopbar {...buildProps({ latestContextUsage: usage })} />);
+    const compacted = renderToStaticMarkup(
+      <TaskDetailTopbar
+        {...buildProps({ latestContextUsage: usage, lastIdleCompactionAt: new Date().toISOString() })}
+      />
+    );
+
+    expect(plain).not.toContain("Compacted while idle");
+    expect(compacted).toContain("context-usage-pill-idle");
+    expect(compacted).toContain("Compacted while idle");
+  });
+
   it("renders a collapsed indicator strip for collapsed mobile topbars", () => {
     const html = renderToStaticMarkup(
       <TaskDetailTopbar {...buildProps({ isMobileViewport: true, topbarCollapsed: true })} />

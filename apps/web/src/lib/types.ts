@@ -271,6 +271,7 @@ export interface TaskDetail {
     completed_at: string | null;
   }>;
   latest_context_usage?: TaskContextUsage | null;
+  last_idle_compaction_at?: string | null;
   workflow?: TaskWorkflowOverview | null;
 }
 
@@ -794,6 +795,7 @@ export interface AdminSettings {
   enableForgotPassword: boolean;
   requireEmailVerificationOnSignup: boolean;
   enablePromptCaching: boolean;
+  idleCompactionForTasks: boolean;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;

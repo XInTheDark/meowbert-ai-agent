@@ -142,6 +142,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
       requireEmailVerificationOnSignup={platform.requireEmailVerificationOnSignup}
       enableForgotPassword={platform.enableForgotPassword}
       enablePromptCaching={platform.enablePromptCaching}
+      idleCompactionForTasks={platform.idleCompactionForTasks}
       debugMode={platform.debugMode}
       defaultFreeMessageLimit={platform.defaultFreeMessageLimit}
       maxTaskRunRetries={platform.maxTaskRunRetries}
@@ -157,6 +158,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
       onRequireEmailVerificationOnSignupChange={platform.setRequireEmailVerificationOnSignup}
       onEnableForgotPasswordChange={platform.setEnableForgotPassword}
       onEnablePromptCachingChange={platform.setEnablePromptCaching}
+      onIdleCompactionForTasksChange={platform.setIdleCompactionForTasks}
       onDebugModeChange={platform.setDebugMode}
       onDefaultFreeMessageLimitChange={platform.setDefaultFreeMessageLimit}
       onMaxTaskRunRetriesChange={platform.setMaxTaskRunRetries}

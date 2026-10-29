@@ -639,6 +639,11 @@
   background: var(--danger);
 }
 
+.context-usage-pill-idle {
+  flex-shrink: 0;
+  color: var(--brand);
+}
+
 .task-detail-usage-popover {
   position: absolute;
   top: calc(100% + 0.4rem);

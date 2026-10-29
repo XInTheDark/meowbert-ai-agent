@@ -112,6 +112,10 @@ To avoid that, Meowbert compacts an idle Master while its cache is still warm. O
 
 Idle compaction is skipped when the last request used fewer tokens than the minimum, when a task report is already waiting (the Master is about to wake anyway), or when the cache has already expired. See [Idle compaction settings](#idle-compaction-settings) to change the cache lifetime and threshold.
 
+An admin can turn on the same behavior for every top-level task with **Admin → Settings → Advanced → Idle compaction for all tasks**. Subtasks, workflow steps, threads and Agent Swarm lanes are left out, since their parent task drives them. When it runs, the task briefly shows as running and moves to the top of the task list, just as it does after **Compact Context**.
+
+After an idle compaction, the context pill in the task header shows a small compaction icon, and its details say when the context was compacted. The percentage still shows the window from before the compaction until the next turn reports new usage.
+
 The earlier V1 option uses checkpoint-and-compact and checkpoint-and-trim tools. These operate on the legacy compaction flow described above.
 
 The context notice in tool results reports exact API input-token usage for the request that produced the tool call. This reading is one request behind because the current tool result was not part of that completed request. V2 budget tracking and the remaining-token tool also include response output tokens and estimate locally added items after the latest model response, following Codex's total-context accounting approach. Before a provider usage sample is available, V2 estimates the prompt and history instead. These estimates are approximate; a large tool result or a provider context-overflow error can still force a new window before a checkpoint is saved.
@@ -124,6 +128,7 @@ The context notice in tool results reports exact API input-token usage for the r
 |---|---|---|
 | `Admin → Models → Specialized models → fastModel` | Model used for compaction summarization | Resolved task model |
 | `Admin → Model → Model metadata` | Per-model context window and provider metadata JSON | `{"default":{"context_window":256000,"type":"openai"}}` |
+| `Admin → Settings → Advanced → Idle compaction for all tasks` | Extends idle compaction from the Project Master to every top-level task | Off |
 | `Workspace Settings → Experiments → Native context compaction` | Experimental Responses API compaction-trigger backend | On |
 | `Workspace Settings → Experiments → Context management tools` | Lets Meowbert save checkpoints and compact or trim its active context | On |
 
@@ -150,12 +155,12 @@ Setting it too high won't cause errors but may delay compaction longer than nece
 
 ### Idle compaction settings
 
-Three Model metadata keys control Project Master idle compaction. Like `context_window`, each one is read from the exact model entry first, then from `default`.
+Three Model metadata keys control idle compaction, for the Project Master and, when it's turned on, for all tasks. Like `context_window`, each one is read from the exact model entry first, then from `default`.
 
 | Key | Description | Default |
 |---|---|---|
 | `prompt_cache_ttl_seconds` | How long the provider keeps a prompt cache, counted from the start of the request that wrote it | `3600` |
-| `idle_compaction` | Set to `false` to turn idle compaction off | `true` |
+| `idle_compaction` | Set to `false` to turn idle compaction off for this model, even when it's on for all tasks | `true` |
 | `idle_compaction_min_tokens` | Skip idle compaction when the last request used fewer input tokens than this | `50000` |
 
 ```json

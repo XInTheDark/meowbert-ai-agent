@@ -117,6 +117,7 @@ function TaskTopbar({ model }: ModelProps) {
         }));
       }}
       latestContextUsage={taskDetail.latest_context_usage}
+      lastIdleCompactionAt={taskDetail.last_idle_compaction_at ?? null}
       messageDisplayPreferences={model.actions.messageDisplayPreferences}
       onMessageDisplayPreferencesChange={(next) => void model.actions.handleMessageDisplayPreferencesChange(next)}
       isMessageDisplayPreferencesSaving={model.actions.isMessageDisplayPreferencesSaving}

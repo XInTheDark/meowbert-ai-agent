@@ -85,9 +85,13 @@ function useTaskLiveEventIngestion(
 
         return {
           ...current,
-          latest_context_usage: selectPreferredContextUsage(current.latest_context_usage ?? null, nextUsage)
+          latest_context_usage: selectPreferredContextUsage(current.latest_context_usage ?? null, nextUsage),
+          // A real turn after an idle compaction replaces it; the idle turn's own requests come before its log.
+          ...(nextUsage.source === "actual" ? { last_idle_compaction_at: null } : {})
         };
       });
+    } else if (event.type === "log" && event.payload.trigger === "idle") {
+      options.setTaskDetail((current) => current ? { ...current, last_idle_compaction_at: event.createdAt } : current);
     } else if (
       event.type === "command_end"
       || event.type === "status"

@@ -40,7 +40,7 @@ export function createMasterCheckScheduler(
       .then((delayMs) => {
         if (delayMs !== null) schedule(masterTaskId, delayMs);
       })
-      .catch((error) => console.error(`${label} failed for Project Master ${masterTaskId}`, error))
+      .catch((error) => console.error(`${label} failed for task ${masterTaskId}`, error))
       .finally(() => {
         inFlight.delete(masterTaskId);
         if (rerun.delete(masterTaskId)) void check(masterTaskId);

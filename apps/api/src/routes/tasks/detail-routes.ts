@@ -26,6 +26,7 @@ import {
   taskParams,
   uniqueIdsPreserveOrder
 } from "./shared.js";
+import { loadLastIdleCompactionAt } from "../../services/tasks/idle-compaction-status.js";
 
 interface TaskMessageRow {
   id: string;
@@ -601,7 +602,7 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
     await ensureTaskHistoryWarm(params.taskId);
   }
 
-  const [taskRes, messages, contextUsageRes, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow] = await Promise.all([
+  const [taskRes, messages, contextUsageRes, lastIdleCompactionAt, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow] = await Promise.all([
     loadTaskDetailRecord(params.taskId),
     loadTaskMessages(params.taskId, queryInput.messageDetail),
     query<ContextUsageRow>(
@@ -618,6 +619,7 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
         LIMIT 1`,
       [params.taskId]
     ),
+    loadLastIdleCompactionAt(params.taskId),
     resolveActiveLeafMessageId({ taskId: params.taskId, userId: request.user.id }),
     query<SubtaskRow>(
       `SELECT id, title, status, created_at, updated_at, completed_at
@@ -663,6 +665,7 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
           createdAt: contextUsageRes.rows[0].created_at
         }
       : null,
+    last_idle_compaction_at: lastIdleCompactionAt,
     workflow
   };
 }

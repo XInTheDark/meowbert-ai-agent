@@ -61,6 +61,7 @@ interface TaskDetailTopbarProps {
   onRunNowSchedule: () => void;
   onOpenSubtask: (subtaskId: string) => void;
   latestContextUsage: TaskDetail["latest_context_usage"];
+  lastIdleCompactionAt?: string | null;
   messageDisplayPreferences: TaskAssistantMessageDisplayPreferences;
   onMessageDisplayPreferencesChange: (nextValue: TaskAssistantMessageDisplayPreferences) => void;
   isMessageDisplayPreferencesSaving: boolean;
@@ -163,6 +164,7 @@ function getUsageSummary(latestUsagePayload: TaskDetail["latest_context_usage"])
 function TaskDetailUsageChip(props: {
   taskId: string;
   usage: UsageSummary | null;
+  lastIdleCompactionAt: string | null;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 }) {
@@ -184,6 +186,10 @@ function TaskDetailUsageChip(props: {
   }
 
   const usage = props.usage;
+  // The usage shown is from before the compaction; the next turn starts from the notes.
+  const idleCompactionLabel = props.lastIdleCompactionAt
+    ? `Compacted while idle ${formatRelative(props.lastIdleCompactionAt)}`
+    : null;
 
   const title = [
     `Context ${formatTokenCount(usage.usageTokens)} / ${formatTokenCount(usage.usageMaxTokens)} (${usage.usagePercent}%)`,
@@ -191,7 +197,8 @@ function TaskDetailUsageChip(props: {
       ? `Cache hit ${usage.cacheHitPercent}% (${formatTokenCount(usage.cachedTokens)} cached)`
       : null,
     usage.promptRevision ? `Revision ${usage.promptRevision}` : null,
-    usage.prefixHash ? `Prefix ${usage.prefixHash}` : null
+    usage.prefixHash ? `Prefix ${usage.prefixHash}` : null,
+    idleCompactionLabel
   ]
     .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
     .join(" • ");
@@ -215,6 +222,7 @@ function TaskDetailUsageChip(props: {
           />
         </span>
         <span className="context-usage-pill-text">Context {usage.usagePercent}%</span>
+        {idleCompactionLabel ? <Minimize2 size={11} className="context-usage-pill-idle" aria-label={idleCompactionLabel} /> : null}
       </button>
 
       {isExpanded ? (
@@ -228,6 +236,9 @@ function TaskDetailUsageChip(props: {
               {usage.promptRevision ? ` · ${usage.promptRevision}` : ""}
               {usage.prefixHash ? ` · ${usage.prefixHash}` : ""}
             </div>
+          ) : null}
+          {idleCompactionLabel ? (
+            <div className="muted-text" style={{ fontSize: "0.75rem" }}>{idleCompactionLabel}</div>
           ) : null}
           <div className="context-usage-meter">
             <span
@@ -720,6 +731,7 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
               <TaskDetailUsageChip
                 taskId={props.task.id}
                 usage={usage}
+                lastIdleCompactionAt={props.lastIdleCompactionAt ?? null}
                 expanded={props.contextChipExpanded}
                 onExpandedChange={props.onContextChipExpandedChange}
               />

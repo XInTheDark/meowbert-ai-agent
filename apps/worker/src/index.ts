@@ -1,7 +1,7 @@
 import { startSubagentWakeLoop } from "./services/subagents/wait.js";
 import { startSwarmRecoveryLoop } from "./services/agent-swarm/recovery.js";
 import { startProjectMasterWakeLoop } from "./services/project-master/wake-loop.js";
-import { startProjectMasterIdleCompactionLoop } from "./services/project-master/idle-compaction-loop.js";
+import { startIdleCompactionLoop } from "./services/idle-compaction/idle-compaction-loop.js";
 import { Worker } from "bullmq";
 import type { EmailDeliveryJob, TaskExecutionJob } from "@meowbert/shared";
 import { EMAIL_DELIVERY_QUEUE_NAME, TASK_QUEUE_NAME, warmStorageBackendsOnStartup } from "@meowbert/shared";
@@ -133,7 +133,7 @@ async function start(): Promise<void> {
   const subagentWakeLoop = startSubagentWakeLoop();
   const swarmRecoveryLoop = startSwarmRecoveryLoop();
   const projectMasterWakeLoop = startProjectMasterWakeLoop();
-  const projectMasterIdleCompactionLoop = startProjectMasterIdleCompactionLoop();
+  const idleCompactionLoop = startIdleCompactionLoop();
   const taskRunRecoveryLoop = startTaskRunRecoveryLoop();
   const taskScheduleLoop = startTaskScheduleLoop();
   const taskCleanupLoop = startTaskCleanupLoop();
@@ -201,7 +201,7 @@ async function start(): Promise<void> {
     await subagentWakeLoop.stop();
     await swarmRecoveryLoop.stop();
     await projectMasterWakeLoop.stop();
-    await projectMasterIdleCompactionLoop.stop();
+    await idleCompactionLoop.stop();
     await taskRunRecoveryLoop.stop();
     await taskTimeLimitLoop.stop();
     await taskRunDispatchLoop.stop();
