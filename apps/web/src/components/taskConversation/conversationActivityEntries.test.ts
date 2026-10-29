@@ -39,6 +39,29 @@ describe("conversation activity consolidation", () => {
     ]);
   });
 
+  it("carries the turn's progress and marked artifacts into later activity cards and resets them on a new turn", () => {
+    const progress = (id: string, value: unknown): TaskMessage => message(id, "tool", { tool: "update_progress", callId: id, progress: value });
+    const marked = (id: string, paths: string[], removed: string[] = []): TaskMessage => message(id, "tool", {
+      tool: "mark_artifact", callId: id, artifact_paths: paths, removed_artifact_paths: removed
+    });
+    const entries = buildConversationDisplayEntries([
+      message("u1", "user", { text: "make a handout" }),
+      progress("p1", { goal: "Build the handout", steps: [{ title: "Research", status: "active" }, { title: "Draft", status: "pending" }] }),
+      marked("m1", ["draft.pdf"]),
+      message("note", "assistant", { text: "Research done." }),
+      progress("p2", { goal: null, steps: [{ title: "Research", status: "done" }, { title: "Draft", status: "active" }] }),
+      marked("m2", ["handout.pdf"], ["draft.pdf"]),
+      message("u2", "user", { text: "thanks" }),
+      tool("later")
+    ]);
+    const turnStates = entries.flatMap((entry) => entry.kind === "activity" ? [entry.turnState] : []);
+    expect(turnStates).toEqual([
+      { progress: { goal: "Build the handout", steps: [{ title: "Research", status: "active" }, { title: "Draft", status: "pending" }] }, artifactPaths: ["draft.pdf"] },
+      { progress: { goal: "Build the handout", steps: [{ title: "Research", status: "done" }, { title: "Draft", status: "active" }] }, artifactPaths: ["handout.pdf"] },
+      { progress: null, artifactPaths: [] }
+    ]);
+  });
+
   it("shows a file once per turn when the same canvas is shown again", () => {
     const shown = (id: string, callId: string): TaskMessage => message(id, "tool", {
       callId, inline_artifact: { type: "html", relative_path: "diagram.html" }

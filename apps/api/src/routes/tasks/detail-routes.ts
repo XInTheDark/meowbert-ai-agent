@@ -233,6 +233,10 @@ async function loadTaskMessages(taskId: string, messageDetail: "full" | "metadat
                     'tool', tm.content_json->'tool',
                     'callId', tm.content_json->'callId',
                     'durationMs', tm.content_json->'durationMs',
+                    'summary', tm.content_json->'summary',
+                    'progress', tm.content_json->'progress',
+                    'artifact_paths', tm.content_json->'artifact_paths',
+                    'removed_artifact_paths', tm.content_json->'removed_artifact_paths',
                     'inline_artifact', tm.content_json->'inline_artifact',
                     'response_function_output', tm.content_json->'response_function_output',
                     'response_custom_tool_output', tm.content_json->'response_custom_tool_output'

@@ -104,7 +104,7 @@ export async function handleMarkArtifact(
         artifacts: relativePaths.map((relativePath) => ({ relative_path: relativePath }))
       }, {
         eventPayload: { artifactCount: 0, removedArtifactCount: relativePaths.length },
-        messagePayload: { artifact_count: 0, removed_artifact_count: relativePaths.length }
+        messagePayload: { artifact_count: 0, removed_artifact_count: relativePaths.length, removed_artifact_paths: relativePaths }
       });
     }
 
@@ -163,7 +163,7 @@ export async function handleMarkArtifact(
       }))
     }, {
       eventPayload: { artifactCount: artifacts.length },
-      messagePayload: { artifact_count: artifacts.length }
+      messagePayload: { artifact_count: artifacts.length, artifact_paths: artifacts.map((artifact) => artifact.relativePath) }
     });
   } catch (err) {
     rethrowIfTaskCancelled(err);

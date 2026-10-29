@@ -37,6 +37,7 @@ export function HistoricalActivityGroup(props: HistoricalConversationItemsProps 
           hydratedMessageIds={hydratedIds} onExpandRequested={props.onToolGroupExpandRequested}
           isSelected={props.selectedToolGroupKey === groupKey} thoughtSummary={thoughtSummary}
           onInspectRequested={props.onToolGroupInspectorRequested} collapsed={props.isComplete}
+          running={!props.isComplete} turnState={group.turnState}
           expansionKey={props.taskId ? buildTaskMessageExpansionKey(props.taskId, groupKey) : undefined} />
       ) : thoughtSummary ? <ThoughtSummaryBubble {...thoughtSummary} /> : null}
       {showNotices && group.notices.length > 0 ? (

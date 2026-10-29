@@ -6,6 +6,7 @@ import { getModelRetryMessageDetails } from "../../task/taskConversationDisplay"
 import { getTaskInlineArtifact, type TaskInlineArtifact } from "../../task/taskInlineArtifacts";
 import { getManagedTaskCard, getRunInboxReportCards, type ManagedTaskCardData } from "../../task/managedTaskCards";
 import { getInlineArtifactIdentity, getInlineResponseArtifactIdentities, getInlineResponseSegments, getTaskInlineArtifactMessageIdentity } from "../../task/inlineResponseSegments";
+import { advanceActivityTurnState, EMPTY_ACTIVITY_TURN_STATE, type ActivityTurnState } from "../../task/activityTurnState";
 import { collectHistoricalToolCallIds, getThoughtSummaryLabel, getToolMessageCallId, isResponseToolRepresentedInHistory } from "./shared";
 
 export interface ActivityThought {
@@ -23,6 +24,8 @@ export interface ConversationActivityGroup {
   toolGroup: TaskMessage[];
   notices: TaskMessage[];
   thoughts: ActivityThought[];
+  // The turn's progress and marked artifacts up to the end of this group.
+  turnState: ActivityTurnState;
 }
 
 export type ConversationDisplayEntry = ConversationActivityGroup | {
@@ -121,7 +124,8 @@ export function buildConversationDisplayEntries(messages: TaskMessage[]): Conver
   const activity = (message: TaskMessage, index: number): ConversationActivityGroup => {
     pending ??= {
       kind: "activity", key: message.role === "tool" ? `tool-group:${message.id}` : `${message.id}:response-tools`,
-      startIndex: index, messageIds: [], toolGroup: [], notices: [], thoughts: []
+      startIndex: index, messageIds: [], toolGroup: [], notices: [], thoughts: [],
+      turnState: EMPTY_ACTIVITY_TURN_STATE
     };
     if (!pending.messageIds.includes(message.id)) pending.messageIds.push(message.id);
     return pending;
@@ -183,7 +187,20 @@ export function buildConversationDisplayEntries(messages: TaskMessage[]): Conver
     }
   }
   flush();
-  return withoutSupersededArtifacts(entries);
+  return withActivityTurnState(withoutSupersededArtifacts(entries));
+}
+
+function withActivityTurnState(entries: ConversationDisplayEntry[]): ConversationDisplayEntry[] {
+  let turnState = EMPTY_ACTIVITY_TURN_STATE;
+  return entries.map((entry) => {
+    if (entry.kind === "message" && entry.message.role === "user") {
+      turnState = EMPTY_ACTIVITY_TURN_STATE;
+    } else if (entry.kind === "activity") {
+      turnState = advanceActivityTurnState(turnState, entry.toolGroup);
+      return { ...entry, turnState };
+    }
+    return entry;
+  });
 }
 
 // Showing the same file again in one turn (after fixing it) renders the live file, so the earlier

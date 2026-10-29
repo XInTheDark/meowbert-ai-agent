@@ -1,4 +1,5 @@
 import { parseInlineArtifact, serializeInlineArtifact } from "@meowbert/shared/inline-artifacts";
+import { normalizeTaskProgress } from "@meowbert/shared/task-progress";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -10,6 +11,10 @@ function asFiniteNumber(value: unknown): number | null {
 
 function asTrimmedString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function asStringList(value: unknown): string[] | null {
+  return Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string") ? value : null;
 }
 
 function pickInlineArtifact(content: Record<string, unknown>): Record<string, unknown> | null {
@@ -42,6 +47,10 @@ export function selectTaskMessageMetadataContent(
   const callId = asTrimmedString(content.callId);
   const durationMs = asFiniteNumber(content.durationMs);
   const inlineArtifact = pickInlineArtifact(content);
+  const summary = asTrimmedString(content.summary);
+  const progress = normalizeTaskProgress(content.progress);
+  const artifactPaths = asStringList(content.artifact_paths);
+  const removedArtifactPaths = asStringList(content.removed_artifact_paths);
 
   if (toolName) {
     metadata.tool = toolName;
@@ -54,6 +63,19 @@ export function selectTaskMessageMetadataContent(
   }
   if (inlineArtifact) {
     metadata.inline_artifact = inlineArtifact;
+  }
+  if (summary) {
+    metadata.summary = summary;
+  }
+  if (progress) {
+    metadata.progress = progress;
+  }
+  // The activity card lists the files a turn marked as artifacts.
+  if (artifactPaths) {
+    metadata.artifact_paths = artifactPaths;
+  }
+  if (removedArtifactPaths) {
+    metadata.removed_artifact_paths = removedArtifactPaths;
   }
 
   return metadata;

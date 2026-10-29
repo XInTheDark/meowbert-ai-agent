@@ -64,6 +64,8 @@ import { EXEC_TOOL_NAME } from "../code-mode/exec-tool.js";
 import { handleSearchTools } from "./handlers/search-tools.js";
 import { SEARCH_TOOLS_TOOL_NAME } from "../code-mode/search-tools-tool.js";
 import { handleMarkArtifact } from "./handlers/artifacts.js";
+import { handleUpdateProgress } from "./handlers/progress.js";
+import { UPDATE_PROGRESS_TOOL_NAME } from "../agent-tools/progress.js";
 import { handleComputerToolCall } from "./handlers/computer.js";
 import { handleContextManagementTool } from "./handlers/context-management.js";
 import { handleContextManagementV2Tool, isContextManagementV2Tool } from "./handlers/context-management-v2.js";
@@ -182,6 +184,9 @@ async function dispatchFunctionToolCall(
 
     case MARK_ARTIFACT_TOOL_NAME:
       return handleMarkArtifact(outputItem, ctx, state);
+
+    case UPDATE_PROGRESS_TOOL_NAME:
+      return handleUpdateProgress(outputItem, ctx, state);
 
     case CREATE_PROJECT_CANVAS_TOOL_NAME:
       return handleCreateProjectCanvas(outputItem, ctx, state);

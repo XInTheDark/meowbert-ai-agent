@@ -1,6 +1,7 @@
 import { HOST_SHELL_TOOL } from "./host-shell.js";
 import { ORGANIZATION_TOOLS, ORGANIZATION_TOOL_NAMES, withOrganizationFinalResponse, withOrganizationHistory } from "./conversation-organization.js";
 import { buildCreateTaskFunctionTool, PROJECT_MASTER_TOOL_NAMES } from "./project-master.js";
+import { UPDATE_PROGRESS_TOOL } from "./progress.js";
 import { SUBAGENT_TOOL_NAMES } from "./subagents.js";
 import { buildSwarmFunctionTools } from "./swarm.js";
 import type { FunctionTool, Tool } from "openai/resources/responses/responses";
@@ -247,6 +248,7 @@ export function buildResponseTools(
         }
         return tool;
       }),
+    UPDATE_PROGRESS_TOOL,
     ...CONTEXT_V2_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
     ...COMPUTER_RESPONSE_FUNCTION_TOOLS.filter((tool) => isToolEnabled(tool, options, availability)),
     ...(availability.swarmTools ? buildSwarmFunctionTools(availability.swarmTools, availability.swarmRouter ?? null) : []),

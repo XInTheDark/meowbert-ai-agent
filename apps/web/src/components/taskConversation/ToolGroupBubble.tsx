@@ -1,6 +1,7 @@
 import { CompletedActivityDisclosure } from "./CompletedActivityDisclosure";
 import { ToolActivitySummaryCard } from "./ToolActivitySummaryCard";
 import type { TaskMessage } from "../../lib/types";
+import type { ActivityTurnState } from "../../task/activityTurnState";
 import { getToolGroupStepSummaries } from "../../task/activityStepSummaries";
 import { getToolGroupSummary, type ActivityThoughtSummary } from "./shared";
 
@@ -18,6 +19,8 @@ export function ToolGroupBubble(props: {
   }) => void;
   thoughtSummary?: ActivityThoughtSummary;
   collapsed?: boolean;
+  running?: boolean;
+  turnState?: ActivityTurnState;
   expansionKey?: string;
 }): JSX.Element {
   const {
@@ -54,6 +57,9 @@ export function ToolGroupBubble(props: {
       preview={summary.preview}
       secondaryLabel={thoughtSummary?.label ?? null}
       steps={getToolGroupStepSummaries(toolGroup)}
+      progress={props.turnState?.progress ?? null}
+      artifactPaths={props.turnState?.artifactPaths ?? []}
+      running={props.running === true}
       active={isSelected}
       showTitle={!collapsed}
       onClick={handleInspectRequested}

@@ -36,6 +36,23 @@ describe("selectTaskMessageMetadataContent", () => {
     });
   });
 
+  it("keeps the step summary, progress, and marked artifact paths the activity card shows", () => {
+    expect(selectTaskMessageMetadataContent("tool", {
+      tool: "update_progress",
+      summary: "Checking the style guide",
+      progress: { goal: "Build the handout", steps: [{ title: "Read guides", status: "done" }, { title: "", status: "pending" }] },
+      artifact_paths: ["handout.pdf"],
+      removed_artifact_paths: ["draft.pdf"],
+      stdout: "hidden"
+    })).toEqual({
+      tool: "update_progress",
+      summary: "Checking the style guide",
+      progress: { goal: "Build the handout", steps: [{ title: "Read guides", status: "done" }] },
+      artifact_paths: ["handout.pdf"],
+      removed_artifact_paths: ["draft.pdf"]
+    });
+  });
+
   it("strips metadata content for non-tool messages", () => {
     expect(
       selectTaskMessageMetadataContent("assistant", {

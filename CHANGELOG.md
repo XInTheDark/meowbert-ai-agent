@@ -1,5 +1,12 @@
 # Changelog
 
+## Oct 29, 2026
+
+### Tasks
+
+- **See where a task is at a glance** — On longer tasks, agents now share a short goal and the steps they plan, and update them as the work changes. The activity card shows the goal, a progress bar, each step as done, in progress or still to come, and what the agent is doing right now under the active step.
+- **Artifacts on the activity card** — Files an agent marks as artifacts during a turn now appear on the activity card. The card is also larger and easier to read, and step summaries stay visible after you reload the page.
+
 ## Oct 28, 2026
 
 ### Memory

@@ -20,13 +20,15 @@ import {
   SUBMIT_REVIEW_TOOL_NAME,
   WAIT_TOOL_NAME
 } from "../agent-tools/index.js";
+import { UPDATE_PROGRESS_TOOL_NAME } from "../agent-tools/progress.js";
 import { SWARM_TOOL_NAMES } from "../agent-tools/swarm.js";
 import { buildExecTool } from "./exec-tool.js";
 import { SEARCH_TOOLS_TOOL } from "./search-tools-tool.js";
 
 // Tools the model keeps calling directly in code mode: ones that end or pause the turn, change the
 // tool set or the context window, drive the computer, or edit files with a patch body that is awkward
-// to embed in a JavaScript string. Note writes stay direct because they are the only tools offered
+// to embed in a JavaScript string. Progress updates stay direct so they ride beside exec in the same
+// turn. Note writes stay direct because they are the only tools offered
 // while a context window is being checkpointed; history reads and context edits run inside exec, so a
 // script can pull earlier outputs and replace them without writing them out.
 const DIRECT_TOOL_NAMES = new Set<string>([
@@ -47,6 +49,7 @@ const DIRECT_TOOL_NAMES = new Set<string>([
   GET_CONTEXT_REMAINING_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
   NOTES_WRITE_FILE_TOOL_NAME,
+  UPDATE_PROGRESS_TOOL_NAME,
   ...COMPUTER_RESPONSE_FUNCTION_TOOLS.map((tool) => tool.name),
   ...ORGANIZATION_TOOL_NAMES,
   ...SWARM_TOOL_NAMES

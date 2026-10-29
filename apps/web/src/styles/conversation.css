@@ -1402,10 +1402,10 @@
 
 .tool-activity-card {
   width: fit-content;
-  min-width: min(100%, 20rem);
+  min-width: min(100%, 24rem);
   max-width: 100%;
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  padding: 0.5rem 0.7rem;
+  padding: 0.62rem 0.85rem;
   color: var(--text);
   display: flex;
   flex-direction: column;
@@ -1475,7 +1475,7 @@
 }
 
 .tool-activity-card-title {
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 600;
   letter-spacing: 0;
   color: var(--text);
@@ -1508,6 +1508,157 @@
 .tool-activity-card.active .tool-activity-card-chevron {
   opacity: 1;
   transform: translateX(2px);
+}
+
+.tool-activity-card.has-progress {
+  width: min(100%, 40rem);
+  padding: 0.75rem 0.95rem 0.8rem;
+}
+
+.tool-activity-card-goal {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.1rem;
+}
+
+.tool-activity-card-goal-title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.tool-activity-card-goal-meta {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.tool-activity-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.55rem;
+}
+
+.tool-activity-progress-bar {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.tool-activity-progress-segment {
+  flex: 1 1 0;
+  height: 0.22rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 90%, transparent);
+  transition: background 0.3s ease;
+}
+
+.tool-activity-progress-segment.done {
+  background: color-mix(in srgb, var(--brand) 55%, var(--surface));
+}
+
+.tool-activity-progress-segment.active {
+  background: var(--brand);
+}
+
+.tool-activity-progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+
+.tool-activity-progress-step {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.tool-activity-progress-step > svg {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+}
+
+.tool-activity-progress-step.done > svg {
+  color: color-mix(in srgb, var(--brand) 70%, var(--text-muted));
+}
+
+.tool-activity-progress-step.active {
+  color: var(--text);
+}
+
+.tool-activity-progress-step.active > svg {
+  color: var(--brand);
+}
+
+.tool-activity-progress-step.pending {
+  opacity: 0.7;
+}
+
+.tool-activity-progress-step-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.tool-activity-progress-step.active .tool-activity-progress-step-title {
+  font-weight: 600;
+}
+
+.tool-activity-progress-step-detail {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: tool-activity-step-enter 0.32s ease-out both;
+}
+
+.tool-activity-artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.tool-activity-artifact {
+  min-width: 0;
+  max-width: 14rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.14rem 0.45rem;
+  border-radius: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  font-size: 0.74rem;
+  color: var(--text);
+}
+
+.tool-activity-artifact > svg {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.tool-activity-artifact-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-activity-artifact-more {
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 .tool-count-badge {
@@ -1550,8 +1701,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1.35;
+  font-size: 0.8rem;
+  line-height: 1.4;
   color: var(--text-muted);
   opacity: 0.68;
 }
@@ -1586,7 +1737,8 @@
   text-overflow: ellipsis;
 }
 
-.tool-activity-step.running .tool-activity-step-text {
+.tool-activity-step.running .tool-activity-step-text,
+.tool-activity-progress-step-detail.running {
   color: transparent;
   background: linear-gradient(
     90deg,
@@ -1632,11 +1784,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tool-activity-step.latest,
+  .tool-activity-progress-step-detail,
   .tool-activity-step.running .tool-activity-step-marker {
     animation: none;
   }
 
-  .tool-activity-step.running .tool-activity-step-text {
+  .tool-activity-step.running .tool-activity-step-text,
+  .tool-activity-progress-step-detail.running {
     animation: none;
     background: none;
     color: var(--text);
