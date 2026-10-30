@@ -143,6 +143,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
       enableForgotPassword={platform.enableForgotPassword}
       enablePromptCaching={platform.enablePromptCaching}
       idleCompactionForTasks={platform.idleCompactionForTasks}
+      idleCompactionDelaySeconds={platform.idleCompactionDelaySeconds}
       debugMode={platform.debugMode}
       defaultFreeMessageLimit={platform.defaultFreeMessageLimit}
       maxTaskRunRetries={platform.maxTaskRunRetries}
@@ -159,6 +160,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
       onEnableForgotPasswordChange={platform.setEnableForgotPassword}
       onEnablePromptCachingChange={platform.setEnablePromptCaching}
       onIdleCompactionForTasksChange={platform.setIdleCompactionForTasks}
+      onIdleCompactionDelaySecondsChange={platform.setIdleCompactionDelaySeconds}
       onDebugModeChange={platform.setDebugMode}
       onDefaultFreeMessageLimitChange={platform.setDefaultFreeMessageLimit}
       onMaxTaskRunRetriesChange={platform.setMaxTaskRunRetries}

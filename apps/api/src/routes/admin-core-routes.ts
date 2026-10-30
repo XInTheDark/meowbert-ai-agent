@@ -92,6 +92,7 @@ const updateAdminSettingsSchema = z.object({
   requireEmailVerificationOnSignup: z.boolean(),
   enablePromptCaching: z.boolean(),
   idleCompactionForTasks: z.boolean().default(false),
+  idleCompactionDelaySeconds: z.number().int().min(1).max(86_400).nullable().default(null),
   debugMode: z.boolean(),
   defaultFreeMessageLimit: z.number().int().min(0).nullable(),
   maxTaskRunRetries: z.number().int().min(0).max(100),

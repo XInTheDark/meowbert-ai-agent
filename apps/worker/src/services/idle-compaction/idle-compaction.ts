@@ -51,11 +51,17 @@ async function hasNewerWorkOrFreshContext(client: PoolClient, taskId: string): P
   return result.rows[0]?.blocked === true;
 }
 
-async function loadModelMetadata(client: PoolClient): Promise<unknown> {
-  const result = await client.query<{ model_metadata_json: unknown }>(
-    "SELECT model_metadata_json FROM platform_settings WHERE id = 1"
+interface PlatformIdleSettings {
+  modelMetadata: unknown;
+  delaySeconds: number | null;
+}
+
+async function loadPlatformIdleSettings(client: PoolClient): Promise<PlatformIdleSettings> {
+  const result = await client.query<{ model_metadata_json: unknown; idle_compaction_delay_seconds: number | null }>(
+    "SELECT model_metadata_json, idle_compaction_delay_seconds FROM platform_settings WHERE id = 1"
   );
-  return result.rows[0]?.model_metadata_json ?? null;
+  const row = result.rows[0];
+  return { modelMetadata: row?.model_metadata_json ?? null, delaySeconds: row?.idle_compaction_delay_seconds ?? null };
 }
 
 // Returns when the compaction is due, or null when this conversation should not be compacted.
@@ -63,11 +69,14 @@ async function resolveIdleCompactionDueAt(client: PoolClient, taskId: string): P
   if (await hasNewerWorkOrFreshContext(client, taskId)) return null;
   const last = await loadLastModelRequest(client, taskId);
   if (!last) return null;
-  const settings = resolveIdleCompactionForModel(last.model, await loadModelMetadata(client));
+  const platform = await loadPlatformIdleSettings(client);
+  const settings = resolveIdleCompactionForModel(last.model, platform.modelMetadata);
   if (!settings.enabled || last.usedTokens < settings.minTokens) return null;
   const ttlMs = settings.promptCacheTtlSeconds * 1000;
+  // An admin-set delay replaces the automatic one; a delay past the cache lifetime means no compaction.
+  const delayMs = platform.delaySeconds === null ? ttlMs * IDLE_COMPACTION_CACHE_FRACTION : platform.delaySeconds * 1000;
   return {
-    dueAtMs: last.startedAtMs + ttlMs * IDLE_COMPACTION_CACHE_FRACTION,
+    dueAtMs: last.startedAtMs + delayMs,
     expiresAtMs: last.startedAtMs + ttlMs
   };
 }

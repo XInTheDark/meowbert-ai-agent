@@ -25,6 +25,7 @@ function useAdminPlatformDraftState() {
   const [requireEmailVerificationOnSignup, setRequireEmailVerificationOnSignup] = useState(true);
   const [enablePromptCaching, setEnablePromptCaching] = useState(true);
   const [idleCompactionForTasks, setIdleCompactionForTasks] = useState(false);
+  const [idleCompactionDelaySeconds, setIdleCompactionDelaySeconds] = useState<number | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [defaultFreeMessageLimit, setDefaultFreeMessageLimit] = useState<number | null>(null);
   const [maxTaskRunRetries, setMaxTaskRunRetries] = useState(5);
@@ -47,6 +48,7 @@ function useAdminPlatformDraftState() {
     setRequireEmailVerificationOnSignup(nextSettings.requireEmailVerificationOnSignup);
     setEnablePromptCaching(nextSettings.enablePromptCaching);
     setIdleCompactionForTasks(nextSettings.idleCompactionForTasks);
+    setIdleCompactionDelaySeconds(nextSettings.idleCompactionDelaySeconds);
     setDebugMode(nextSettings.debugMode);
     setDefaultFreeMessageLimit(nextSettings.defaultFreeMessageLimit);
     setMaxTaskRunRetries(nextSettings.maxTaskRunRetries);
@@ -76,6 +78,8 @@ function useAdminPlatformDraftState() {
     setEnablePromptCaching,
     idleCompactionForTasks,
     setIdleCompactionForTasks,
+    idleCompactionDelaySeconds,
+    setIdleCompactionDelaySeconds,
     debugMode,
     setDebugMode,
     defaultFreeMessageLimit,
@@ -121,6 +125,7 @@ export function useAdminPlatformSettings(input: UseAdminPlatformSettingsInput) {
         requireEmailVerificationOnSignup: state.requireEmailVerificationOnSignup,
         enablePromptCaching: state.enablePromptCaching,
         idleCompactionForTasks: state.idleCompactionForTasks,
+        idleCompactionDelaySeconds: state.idleCompactionDelaySeconds,
         debugMode: state.debugMode,
         defaultFreeMessageLimit: state.defaultFreeMessageLimit,
         maxTaskRunRetries: state.maxTaskRunRetries,

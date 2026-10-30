@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { DraftNumberInput } from "../../../components/forms/DraftNumberInput";
+import { IdleCompactionDelayField } from "./IdleCompactionDelayField";
 
 interface PlatformSettingsTabProps {
   allowUserSignup: boolean;
@@ -8,6 +9,7 @@ interface PlatformSettingsTabProps {
   enableForgotPassword: boolean;
   enablePromptCaching: boolean;
   idleCompactionForTasks: boolean;
+  idleCompactionDelaySeconds: number | null;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;
@@ -24,6 +26,7 @@ interface PlatformSettingsTabProps {
   onEnableForgotPasswordChange: (value: boolean) => void;
   onEnablePromptCachingChange: (value: boolean) => void;
   onIdleCompactionForTasksChange: (value: boolean) => void;
+  onIdleCompactionDelaySecondsChange: (value: number | null) => void;
   onDebugModeChange: (value: boolean) => void;
   onDefaultFreeMessageLimitChange: (value: number | null) => void;
   onMaxTaskRunRetriesChange: (value: number) => void;
@@ -244,6 +247,8 @@ function AdvancedSettingsSection(props: Pick<
   | "onEnablePromptCachingChange"
   | "idleCompactionForTasks"
   | "onIdleCompactionForTasksChange"
+  | "idleCompactionDelaySeconds"
+  | "onIdleCompactionDelaySecondsChange"
   | "debugMode"
   | "onDebugModeChange"
 >) {
@@ -260,6 +265,10 @@ function AdvancedSettingsSection(props: Pick<
         title="Idle compaction for all tasks"
         description="Compact idle top-level tasks while their prompt cache is still warm, like the Project Master. Models with idle_compaction set to false in Model metadata are skipped."
         onChange={props.onIdleCompactionForTasksChange}
+      />
+      <IdleCompactionDelayField
+        delaySeconds={props.idleCompactionDelaySeconds}
+        onChange={props.onIdleCompactionDelaySecondsChange}
       />
       <SettingsCheckboxField
         checked={props.debugMode}

@@ -133,6 +133,7 @@ The context notice in tool results reports exact API input-token usage for the r
 | `Admin → Models → Specialized models → fastModel` | Model used for compaction summarization | Resolved task model |
 | `Admin → Model → Model metadata` | Per-model context window and provider metadata JSON | `{"default":{"context_window":256000,"type":"openai"}}` |
 | `Admin → Settings → Advanced → Idle compaction for all tasks` | Extends idle compaction from the Project Master to every top-level task | Off |
+| `Admin → Settings → Advanced → Idle compaction delay` | How long a task sits idle before idle compaction runs. Automatic uses 80% of the model's `prompt_cache_ttl_seconds`; a delay longer than the cache lifetime means no compaction | Automatic |
 | `Workspace Settings → Experiments → Native context compaction` | Experimental Responses API compaction-trigger backend | On |
 | `Workspace Settings → Experiments → Context management tools` | Lets Meowbert save checkpoints and compact or trim its active context | On |
 

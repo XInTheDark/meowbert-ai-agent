@@ -804,6 +804,7 @@ export interface AdminSettings {
   requireEmailVerificationOnSignup: boolean;
   enablePromptCaching: boolean;
   idleCompactionForTasks: boolean;
+  idleCompactionDelaySeconds: number | null;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;

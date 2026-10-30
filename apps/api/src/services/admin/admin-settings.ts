@@ -35,6 +35,7 @@ interface AdminSettingsRow {
   require_email_verification_on_signup: boolean;
   enable_prompt_caching: boolean;
   idle_compaction_for_tasks: boolean;
+  idle_compaction_delay_seconds: number | null;
   debug_mode: boolean;
   default_free_message_limit: number | null;
   max_task_run_retries: number;
@@ -54,6 +55,7 @@ export interface AdminSettings {
   requireEmailVerificationOnSignup: boolean;
   enablePromptCaching: boolean;
   idleCompactionForTasks: boolean;
+  idleCompactionDelaySeconds: number | null;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;
@@ -115,6 +117,7 @@ function mapAdminSettings(row: AdminSettingsRow | undefined): AdminSettings {
     requireEmailVerificationOnSignup: row?.require_email_verification_on_signup ?? false,
     enablePromptCaching: row?.enable_prompt_caching ?? true,
     idleCompactionForTasks: row?.idle_compaction_for_tasks ?? false,
+    idleCompactionDelaySeconds: row?.idle_compaction_delay_seconds ?? null,
     debugMode: row?.debug_mode ?? false,
     defaultFreeMessageLimit: row?.default_free_message_limit ?? null,
     maxTaskRunRetries: row?.max_task_run_retries ?? 5,
@@ -150,7 +153,8 @@ export async function getAdminSettings(client?: PoolClient): Promise<AdminSettin
        agent_presets_json,
        specialized_models_json,
        model_slider_agent_ids_json,
-       idle_compaction_for_tasks
+       idle_compaction_for_tasks,
+       idle_compaction_delay_seconds
      FROM platform_settings
      WHERE id = 1`,
     [],
@@ -223,7 +227,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
     JSON.stringify(normalizedAgentPresets),
     JSON.stringify(normalizedSpecializedModels),
     JSON.stringify(normalizedModelSliderAgentIds),
-    input.idleCompactionForTasks
+    input.idleCompactionForTasks,
+    input.idleCompactionDelaySeconds
   ];
 
   const updated = await query<AdminSettingsRow>(
@@ -244,6 +249,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
             specialized_models_json = $14::jsonb,
             model_slider_agent_ids_json = $15::jsonb,
             idle_compaction_for_tasks = $16,
+            idle_compaction_delay_seconds = $17,
             updated_at = now()
       WHERE id = 1
     RETURNING
@@ -262,7 +268,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       agent_presets_json,
       specialized_models_json,
       model_slider_agent_ids_json,
-      idle_compaction_for_tasks`,
+      idle_compaction_for_tasks,
+      idle_compaction_delay_seconds`,
     params
   );
 
@@ -288,9 +295,10 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       agent_presets_json,
       specialized_models_json,
       model_slider_agent_ids_json,
-      idle_compaction_for_tasks
+      idle_compaction_for_tasks,
+      idle_compaction_delay_seconds
     )
-    VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16)
+    VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17)
     ON CONFLICT (id)
     DO UPDATE
       SET allow_user_signup = EXCLUDED.allow_user_signup,
@@ -309,6 +317,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
           specialized_models_json = EXCLUDED.specialized_models_json,
           model_slider_agent_ids_json = EXCLUDED.model_slider_agent_ids_json,
           idle_compaction_for_tasks = EXCLUDED.idle_compaction_for_tasks,
+          idle_compaction_delay_seconds = EXCLUDED.idle_compaction_delay_seconds,
           updated_at = now()
     RETURNING
       allow_user_signup,
@@ -326,7 +335,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       agent_presets_json,
       specialized_models_json,
       model_slider_agent_ids_json,
-      idle_compaction_for_tasks`,
+      idle_compaction_for_tasks,
+      idle_compaction_delay_seconds`,
     params
   );
 
