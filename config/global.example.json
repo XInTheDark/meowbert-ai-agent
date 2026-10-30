@@ -40,7 +40,7 @@
     "environmentsRoot": "./runtime/environments",
     "tasksRoot": "./runtime/tasks",
     "commandTimeoutMs": 900000,
-    "maxCommandOutputKb": 50,
+    "maxCommandOutputKb": 256,
     "maxSteps": 800,
     "workerConcurrency": 4,
     "taskScratch": {
