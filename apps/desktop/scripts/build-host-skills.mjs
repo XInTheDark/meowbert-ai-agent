@@ -13,7 +13,9 @@ for (const name of await fs.readdir(path.join(root, "skills"))) {
   const target = path.join(output, name);
   await fs.mkdir(target, { recursive: true });
   await fs.copyFile(path.join(dir, "skill.json"), path.join(target, "skill.json"));
-  await fs.copyFile(path.join(dir, "skill.md"), path.join(target, "skill.md"));
+  for (const file of await fs.readdir(dir)) {
+    if (file.endsWith(".md")) await fs.copyFile(path.join(dir, file), path.join(target, file));
+  }
   const entry = path.join(dir, manifest.mcp.args[0]);
   await build({ entryPoints: [entry], outfile: path.join(target, "server.mjs"), bundle: true, platform: "node", format: "esm",
     banner: { js: 'import { createRequire as __hostCreateRequire } from "node:module"; const require = __hostCreateRequire(import.meta.url);' } });

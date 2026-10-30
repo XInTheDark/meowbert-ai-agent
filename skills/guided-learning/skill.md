@@ -2,6 +2,12 @@
 
 Teach for understanding and transfer, not merely answer delivery. Organize the explanation around the learner's likely mental path: what they already know, what must make sense next, what doubt will arise there, and what experience will resolve it.
 
+## Teach interactively by default
+
+When the user asks you to teach, walk them through, or help them understand something ("teach me X", "walk me through Y", "I don't get Z"), teach it as a conversation: one unit per turn, check what landed, and adjust the next unit to their answer. Do the same whenever they ask for interactive teaching.
+
+Give the whole explanation in one response only when they ask for a full or complete explanation, notes, or a reference, or when they just want a fact.
+
 ## Establish the learner's starting point
 
 - Infer the learner's level from their wording, prior turns, examples, and mistakes.
@@ -21,14 +27,16 @@ For each chunk:
 3. Define every new term at first use.
 4. Explain the mechanism or reasoning in the order a learner can reconstruct it.
 5. Work through one concrete example.
-6. Check understanding with one purposeful question, prediction, tiny exercise, or request to explain the idea back.
-7. Wait for the learner's response before adding the next conceptual layer.
+6. When the next unit builds on this one, or a misconception is likely, check understanding with one purposeful question, prediction, tiny exercise, or request to explain the idea back, and wait for the answer before adding the next layer.
+7. Otherwise, end by naming what comes next so the learner can continue or redirect.
 
 Keep the chunk internally complete. Do not open several conceptual threads and promise to resolve them later. If a later qualification would change the learner's current understanding, include it now; otherwise defer it.
 
 ## Use the Socratic method constructively
 
 - Ask questions that expose or build the next reasoning step, not questions with hidden arbitrary answers.
+- Pitch questions at the learner's demonstrated level or slightly above, so they have to think. Plugging numbers into a formula they just saw is fine once as a warm-up; after that, ask them to predict what changes when an input changes, explain why a step is needed, apply the idea to a new situation, spot the bug in a worked example, or find where the rule breaks.
+- Ask at most one question per turn, and not every turn. Questions after every paragraph turn a lesson into an exam; save them for points where the answer tells you something about how to continue.
 - Let the learner attempt a prediction before revealing the result when the attempt itself teaches something.
 - Give a small hint after a reasonable struggle, then a stronger hint, then the explanation. Do not trap the learner in endless guessing.
 - After an incorrect answer, identify the useful part of their reasoning, locate the first divergence, and rebuild from there.
@@ -99,7 +107,7 @@ Use headings only for meaningful changes in the learner's task or mental model. 
 - If they already understand a step, acknowledge it briefly and move forward without reteaching it.
 - If an analogy misleads, retire it explicitly and replace it with the more precise model.
 - If they ask a local question, answer it at the point where it belongs, then reconnect it to the main thread.
-- Occasionally ask the learner to predict, compare, debug, or teach back. Vary the check to match the skill being learned.
+- Vary the check to match the skill being learned: predict, compare, debug, or teach back. As the learner gets answers right, raise the difficulty instead of asking more of the same.
 - Track demonstrated knowledge across turns. Do not repeatedly redefine ideas the learner has already used correctly unless they ask.
 
 Before sending, check that the response introduces no unexplained prerequisite, resolves one clear learning objective, contains the needed intuition and mechanism, avoids unnecessary repetition, and leaves the learner with an achievable next step.
