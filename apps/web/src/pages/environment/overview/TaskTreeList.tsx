@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Loader2 } from "lucide-react";
 import type { TaskFolderSummary, TaskSummary } from "../../../lib/types";
 import { badgeClass, formatDateTime, formatRelative, formatTaskTypeLabel } from "../../../lib/utils";
@@ -12,7 +13,7 @@ import {
   ExplorerRow,
   ExplorerTable
 } from "../../../components/explorer/ExplorerTable";
-import { DropdownDivider, DropdownItem } from "./ProjectOverviewDropdown";
+import { DropdownDivider, DropdownItem, DropdownLinkItem } from "./ProjectOverviewDropdown";
 import { TaskActionsMenu } from "./TaskActionsMenu";
 import type { TaskFolderFilter, TaskFolderViewMode, TaskSortBy, TaskSortDir } from "./projectOverviewTypes";
 import { buildTaskTreeRows } from "./taskFolderTree";
@@ -37,7 +38,7 @@ export interface TaskTreeListProps {
   onOpenMenuChange: (menuId: string | null) => void;
   onToggleTaskSelection: (taskId: string, checked: boolean) => void;
   onPrefetchTask: (task: TaskSummary) => void;
-  onOpenTask: (task: TaskSummary) => void;
+  getTaskHref: (task: TaskSummary) => string;
   onOpenTaskFiles: (task: TaskSummary) => void;
   onShareTask: (task: TaskSummary) => void;
   onUnshareTask: (task: TaskSummary) => void;
@@ -236,15 +237,15 @@ export function TaskTreeList(props: TaskTreeListProps) {
 
               <ExplorerCell className="task-main-col">
                 <div className="task-title-row">
-                  <button
-                    type="button"
+                  <Link
+                    to={props.getTaskHref(task)}
+                    draggable={false}
                     onPointerEnter={() => props.onPrefetchTask(task)}
                     onFocus={() => props.onPrefetchTask(task)}
-                    onClick={() => props.onOpenTask(task)}
                     className="task-title"
                   >
                     {taskTitle}
-                  </button>
+                  </Link>
                   {task.task_type && task.task_type !== "standard" ? (
                     <span className="badge muted task-type-pill">{formatTaskTypeLabel(task.task_type)}</span>
                   ) : null}
@@ -288,9 +289,9 @@ export function TaskTreeList(props: TaskTreeListProps) {
                 >
                   {props.openMenuId === task.id ? (
                     <>
-                      <DropdownItem onClick={() => { props.onOpenMenuChange(null); props.onOpenTask(task); }}>
+                      <DropdownLinkItem to={props.getTaskHref(task)} onClick={() => props.onOpenMenuChange(null)}>
                         Open
-                      </DropdownItem>
+                      </DropdownLinkItem>
                       <DropdownItem onClick={() => { props.onOpenMenuChange(null); props.onOpenTaskFiles(task); }}>
                         View Files
                       </DropdownItem>

@@ -112,7 +112,7 @@ export function ProjectTaskTree(props: ProjectTaskListSectionProps & { activeTas
       onOpenMenuChange={actions.setOpenMenuId}
       onToggleTaskSelection={actions.toggleTaskSelection}
       onPrefetchTask={taskList.prefetchTaskRoute}
-      onOpenTask={(task) => navigate(`/app/${activeWorkspaceId}/projects/${project.id}/tasks/${task.id}`)}
+      getTaskHref={(task) => `/app/${activeWorkspaceId}/projects/${project.id}/tasks/${task.id}`}
       onOpenTaskFiles={(task) => navigate(`/app/${activeWorkspaceId}/projects/${project.id}/files?path=${encodeURIComponent(
         task.task_root_path ?? `.meowbert/task-runs/${task.id}`
       )}`)}

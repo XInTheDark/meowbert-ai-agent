@@ -1,4 +1,20 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { Link } from "react-router-dom";
+
+function dropdownItemStyle(disabled?: boolean, danger?: boolean): CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    padding: "6px 14px",
+    background: "none",
+    border: "none",
+    cursor: disabled ? "default" : "pointer",
+    fontSize: "0.875rem",
+    color: disabled ? "var(--text-muted)" : danger ? "var(--danger, #e05)" : "var(--text)",
+    opacity: disabled ? 0.6 : 1
+  };
+}
 
 export function DropdownItem({
   children,
@@ -12,24 +28,26 @@ export function DropdownItem({
   danger?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        display: "block",
-        width: "100%",
-        textAlign: "left",
-        padding: "6px 14px",
-        background: "none",
-        border: "none",
-        cursor: disabled ? "default" : "pointer",
-        fontSize: "0.875rem",
-        color: disabled ? "var(--text-muted)" : danger ? "var(--danger, #e05)" : "var(--text)",
-        opacity: disabled ? 0.6 : 1
-      }}
-    >
+    <button onClick={onClick} disabled={disabled} style={dropdownItemStyle(disabled, danger)}>
       {children}
     </button>
+  );
+}
+
+// A real link so modified clicks (ctrl/cmd, middle) open the destination in a new tab.
+export function DropdownLinkItem({
+  children,
+  to,
+  onClick
+}: {
+  children: ReactNode;
+  to: string;
+  onClick?: () => void;
+}) {
+  return (
+    <Link to={to} role="menuitem" onClick={onClick} style={dropdownItemStyle()}>
+      {children}
+    </Link>
   );
 }
 

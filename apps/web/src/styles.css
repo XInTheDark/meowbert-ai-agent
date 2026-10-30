@@ -2474,6 +2474,7 @@ a.landing-footer-link:hover {
   text-align: left;
   cursor: pointer;
   font-weight: 650;
+  text-decoration: none;
 }
 
 .task-title:hover {

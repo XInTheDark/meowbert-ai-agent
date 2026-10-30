@@ -1,1 +1,1 @@
-export { DropdownDivider, DropdownItem } from "./EnvironmentOverviewDropdown";
+export { DropdownDivider, DropdownItem, DropdownLinkItem } from "./EnvironmentOverviewDropdown";
