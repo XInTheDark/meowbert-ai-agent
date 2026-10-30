@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { MachineHandle, SandboxExecCommandInput, SandboxExecCommandResult } from "@meowbert/shared/docker-sandbox";
+import { BoundedOutputCapture } from "@meowbert/shared";
 import type { MachineProvider } from "@meowbert/run-executor/agent/ports/machine-host";
 import { HostProcesses } from "./host-processes";
 
@@ -13,17 +14,20 @@ export function hostShellCommand(shell: string, command: string): string[] {
 export async function executeHostCommand(processes: HostProcesses, input: SandboxExecCommandInput): Promise<SandboxExecCommandResult> {
   input.abortSignal?.throwIfAborted();
   const attached = await processes.start({ ...input, command: hostShellCommand(input.shell, input.command), tty: false });
-  let stdout = ""; let stderr = ""; let timedOut = false; let aborted = false;
-  const limit = input.maxOutputKb * 1024;
-  attached.stdout.on("data", (chunk) => { stdout = (stdout + String(chunk)).slice(0, limit); });
-  attached.stderr?.on("data", (chunk) => { stderr = (stderr + String(chunk)).slice(0, limit); });
+  const stdout = new BoundedOutputCapture(input.maxOutputKb * 1024); const stderr = new BoundedOutputCapture(input.maxOutputKb * 1024);
+  let timedOut = false; let aborted = false;
+  attached.stdout.on("data", (chunk) => stdout.push(chunk));
+  attached.stderr?.on("data", (chunk) => stderr.push(chunk));
   const abort = () => { aborted = true; void attached.close(); };
   const timer = setTimeout(() => { timedOut = true; void attached.close(); }, input.timeoutMs);
   input.abortSignal?.addEventListener("abort", abort, { once: true });
   if (input.abortSignal?.aborted) abort();
   try {
     const exitCode = await attached.waitForExit();
-    return { command: input.command, stdout, stderr, exitCode: exitCode ?? (timedOut ? 124 : aborted ? 130 : 1), timedOut, aborted };
+    return {
+      command: input.command, stdout: stdout.text, stderr: stderr.text, stdoutLength: stdout.totalLength, stderrLength: stderr.totalLength,
+      exitCode: exitCode ?? (timedOut ? 124 : aborted ? 130 : 1), timedOut, aborted
+    };
   } finally { clearTimeout(timer); input.abortSignal?.removeEventListener("abort", abort); }
 }
 
@@ -36,7 +40,7 @@ export function createHostMachineProvider(options: { scratchRoot: string; runsRo
     },
     async start(spec) {
       if (!options.consent) throw new Error("Host mode requires consent on this device.");
-      if (spec.isThreadTask) throw new Error("Read-only threads require the sandbox.");
+      if (spec.readOnly) throw new Error("Read-only tasks require the sandbox.");
       await fs.mkdir(spec.taskDir, { recursive: true });
       const processes = new HostProcesses(path.join(options.runsRoot, spec.runId + ".pids"), spec.env);
       const sandbox: MachineHandle = {

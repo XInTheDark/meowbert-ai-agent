@@ -59,7 +59,7 @@ export interface ToolDispatchContext {
   notesOnly?: boolean;
   completionEligibility?: { finalResponse: boolean; wait: boolean; stop: boolean };
   runToolOptions: TaskMessageToolOptions;
-  isThreadTask: boolean;
+  readOnly: boolean;
   shellToolMaxTimeoutMs: number;
   persistentRuntimeEnabled: boolean;
   imageDetail?: WorkspaceImageDetail;

@@ -2639,6 +2639,60 @@
   border-color: #f59e0b;
 }
 
+.task-composer-mode-toggle.active.advanced {
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border));
+}
+
+.task-composer-advanced {
+  position: relative;
+}
+
+.task-composer-advanced-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: min(18.5rem, calc(100vw - 2rem));
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+}
+
+.task-composer-advanced-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem;
+  align-items: start;
+  padding: 0.45rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.task-composer-advanced-row:hover {
+  background: var(--surface-control);
+}
+
+.task-composer-advanced-row span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.task-composer-advanced-row small,
+.task-composer-advanced-note {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.task-composer-advanced-note {
+  margin: 0;
+  padding: 0.25rem 0.45rem;
+}
+
 .task-composer-mode-toggle.active.incognito {
   color: var(--text);
   background: color-mix(in srgb, var(--text) 12%, var(--surface));

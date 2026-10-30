@@ -2,6 +2,7 @@ import { normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/sha
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import path from "node:path";
 import {
+  getPersistentRuntimeEnabled,
   getSandboxNetworkEnabled,
   isSkillEnabledByConfig,
   isSourceManifest,
@@ -147,6 +148,11 @@ async function prepareWorkspaceMemory(
   return { memoryMainFile, projectMemoryMainFile };
 }
 
+// A persistent shell outlives the run and cannot be made read-only or offline afterwards.
+export function resolvePersistentRuntimeEnabled(task: TaskSnapshot["task"], environmentPayload: Record<string, unknown>): boolean {
+  return getPersistentRuntimeEnabled(environmentPayload) && !task.read_only && !task.network_disabled;
+}
+
 export function resolveRunToolOptions(snapshot: TaskSnapshot, job: TaskExecutionJob, memoryEnabled: boolean): TaskMessageToolOptions {
   const baseToolOptions = pickRunToolOptions(snapshot.messages);
   const mergedRunToolOptions = mergeTaskToolOptions(baseToolOptions, job.toolOptionsOverride);
@@ -159,6 +165,9 @@ export function resolveRunToolOptions(snapshot: TaskSnapshot, job: TaskExecution
 
   if (job.mode === "scheduled_auto" || job.mode === "infinite_auto") {
     runToolOptions.scheduleTask = false;
+  }
+  if (snapshot.task.network_disabled) {
+    runToolOptions.webSearch = false;
   }
   // Canvas is one feature: the old Interactive Canvas option and an attached canvas both mean the Canvas skill.
   const wantsCanvas = runToolOptions.interactiveCanvas === true || snapshot.interactive_canvas !== null;
@@ -475,11 +484,13 @@ async function startRunMachine(state: PreparedRunState, tooling: ReturnType<type
     workspaceRoot: roots.workspaceRoot,
     workspaceRootRelative: roots.workspaceRootRelative,
     envRootRelative: roots.envRootRelative,
-    isThreadTask: snapshot.task.is_thread,
+    readOnly: snapshot.task.read_only,
     skillsRootDir: tooling.skillsRootDir,
-    networkEnabled: tooling.runToolOptions.enabledSources.length > 0
+    networkEnabled: snapshot.task.network_disabled !== true && (
+      tooling.runToolOptions.enabledSources.length > 0
       || tooling.hasSourceDependentSkill
-      || getSandboxNetworkEnabled(bootstrap.runtime.baseEnvironmentJsonPayload),
+      || getSandboxNetworkEnabled(bootstrap.runtime.baseEnvironmentJsonPayload)
+    ),
     runAsRoot: snapshot.environment.workspace_run_as_root === true,
     resources: bootstrap.sandboxResources,
     env: state.shellEnvOverrides,

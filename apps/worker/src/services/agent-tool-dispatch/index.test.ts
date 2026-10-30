@@ -200,6 +200,18 @@ vi.mock("../tasks/subtasks.js", () => ({
   })
 }));
 
+function createScratchContext(): { ctx: ToolDispatchContext; scratchDir: string } {
+  const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "run-shell-scratch-"));
+  return { ctx: { ...createBaseContext(), taskScratchDir: scratchDir }, scratchDir };
+}
+
+// Output cut for the model is saved whole; the marker says where.
+function readSavedShellOutput(scratchDir: string, shown: string): string {
+  const match = /saved to \$TASK_SCRATCH_DIR\/(shell-output\/[^\]]+)\]/.exec(shown);
+  expect(match).not.toBeNull();
+  return fs.readFileSync(path.join(scratchDir, match![1]), "utf8");
+}
+
 function createBaseContext(): ToolDispatchContext {
   return {
     control: createTestRunControl({ taskDir: "/tmp/task" }),
@@ -236,7 +248,7 @@ function createBaseContext(): ToolDispatchContext {
     imageDetail: "high",
     skillsRootDir: null,
     isSkillAdmin: false,
-    isThreadTask: false,
+    readOnly: false,
     activeMcpConnections: new Map(),
     activeSkillTools: [],
     enableSkillById: async () => ({ doc: null, toolNames: [] }),
@@ -388,7 +400,7 @@ describe("dispatchResponseOutput", () => {
         stateReset: false
       });
 
-    const ctx = createBaseContext();
+    const { ctx, scratchDir } = createScratchContext();
     const state: ToolDispatchState = {
       conversationItems: [],
       runPersistedItems: [],
@@ -415,8 +427,10 @@ describe("dispatchResponseOutput", () => {
 
     const outputItem = state.runPersistedItems.find((item) => item.type === "function_call_output");
     const output = JSON.parse((outputItem as { output: string }).output) as { stdout: string; stderr: string };
-    expect(output.stdout).toBe("ab\n...[truncated; full output length: 6 characters]\nef");
-    expect(output.stderr).toBe("wa\n...[truncated; full output length: 7 characters]\nng");
+    expect(output.stdout).toMatch(/^ab\n\.\.\.\[truncated; full output length: 6 characters; saved to [^\]]+\]\nef$/);
+    expect(output.stderr).toMatch(/^wa\n\.\.\.\[truncated; full output length: 7 characters; saved to [^\]]+\]\nng$/);
+    expect(readSavedShellOutput(scratchDir, output.stdout)).toBe("abcdef");
+    expect(readSavedShellOutput(scratchDir, output.stderr)).toBe("warning");
   });
 
   it("strips ANSI color codes from run_shell output before formatting and persisting", async () => {
@@ -481,7 +495,7 @@ describe("dispatchResponseOutput", () => {
         stateReset: false
       });
 
-    const ctx = createBaseContext();
+    const { ctx, scratchDir } = createScratchContext();
     const state: ToolDispatchState = {
       conversationItems: [],
       runPersistedItems: [],
@@ -508,9 +522,10 @@ describe("dispatchResponseOutput", () => {
 
     const outputItem = state.runPersistedItems.find((item) => item.type === "function_call_output");
     const output = JSON.parse((outputItem as { output: string }).output) as { stdout: string };
-    expect(output.stdout).toBe(
-      `${"a".repeat(10_000)}\n...[truncated; full output length: 20001 characters]\n${"a".repeat(10_000)}`
+    expect(output.stdout).toMatch(
+      /^a{10000}\n\.\.\.\[truncated; full output length: 20001 characters; saved to [^\]]+\]\na{10000}$/
     );
+    expect(readSavedShellOutput(scratchDir, output.stdout)).toBe("a".repeat(20_001));
   });
 
   it("handles limit_start 0 and limit_end 0 correctly when truncating output", async () => {
@@ -529,7 +544,7 @@ describe("dispatchResponseOutput", () => {
         stateReset: false
       });
 
-    const ctx = createBaseContext();
+    const { ctx, scratchDir } = createScratchContext();
     const state: ToolDispatchState = {
       conversationItems: [],
       runPersistedItems: [],
@@ -556,7 +571,8 @@ describe("dispatchResponseOutput", () => {
 
     const outputItem = state.runPersistedItems.find((item) => item.type === "function_call_output");
     const output = JSON.parse((outputItem as { output: string }).output) as { stdout: string };
-    expect(output.stdout).toBe("...[truncated; full output length: 6 characters]\nef");
+    expect(output.stdout).toMatch(/^\.\.\.\[truncated; full output length: 6 characters; saved to [^\]]+\]\nef$/);
+    expect(readSavedShellOutput(scratchDir, output.stdout)).toBe("abcdef");
   });
 
   it("returns untruncated output when full length is within limit_start + limit_end", async () => {

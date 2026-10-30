@@ -16,7 +16,7 @@ export async function handleCreateSubtask(
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ToolCallResult> {
-  if (ctx.isThreadTask) {
+  if (ctx.readOnly) {
     const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
       inputLabel: "Subtask",
       inputText: "Thread runs cannot create subtasks."
@@ -70,7 +70,7 @@ export async function handleStartSubtask(
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ToolCallResult> {
-  if (ctx.isThreadTask) {
+  if (ctx.readOnly) {
     const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
       inputLabel: "Tasks",
       inputText: "Thread runs cannot start subtasks."

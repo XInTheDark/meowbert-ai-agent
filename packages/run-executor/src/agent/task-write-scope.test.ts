@@ -53,7 +53,7 @@ describe("task write scope", () => {
       envRoot,
       workspaceRoot,
       taskScratchDir,
-      isThreadTask: true,
+      readOnly: true,
       skillsRootDir
     });
 
@@ -71,7 +71,7 @@ describe("task write scope", () => {
       envRoot,
       workspaceRoot,
       taskScratchDir,
-      isThreadTask: false,
+      readOnly: false,
       skillsRootDir: null
     });
 
@@ -89,7 +89,7 @@ describe("task write scope", () => {
       envRoot,
       workspaceRoot,
       taskScratchDir,
-      isThreadTask: false,
+      readOnly: false,
       skillsRootDir: null
     });
 
@@ -109,7 +109,7 @@ describe("task write scope", () => {
       taskScratchDir,
       envRoot,
       workspaceRoot,
-      isThreadTask: true
+      readOnly: true
     })).toEqual([taskScratchDir]);
   });
 
@@ -122,7 +122,7 @@ describe("task write scope", () => {
       taskScratchDir,
       envRoot,
       workspaceRoot,
-      isThreadTask: false
+      readOnly: false
     })).toEqual([taskDir, taskScratchDir, envRoot, resolveWorkspaceStorageUnitRoot(workspaceRoot)]);
   });
 

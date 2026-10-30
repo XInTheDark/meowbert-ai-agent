@@ -31,7 +31,7 @@ it("checks backend identity and write/delete access before starting the agent co
     expect(calls.stop).toHaveBeenCalledTimes(2);
   } finally { await fs.rm(root,{recursive:true,force:true}); }
 });
-it.each([false, true])("binds only the run folders and verifies visibility, readOnly=%s", async (isThreadTask) => {
+it.each([false, true])("binds only the run folders and verifies visibility, readOnly=%s", async (readOnly) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "meowbert-folders-"));
   vi.clearAllMocks();
   calls.create.mockReset(); calls.verifyFolders.mockReset();
@@ -43,12 +43,12 @@ it.each([false, true])("binds only the run folders and verifies visibility, read
     const provider = createDesktopSandboxMachineProvider({ image: "image", storageRoot: root, backendId: "backend", installId: "install",
       deviceId: "device", scratchRoot: root, skillsRootDir: "/skills", liveFolderPaths: ["/owned/mounts/attached"] });
     const taskDir = path.join(root, "task");
-    await provider.start({ taskDir, isThreadTask, resources: {}, log: vi.fn() } as never);
-    expect(calls.create.mock.calls[1][0].mounts).toEqual([{ path: "/owned/mounts/attached", readOnly: isThreadTask }]);
-    expect(calls.verifyFolders).toHaveBeenCalledExactlyOnceWith({ sandbox, paths: ["/owned/mounts/attached"], taskDir, readOnly: isThreadTask });
+    await provider.start({ taskDir, readOnly, resources: {}, log: vi.fn() } as never);
+    expect(calls.create.mock.calls[1][0].mounts).toEqual([{ path: "/owned/mounts/attached", readOnly: readOnly }]);
+    expect(calls.verifyFolders).toHaveBeenCalledExactlyOnceWith({ sandbox, paths: ["/owned/mounts/attached"], taskDir, readOnly: readOnly });
     calls.verifyFolders.mockRejectedValueOnce(new Error("mount unavailable"));
     calls.create.mockResolvedValueOnce(storageProbe).mockResolvedValueOnce(sandbox);
-    await expect(provider.start({ taskDir, isThreadTask, resources: {}, log: vi.fn() } as never)).rejects.toThrow("mount unavailable");
+    await expect(provider.start({ taskDir, readOnly, resources: {}, log: vi.fn() } as never)).rejects.toThrow("mount unavailable");
     expect(sandbox.stop).toHaveBeenCalledOnce();
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });

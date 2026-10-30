@@ -7,6 +7,7 @@ import {
 import { buildDefaultTaskParameters, normalizeTaskParameters } from "./taskParameters";
 import { TaskAttachment, TaskParameters, TaskToolOptions, TaskWorkflowComposerConfig } from "../lib/types";
 import { normalizeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared/task-execution-target";
+import { DEFAULT_TASK_RESTRICTIONS, normalizeTaskRestrictions, type TaskRestrictions } from "./taskRestrictions";
 
 const TASK_INPUT_DRAFTS_STORAGE_KEY = "meowbert_task_composer_drafts_v1";
 const HTML_CANVAS_SKILL_ID = "html-canvas";
@@ -28,6 +29,7 @@ export interface TaskInputDraft {
   taskParameters: TaskParameters;
   workflow: TaskWorkflowComposerConfig;
   executionTarget: TaskExecutionTarget;
+  restrictions: TaskRestrictions;
 }
 
 export function buildDefaultTaskWorkflowComposerConfig(): TaskWorkflowComposerConfig {
@@ -65,7 +67,8 @@ export function buildEmptyTaskInputDraft(defaults?: TaskInputDraftDefaults): Tas
     quickMode: false,
     taskParameters: buildDefaultTaskParameters(),
     workflow: buildDefaultTaskWorkflowComposerConfig(),
-    executionTarget: { kind: "cloud" }
+    executionTarget: { kind: "cloud" },
+    restrictions: DEFAULT_TASK_RESTRICTIONS
   };
 }
 
@@ -225,6 +228,7 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
     taskParameters?: unknown;
     workflow?: unknown;
     executionTarget?: unknown;
+    restrictions?: unknown;
   };
   return {
     prompt: typeof candidate.prompt === "string" ? candidate.prompt : fallback.prompt,
@@ -283,7 +287,8 @@ export function normalizeTaskInputDraft(value: unknown, defaults?: TaskInputDraf
         enableReviewPhase: isLongHorizon ? workflow.enableReviewPhase !== false : true
       };
     })(),
-    executionTarget: normalizeTaskExecutionTarget(candidate.executionTarget)
+    executionTarget: normalizeTaskExecutionTarget(candidate.executionTarget),
+    restrictions: normalizeTaskRestrictions(candidate.restrictions)
   };
 }
 

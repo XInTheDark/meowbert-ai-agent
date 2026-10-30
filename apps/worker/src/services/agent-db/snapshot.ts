@@ -122,6 +122,8 @@ async function loadTaskSnapshotBase(taskId: string) {
               tasks.subtask_depth,
               tasks.task_root_path,
               (tt.task_id IS NOT NULL) AS is_thread,
+              (tt.task_id IS NOT NULL OR tasks.read_only) AS read_only,
+              tasks.network_disabled,
               EXISTS (SELECT 1 FROM project_masters pm WHERE pm.task_id = tasks.id) AS is_project_master,
               tt.parent_task_id AS thread_parent_task_id,
               tt.parent_message_id AS thread_parent_message_id,

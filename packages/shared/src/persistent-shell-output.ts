@@ -4,6 +4,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { isWithinPath } from "./path-containment.mjs";
 import { stripAnsi } from "./ansi.js";
+import {
+  DEFAULT_SHELL_OUTPUT_WINDOW,
+  SHELL_OUTPUT_TASK_BUDGET_BYTES,
+  windowShellOutput
+} from "./shell-output.js";
 
 export function persistentShellLogPath(envRoot: string, sessionId: string): string {
   return path.resolve(envRoot, ".meowbert", "persistent-runtimes", `${sessionId}.log`);
@@ -75,5 +80,41 @@ export async function readPersistentShellOutput(input: {
     await writeSafeOutputFile(target, log);
     outputFile = input.saveOutputPath;
   }
-  return { output: lines.slice(-maxLines).join("\n"), outputFile, outputVersion };
+  const tailText = lines.slice(-maxLines).join("\n");
+  // The log is itself the saved copy, so a long tail points at it instead of writing another.
+  const savedTo = `$ENV_ROOT/.meowbert/persistent-runtimes/${path.basename(input.logPath)}`;
+  return {
+    output: windowShellOutput(tailText, tailText.length, DEFAULT_SHELL_OUTPUT_WINDOW, savedTo),
+    outputFile,
+    outputVersion
+  };
+}
+
+async function evictOldestUntilFits(dir: string, incomingBytes: number, budgetBytes: number): Promise<void> {
+  const names = await fs.readdir(dir).catch(() => [] as string[]);
+  const files = (await Promise.all(names.map(async (name) => {
+    const stat = await fs.stat(path.join(dir, name)).catch(() => null);
+    return stat?.isFile() ? { name, size: stat.size, mtimeMs: stat.mtimeMs } : null;
+  }))).filter((file): file is { name: string; size: number; mtimeMs: number } => file !== null);
+  let used = files.reduce((sum, file) => sum + file.size, 0) + incomingBytes;
+  for (const file of files.sort((left, right) => left.mtimeMs - right.mtimeMs)) {
+    if (used <= budgetBytes) return;
+    await fs.rm(path.join(dir, file.name), { force: true });
+    used -= file.size;
+  }
+}
+
+// Saves output the model only partly saw. The directory is small and owned by the task, so reading
+// it to enforce the budget is cheap.
+export async function saveShellOutputFile(input: {
+  dir: string;
+  name: string;
+  text: string;
+  budgetBytes?: number;
+}): Promise<string> {
+  await fs.mkdir(input.dir, { recursive: true });
+  await evictOldestUntilFits(input.dir, Buffer.byteLength(input.text), input.budgetBytes ?? SHELL_OUTPUT_TASK_BUDGET_BYTES);
+  const target = path.join(input.dir, input.name);
+  await writeSafeOutputFile(target, input.text);
+  return target;
 }

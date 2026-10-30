@@ -23,7 +23,7 @@ beforeEach(async () => {
   });
   shells = createLocalPersistentShells({ signal: abort.signal, machine: { sandbox: { id: "run-container" } } as never,
     spec: { taskId: "task", runId: "run", workspaceId: "workspace", environmentId: "project", actorUserId: "user",
-      taskDir: root, taskScratchDir: root, envRoot: root, workspaceRoot: root, isThreadTask: false, skillsRootDir: null,
+      taskDir: root, taskScratchDir: root, envRoot: root, workspaceRoot: root, readOnly: false, skillsRootDir: null,
       networkEnabled: false, runAsRoot: false, startEagerly: true, log: vi.fn(), env: { TASK_DIR: root },
       resources: { cpus: 2, pids: 256, memoryMb: 2048 } } as MachineSpec });
 });

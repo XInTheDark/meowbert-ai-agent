@@ -1,6 +1,13 @@
+import path from "node:path";
 import { validateOrganizationFinalResponse } from "./conversation-organization.js";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import { stripAnsi } from "@meowbert/shared";
+import {
+  SHELL_OUTPUT_DIRNAME,
+  isOutputOverWindow,
+  saveShellOutputFile,
+  stripAnsi,
+  windowShellOutput
+} from "@meowbert/shared";
 import {
   FINAL_RESPONSE_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
@@ -74,35 +81,32 @@ function resolveOutputLimits(args: RunShellArguments, settings: ExecutorSettings
   };
 }
 
-function formatShellOutput(
-  output: string,
-  fullLength: number | undefined,
-  limits: ShellOutputLimits
-): string {
-  const cleanOutput = stripAnsi(output);
-  const resolvedFullLength = fullLength !== undefined && fullLength !== output.length
-    ? fullLength
+// Output past the window is saved in the task's scratch directory, so the agent can read the part
+// it did not see instead of losing it.
+async function presentShellOutput(input: {
+  ctx: ToolDispatchContext;
+  execution: BuiltinExecution;
+  stream: "stdout" | "stderr";
+  output: string;
+  capturedLength: number | undefined;
+  limits: ShellOutputLimits;
+}): Promise<string> {
+  const cleanOutput = stripAnsi(input.output);
+  const fullLength = input.capturedLength !== undefined && input.capturedLength !== input.output.length
+    ? input.capturedLength
     : cleanOutput.length;
-  const totalLimit = limits.limitStart + limits.limitEnd;
-  if (resolvedFullLength <= totalLimit) {
+  const window = { head: input.limits.limitStart, tail: input.limits.limitEnd };
+  if (!isOutputOverWindow(fullLength, window)) {
     return cleanOutput;
   }
 
-  const truncationMarker = `...[truncated; full output length: ${resolvedFullLength} characters]`;
-  const head = limits.limitStart > 0 ? cleanOutput.slice(0, limits.limitStart) : "";
-  const tailStartIndex = Math.max(head.length, cleanOutput.length - limits.limitEnd);
-  const tail = limits.limitEnd > 0 && tailStartIndex < cleanOutput.length ? cleanOutput.slice(tailStartIndex) : "";
-
-  if (head.length > 0 && tail.length > 0) {
-    return `${head}\n${truncationMarker}\n${tail}`;
-  }
-  if (head.length > 0) {
-    return `${head}\n${truncationMarker}`;
-  }
-  if (tail.length > 0) {
-    return `${truncationMarker}\n${tail}`;
-  }
-  return truncationMarker;
+  const name = `${Date.now().toString(36)}-step${input.execution.step}-${input.stream}.txt`;
+  const savedTo = await saveShellOutputFile({
+    dir: path.join(input.ctx.taskScratchDir, SHELL_OUTPUT_DIRNAME),
+    name,
+    text: cleanOutput
+  }).then(() => `$TASK_SCRATCH_DIR/${SHELL_OUTPUT_DIRNAME}/${name}`, () => null);
+  return windowShellOutput(cleanOutput, fullLength, window, savedTo);
 }
 
 async function runForegroundShellCommand(input: {
@@ -210,16 +214,24 @@ async function finishForegroundShellResult(input: {
   outputLimits: ShellOutputLimits;
 }): Promise<ToolCallResult> {
   const durationMs = Date.now() - input.execution.startedAtMs;
-  const stdout = formatShellOutput(
-    input.shellResult.stdout,
-    input.shellResult.stdoutLength,
-    input.outputLimits
-  );
-  const stderr = formatShellOutput(
-    input.shellResult.stderr,
-    input.shellResult.stderrLength,
-    input.outputLimits
-  );
+  const [stdout, stderr] = await Promise.all([
+    presentShellOutput({
+      ctx: input.ctx,
+      execution: input.execution,
+      stream: "stdout",
+      output: input.shellResult.stdout,
+      capturedLength: input.shellResult.stdoutLength,
+      limits: input.outputLimits
+    }),
+    presentShellOutput({
+      ctx: input.ctx,
+      execution: input.execution,
+      stream: "stderr",
+      output: input.shellResult.stderr,
+      capturedLength: input.shellResult.stderrLength,
+      limits: input.outputLimits
+    })
+  ]);
 
   if (input.shellResult.aborted && input.interruptedByRequest) {
     const interruptionMessage = "Command interrupted by user.";

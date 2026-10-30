@@ -14,7 +14,7 @@ export interface MachineSpec {
   workspaceRootRelative?: string;
   envRootRelative?: string;
   storageRoot?: string;
-  isThreadTask: boolean;
+  readOnly: boolean;
   skillsRootDir: string | null;
   networkEnabled: boolean;
   runAsRoot: boolean;

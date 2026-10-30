@@ -47,13 +47,13 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
         envRoot: spec.envRoot,
         workspaceRoot: spec.workspaceRoot,
         taskScratchDir: spec.taskScratchDir,
-        isThreadTask: spec.isThreadTask,
+        readOnly: spec.readOnly,
         skillsRootDir: process.platform === "win32" ? null : options.skillsRootDir
       });
       const sandbox = await manager.createPersistentSandbox({
         workingDir: spec.taskDir,
         networkEnabled: spec.networkEnabled,
-        mounts: [...mounts, ...(options.liveFolderPaths ?? []).map((folder) => ({ path: folder, readOnly: spec.isThreadTask }))],
+        mounts: [...mounts, ...(options.liveFolderPaths ?? []).map((folder) => ({ path: folder, readOnly: spec.readOnly }))],
         env: spec.env,
         runAsRoot: spec.runAsRoot,
         resources: {
@@ -76,7 +76,7 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
         })
       });
       try {
-        await verifySandboxLiveFolders({ sandbox, paths: options.liveFolderPaths ?? [], taskDir: spec.taskDir, readOnly: spec.isThreadTask });
+        await verifySandboxLiveFolders({ sandbox, paths: options.liveFolderPaths ?? [], taskDir: spec.taskDir, readOnly: spec.readOnly });
       } catch (error) {
         await sandbox.stop();
         throw error;

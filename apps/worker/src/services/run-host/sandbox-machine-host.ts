@@ -12,7 +12,7 @@ async function createSandbox(spec: MachineSpec): Promise<DockerSandboxHandle> {
     envRoot: spec.envRoot,
     workspaceRoot: spec.workspaceRoot,
     taskScratchDir: spec.taskScratchDir,
-    isThreadTask: spec.isThreadTask,
+    readOnly: spec.readOnly,
     skillsRootDir: spec.skillsRootDir
   });
   await spec.log("Built sandbox mount plan.", {
@@ -31,7 +31,7 @@ async function createSandbox(spec: MachineSpec): Promise<DockerSandboxHandle> {
     taskId: spec.taskId,
     workspaceId: spec.workspaceId
   });
-  const sourceMounts = await prepareTaskSourceMounts(sourceMountPaths, spec.isThreadTask);
+  const sourceMounts = await prepareTaskSourceMounts(sourceMountPaths, spec.readOnly);
   const sandbox = await workerSandboxManager.createPersistentSandbox({
     workingDir: spec.taskDir,
     networkEnabled: spec.networkEnabled,

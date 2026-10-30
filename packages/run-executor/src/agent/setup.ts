@@ -1,7 +1,7 @@
 import { prepareConversationOrganization, conversationOrganizationPrompt } from "./conversation-organization.js";
 import { buildSubagentPrompt } from "../subagents/prompt.js";
 import { buildProjectMasterPrompt } from "../project-master/prompt.js";
-import { getPersistentRuntimeEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
+import { WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { asText, mapMessagesForResponsesInput } from "./utils.js";
@@ -31,7 +31,7 @@ import {
 import { shouldExposeStopTaskForRecurringRun } from "../tasks/recurring-run-utils.js";
 import { loadProjectContextPromptData } from "./project-context.js";
 import type { AgentExecutionContext, AgentRunTimingState, WorkflowCapabilityState } from "./execution-types.js";
-import type { PreparedAgentRunContext } from "./runtime.js";
+import { resolvePersistentRuntimeEnabled, type PreparedAgentRunContext } from "./runtime.js";
 import type { TaskDebugLogger } from "./run-debug-logger.js";
 import type { SwarmRunContext } from "../agent-swarm/run-context.js";
 import { loadCheckPrompt, loadSwarmGuide } from "../agent-swarm/prompt.js";
@@ -231,7 +231,7 @@ function buildRunSystemPrompt(input: {
       allowFinalResponse: allowFinalResponseInPrompt,
       allowStopTask: input.allowStopTask,
       allowWaitTool: allowWaitInPrompt,
-      persistentRuntimeEnabled: getPersistentRuntimeEnabled(input.prepared.runtimeEnvironmentPayload),
+      persistentRuntimeEnabled: resolvePersistentRuntimeEnabled(input.prepared.snapshot.task, input.prepared.runtimeEnvironmentPayload),
       qualityReviewSpecialist: input.prepared.isQualityReviewSpecialist,
       allowScheduleTools: input.allowScheduleTools,
       allowSubtaskTools: input.allowSubtaskTools,
@@ -240,9 +240,9 @@ function buildRunSystemPrompt(input: {
       allowMemorySearch: input.prepared.runToolOptions.memorySearch === true,
       allowTaskHistoryTools: input.prepared.memoryEnabled || input.prepared.isProjectMaster === true,
       allowLiveSyncTools: input.prepared.liveSyncFiles.length > 0,
-      allowCanvasTools: input.prepared.snapshot.task.is_thread !== true
+      allowCanvasTools: input.prepared.snapshot.task.read_only !== true
         && input.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),
-      taskFilesystemReadOnly: input.prepared.snapshot.task.is_thread,
+      taskFilesystemReadOnly: input.prepared.snapshot.task.read_only,
       taskInputDir: input.taskInputDir,
       liveSyncFiles: input.prepared.liveSyncFiles,
       recurringStateFilePath: input.recurringStateFilePath,
@@ -422,7 +422,7 @@ export async function initializeAgentExecution(
     scheduleState: scheduleInfo?.scheduleState ?? null
   });
   const runTiming = createRunTiming(job, prepared, scheduleInfo);
-  const allowScheduleTools = prepared.snapshot.task.is_thread !== true && prepared.runToolOptions.scheduleTask === true;
+  const allowScheduleTools = prepared.snapshot.task.read_only !== true && prepared.runToolOptions.scheduleTask === true;
   // A task that already has a schedule keeps its scheduling tools loaded; others load them on demand.
   const loadedToolGroups = new Set<string>(allowScheduleTools && scheduleInfo !== null ? [TASK_SCHEDULING_TOOL_GROUP_ID] : []);
   const onDemandCapabilities = resolveOnDemandCapabilities(
@@ -430,7 +430,7 @@ export async function initializeAgentExecution(
     allowScheduleTools && scheduleInfo === null ? [TASK_SCHEDULING_TOOL_GROUP_ID] : []
   );
   const enableSkillById = withToolGroups(prepared.enableSkillById, allowScheduleTools ? [TASK_SCHEDULING_TOOL_GROUP_ID] : [], loadedToolGroups);
-  const allowSubtaskTools = prepared.snapshot.task.is_thread !== true && prepared.runToolOptions.subtasks === true;
+  const allowSubtaskTools = prepared.snapshot.task.read_only !== true && prepared.runToolOptions.subtasks === true;
   const allowStopTask = shouldExposeStopTaskForRecurringRun({
     hasSchedule: scheduleInfo !== null,
     scheduleState: scheduleInfo?.scheduleState ?? null,

@@ -39,6 +39,8 @@ interface CreateTaskInput {
   allowWaiting?: boolean | null;
   timeLimitSeconds?: number | null;
   isIncognito?: boolean;
+  readOnly?: boolean;
+  networkDisabled?: boolean;
   prefaceMessages?: TaskPrefaceMessage[];
   schedule?: {
     mode: "scheduled" | "infinite";
@@ -83,6 +85,8 @@ async function insertTaskRow(
       allow_waiting,
       time_limit_seconds,
       is_incognito,
+      read_only,
+      network_disabled,
       task_root_path,
       interactive_canvas_id,
       interactive_canvas_intent,
@@ -90,7 +94,7 @@ async function insertTaskRow(
       workflow_parent_task_id,
       workflow_internal_role,
       execution_target
-    ) VALUES ($1, $2, $3, $4, 'queued', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+    ) VALUES ($1, $2, $3, $4, 'queued', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
     [
       taskId,
       input.workspaceId,
@@ -104,6 +108,8 @@ async function insertTaskRow(
       input.allowWaiting ?? true,
       input.timeLimitSeconds ?? null,
       input.isIncognito === true,
+      input.readOnly === true,
+      input.networkDisabled === true,
       `.meowbert/task-runs/${taskId}`,
       input.interactiveCanvasId ?? null,
       input.interactiveCanvasIntent ?? null,

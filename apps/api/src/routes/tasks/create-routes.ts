@@ -106,6 +106,8 @@ async function createRequestedTask(input: {
     allowWaiting: input.body.parameters?.allowWaiting,
     timeLimitSeconds: input.body.parameters?.timeLimitSeconds ?? null,
     isIncognito: input.body.incognito === true,
+    readOnly: input.body.restrictions?.readOnly === true,
+    networkDisabled: input.body.restrictions?.networkDisabled === true,
     tools: input.body.tools,
     agent: input.selectedAgent,
     interactiveCanvasId: input.body.interactiveCanvasId ?? null,
@@ -223,6 +225,14 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
   }
   if (body.incognito === true && (body.workflow || swarmSettings || body.schedule)) {
     return reply.status(400).send({ error: "Incognito chat is only available for standard tasks." });
+  }
+
+  const restricted = body.restrictions?.readOnly === true || body.restrictions?.networkDisabled === true;
+  if (restricted && (body.workflow || swarmSettings || body.schedule)) {
+    return reply.status(400).send({ error: "Read-only and no-network tasks are only available for standard tasks." });
+  }
+  if (restricted && body.executionTarget?.kind === "local" && body.executionTarget.mode === "host") {
+    return reply.status(400).send({ error: "Read-only and no-network tasks need the sandbox, not Host mode." });
   }
 
   const resolvedSchedule = resolveTaskScheduleConfig(body.schedule ?? null, { defaultTimezone, now: new Date() });

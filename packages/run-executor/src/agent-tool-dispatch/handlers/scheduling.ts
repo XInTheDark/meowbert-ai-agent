@@ -18,7 +18,7 @@ export async function handleScheduleTask(
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ToolCallResult> {
-  if (ctx.isThreadTask) {
+  if (ctx.readOnly) {
     const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
       inputLabel: "Schedule",
       inputText: "Thread runs cannot schedule new tasks."

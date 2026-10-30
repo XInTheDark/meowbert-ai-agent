@@ -1,4 +1,9 @@
-import { createDefaultEnvironmentJsonPayload, type PlatformModelRouter } from "@meowbert/shared";
+import {
+  SHELL_OUTPUT_HEAD_CHARS,
+  SHELL_OUTPUT_TAIL_CHARS,
+  createDefaultEnvironmentJsonPayload,
+  type PlatformModelRouter
+} from "@meowbert/shared";
 import type { SwarmToolSet } from "./swarm.js";
 
 export const RUN_SHELL_TOOL_NAME = "run_shell";
@@ -56,8 +61,8 @@ export const NOTES_WRITE_FILE_TOOL_NAME = "notes_write_file";
 
 export const DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 256_000;
 export const RUN_SHELL_DEFAULT_OUTPUT_LIMIT_CHARS = 20_000;
-export const RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS = 10_000;
-export const RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS = 10_000;
+export const RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS = SHELL_OUTPUT_HEAD_CHARS;
+export const RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS = SHELL_OUTPUT_TAIL_CHARS;
 export const RUN_SHELL_MIN_TIMEOUT_SECONDS = 1;
 export const RUN_SHELL_MAX_TIMEOUT_SECONDS = 86_400;
 export const VIEW_PDF_DEFAULT_PAGE_START = 1;

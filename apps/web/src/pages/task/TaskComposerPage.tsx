@@ -34,6 +34,9 @@ import { resolveWorkflowForAgentChange } from "../../task/agentSwarmPresetWorkfl
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
 import { useSubscriptionUsageWarning } from "../../subscription/usageLimits";
 import { TaskExecutionSelector } from "../../task/TaskExecutionSelector";
+import { TaskAdvancedOptions } from "../../task/TaskAdvancedOptions";
+import { buildCreateTaskRestrictionsPayload, DEFAULT_TASK_RESTRICTIONS } from "../../task/taskRestrictions";
+import { getSandboxNetworkEnabledOverride } from "@meowbert/shared/workspace-agent-settings";
 
 function createPendingTaskId(): string {
   return crypto.randomUUID();
@@ -203,6 +206,18 @@ export function TaskComposerPage() {
   const quickMode = currentDraft.quickMode && workflow.type === "standard";
   const effectiveQuickMode = quickMode && !isInteractiveCanvasEnabled;
   const effectiveIncognitoMode = incognitoMode && workflow.type === "standard" && !isInteractiveCanvasEnabled;
+  // Read-only and no-network need the sandbox and a standard task; canvas work needs both writes and a browser.
+  const isHostTarget = currentDraft.executionTarget.kind === "local" && currentDraft.executionTarget.mode === "host";
+  const restrictionsDisabledReason = isInteractiveCanvasEnabled
+    ? "Not available for canvas tasks."
+    : workflow.type !== "standard"
+      ? "Only available for standard tasks."
+      : isHostTarget
+        ? "Not available in Host mode."
+        : null;
+  const effectiveRestrictions = restrictionsDisabledReason ? DEFAULT_TASK_RESTRICTIONS : currentDraft.restrictions;
+  const activeProject = environments?.find((environment) => environment.id === activeEnvironmentId);
+  const networkAlreadyOff = (getSandboxNetworkEnabledOverride(activeProject?.json_payload) ?? workspaceSettings?.effectiveSandboxNetworkEnabled ?? true) === false;
 
   useEffect(() => {
     writeTaskInputDrafts(draftsByEnvironment);
@@ -301,6 +316,10 @@ export function TaskComposerPage() {
         ? buildCreateTaskSchedulePayload(taskParameters)
         : undefined;
       const parametersPayload = buildCreateTaskParametersPayload(taskParameters);
+      const restrictionsPayload = buildCreateTaskRestrictionsPayload({
+        ...effectiveRestrictions,
+        networkDisabled: effectiveRestrictions.networkDisabled && !networkAlreadyOff
+      });
       const executionTarget = capabilities.isDesktop ? currentDraft.executionTarget : { kind: "cloud" } as const;
       if (isLocalTarget && (workflow.type !== "standard" || toolOptions.subtasks || availableAgents.find((agent) => agent.id === selectedAgentId)?.mode === "agent_swarm")) {
         throw new Error("Local tasks require a standard agent without workflows or subtasks.");
@@ -318,6 +337,7 @@ export function TaskComposerPage() {
         message: joinTaskMessage(prompt, taskAttachments),
         ...(effectiveQuickMode ? { quickMode: true } : {}),
         ...(effectiveIncognitoMode ? { incognito: true } : {}),
+        ...(restrictionsPayload ? { restrictions: restrictionsPayload } : {}),
         attachments: taskAttachments,
         ...(canvasForTask
           ? {
@@ -386,6 +406,13 @@ export function TaskComposerPage() {
     <div className="chat-layout task-composer-page" style={{ alignItems: "center", justifyContent: "center", display: "flex", flexDirection: "column" }}>
       <div className="task-composer-mode-toggles">
         {capabilities.isDesktop ? <TaskExecutionSelector api={api} projectId={activeEnvironmentId} target={currentDraft.executionTarget} disabled={isSubmitting} onChange={(executionTarget) => updateDraft((draft) => ({ ...draft, executionTarget }))} /> : null}
+        <TaskAdvancedOptions
+          value={currentDraft.restrictions}
+          onChange={(restrictions) => updateDraft((draft) => ({ ...draft, restrictions }))}
+          disabledReason={restrictionsDisabledReason}
+          networkAlreadyOff={networkAlreadyOff}
+          disabled={isSubmitting}
+        />
         <button
           type="button"
           className={`task-composer-mode-toggle${effectiveQuickMode ? " active quick" : ""}`}

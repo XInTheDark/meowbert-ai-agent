@@ -6,6 +6,7 @@ import { Duplex, PassThrough, type Readable, type Writable } from "node:stream";
 import { promisify } from "node:util";
 import Docker, { type Container } from "dockerode";
 import { toSandboxPath, toSandboxText } from "./docker-sandbox-paths.js";
+import { BoundedOutputCapture } from "./shell-output.js";
 export { toSandboxPath, fromSandboxPath, toSandboxText } from "./docker-sandbox-paths.js";
 import { selectSandboxPassthroughEnv, type SandboxConfig, type SandboxResourcesConfig } from "./sandbox.js";
 import {
@@ -126,6 +127,9 @@ export interface SandboxExecCommandResult {
   exitCode: number;
   timedOut: boolean;
   aborted: boolean;
+  /** Characters the command wrote, when `stdout`/`stderr` hold only its beginning and end. */
+  stdoutLength?: number;
+  stderrLength?: number;
   /** Set by crash-recovering wrappers when the container died during the command. */
   sandboxCrash?: string | null;
 }
@@ -303,11 +307,10 @@ export class DockerSandboxHandle implements MachineHandle {
   }
 
   async executeShellCommand(input: SandboxExecCommandInput): Promise<SandboxExecCommandResult> {
-    let stdout = "";
-    let stderr = "";
+    const stdout = new BoundedOutputCapture(input.maxOutputKb * 1024);
+    const stderr = new BoundedOutputCapture(input.maxOutputKb * 1024);
     let timedOut = false;
     let aborted = false;
-    const maxChars = input.maxOutputKb * 1024;
 
     const attached = await this.startAttachedProcess({
       command: [input.shell, "-lc", input.command],
@@ -318,17 +321,8 @@ export class DockerSandboxHandle implements MachineHandle {
       stdin: false
     });
 
-    const appendChunk = (current: string, chunk: Buffer): string => {
-      const next = `${current}${chunk.toString("utf8")}`;
-      return next.length > maxChars ? `${next.slice(0, maxChars)}\n...[truncated]` : next;
-    };
-
-    attached.stdout.on("data", (chunk: Buffer) => {
-      stdout = appendChunk(stdout, chunk);
-    });
-    attached.stderr?.on("data", (chunk: Buffer) => {
-      stderr = appendChunk(stderr, chunk);
-    });
+    attached.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    attached.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
 
     const timeout = setTimeout(async () => {
       timedOut = true;
@@ -355,8 +349,10 @@ export class DockerSandboxHandle implements MachineHandle {
 
     return {
       command: input.command,
-      stdout,
-      stderr,
+      stdout: stdout.text,
+      stderr: stderr.text,
+      stdoutLength: stdout.totalLength,
+      stderrLength: stderr.totalLength,
       exitCode: exitCode ?? (timedOut ? 124 : aborted ? 130 : 1),
       timedOut,
       aborted

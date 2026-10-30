@@ -52,7 +52,7 @@ export async function handleIndexSave(
   if (ctx.memoryEnabled !== true) {
     return finishBuiltinToolFailure(ctx, execution, "The file index needs Memory, which is off for this workspace.");
   }
-  if (ctx.isThreadTask) {
+  if (ctx.readOnly) {
     return finishBuiltinToolFailure(ctx, execution, "This run is read-only, so it can't save index entries.");
   }
 

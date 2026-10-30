@@ -1,6 +1,7 @@
 import { normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
 import { getVisiblePlatformAgentPresets, resolveCodeModeForModel } from "@meowbert/shared";
-import { getPersistentRuntimeEnabled, getSandboxNetworkEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
+import { getSandboxNetworkEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
+import { resolvePersistentRuntimeEnabled } from "./runtime.js";
 import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
 import { buildDesktopComputerUnavailableMessage } from "../computer/desktop-computer-status.js";
 import {
@@ -356,10 +357,10 @@ async function requestModelTurn(input: {
       allowLiveSyncFileTools: workspaceFileFeatures(normalizeWorkspaceFileHost(execution.prepared.fileHost)).linkedSources,
       allowLiveSyncFolderSearch: execution.prepared.liveSyncFiles.some((file) => file.provider === "google-drive" && file.linkKind === "folder"),
       allowCanvasTools: workspaceFileFeatures(normalizeWorkspaceFileHost(execution.prepared.fileHost)).canvases
-        && execution.prepared.snapshot.task.is_thread !== true
+        && execution.prepared.snapshot.task.read_only !== true
         && execution.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),
       allowFileIndexTools: execution.prepared.memoryEnabled,
-      allowFileIndexSave: execution.prepared.snapshot.task.is_thread !== true,
+      allowFileIndexSave: execution.prepared.snapshot.task.read_only !== true,
       allowComputerLocalShell: !execution.prepared.settings.hostMode && execution.job.executionTarget?.kind !== "local"
         && execution.prepared.runToolOptions.computerUse === true,
       allowHostShell: !!execution.prepared.control.platform.hostShell,
@@ -375,7 +376,7 @@ async function requestModelTurn(input: {
       contextRecoveryPhase: execution.state.contextManagement.version === "v2"
         ? execution.state.contextManagement.recoveryPhase
         : undefined,
-      allowPersistentShellSessions: getPersistentRuntimeEnabled(execution.prepared.runtimeEnvironmentPayload),
+      allowPersistentShellSessions: resolvePersistentRuntimeEnabled(execution.prepared.snapshot.task, execution.prepared.runtimeEnvironmentPayload),
       useClaudeWebSearch: execution.prepared.runtimeModelType === "claude",
       swarmTools: execution.swarm ? (execution.swarm.lane?.kind === "check" ? "check" : "all") : undefined,
       swarmRouter: execution.swarm?.router ?? null
@@ -632,9 +633,9 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     },
     notesOnly: isIdleCompactionRun(execution.job),
     runToolOptions: execution.prepared.runToolOptions,
-    isThreadTask: execution.prepared.snapshot.task.is_thread,
+    readOnly: execution.prepared.snapshot.task.read_only,
     shellToolMaxTimeoutMs: execution.prepared.snapshot.shell_tool_max_timeout_ms,
-    persistentRuntimeEnabled: getPersistentRuntimeEnabled(execution.prepared.runtimeEnvironmentPayload),
+    persistentRuntimeEnabled: resolvePersistentRuntimeEnabled(execution.prepared.snapshot.task, execution.prepared.runtimeEnvironmentPayload),
     imageDetail: execution.prepared.snapshot.image_detail ?? "high",
     skillsRootDir: execution.prepared.skillsRootDir,
     isSkillAdmin: execution.prepared.resolvedRunActorIsSuperAdmin,

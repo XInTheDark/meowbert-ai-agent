@@ -9,9 +9,9 @@ export function resolveApplyPatchWritableRoots(input: {
   taskScratchDir: string;
   envRoot: string;
   workspaceRoot: string;
-  isThreadTask: boolean;
+  readOnly: boolean;
 }): string[] {
-  if (!input.isThreadTask) {
+  if (!input.readOnly) {
     return [
       input.taskDir,
       input.taskScratchDir,
@@ -37,7 +37,7 @@ export async function buildTaskSandboxMounts(input: {
   envRoot: string;
   workspaceRoot: string;
   taskScratchDir: string;
-  isThreadTask: boolean;
+  readOnly: boolean;
   skillsRootDir: string | null;
 }): Promise<SandboxMountPath[]> {
   const readableMountPaths = await resolveTaskReadableMountPaths({
@@ -48,7 +48,7 @@ export async function buildTaskSandboxMounts(input: {
   return [
     ...readableMountPaths.map((mountPath) => ({
       path: mountPath,
-      ...(input.isThreadTask ? { readOnly: true } : {})
+      ...(input.readOnly ? { readOnly: true } : {})
     })),
     { path: input.taskScratchDir },
     ...(input.skillsRootDir ? [{ path: input.skillsRootDir, readOnly: true, optional: true }] : [])

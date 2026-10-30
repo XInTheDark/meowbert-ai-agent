@@ -1,4 +1,10 @@
-import { normalizeWorkspaceFileHost, workspaceFileFeatures, deviceWorkspaceProjectPath, type WorkspaceFileHost } from "@meowbert/shared";
+import {
+  normalizeWorkspaceFileHost,
+  workspaceFileFeatures,
+  deviceWorkspaceProjectPath,
+  setSandboxNetworkEnabled,
+  type WorkspaceFileHost
+} from "@meowbert/shared";
 import { loadSubagentRuntime, loadSubagentPlatformProvider } from "../subagents/runtime.js";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -317,11 +323,13 @@ async function resolveRuntimeConfig(
   quickModeRequested: boolean,
   abortSignal?: AbortSignal
 ) {
+  const effectiveEnvironmentJsonPayload = resolveEffectiveEnvironmentJsonPayload({
+    workspaceModelDefaults: snapshot.workspace_model_defaults,
+    environmentPayload: snapshot.environment.json_payload
+  });
+  // A task can turn the sandbox network off; it can never turn it on over the workspace's choice.
   const baseEnvironmentJsonPayload = normalizeEnvironmentJsonPayload(
-    resolveEffectiveEnvironmentJsonPayload({
-      workspaceModelDefaults: snapshot.workspace_model_defaults,
-      environmentPayload: snapshot.environment.json_payload
-    })
+    snapshot.task.network_disabled ? setSandboxNetworkEnabled(effectiveEnvironmentJsonPayload, false) : effectiveEnvironmentJsonPayload
   );
   const visibleAgentPresets = getVisiblePlatformAgentPresets(
     snapshot.platform_agent_presets,

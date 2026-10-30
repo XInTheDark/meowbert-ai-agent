@@ -47,6 +47,9 @@ export interface TaskRow {
   subtask_depth: number;
   task_root_path: string;
   is_thread: boolean;
+  // Threads are always read-only; other tasks are when their creator chose it.
+  read_only: boolean;
+  network_disabled: boolean;
   is_project_master?: boolean;
   thread_parent_task_id: string | null;
   thread_parent_message_id: string | null;

@@ -67,7 +67,7 @@ function createContext(): ToolDispatchContext {
     modelType: "openai",
     skillsRootDir: null,
     isSkillAdmin: false,
-    isThreadTask: false,
+    readOnly: false,
     activeMcpConnections: new Map(),
     activeSkillTools: [],
     codeModeTools: [buildRunShellFunctionTool()],

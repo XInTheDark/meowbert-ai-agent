@@ -26,7 +26,7 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
   for (const version of ["v1", "v2"] as const) for (const organization of [false, true]) {
     const ordinary = buildResponseTools(options, [], {
       allowFinalResponse: true, allowWaitTool: snapshot.task.allow_waiting !== false, allowStopTask,
-      allowScheduleTools: snapshot.task.is_thread !== true, loadedToolGroups: [TASK_SCHEDULING_TOOL_GROUP_ID],
+      allowScheduleTools: snapshot.task.read_only !== true, loadedToolGroups: [TASK_SCHEDULING_TOOL_GROUP_ID],
       allowSubtaskTools: !local, allowPdfFileTool: !host && !bootstrap.runtime.compatibilityModes.includes("disablePdfFile"),
       newMessageOrganizationEnabled: organization, allowTaskHistoryTools: bootstrap.memoryEnabled,
       allowProjectMasterTools: !local && bootstrap.isProjectMaster,
@@ -34,8 +34,8 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
       allowLiveSyncTools: bootstrap.liveSyncFiles.length > 0,
       allowLiveSyncFileTools: features.linkedSources,
       allowLiveSyncFolderSearch: bootstrap.liveSyncFiles.some((file) => file.provider === "google-drive" && file.linkKind === "folder"),
-      allowCanvasTools: features.canvases && !snapshot.task.is_thread && options.enabledSkills.includes("html-canvas"),
-      allowFileIndexTools: bootstrap.memoryEnabled, allowFileIndexSave: !snapshot.task.is_thread,
+      allowCanvasTools: features.canvases && !snapshot.task.read_only && options.enabledSkills.includes("html-canvas"),
+      allowFileIndexTools: bootstrap.memoryEnabled, allowFileIndexSave: !snapshot.task.read_only,
       allowComputerLocalShell: !local, allowComputerVisualTools: !local || consent.computerUse === true,
       allowHostShell: local && consent.hostShell === true, allowRefreshGitHubToken: bootstrap.github.hasAppConnection,
       allowStartLongHorizonTask: !local, allowRequestClarification: !local, allowSubmitResponse: !local, allowSubmitReview: !local,

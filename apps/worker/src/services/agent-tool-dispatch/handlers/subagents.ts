@@ -47,7 +47,7 @@ async function runSubagentTool(call: ResponseFunctionToolCall, ctx: ToolDispatch
 export async function handleSubagentTool(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
   const execution = await startBuiltinToolExecution(ctx, state, call, { inputLabel: "Subagent" });
   try {
-    if (ctx.isThreadTask || !ctx.runToolOptions.subtasks) throw new Error("Subagents are disabled for this task.");
+    if (ctx.readOnly || !ctx.runToolOptions.subtasks) throw new Error("Subagents are disabled for this task.");
     await ctx.assertNotCancelled();
     const result = await runSubagentTool(call, ctx, state);
     return await finishBuiltinToolSuccess(ctx, execution, result);

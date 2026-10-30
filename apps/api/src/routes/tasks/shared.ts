@@ -215,12 +215,22 @@ export const taskParametersPatchBody = z
   })
   .strict();
 
+// Chosen when the task is created and kept for all of its runs.
+const taskRestrictionsSchema = z
+  .object({
+    readOnly: z.boolean().optional(),
+    networkDisabled: z.boolean().optional()
+  })
+  .strict()
+  .optional();
+
 export const createTaskBodySchema = z.object({
   taskId: z.string().uuid().optional(),
   title: z.string().max(240).optional(),
   message: z.string().min(1),
   quickMode: z.boolean().optional(),
   incognito: z.boolean().optional(),
+  restrictions: taskRestrictionsSchema,
   interactiveCanvasId: z.string().uuid().nullable().optional(),
   interactiveCanvasIntent: z.enum(["create", "update", "view"]).optional(),
   attachments: taskAttachmentsSchema,
