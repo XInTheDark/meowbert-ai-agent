@@ -23,7 +23,8 @@ const lifecycleIds = {
   event: "55555555-5555-4555-8555-555555555555",
   revision: "66666666-6666-4666-8666-666666666666",
   contextItem: "88888888-8888-4888-8888-888888888888",
-  note: "99999999-9999-4999-8999-999999999999"
+  note: "99999999-9999-4999-8999-999999999999",
+  window: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 } as const;
 
 function buildLifecycleSnapshot(state: "warm" | "archiving" | "archived", archiveKey: string | null) {
@@ -76,6 +77,9 @@ function createLifecycleArchiveClient(executedSql: string[] = []): TaskHistoryAr
       }
       if (text.includes("SELECT id, content FROM task_context_notes")) {
         return { rows: [{id: lifecycleIds.note, content: "Branch notes"} as T], rowCount: 1 };
+      }
+      if (text.includes("SELECT id, opening_prompt_json FROM task_context_windows")) {
+        return { rows: [{ id: lifecycleIds.window, opening_prompt_json: [{ role: "developer", content: "Original window notes" }] } as T], rowCount: 1 };
       }
       if (text.includes("FROM task_media_blobs WHERE task_id = $1")) {
         return { rows: [{ sha256: "abc123", mime_type: "image/png", bytes: Buffer.from("png-bytes") } as T], rowCount: 1 };
@@ -163,6 +167,7 @@ describe("archiveTaskHistory", () => {
       expect(archived.status).toBe("archived");
       expect(archiveSql).toContain("UPDATE task_context_history_items SET payload_json = '{}'::jsonb WHERE task_id = $1");
       expect(archiveSql).toContain("UPDATE task_context_notes SET content = '' WHERE task_id = $1");
+      expect(archiveSql).toContain("UPDATE task_context_windows SET opening_prompt_json = NULL WHERE task_id = $1");
       expect(archiveSql).toContain("DELETE FROM task_media_blobs WHERE task_id = $1");
       expect(archived.metrics).toMatchObject({
         messageCount: 1,
@@ -177,6 +182,9 @@ describe("archiveTaskHistory", () => {
       expect(document.events[0].payload_json).toEqual({ message: "event" });
       expect(document.context.history[0]).toEqual({id: lifecycleIds.contextItem, payload_json: {type: "function_call_output", output: "Private history"}});
       expect(document.context.notes[0]).toEqual({id: lifecycleIds.note, content: "Branch notes"});
+      expect(document.context.windowPrompts).toEqual([{
+        id: lifecycleIds.window, opening_prompt_json: [{ role: "developer", content: "Original window notes" }]
+      }]);
       expect(document.media).toEqual([{ sha256: "abc123", mime_type: "image/png", bytes_base64: Buffer.from("png-bytes").toString("base64") }]);
 
       const restoreUpdates: Array<{ text: string; params?: unknown[] }> = [];
@@ -203,7 +211,8 @@ describe("archiveTaskHistory", () => {
       expect(restored.status).toBe("restored");
       expect(restoreUpdates).toEqual(expect.arrayContaining([
         {text: expect.stringContaining("UPDATE task_context_history_items"), params: [lifecycleIds.contextItem, JSON.stringify(document.context.history[0].payload_json)]},
-        {text: expect.stringContaining("UPDATE task_context_notes"), params: [lifecycleIds.note, "Branch notes"]}
+        {text: expect.stringContaining("UPDATE task_context_notes"), params: [lifecycleIds.note, "Branch notes"]},
+        {text: expect.stringContaining("UPDATE task_context_windows"), params: [lifecycleIds.window, JSON.stringify(document.context.windowPrompts[0].opening_prompt_json)]}
       ]));
       expect(restoreUpdates.some(({ text, params }) =>
         text.includes("UPDATE task_messages")

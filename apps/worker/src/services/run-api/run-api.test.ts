@@ -103,6 +103,19 @@ afterEach(async () => {
 });
 
 describe("Run API retries", () => {
+  it("replays a lost window-prompt freeze reply without replacing the snapshot", async () => {
+    const { control, token } = await claim();
+    const window = { taskId: "task-1", windowId: "window-1", contextNodeId: "node-1" };
+    const saved = [{ role: "developer" as const, content: "opening notes" }];
+    control.context.freezeWindowPrompt.mockResolvedValue(saved);
+    const remote = createHttpRunControl(client(token, {
+      fetch: losingFirstResponse((url) => url.includes("context.freezeWindowPrompt"))
+    }));
+    await expect(remote.context.freezeWindowPrompt(window, saved)).resolves.toEqual(saved);
+    expect(control.context.freezeWindowPrompt).toHaveBeenCalledExactlyOnceWith(window, saved);
+    remote.stop();
+  });
+
   it.each(["pending", "completed"])("recovers a lost %s model response without repeating or double billing provider work", async (state) => {
     let finish!: () => void;
     const gate = new Promise<void>((resolve) => { finish = resolve; });

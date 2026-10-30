@@ -83,6 +83,8 @@ Look for the **Compact now** button in the Task Detail actions menu.
 
 When Context management V2 is active, Meowbert keeps the full conversation in private history and starts a fresh context window when needed. It does not summarize or discard the previous window.
 
+Each window keeps the notes snapshot it opened with, including when a task resumes or runs idle compaction. Saving notes does not rewrite that opening snapshot and invalidate the cached conversation. The notes tools always read the latest notes, and a new window starts with a fresh snapshot.
+
 As the base context budget runs low, the agent receives a reminder to save progress in private notes. When the base budget is exhausted, it receives a final checkpoint instruction and up to 16,384 additional tokens to save a note and request a new window. The model's hard context limit can shorten this interval. Reaching either the buffered budget or the hard limit starts a new window automatically. The next window includes the continuity note and can use private history to recover details.
 
 By default, the base budget is 90% of the configured model context window, the reminder threshold is 6,144 remaining tokens, and the hard limit is 95%. A configured `auto_compact_token_limit` can lower the base budget; `effective_context_window_percent` changes the hard limit.

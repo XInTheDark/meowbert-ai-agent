@@ -134,6 +134,8 @@ export interface RunContextStore {
   // The highest call number recorded for the task, or 0.
   loadLastCallNumber(): Promise<number>;
   loadNotesSummary(contextNodeId: string): Promise<ContextNotesSummary>;
+  // Preserve the first window-opening prompt across runs, even after private notes change.
+  freezeWindowPrompt(window: ContextWindowRef, items: ResponseInputItem[]): Promise<ResponseInputItem[]>;
   startNewWindow(window: ContextWindowRef, branchLeafMessageId: string | null, reason: string): Promise<{ windowId: string; contextNodeId: string }>;
   linkVisibleMessage(window: ContextWindowRef, visibleMessageId: string): Promise<string>;
   writeNote(window: ContextWindowRef, input: { path: string; text: string; append: boolean }): Promise<{ path: string; bytes: number }>;

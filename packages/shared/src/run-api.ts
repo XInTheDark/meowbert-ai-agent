@@ -60,6 +60,7 @@ export const RUN_API_WRITE_METHODS = [
   "control.releaseForStorage",
   "context.freezeVersion",
   "context.openWindow",
+  "context.freezeWindowPrompt",
   "context.recordItems",
   "context.startNewWindow",
   "context.linkVisibleMessage",

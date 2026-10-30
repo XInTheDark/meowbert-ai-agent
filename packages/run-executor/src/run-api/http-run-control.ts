@@ -6,7 +6,7 @@ import type { RunApiClient } from "./client.js";
 import { createRunLeaseKeeper, type RunLeaseKeeperOptions } from "./lease-keeper.js";
 
 const CONTEXT_METHODS = [
-  "freezeVersion", "openWindow", "loadWindowItems", "recordItems", "loadLastCallNumber", "loadNotesSummary", "startNewWindow",
+  "freezeVersion", "openWindow", "loadWindowItems", "recordItems", "loadLastCallNumber", "loadNotesSummary", "freezeWindowPrompt", "startNewWindow",
   "linkVisibleMessage", "writeNote", "listWindows", "listItems", "readItem", "searchHistory", "listNotes", "readNote"
 ] as const satisfies readonly (keyof RunContextStore)[];
 

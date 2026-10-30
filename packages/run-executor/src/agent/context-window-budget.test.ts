@@ -28,6 +28,7 @@ function createFixture() {
     startNewWindow: vi.fn(async () => ({ ...window, windowId: "window-2", contextNodeId: "node-2", previousWindowId: "window-1" })),
     linkVisibleMessage: vi.fn(async () => "node-2"),
     loadNotesSummary: vi.fn(async () => ({ continuity, index: [] })),
+    freezeWindowPrompt: vi.fn(async (_state, items) => items),
     writeNote: vi.fn(async (_state, input) => {
       continuity = input.text;
       return { updated: true };

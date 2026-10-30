@@ -100,7 +100,10 @@ export async function buildV2WindowDeveloperItems(store: RunContextStore, input:
   agentName: string;
 }): Promise<ResponseInputItem[]> {
   const hint = buildThreadHint(await store.loadNotesSummary(input.state.contextNodeId));
-  return [{ role: "developer", content: buildContextWindowPrompt({ state: input.state, agentName: input.agentName, threadHint: hint }) }];
+  // Notes stay live through their tools; only the window-opening hint is immutable.
+  return store.freezeWindowPrompt(input.state, [
+    { role: "developer", content: buildContextWindowPrompt({ state: input.state, agentName: input.agentName, threadHint: hint }) }
+  ]);
 }
 
 export async function startNewContextWindow(store: RunContextStore, input: {

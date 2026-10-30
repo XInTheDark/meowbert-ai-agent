@@ -189,6 +189,7 @@ const taskHistoryArchiveDocumentSchema = z.object({
   swarm: taskSwarmArchiveSchema.optional(),
   media: taskMediaArchiveSchema.optional(),
   context: z.object({
+    windowPrompts: z.array(z.object({ id: z.string().uuid(), opening_prompt_json: z.array(z.unknown()) })).optional(),
     history: z.array(z.object({ id: z.string().uuid(), payload_json: z.record(z.string(), z.unknown()) })),
     notes: z.array(z.object({ id: z.string().uuid(), content: z.string() }))
   }).optional(),

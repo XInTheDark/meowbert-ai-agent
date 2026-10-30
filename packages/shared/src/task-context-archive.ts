@@ -3,24 +3,29 @@ import type { TaskHistoryArchiveQueryable } from "./task-history-archive.js";
 export interface TaskContextArchive {
   history: Array<{ id: string; payload_json: Record<string, unknown> }>;
   notes: Array<{ id: string; content: string }>;
+  windowPrompts?: Array<{ id: string; opening_prompt_json: unknown[] }>;
 }
 
 export async function loadTaskContextArchive(client: TaskHistoryArchiveQueryable, taskId: string): Promise<TaskContextArchive> {
-  const [history, notes] = await Promise.all([
+  const [history, notes, windowPrompts] = await Promise.all([
     client.query<TaskContextArchive["history"][number]>(
       "SELECT id, payload_json FROM task_context_history_items WHERE task_id = $1", [taskId]
     ),
     client.query<TaskContextArchive["notes"][number]>(
       "SELECT id, content FROM task_context_notes WHERE task_id = $1", [taskId]
+    ),
+    client.query<NonNullable<TaskContextArchive["windowPrompts"]>[number]>(
+      "SELECT id, opening_prompt_json FROM task_context_windows WHERE task_id = $1 AND opening_prompt_json IS NOT NULL", [taskId]
     )
   ]);
-  return { history: history.rows, notes: notes.rows };
+  return { history: history.rows, notes: notes.rows, windowPrompts: windowPrompts.rows };
 }
 
 export async function stubTaskContextArchive(client: TaskHistoryArchiveQueryable, taskId: string): Promise<void> {
   // Keep identities and ancestry in place; only move the large payloads to cold storage.
   await client.query("UPDATE task_context_history_items SET payload_json = '{}'::jsonb WHERE task_id = $1", [taskId]);
   await client.query("UPDATE task_context_notes SET content = '' WHERE task_id = $1", [taskId]);
+  await client.query("UPDATE task_context_windows SET opening_prompt_json = NULL WHERE task_id = $1", [taskId]);
 }
 
 export async function restoreTaskContextArchive(client: TaskHistoryArchiveQueryable, context?: TaskContextArchive): Promise<void> {
@@ -31,5 +36,9 @@ export async function restoreTaskContextArchive(client: TaskHistoryArchiveQuerya
   }
   for (const note of context.notes) {
     await client.query("UPDATE task_context_notes SET content = $2 WHERE id = $1", [note.id, note.content]);
+  }
+  for (const window of context.windowPrompts ?? []) {
+    await client.query("UPDATE task_context_windows SET opening_prompt_json = $2::jsonb WHERE id = $1",
+      [window.id, JSON.stringify(window.opening_prompt_json)]);
   }
 }

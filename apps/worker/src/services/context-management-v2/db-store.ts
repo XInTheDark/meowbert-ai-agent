@@ -1,5 +1,6 @@
 import type { RunContextStore } from "@meowbert/run-executor/agent/ports/run-control";
 import { writeContextNote } from "./notes.js";
+import { freezeContextWindowPrompt } from "./window-prompt.js";
 import type { ContextWindowRef } from "@meowbert/run-executor/agent/ports/run-control";
 import {
   assertContextWindowOfTask,
@@ -41,6 +42,7 @@ export function createDbContextStore(taskId: string): RunContextStore {
     recordItems: (window, records) => own(window).then((ref) => recordContextHistoryRecords(ref, records)),
     loadLastCallNumber: () => loadLastCallNumber(taskId),
     loadNotesSummary: (contextNodeId) => loadContextNotesSummary(taskId, contextNodeId),
+    freezeWindowPrompt: (window, items) => own(window).then((ref) => freezeContextWindowPrompt(ref, items)),
     startNewWindow: (window, branchLeafMessageId, reason) => own(window).then((ref) => startNewContextWindowRecord(ref, branchLeafMessageId, reason)),
     linkVisibleMessage: (window, visibleMessageId) => own(window).then((ref) => linkVisibleContextNode(ref, visibleMessageId)),
     writeNote: (window, input) => own(window).then((ref) => writeContextNote({

@@ -2,8 +2,10 @@ import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("./service.js", () => ({ assertContextWindowOfTask: vi.fn() }));
 vi.mock("./tools.js", () => ({}));
 vi.mock("./notes.js", () => ({ writeContextNote: vi.fn() }));
+vi.mock("./window-prompt.js", () => ({ freezeContextWindowPrompt: vi.fn() }));
 import { assertContextWindowOfTask } from "./service.js";
 import { writeContextNote } from "./notes.js";
+import { freezeContextWindowPrompt } from "./window-prompt.js";
 import { createDbContextStore } from "./db-store.js";
 beforeEach(() => vi.resetAllMocks());
 
@@ -24,4 +26,21 @@ it("rejects a foreign window before invoking the writer", async () => {
   await expect(createDbContextStore("owned-task").writeNote({ taskId: "owned-task", windowId: "foreign", contextNodeId: "foreign" },
     { path: "a.md", text: "x", append: false })).rejects.toThrow("Not owned");
   expect(writeContextNote).not.toHaveBeenCalled();
+});
+
+it("binds the opening prompt to the owned task and returns its persisted snapshot", async () => {
+  const saved = [{ role: "developer" as const, content: "original notes" }];
+  vi.mocked(freezeContextWindowPrompt).mockResolvedValue(saved);
+  const window = { taskId: "forged-task", windowId: "owned-window", contextNodeId: "owned-node" };
+  const items = [{ role: "developer" as const, content: "updated notes" }];
+  await expect(createDbContextStore("owned-task").freezeWindowPrompt(window, items)).resolves.toEqual(saved);
+  expect(freezeContextWindowPrompt).toHaveBeenCalledExactlyOnceWith({ ...window, taskId: "owned-task" }, items);
+});
+
+it("rejects a foreign opening prompt before freezing it", async () => {
+  vi.mocked(assertContextWindowOfTask).mockRejectedValue(new Error("Not owned"));
+  await expect(createDbContextStore("owned-task").freezeWindowPrompt(
+    { taskId: "owned-task", windowId: "foreign", contextNodeId: "foreign" }, []
+  )).rejects.toThrow("Not owned");
+  expect(freezeContextWindowPrompt).not.toHaveBeenCalled();
 });
