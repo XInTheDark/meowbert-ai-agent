@@ -1,5 +1,11 @@
 # Changelog
 
+## Oct 30, 2026
+
+- Audited and fixed cases where the prompt cache would break.
+- Reworked style prompts and Writing Style Guide skill.
+- **Idle compaction**, similar to how it's done in claude code.
+
 ## Oct 29, 2026
 
 ### Tasks
