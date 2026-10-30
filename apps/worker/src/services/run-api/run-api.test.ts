@@ -103,6 +103,19 @@ afterEach(async () => {
 });
 
 describe("Run API retries", () => {
+  it("replays a lost per-window request snapshot reply exactly once", async () => {
+    const { control, token } = await claim();
+    const window = { taskId: "task-1", windowId: "window-1", contextNodeId: "node-1" };
+    const saved = { envelope: { baseVersion: "v1", baseFrames: [], deltas: [] }, tools: { response: [], codeMode: [] } };
+    control.context.prepareWindowRequest.mockResolvedValue(saved);
+    const remote = createHttpRunControl(client(token, {
+      fetch: losingFirstResponse((url) => url.includes("context.prepareWindowRequest"))
+    }));
+    await expect(remote.context.prepareWindowRequest(window, saved, true)).resolves.toEqual(saved);
+    expect(control.context.prepareWindowRequest).toHaveBeenCalledExactlyOnceWith(window, saved, true);
+    remote.stop();
+  });
+
   it("replays a lost window-prompt freeze reply without replacing the snapshot", async () => {
     const { control, token } = await claim();
     const window = { taskId: "task-1", windowId: "window-1", contextNodeId: "node-1" };

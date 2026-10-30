@@ -57,6 +57,7 @@ export interface ToolDispatchContext {
   runMode: TaskExecutionJob["mode"];
   // Idle compaction turns may only use the notes and history tools; any other call gets an error.
   notesOnly?: boolean;
+  completionEligibility?: { finalResponse: boolean; wait: boolean; stop: boolean };
   runToolOptions: TaskMessageToolOptions;
   isThreadTask: boolean;
   shellToolMaxTimeoutMs: number;
@@ -68,6 +69,8 @@ export interface ToolDispatchContext {
   activeSkillTools: FunctionTool[];
   // Tools this turn offers only through exec (code mode); unset when code mode is off.
   codeModeTools?: FunctionTool[];
+  // Current request's direct and nested function tools; saved prompts never grant access.
+  allowedFunctionTools?: string[];
   // Set while a tool runs inside exec, so its display message is never replayed as a model call.
   codeModeParentCallId?: string;
   enableSkillById: (skillId: string) => Promise<{ doc: string | null; toolNames: string[] }>;

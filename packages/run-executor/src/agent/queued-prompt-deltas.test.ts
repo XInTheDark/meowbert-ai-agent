@@ -65,7 +65,7 @@ describe("appendQueuedPromptDeltas", () => {
 });
 
 describe("appendQueuedPromptDeltas persistence", () => {
-  it("writes notes to run history unless they are run-scoped", async () => {
+  it("writes every sent note to history, including temporary run guidance", async () => {
     const { execution, promptEnvelope, runPersistedItems } = createExecution([]);
     sealPromptEnvelope(promptEnvelope);
     appendPromptEnvelopeDelta(promptEnvelope, { reason: "canvas", content: "Canvas created." });
@@ -73,7 +73,10 @@ describe("appendQueuedPromptDeltas persistence", () => {
 
     await appendQueuedPromptDeltas(execution);
 
-    expect(runPersistedItems).toEqual([{ role: "system", content: "Canvas created." }]);
+    expect(runPersistedItems).toEqual([
+      { role: "system", content: "Canvas created." },
+      { role: "system", content: "Wrap up." }
+    ]);
   });
 
   it("keeps a persisted note in the conversation when a rebuild reloads it from history", async () => {

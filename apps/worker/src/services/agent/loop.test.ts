@@ -69,7 +69,7 @@ vi.mock("@meowbert/run-executor/agent-tool-dispatch/index", () => ({
 
 vi.mock("@meowbert/run-executor/agent/turn-request", () => ({
   buildAgentTurnRequest: vi.fn(() => ({
-    responseTools: [],
+    responseTools: [{ type: "function", name: "final_response" }],
     codeModeTools: [],
     promptPrefixItems: [],
     promptPrefixHash: "prefix-hash",
@@ -86,6 +86,11 @@ vi.mock("@meowbert/run-executor/agent/prompt-envelope", () => ({
 
 vi.mock("@meowbert/run-executor/agent/queued-prompt-deltas", () => ({
   appendQueuedPromptDeltas: vi.fn()
+}));
+
+vi.mock("@meowbert/run-executor/agent/window-request", () => ({
+  prepareWindowTurnRequest: vi.fn(async (_execution, turn, toolChoice) => ({ ...turn, toolChoice })),
+  resetWindowRequestSetup: vi.fn()
 }));
 
 vi.mock("../queued-messages/inbox.js", () => ({

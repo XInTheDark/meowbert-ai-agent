@@ -81,6 +81,11 @@ function createLifecycleArchiveClient(executedSql: string[] = []): TaskHistoryAr
       if (text.includes("SELECT id, opening_prompt_json FROM task_context_windows")) {
         return { rows: [{ id: lifecycleIds.window, opening_prompt_json: [{ role: "developer", content: "Original window notes" }] } as T], rowCount: 1 };
       }
+      if (text.includes("SELECT id, request_state_json FROM task_context_windows")) {
+        return { rows: [{ id: lifecycleIds.window, request_state_json: {
+          envelope: { baseVersion: "v1", baseFrames: [], deltas: [] }, tools: { response: [], codeMode: [] }
+        } } as T], rowCount: 1 };
+      }
       if (text.includes("FROM task_media_blobs WHERE task_id = $1")) {
         return { rows: [{ sha256: "abc123", mime_type: "image/png", bytes: Buffer.from("png-bytes") } as T], rowCount: 1 };
       }
@@ -168,6 +173,7 @@ describe("archiveTaskHistory", () => {
       expect(archiveSql).toContain("UPDATE task_context_history_items SET payload_json = '{}'::jsonb WHERE task_id = $1");
       expect(archiveSql).toContain("UPDATE task_context_notes SET content = '' WHERE task_id = $1");
       expect(archiveSql).toContain("UPDATE task_context_windows SET opening_prompt_json = NULL WHERE task_id = $1");
+      expect(archiveSql).toContain("UPDATE task_context_windows SET request_state_json = NULL WHERE task_id = $1");
       expect(archiveSql).toContain("DELETE FROM task_media_blobs WHERE task_id = $1");
       expect(archived.metrics).toMatchObject({
         messageCount: 1,
@@ -184,6 +190,11 @@ describe("archiveTaskHistory", () => {
       expect(document.context.notes[0]).toEqual({id: lifecycleIds.note, content: "Branch notes"});
       expect(document.context.windowPrompts).toEqual([{
         id: lifecycleIds.window, opening_prompt_json: [{ role: "developer", content: "Original window notes" }]
+      }]);
+      expect(document.context.windowRequests).toEqual([{
+        id: lifecycleIds.window, request_state_json: {
+          envelope: { baseVersion: "v1", baseFrames: [], deltas: [] }, tools: { response: [], codeMode: [] }
+        }
       }]);
       expect(document.media).toEqual([{ sha256: "abc123", mime_type: "image/png", bytes_base64: Buffer.from("png-bytes").toString("base64") }]);
 
@@ -212,7 +223,8 @@ describe("archiveTaskHistory", () => {
       expect(restoreUpdates).toEqual(expect.arrayContaining([
         {text: expect.stringContaining("UPDATE task_context_history_items"), params: [lifecycleIds.contextItem, JSON.stringify(document.context.history[0].payload_json)]},
         {text: expect.stringContaining("UPDATE task_context_notes"), params: [lifecycleIds.note, "Branch notes"]},
-        {text: expect.stringContaining("UPDATE task_context_windows"), params: [lifecycleIds.window, JSON.stringify(document.context.windowPrompts[0].opening_prompt_json)]}
+        {text: expect.stringContaining("UPDATE task_context_windows"), params: [lifecycleIds.window, JSON.stringify(document.context.windowPrompts[0].opening_prompt_json)]},
+        {text: expect.stringContaining("UPDATE task_context_windows"), params: [lifecycleIds.window, JSON.stringify(document.context.windowRequests[0].request_state_json)]}
       ]));
       expect(restoreUpdates.some(({ text, params }) =>
         text.includes("UPDATE task_messages")

@@ -3,6 +3,33 @@ import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { normalizeProviderRequestInput } from "./provider-request-input.js";
 
 describe("normalizeProviderRequestInput", () => {
+  it("keeps appended Google instructions at the tail without changing the normalized prefix", () => {
+    const initial = [
+      { role: "developer", content: "Stable policy" },
+      { role: "system", content: [{ type: "input_text", text: "Stable tools" }] },
+      { role: "user", content: "Task" },
+      { type: "function_call", call_id: "c1", name: "shell", arguments: "{}" },
+      { type: "function_call_output", call_id: "c1", output: "Done" }
+    ] as ResponseInputItem[];
+    const before = normalizeProviderRequestInput(initial, "google");
+    const after = normalizeProviderRequestInput([...initial,
+      { role: "developer", content: "Write notes now" },
+      { role: "system", content: "Current budget" }
+    ], "google");
+    expect(after).toEqual([...before,
+      { role: "user", content: "Write notes now" },
+      { role: "user", content: "Current budget" }
+    ]);
+  });
+
+  it("does not promote a tail notice when there was no leading instruction", () => {
+    expect(normalizeProviderRequestInput([
+      { role: "user", content: "Task" }, { role: "developer", content: "Notice" }
+    ], "google")).toEqual([
+      { role: "user", content: "Task" }, { role: "user", content: "Notice" }
+    ]);
+  });
+
   it("repairs function_call items missing arguments", () => {
     const malformedCall = {
       type: "function_call",

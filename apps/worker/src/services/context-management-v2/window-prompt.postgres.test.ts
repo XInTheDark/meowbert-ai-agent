@@ -13,6 +13,7 @@ vi.mock("../../lib/db.js", async () => {
 
 const { pool } = await import("../../lib/db.js");
 const { freezeContextWindowPrompt } = await import("./window-prompt.js");
+const { prepareContextWindowRequest } = await import("./window-request.js");
 
 describe.skipIf(!databaseUrl)("Window prompt snapshots in PostgreSQL", () => {
   const taskId = randomUUID();
@@ -25,6 +26,7 @@ describe.skipIf(!databaseUrl)("Window prompt snapshots in PostgreSQL", () => {
     await pool.query("CREATE TABLE tasks (id uuid PRIMARY KEY); CREATE TABLE task_messages (id uuid PRIMARY KEY)");
     await pool.query(await readFile(new URL("../../../../../db/migrations/110_context_management_v2.sql", import.meta.url), "utf8"));
     await pool.query(await readFile(new URL("../../../../../db/migrations/154_context_window_prompt.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../../../../../db/migrations/155_context_window_request.sql", import.meta.url), "utf8"));
     await pool.query("INSERT INTO tasks (id) VALUES ($1)", [taskId]);
     await pool.query("INSERT INTO task_context_nodes (id, task_id, kind) VALUES ($1, $2, 'private')", [window.contextNodeId, taskId]);
     await pool.query("INSERT INTO task_context_windows (id, task_id, context_node_id, ordinal, opened_reason) VALUES ($1, $2, $3, 1, 'initial')",
@@ -59,6 +61,27 @@ describe.skipIf(!databaseUrl)("Window prompt snapshots in PostgreSQL", () => {
   it("refuses another task and enforces the migration's array constraint", async () => {
     await expect(freezeContextWindowPrompt({ ...window, taskId: randomUUID() }, updated)).rejects.toThrow("does not belong");
     await expect(pool.query("UPDATE task_context_windows SET opening_prompt_json = '{}'::jsonb WHERE id = $1", [window.windowId]))
+      .rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("freezes the request prefix atomically while retaining the latest ordinary tool recipe", async () => {
+    const first = { envelope: { baseVersion: "v1", baseFrames: [{ id: "base", role: "developer" as const, content: "First" }], deltas: [] },
+      tools: { response: [], codeMode: [] } };
+    const other = { ...first, envelope: { ...first.envelope, baseVersion: "other" } };
+    const results = await Promise.all([
+      prepareContextWindowRequest(window, first, false), prepareContextWindowRequest(window, other, false)
+    ]);
+    expect(results[0].envelope).toEqual(results[1].envelope);
+    const tool = { type: "function" as const, name: "test", description: "test", strict: false,
+      parameters: { type: "object", properties: {}, required: [] } };
+    const updated = { ...other, tools: { response: [tool], codeMode: [] }, toolChoice: "required" as const };
+    const saved = await prepareContextWindowRequest(window, updated, false);
+    expect(saved.envelope).toEqual(results[0].envelope);
+    expect(saved.tools).toEqual(updated.tools);
+    expect(saved.toolChoice).toBe("required");
+    expect(await prepareContextWindowRequest(window, first, true)).toEqual(saved);
+    await expect(prepareContextWindowRequest({ ...window, taskId: randomUUID() }, updated, false)).rejects.toThrow("does not belong");
+    await expect(pool.query("UPDATE task_context_windows SET request_state_json = '[]'::jsonb WHERE id = $1", [window.windowId]))
       .rejects.toMatchObject({ code: "23514" });
   });
 });

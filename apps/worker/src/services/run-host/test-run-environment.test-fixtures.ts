@@ -190,7 +190,8 @@ export function createFakeRunControl(): FakeRunControl {
     complete: () => Promise.resolve({ updatedStatus: true })
   }) as unknown as FakeRunControl;
   const context = lazyMocks<RunContextStore>({ loadLastCallNumber: () => Promise.resolve(0),
-    freezeWindowPrompt: (_window, items) => Promise.resolve(items) });
+    freezeWindowPrompt: (_window, items) => Promise.resolve(items),
+    prepareWindowRequest: (_window, request) => Promise.resolve(request) });
   const platform = lazyMocks<PlatformToolHost>();
   return new Proxy(control, {
     get(target, key, receiver) {

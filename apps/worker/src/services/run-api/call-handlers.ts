@@ -42,6 +42,7 @@ export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartb
   "context.loadLastCallNumber": contextCall("loadLastCallNumber"),
   "context.loadNotesSummary": contextCall("loadNotesSummary"),
   "context.freezeWindowPrompt": contextCall("freezeWindowPrompt"),
+  "context.prepareWindowRequest": contextCall("prepareWindowRequest"),
   "context.startNewWindow": contextCall("startNewWindow"),
   "context.linkVisibleMessage": contextCall("linkVisibleMessage"),
   "context.writeNote": contextCall("writeNote"),

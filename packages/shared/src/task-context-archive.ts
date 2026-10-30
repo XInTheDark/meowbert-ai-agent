@@ -4,10 +4,11 @@ export interface TaskContextArchive {
   history: Array<{ id: string; payload_json: Record<string, unknown> }>;
   notes: Array<{ id: string; content: string }>;
   windowPrompts?: Array<{ id: string; opening_prompt_json: unknown[] }>;
+  windowRequests?: Array<{ id: string; request_state_json: Record<string, unknown> }>;
 }
 
 export async function loadTaskContextArchive(client: TaskHistoryArchiveQueryable, taskId: string): Promise<TaskContextArchive> {
-  const [history, notes, windowPrompts] = await Promise.all([
+  const [history, notes, windowPrompts, windowRequests] = await Promise.all([
     client.query<TaskContextArchive["history"][number]>(
       "SELECT id, payload_json FROM task_context_history_items WHERE task_id = $1", [taskId]
     ),
@@ -16,9 +17,12 @@ export async function loadTaskContextArchive(client: TaskHistoryArchiveQueryable
     ),
     client.query<NonNullable<TaskContextArchive["windowPrompts"]>[number]>(
       "SELECT id, opening_prompt_json FROM task_context_windows WHERE task_id = $1 AND opening_prompt_json IS NOT NULL", [taskId]
+    ),
+    client.query<NonNullable<TaskContextArchive["windowRequests"]>[number]>(
+      "SELECT id, request_state_json FROM task_context_windows WHERE task_id = $1 AND request_state_json IS NOT NULL", [taskId]
     )
   ]);
-  return { history: history.rows, notes: notes.rows, windowPrompts: windowPrompts.rows };
+  return { history: history.rows, notes: notes.rows, windowPrompts: windowPrompts.rows, windowRequests: windowRequests.rows };
 }
 
 export async function stubTaskContextArchive(client: TaskHistoryArchiveQueryable, taskId: string): Promise<void> {
@@ -26,6 +30,7 @@ export async function stubTaskContextArchive(client: TaskHistoryArchiveQueryable
   await client.query("UPDATE task_context_history_items SET payload_json = '{}'::jsonb WHERE task_id = $1", [taskId]);
   await client.query("UPDATE task_context_notes SET content = '' WHERE task_id = $1", [taskId]);
   await client.query("UPDATE task_context_windows SET opening_prompt_json = NULL WHERE task_id = $1", [taskId]);
+  await client.query("UPDATE task_context_windows SET request_state_json = NULL WHERE task_id = $1", [taskId]);
 }
 
 export async function restoreTaskContextArchive(client: TaskHistoryArchiveQueryable, context?: TaskContextArchive): Promise<void> {
@@ -40,5 +45,9 @@ export async function restoreTaskContextArchive(client: TaskHistoryArchiveQuerya
   for (const window of context.windowPrompts ?? []) {
     await client.query("UPDATE task_context_windows SET opening_prompt_json = $2::jsonb WHERE id = $1",
       [window.id, JSON.stringify(window.opening_prompt_json)]);
+  }
+  for (const window of context.windowRequests ?? []) {
+    await client.query("UPDATE task_context_windows SET request_state_json = $2::jsonb WHERE id = $1",
+      [window.id, JSON.stringify(window.request_state_json)]);
   }
 }

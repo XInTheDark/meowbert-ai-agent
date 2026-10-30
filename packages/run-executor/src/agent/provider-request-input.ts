@@ -145,17 +145,16 @@ function mergeInstructionContent(messages: InstructionMessage[]): string | Respo
 }
 
 function mergeGoogleInstructionMessages(items: ResponseInputItem[]): ResponseInputItem[] {
-  const instructionMessages = items.filter(isInstructionMessage);
-  if (instructionMessages.length === 0) {
-    return items;
-  }
-
+  const firstConversationIndex = items.findIndex((item) => !isInstructionMessage(item));
+  const leadingCount = firstConversationIndex === -1 ? items.length : firstConversationIndex;
+  const leading = items.slice(0, leadingCount) as InstructionMessage[];
+  // Google has a single system instruction. Later runtime notices stay in the conversation.
+  const conversation = items.slice(leadingCount).map((item) => isInstructionMessage(item)
+    ? { ...item, role: "user" as const } as ResponseInputItem
+    : item);
   return [
-    {
-      role: "system",
-      content: mergeInstructionContent(instructionMessages)
-    },
-    ...items.filter((item) => !isInstructionMessage(item))
+    ...(leading.length > 0 ? [{ role: "system" as const, content: mergeInstructionContent(leading) }] : []),
+    ...conversation
   ];
 }
 

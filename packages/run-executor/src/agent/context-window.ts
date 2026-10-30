@@ -7,6 +7,8 @@ import {
 } from "../context-management-v2/window.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { AgentExecutionContext } from "./execution-types.js";
+import { resetWindowRequestSetup } from "./window-request.js";
+import { persistRuntimeNotices } from "./runtime-notices.js";
 
 const MAX_CONTEXT_OVERFLOW_RECOVERY_CHARS = 16_000;
 const OPAQUE_ITEM_MARKER = /\n\[id: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]$/i;
@@ -55,6 +57,7 @@ export async function resetV2ContextWindow(
 ): Promise<void> {
   const context = execution.state.contextManagement;
   if (context.version !== "v2") return;
+  await persistRuntimeNotices(execution);
   const { control } = execution.prepared;
   const tokenEstimate = execution.state.dispatchState.contextUsage?.usedTokens ?? null;
   const persistedItems = [...execution.state.dispatchState.runPersistedItems];
@@ -83,6 +86,7 @@ export async function resetV2ContextWindow(
     visibleMessageId: checkpointMessageId
   });
   execution.state.contextManagement = next;
+  resetWindowRequestSetup(execution);
   execution.state.dispatchState.pendingContextV2Reset = false;
   const windowDeveloperItems = await buildV2WindowDeveloperItems(control.context, {
     state: next,

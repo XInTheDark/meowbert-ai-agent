@@ -1807,6 +1807,47 @@ describe("dispatchResponseOutput", () => {
     expect(outputItem?.output).toContain("Tool list_skills failed: event boom");
   });
 
+  it.each(["final_response", "wait", "stop_task"])("rejects an ineligible %s even though its schema stays available", async (name) => {
+    const ctx = createBaseContext();
+    ctx.completionEligibility = { finalResponse: false, wait: false, stop: false };
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+    const result = await dispatchResponseOutput([{
+      type: "function_call", call_id: "phase-action", name, arguments: "{}"
+    }], ctx, state);
+    expect(result.finalResponse).toBeNull();
+    expect(result.waitRequest).toBeNull();
+    expect(result.stopRequest).toBeNull();
+    expect(state.runPersistedItems.at(-1)).toMatchObject({ type: "function_call_output",
+      output: expect.stringContaining("unavailable in the current run phase") });
+  });
+
+  it("rejects computer actions when computer use has been revoked", async () => {
+    const ctx = createBaseContext();
+    ctx.actorUserId = "user";
+    ctx.runToolOptions.computerUse = false;
+    const broker = vi.mocked(requestDesktopComputerAction);
+    broker.mockClear();
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+    await dispatchResponseOutput([{
+      type: "function_call", call_id: "revoked-computer", name: "computer_screenshot", arguments: "{}"
+    }], ctx, state);
+    expect(broker).not.toHaveBeenCalled();
+    expect(state.runPersistedItems.at(-1)).toMatchObject({ output: expect.stringContaining("Computer use is disabled") });
+  });
+
+  it("does not let a saved prompt authorize a tool absent from the current request", async () => {
+    const ctx = createBaseContext();
+    ctx.allowedFunctionTools = ["final_response"];
+    const shell = vi.mocked(executeShellCommand);
+    shell.mockClear();
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+    await dispatchResponseOutput([{
+      type: "function_call", call_id: "revoked-shell", name: "run_shell", arguments: JSON.stringify({ command: "pwd" })
+    }], ctx, state);
+    expect(shell).not.toHaveBeenCalled();
+    expect(state.runPersistedItems.at(-1)).toMatchObject({ output: expect.stringContaining("unavailable in the current run") });
+  });
+
   it("persists function_call_output for parse errors so function calls remain paired", async () => {
     const ctx = createBaseContext();
     const state: ToolDispatchState = {

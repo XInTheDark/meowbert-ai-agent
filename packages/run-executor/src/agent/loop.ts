@@ -22,6 +22,8 @@ import { dispatchResponseOutput, type ToolDispatchContext } from "../agent-tool-
 import { isContextManagementV2Tool } from "../agent-tool-dispatch/handlers/context-management-v2.js";
 import { isIdleCompactionRun } from "./idle-compaction.js";
 import { buildAgentTurnRequest } from "./turn-request.js";
+import { appendRuntimeNotice, persistRuntimeNotices } from "./runtime-notices.js";
+import { prepareWindowTurnRequest } from "./window-request.js";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "./prompt-envelope.js";
 import { appendQueuedPromptDeltas } from "./queued-prompt-deltas.js";
@@ -130,18 +132,18 @@ async function maybeApplySubscriptionQuota(execution: AgentExecutionContext): Pr
 function maybeAppendWindingDownNotice(execution: AgentExecutionContext, availability: AgentStepAvailability): void {
   const forcedSubmitReason = execution.swarm?.lane ? execution.swarm.forcedSubmitReason : null;
   if (forcedSubmitReason) {
-    execution.state.dispatchState.conversationItems.push({ role: "user", content: buildForcedSubmitNote(forcedSubmitReason) });
+    appendRuntimeNotice(execution, { role: "user", content: buildForcedSubmitNote(forcedSubmitReason) });
     return;
   }
   if (!availability.isWindingDown && !execution.runTiming.timedRunFinalizing) {
     return;
   }
   if (isSwarmLane(execution)) {
-    execution.state.dispatchState.conversationItems.push({ role: "user", content: LANE_STEP_LIMIT_NOTE });
+    appendRuntimeNotice(execution, { role: "user", content: LANE_STEP_LIMIT_NOTE });
     return;
   }
 
-  execution.state.dispatchState.conversationItems.push({
+  appendRuntimeNotice(execution, {
     role: "user",
     content: execution.runTiming.timedRunFinalizing
       ? buildTimedRunFinalizationMessage()
@@ -329,8 +331,9 @@ async function requestModelTurn(input: {
   allowComputerVisualTools: boolean;
 }): Promise<ModelTurnResult> {
   const { execution, step, availability } = input;
+  await persistRuntimeNotices(execution);
   await appendQueuedPromptDeltas(execution);
-  const turnRequest = buildAgentTurnRequest({
+  const turnRequest = await prepareWindowTurnRequest(execution, buildAgentTurnRequest({
     taskId: execution.job.taskId,
     cacheTaskId: execution.swarm?.swarmTaskId,
     fixedTools: execution.laneSeed?.tools,
@@ -338,9 +341,9 @@ async function requestModelTurn(input: {
     activeSkillTools: execution.prepared.activeSkillTools,
     promptEnvelope: execution.promptEnvelope,
     availability: {
-      allowFinalResponse: availability.allowFinalResponseTool,
-      allowStopTask: availability.allowStopTaskTool,
-      allowWaitTool: availability.allowWaitTool,
+      allowFinalResponse: execution.workflow.workflowContext ? availability.allowFinalResponseTool : true,
+      allowStopTask: execution.allowStopTask,
+      allowWaitTool: execution.prepared.snapshot.task.allow_waiting !== false && !execution.workflow.workflowContext,
       allowScheduleTools: execution.allowScheduleTools,
       loadedToolGroups: [...execution.loadedToolGroups],
       allowSubtaskTools: execution.allowSubtaskTools,
@@ -357,9 +360,10 @@ async function requestModelTurn(input: {
         && execution.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),
       allowFileIndexTools: execution.prepared.memoryEnabled,
       allowFileIndexSave: execution.prepared.snapshot.task.is_thread !== true,
-      allowComputerLocalShell: !execution.prepared.settings.hostMode && execution.job.executionTarget?.kind !== "local" && input.allowComputerLocalShell,
+      allowComputerLocalShell: !execution.prepared.settings.hostMode && execution.job.executionTarget?.kind !== "local"
+        && execution.prepared.runToolOptions.computerUse === true,
       allowHostShell: !!execution.prepared.control.platform.hostShell,
-      allowComputerVisualTools: input.allowComputerVisualTools,
+      allowComputerVisualTools: execution.prepared.runToolOptions.computerUse === true,
       allowRefreshGitHubToken: execution.prepared.hasGitHubAppConnection,
       allowStartLongHorizonTask: execution.workflow.allowWorkflowStartLongHorizon,
       allowRequestClarification: execution.workflow.allowWorkflowRequestClarification,
@@ -377,11 +381,12 @@ async function requestModelTurn(input: {
       swarmRouter: execution.swarm?.router ?? null
     },
     codeMode: isCodeModeEnabled(execution)
-  });
+  }), resolveModelToolChoice(execution, availability, step));
+  await appendQueuedPromptDeltas(execution);
   prepareV2ContextWindowUsage(execution, turnRequest.promptPrefixItems);
   sealPromptEnvelope(execution.promptEnvelope);
   logLaneForkPrefix(execution, turnRequest.promptPrefixHash);
-  const toolChoice = resolveModelToolChoice(execution, availability, step);
+  const toolChoice = turnRequest.toolChoice;
   const requestItemCount = execution.state.dispatchState.conversationItems.length;
 
   await execution.prepared.control.emitEvent("thinking_start", { step });
@@ -617,6 +622,14 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     connectorContextId: execution.prepared.snapshot.task.connector_context_id,
     defaultTimezone: execution.prepared.snapshot.task.default_timezone || "UTC",
     runMode: execution.job.mode ?? "default",
+    completionEligibility: {
+      finalResponse: execution.workflow.workflowContext
+        ? execution.workflow.allowWorkflowFinalResponse && !execution.runTiming.timedRunFinalizing
+        : execution.job.mode !== "infinite_auto" || execution.runTiming.timedRunFinalizing,
+      wait: execution.prepared.snapshot.task.allow_waiting !== false
+        && !execution.runTiming.timedRunFinalizing && !execution.workflow.workflowContext,
+      stop: execution.allowStopTask && !execution.runTiming.timedRunFinalizing
+    },
     notesOnly: isIdleCompactionRun(execution.job),
     runToolOptions: execution.prepared.runToolOptions,
     isThreadTask: execution.prepared.snapshot.task.is_thread,
@@ -628,6 +641,8 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     activeMcpConnections: execution.prepared.activeMcpConnections,
     activeSkillTools: execution.prepared.activeSkillTools,
     ...(codeModeTools.length > 0 ? { codeModeTools } : {}),
+    allowedFunctionTools: [...turn.responseTools, ...codeModeTools]
+      .filter((tool): tool is FunctionTool => tool.type === "function").map((tool) => tool.name),
     enableSkillById: execution.enableSkillById,
     onDemandSkills: execution.onDemandCapabilities,
     appendPromptDelta: (promptDeltaInput) => {
@@ -660,12 +675,12 @@ function handlePlainTextWithoutToolCall(
   }
 
   if (isSwarmLane(execution)) {
-    execution.state.dispatchState.conversationItems.push({ role: "user", content: LANE_PLAIN_TEXT_NOTE });
+    appendRuntimeNotice(execution, { role: "user", content: LANE_PLAIN_TEXT_NOTE });
     return;
   }
 
   if (requireWorkflowToolAction) {
-    execution.state.dispatchState.conversationItems.push({
+    appendRuntimeNotice(execution, {
       role: "user",
       content: availability.allowFinalResponseTool
         ? "[System: Workflow runs cannot finish via plain text. Call final_response explicitly.]"
@@ -675,14 +690,14 @@ function handlePlainTextWithoutToolCall(
   }
 
   if (availability.allowFinalResponseTool) {
-    execution.state.dispatchState.conversationItems.push({
+    appendRuntimeNotice(execution, {
       role: "user",
       content: "[System: Continue working with tools. When the task is complete, call final_response explicitly; plain text does not finish the run.]"
     });
     return;
   }
 
-  execution.state.dispatchState.conversationItems.push({
+  appendRuntimeNotice(execution, {
     role: "user",
     content: !availability.allowWaitTool
       ? "[System: Plain-text completion is not allowed yet. Waiting is disabled for this task, so continue working and use tools instead of concluding.]"
@@ -692,18 +707,18 @@ function handlePlainTextWithoutToolCall(
 
 function handleNoToolCallFallback(execution: AgentExecutionContext, availability: AgentStepAvailability): "continue" | "break" {
   if (isSwarmLane(execution)) {
-    execution.state.dispatchState.conversationItems.push({ role: "user", content: LANE_PLAIN_TEXT_NOTE });
+    appendRuntimeNotice(execution, { role: "user", content: LANE_PLAIN_TEXT_NOTE });
     return "continue";
   }
   if (!availability.allowFinalResponseTool && !availability.allowWaitTool) {
-    execution.state.dispatchState.conversationItems.push({
+    appendRuntimeNotice(execution, {
       role: "user",
       content: "[System: You must keep working in this run. Waiting is disabled and no completion tool is available yet. Continue with tools.]"
     });
     return "continue";
   }
 
-  execution.state.dispatchState.conversationItems.push({
+  appendRuntimeNotice(execution, {
     role: "user",
     content: availability.allowFinalResponseTool && availability.allowWaitTool
       ? "[System: Your previous turn produced no answer text and no tool calls. Call final_response() if you are done, use wait() for a bounded delay or shell-session condition, or keep working with tools.]"
@@ -875,7 +890,7 @@ async function processModelTurnResult(
     incompleteReason: response.incomplete_details?.reason ?? null
   });
   if (response.incomplete_details?.reason === "max_output_tokens") {
-    execution.state.dispatchState.conversationItems.push({
+    appendRuntimeNotice(execution, {
       role: "user",
       content: "[System: Your previous turn hit the output token limit while reasoning, before it produced any text or tool call. Think briefly and act now.]"
     });
@@ -886,6 +901,8 @@ async function processModelTurnResult(
 
 async function runSingleAgentStep(execution: AgentExecutionContext, step: number): Promise<"continue" | "break"> {
   await assertStepNotAborted(execution);
+  // Save the prior turn's notice before inbox delivery records any later conversation items.
+  await persistRuntimeNotices(execution);
 
   if (await maybeApplySubscriptionQuota(execution)) {
     return "break";
@@ -897,6 +914,7 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
     await execution.prepared.features.beforeStep(execution);
     maybeAppendWindingDownNotice(execution, availability);
   }
+  await persistRuntimeNotices(execution);
   await maybeRunAutoCompaction(execution, step);
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);
   const turn = await requestModelTurnWithRecovery({
@@ -959,6 +977,7 @@ export async function runAgentStepLoop(execution: AgentExecutionContext): Promis
     }
   }
 
+  await persistRuntimeNotices(execution);
   execution.runTiming.reachedMaxRunSteps = reachedMaxRunSteps;
   if (reachedMaxRunSteps) {
     await execution.debugLogger.log("Run exhausted its reasoning step budget without a terminal tool call.", {

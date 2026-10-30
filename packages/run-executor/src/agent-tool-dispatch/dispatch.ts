@@ -128,6 +128,15 @@ async function dispatchFunctionToolCall(
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ToolCallResult> {
+  if (ctx.allowedFunctionTools && !ctx.allowedFunctionTools.includes(outputItem.name)) {
+    return toolErrorResult("This tool is unavailable in the current run.");
+  }
+  const eligibility = ctx.completionEligibility;
+  if (eligibility && ((outputItem.name === FINAL_RESPONSE_TOOL_NAME && !eligibility.finalResponse)
+    || (outputItem.name === WAIT_TOOL_NAME && !eligibility.wait)
+    || (outputItem.name === STOP_TASK_TOOL_NAME && !eligibility.stop))) {
+    return toolErrorResult("This action is unavailable in the current run phase. Follow the latest run instructions.");
+  }
   const featureResult = ctx.features.handleToolCall(outputItem, ctx, state);
   if (featureResult) {
     return featureResult;

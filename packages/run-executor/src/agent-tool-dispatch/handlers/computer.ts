@@ -176,6 +176,7 @@ export async function handleComputerToolCall(
   }
 
   await ctx.assertNotCancelled();
+  if (ctx.runToolOptions.computerUse !== true) return toolErrorResult("Computer use is disabled for this run.");
   const toolName = outputItem.name as ComputerToolName;
   const parsed = parseComputerToolArguments(outputItem);
   if (!parsed.ok) {

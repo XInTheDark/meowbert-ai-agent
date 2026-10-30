@@ -28,7 +28,7 @@ function restoreDroppedDeltas(envelope: PromptEnvelope, conversationItems: Respo
 
 // Appends prompt notes raised after the prefix was sealed (skill enabled, canvas created, ...) at a
 // model-turn boundary, so they never split a tool call from its output or rewrite the cached prefix.
-// Notes are written to history so later runs replay them in place; run-scoped ones are not.
+// All sent notes are written to history so later runs replay them in place.
 export async function appendQueuedPromptDeltas(execution: AgentExecutionContext): Promise<void> {
   const envelope = execution.promptEnvelope;
   const state = execution.state;
@@ -39,7 +39,7 @@ export async function appendQueuedPromptDeltas(execution: AgentExecutionContext)
   appendedDeltaItems.set(envelope, appended);
   for (const { delta, item } of drained) appended.set(delta.id, item);
   state.dispatchState.conversationItems.push(...drained.map(({ item }) => item));
-  const persisted = drained.filter(({ delta }) => !delta.runScoped).map(({ item }) => item);
+  const persisted = drained.map(({ item }) => item);
   if (persisted.length === 0) return;
   state.dispatchState.runPersistedItems.push(...persisted);
   if (state.contextManagement.version === "v2") await recordContextItems(execution.prepared.control.context, state.contextManagement, persisted);

@@ -15,8 +15,8 @@ import type { ResponseInputItem, Tool } from "openai/resources/responses/respons
  *   of the conversation at the next turn boundary (see queued-prompt-deltas.ts), so they never land
  *   between a tool call and its output.
  * - Queued deltas are saved with the run's response items, so later runs replay them in the same
- *   position and history only ever grows. `runScoped` deltas are not saved because the next run's
- *   setup recreates them (timed-run wrap-up, quick-mode switch and the skills it auto-enables).
+ *   position and history only ever grows. Run-state changes supersede earlier notices at the tail;
+ *   even temporary notes must stay at their original positions on replay.
  * - If a conversation rebuild (compaction, context-window reset) drops a queued delta, it moves back
  *   into the prefix; the prefix changes at that point anyway, so no cached prefix is lost.
  * - Deltas are skipped when the latest delta with the same reason has the same content, so
@@ -37,7 +37,7 @@ export interface PromptEnvelopeFrame {
 export interface PromptEnvelopeDelta extends PromptEnvelopeFrame {
   reason: string;
   createdAt: string;
-  // Run-scoped notes are recreated by the next run's setup, so they are not written to history.
+  // Marks temporary guidance; it is still persisted and superseded by later run-state updates.
   runScoped?: boolean;
 }
 

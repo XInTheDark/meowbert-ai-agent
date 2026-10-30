@@ -14,7 +14,7 @@ import {
   getVisibleMessagesForContextClear,
 } from "../context-compaction/index.js";
 import { CONTEXT_WINDOW_GUIDANCE } from "../context-management-v2/prompts.js";
-import { buildV2WindowDeveloperItems, resolveContextManagementState } from "../context-management-v2/window.js";
+import { buildV2WindowDeveloperItems, recordContextItems, resolveContextManagementState } from "../context-management-v2/window.js";
 import { appendPromptEnvelopeDelta, createPromptEnvelope } from "./prompt-envelope.js";
 import { ensureRecurringTaskStateFile } from "./recurring-state-file.js";
 import { enableRunCapabilities, resolveOnDemandCapabilities } from "./run-capabilities.js";
@@ -383,7 +383,12 @@ async function buildRunPromptEnvelope(input: {
     );
   }
   if (workflowPrompt?.liveState) {
-    input.conversationItems.push({ role: "developer", content: workflowPrompt.liveState });
+    const item: ResponseInputItem = { role: "developer", content: workflowPrompt.liveState };
+    if (input.contextManagement.version === "v2") {
+      await recordContextItems(prepared.control.context, input.contextManagement, [item]);
+    }
+    input.conversationItems.push(item);
+    prepared.runPersistedItems.push(item);
   }
   return promptEnvelope;
 }

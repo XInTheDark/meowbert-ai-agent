@@ -1,6 +1,6 @@
 # Prompt cache stability audit
 
-As of October 29, 2026. Scope: request assembly, run resumes, idle compaction,
+Updated October 30, 2026. Scope: request assembly, run resumes, idle compaction,
 provider normalization, tool catalogs, and context persistence in Meowbert.
 Findings are based on local source and request comparisons, not production
 cache telemetry. Meridian's local Responses translator was inspected read-only.
@@ -41,7 +41,49 @@ task ownership, lost Run API replies, and archive restoration. PostgreSQL tests
 use `TEST_CONTEXT_DATABASE_URL` and create an isolated schema. No live model cache
 measurement is claimed.
 
-## Remaining findings and proposed fixes
+## Follow-up implementation status
+
+Migration 155 adds an atomic per-window request snapshot. The first effective
+prompt envelope is retained on resumes; changed current setup is delivered in a
+persisted developer item at the conversation tail. This covers memory, outline,
+source-status, canvas metadata, schedule and initial capability documentation.
+Rollover may adopt the current setup into a fresh snapshot. Forked swarm lanes
+continue using their existing seed envelope and session-isolation mechanism.
+
+Idle requests reuse the last ordinary tool recipe and tool choice, intersected with currently
+available tools. Code-mode exec documentation is rebuilt from that intersection,
+so incidental idle scheduling tools do not change it and revoked sources do not
+come back. Ordinary completion tool schemas and consented computer tools remain
+stable across timed phases and temporary disconnects; dispatch enforces current
+completion eligibility, tool authorization and device readiness. A stable recipe
+does not grant permission to execute a removed tool.
+
+All queued prompt notes, including temporary run guidance, are persisted.
+Winding-down and retry/fallback notices and workflow live state are also saved in
+their original order. A new run supersedes an earlier timed-wrap-up instruction
+at the tail. Google merges leading instructions only and carries later notices
+as user-role conversation items while preserving tool-output adjacency.
+
+The snapshot is transported through the Run API and included in cold archives.
+Unchanged turns reuse the in-process snapshot without another database write;
+ordinary tool changes update the stored recipe. PostgreSQL races and ownership,
+lost replies, archive restoration, setup changes/reverts/restarts, rollover,
+normalized Google prefixes, idle code-mode catalogs and revocations are covered
+by regressions. Existing windows initialize once after migration 155; no original
+unsaved setup can be reconstructed retroactively. Migrations 154 and 155 must be
+applied before the updated runtime starts. Live provider cache usage is untested.
+
+Remaining work: direct tool additions or transient source-discovery failures can
+still change ordinary request schemas (finding 6); quick-mode sandbox activation
+also changes its capabilities. The cache/session digest redesign (finding 7) is
+still proposed. Google role handling is verified locally, not against a live
+proxy/model. Broader V1 setup persistence remains outside this V2 window fix.
+
+## Findings and original proposed fixes
+
+Findings 1–5 are addressed by the follow-up above for V2 windows; finding 6 is
+partially addressed through immutable setup and idle tool replay. The source
+descriptions below record the failure paths identified before those changes.
 
 ### 1. Mutable state in the base prompt and setup deltas
 
@@ -177,6 +219,7 @@ contract and fork isolation; do not simply switch all sessions to task IDs.
    first request after each ordinary resume, idle wake and restart. Classify
    intentional rollover/history-edit/model changes separately.
 
-The implemented notes fix does not claim to solve the remaining findings.
+Direct capability/catalog transitions and normalized cache diagnostics remain
+separate follow-ups as described above.
 Existing `context_replace_calls`, manual history edits and context rollover
 deliberately replace input and are separate from these accidental mutations.
