@@ -100,4 +100,41 @@ describe("createRecoverableSandboxController", () => {
     await expect(controller.initializeSandbox()).resolves.toEqual({ alreadyInitialized: true });
     expect(create).toHaveBeenCalledTimes(1);
   });
+
+  it("starts creating the sandbox in the background and shares it with the first command", async () => {
+    const created = fakeSandbox({ id: "warm", execute: async () => exitResult(0) });
+    const create = vi.fn(async () => created as unknown as DockerSandboxHandle);
+    const controller = createRecoverableSandboxController({ create, warmUp: true });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    const result = await controller.sandbox.executeShellCommand(commandInput);
+    expect(result.exitCode).toBe(0);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(controller.sandbox.id).toBe("warm");
+  });
+
+  it("surfaces a failed warm-up on the first command and creates a fresh sandbox for the next", async () => {
+    const created = fakeSandbox({ id: "retry", execute: async () => exitResult(0) });
+    const create = vi.fn()
+      .mockRejectedValueOnce(new Error("docker unavailable"))
+      .mockResolvedValueOnce(created as unknown as DockerSandboxHandle);
+    const controller = createRecoverableSandboxController({ create, warmUp: true });
+
+    await expect(controller.sandbox.executeShellCommand(commandInput)).rejects.toThrow("docker unavailable");
+    const result = await controller.sandbox.executeShellCommand(commandInput);
+    expect(result.exitCode).toBe(0);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops a sandbox that finishes starting after the run was stopped", async () => {
+    const created = fakeSandbox({ id: "late", execute: async () => exitResult(0) });
+    let release!: (sandbox: DockerSandboxHandle) => void;
+    const create = vi.fn(() => new Promise<DockerSandboxHandle>((resolve) => { release = resolve; }));
+    const controller = createRecoverableSandboxController({ create, warmUp: true });
+
+    const stopping = controller.sandbox.stop();
+    release(created as unknown as DockerSandboxHandle);
+    await stopping;
+    expect(created.stop).toHaveBeenCalled();
+  });
 });

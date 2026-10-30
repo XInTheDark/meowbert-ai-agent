@@ -21,7 +21,7 @@ export interface MachineSpec {
   resources: RunSandboxResources;
   // The run's shell environment; later additions apply to commands started afterwards.
   env: Record<string, string>;
-  // Quick-mode runs start the sandbox only when the agent first needs it.
+  // Start the sandbox in the background right away; quick-mode runs start it only when the agent first needs it.
   startEagerly: boolean;
   log: (message: string, payload: Record<string, unknown>) => Promise<void>;
 }

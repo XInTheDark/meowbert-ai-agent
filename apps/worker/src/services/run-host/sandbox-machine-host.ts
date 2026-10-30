@@ -63,17 +63,26 @@ async function createSandbox(spec: MachineSpec): Promise<DockerSandboxHandle> {
   }
 }
 
-async function createInitialSandbox(spec: MachineSpec, create: () => Promise<DockerSandboxHandle>): Promise<DockerSandboxHandle> {
+async function createLoggedSandbox(spec: MachineSpec): Promise<DockerSandboxHandle> {
   await spec.log("Creating task sandbox.", { stage: "startup.sandbox", phase: "start" });
-  const sandbox = await create();
-  await spec.log("Created task sandbox.", {
-    stage: "startup.sandbox",
-    phase: "success",
-    taskDir: spec.taskDir,
-    networkEnabled: spec.networkEnabled,
-    runAsRoot: spec.runAsRoot
-  });
-  return sandbox;
+  try {
+    const sandbox = await createSandbox(spec);
+    await spec.log("Created task sandbox.", {
+      stage: "startup.sandbox",
+      phase: "success",
+      taskDir: spec.taskDir,
+      networkEnabled: spec.networkEnabled,
+      runAsRoot: spec.runAsRoot
+    });
+    return sandbox;
+  } catch (error) {
+    await spec.log("Failed to create task sandbox.", {
+      stage: "startup.sandbox",
+      phase: "error",
+      error: error instanceof Error ? error.message : String(error)
+    });
+    throw error;
+  }
 }
 
 async function startSandboxMachine(spec: MachineSpec): Promise<MachineHost> {
@@ -82,11 +91,11 @@ async function startSandboxMachine(spec: MachineSpec): Promise<MachineHost> {
     taskId: spec.taskId,
     workspaceId: spec.workspaceId
   }).catch(() => undefined);
-  const create = () => createSandbox(spec);
+  const create = () => createLoggedSandbox(spec);
   try {
     const controller = createRecoverableSandboxController({
       create,
-      initial: spec.startEagerly ? await createInitialSandbox(spec, create) : null,
+      warmUp: spec.startEagerly,
       onRecovered: (recovery) => spec.log("Replaced crashed task sandbox.", {
         stage: "sandbox.recovery",
         phase: "success",

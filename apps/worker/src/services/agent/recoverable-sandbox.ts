@@ -23,12 +23,14 @@ function describeRecovery(report: SandboxCrashReport, restartError: unknown): st
 }
 
 /**
- * Owns the run's sandbox container: creates it (eagerly or on first use) and
- * replaces it with a fresh container when Docker reports it is no longer running.
+ * Owns the run's sandbox container: creates it (in the background right away with
+ * `warmUp`, otherwise on first use) and replaces it with a fresh container when
+ * Docker reports it is no longer running.
  */
 export function createRecoverableSandboxController(input: {
   create: () => Promise<PersistentSandbox>;
   initial?: PersistentSandbox | null;
+  warmUp?: boolean;
   onRecovered?: (recovery: SandboxRecovery) => Promise<void> | void;
 }): SandboxController {
   let current: PersistentSandbox | null = input.initial ?? null;
@@ -123,6 +125,11 @@ export function createRecoverableSandboxController(input: {
       }
     }
   } as unknown as PersistentSandbox;
+
+  if (input.warmUp && !current) {
+    // A failed warm-up is retried, and reported, by the first command that needs the sandbox.
+    void ensureSandbox().catch(() => {});
+  }
 
   return {
     sandbox,
