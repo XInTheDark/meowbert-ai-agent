@@ -34,6 +34,8 @@ The first start takes a while: Docker downloads the sandbox image (several GB) a
 
 Open `http://localhost:5173` in your browser. On a new server the sign-in page opens on **Create your account**. The first account becomes the server's admin.
 
+![The Create your account page on a new Meowbert server.](../assets/screenshots/create-account.webp)
+
 ## 5. Connect a model provider
 
 Right after you sign in, a short setup wizard asks for:
@@ -42,6 +44,8 @@ Right after you sign in, a short setup wizard asks for:
 2. **Your models**: the models people can pick for tasks, and how hard each one should reason. The first one is the default.
 3. **Background models**: a fast, inexpensive model for routing and quick jobs.
 4. **Sign-ups**: whether other people can create accounts.
+
+![The first setup wizard step, Connect a model provider, with Base URL and API key fields.](../assets/screenshots/setup-wizard-provider.webp)
 
 You can change all of this later in the **Admin Panel**. See [Models & Providers](/self-hosting/models-and-providers) for details.
 

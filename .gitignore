@@ -19,6 +19,7 @@ apps/desktop/dist-packages
 apps/desktop/dist
 apps/web/dist
 apps/docs/docs/.vitepress/dist
+apps/docs/docs/.vitepress/cache
 .codex
 
 # Local config copies (may contain secrets)
