@@ -95,7 +95,7 @@ export const onboardingDocsManifest: Record<string, OnboardingDocsEntry> = {
   },
   "welcome": {
     id: "welcome",
-    title: "Workspaces, Projects and tasks",
+    title: "Projects and tasks",
     summary: "Understand how work is organized before creating your first task.",
     checklistLabel: "Welcome",
     docsPath: "/getting-started/overview"

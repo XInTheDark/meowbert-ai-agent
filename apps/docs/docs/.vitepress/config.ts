@@ -61,32 +61,19 @@ export default defineConfig({
       {
         text: "Introduction",
         items: [
-          { text: "Overview", link: "/introduction/principles" },
+          { text: "What is Meowbert?", link: "/introduction/principles" },
+          { text: "Quickstart", link: "/getting-started/quickstart" },
           { text: "System Requirements", link: "/introduction/requirements" },
-          { text: "Known Limitations", link: "/introduction/limitations" },
-          { text: "Quickstart", link: "/getting-started/quickstart" }
+          { text: "Known Limitations", link: "/introduction/limitations" }
         ]
       },
       {
         text: "Getting Started",
         items: [
-          { text: "Workspaces, Projects and tasks", link: "/getting-started/overview" },
+          { text: "Projects and tasks", link: "/getting-started/overview" },
           { text: "Workspace Navigation", link: "/getting-started/workspace-navigation" },
           { text: "Open Your Project", link: "/getting-started/create-project" },
           { text: "Project Master", link: "/getting-started/project-master" },
-          {
-            text: "Desktop App",
-            link: "/getting-started/desktop-app",
-            collapsed: false,
-            items: [
-              { text: "Local tasks overview", link: "/getting-started/desktop-app/local-tasks" },
-              { text: "Use a server workspace locally", link: "/getting-started/desktop-app/server-workspaces" },
-              { text: "Workspaces on this device", link: "/getting-started/desktop-app/device-workspaces" },
-              { text: "Host mode and host tools", link: "/getting-started/desktop-app/host-tools" },
-              { text: "Live Google Drive folders", link: "/getting-started/desktop-app/live-drive-folders" },
-              { text: "Quick Agent and shortcuts", link: "/getting-started/desktop-app/shortcuts" }
-            ]
-          },
           { text: "Next Steps", link: "/getting-started/next-steps" }
         ]
       },
@@ -128,6 +115,18 @@ export default defineConfig({
           { text: "Discord", link: "/core-workflows/connectors-discord" },
           { text: "GitHub", link: "/core-workflows/connectors-github" },
           { text: "Email", link: "/core-workflows/connectors-email" }
+        ]
+      },
+      {
+        text: "Desktop App",
+        items: [
+          { text: "Overview", link: "/getting-started/desktop-app" },
+          { text: "Local tasks overview", link: "/getting-started/desktop-app/local-tasks" },
+          { text: "Use a server workspace locally", link: "/getting-started/desktop-app/server-workspaces" },
+          { text: "Workspaces on this device", link: "/getting-started/desktop-app/device-workspaces" },
+          { text: "Host mode and host tools", link: "/getting-started/desktop-app/host-tools" },
+          { text: "Live Google Drive folders", link: "/getting-started/desktop-app/live-drive-folders" },
+          { text: "Quick Agent and shortcuts", link: "/getting-started/desktop-app/shortcuts" }
         ]
       },
       {

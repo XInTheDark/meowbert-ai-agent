@@ -47,11 +47,13 @@ You can change all of this later in the **Admin Panel**. See [Models & Providers
 
 ## 6. Run your first task
 
-Open your project, click **New Task**, and describe what you want done, for example:
+Open your project. You land in a conversation with the project's **Master**, an agent that starts tasks for you and reports back. Tell it what you want done, for example:
 
 > Find the five most-starred Rust web frameworks on GitHub and write a comparison table to `frameworks.md`.
 
-Watch the agent work in the task view, then ask a follow-up in the same conversation. A short tour walks you through the rest of the app.
+The Master starts a task and tells you when it's finished. Open the task to watch the agent work, or reply to the Master to ask for changes. To start a task yourself instead, click **New Task**. A short tour walks you through the rest of the app.
+
+![A project's Master reporting on a task and setting up a weekly review.](../assets/screenshots/project-master.webp)
 
 ## Next steps
 

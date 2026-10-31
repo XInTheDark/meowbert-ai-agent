@@ -1,13 +1,22 @@
 ---
-title: Overview
-summary: What Meowbert is, how agents do work, and where the server, files and models fit.
+title: What is Meowbert?
+summary: What Meowbert is, how a task runs, and where the server, files and models fit.
 ---
 
-# Overview
+# What is Meowbert?
 
-Meowbert is a self-hosted app for running AI agents that do work with files, code, browsers and connected services. You describe an outcome, the agent uses tools to work toward it, and the task keeps a conversation and record of what happened.
+Meowbert is an AI agent server you run yourself. You describe a job, and an agent works on it with real tools: a shell, a browser, Python, and Office and PDF tools, inside its own sandbox. It keeps going when you close the app, and it tells you when it's done.
 
-For example, you can ask it to analyze a spreadsheet and write a report, change and test a codebase, or process a recurring request from a connected messaging app. You can follow up in the same task rather than starting over.
+Most AI chat apps answer one message at a time, and you check each answer yourself. Meowbert is built for handing work off:
+
+- **Each project has a Master.** You tell it what you need. It writes a brief, starts a task, checks on it, and reports back, in the app or in Telegram, Discord, GitHub or email.
+- **Each task gets its own sandbox.** The agent can install packages and run the code it writes, but it can only reach that sandbox and the project's files.
+- **Big jobs can be reviewed.** Long Horizon, Deep Research and Agent Swarm tasks go to a separate reviewer, which can send the work back. The task only finishes once the reviewer approves.
+- **Work is kept.** Projects keep their files, memory and every task, so you can continue a task weeks later.
+
+For example, you can ask it to turn a folder of 300 PDFs into a spreadsheet, fix a failing test in a repository, or check three websites every morning and tell you what changed.
+
+![A task's activity panel, showing every command and file the agent touched.](../assets/screenshots/task-activity.webp)
 
 ## How it works
 
@@ -25,7 +34,7 @@ The model decides the next actions; Meowbert executes the tool calls and sends t
 
 A **workspace** groups access, connected services and shared settings. A **Project** holds related files, context and task history. A **task** is one conversation about an outcome inside a Project.
 
-For example, a Personal workspace could have Reports and Website Projects, each with several task conversations. See [Workspaces, Projects and tasks](/getting-started/overview) for the full explanation.
+For example, a Personal workspace could have Reports and Website Projects, each with several task conversations. See [Projects and tasks](/getting-started/overview) for the full explanation.
 
 ## Where the work runs
 
@@ -47,7 +56,7 @@ See [Models & Providers](/self-hosting/models-and-providers) for operator settin
 
 | You want to… | Start here |
 | --- | --- |
-| Use an existing server and run a first task | [Workspaces, Projects and tasks](/getting-started/overview) |
+| Use an existing server and run a first task | [Projects and tasks](/getting-started/overview) |
 | Install your own server | [Quickstart](/getting-started/quickstart) |
 | Work from your computer's desktop app | [Desktop App](/getting-started/desktop-app) |
 | Run tasks on a schedule | [Scheduled & Infinite Tasks](/core-workflows/scheduled-tasks) |

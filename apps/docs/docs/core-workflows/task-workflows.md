@@ -7,16 +7,16 @@ checklistLabel: Workflows & Agent Swarm
 
 # Long Horizon, Deep Research, Quality control & Agent Swarm
 
-Most tasks should stay as **Standard tasks**. They are simpler, faster, and easier to steer.
+Most tasks should be **Standard** tasks. They're the fastest and the easiest to steer.
 
-When a task needs more structure, Meowbert offers four workflow modes in the Task Parameters menu:
+For bigger jobs, choose one of four workflows from the Task Parameters menu before you send the task:
 
-- **Long Horizon** — for tasks that need a durable plan plus explicit review before they are allowed to finish.
-- **Deep Research** — for source-aware research that should investigate both broadly and deeply before answering.
-- **Quality control (Experimental)** — for tasks whose final writing, formatting, and visual presentation need a dedicated review pass.
-- **Agent Swarm** — for big tasks the leader can split across copies of itself, answer several ways at once, and have checked before delivery.
-
-You choose the workflow before sending the task.
+| Workflow | Use it when | What it adds |
+| --- | --- | --- |
+| **Long Horizon** | The job is large and easy to half-finish | A written plan, and a reviewer that must approve the result |
+| **Deep Research** | You need a well-sourced answer | The same plan and review, with research guidance |
+| **Quality control** (experimental) | How the finished files look matters | A review pass that opens the files and checks layout and writing |
+| **Agent Swarm** | The work can be split up | A leader that hands parts to copies of itself, then has the answer checked |
 
 ## Long Horizon
 

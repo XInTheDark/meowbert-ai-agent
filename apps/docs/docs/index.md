@@ -4,39 +4,45 @@ title: Meowbert Documentation
 
 hero:
   name: Meowbert
-  text: Your own AI agent workspace
-  tagline: Run agents that use files, code, browsers and connected services. Host your own server and choose your models.
+  text: An AI agent server you run yourself
+  tagline: Describe a job, and an agent works on it in its own sandbox. A reviewer can check the result, and you get a message when it's done.
   actions:
     - theme: brand
-      text: Quickstart
+      text: I have an account
+      link: /getting-started/overview
+    - theme: alt
+      text: I want to run my own server
       link: /getting-started/quickstart
     - theme: alt
-      text: Overview
+      text: What is Meowbert?
       link: /introduction/principles
-
-features:
-  - title: Runs on your hardware
-    details: The whole platform, including every agent sandbox, runs on a machine you control. No telemetry, no Meowbert cloud.
-  - title: Any model
-    details: Connect OpenAI, a gateway, or a local model server, and offer several models side by side.
-  - title: Real work in a sandbox
-    details: Each task gets its own container with a shell, git, browsers, and document tools, and optional gVisor isolation.
-  - title: Keeps going while you're away
-    details: Scheduled, infinite, and timed tasks, a Project Master that follows up, and results sent to Telegram, Discord, or email.
 ---
 
-## Start here
+![A finished task in Meowbert: a chart the agent made, with the activity panel listing the commands it ran.](./assets/screenshots/task-finished.webp)
 
-| I want to… | Go to |
+## Where to start
+
+**Someone gave you an account.** You don't need to install anything. Sign in, then read [Projects and tasks](/getting-started/overview) to learn how work is organized, and run your first task below.
+
+**You want your own server.** Follow the [Quickstart](/getting-started/quickstart). It takes about ten minutes on a Linux machine with Docker, plus the time to download the images.
+
+## Your first task
+
+1. **Open a project.** Every workspace starts with one. Projects keep files, instructions and every task you run in them.
+2. **Tell the project's Master what you need.** For example: *"Find the five most-starred Rust web frameworks on GitHub and write a comparison table to `frameworks.md`."* The Master writes a brief and starts a task.
+3. **Do something else.** The task runs in its own sandbox with a shell, a browser and Office tools. When it finishes, the Master tells you. Reply in the same conversation to ask for changes.
+
+![A project's Master reporting on a task and setting up a weekly review.](./assets/screenshots/project-master.webp)
+
+## Find a topic
+
+| I want to… | Read |
 | --- | --- |
-| Install Meowbert | [Quickstart](/getting-started/quickstart) |
-| Understand Meowbert | [Meowbert overview](/introduction/principles) |
-| Learn how work is organized | [Workspaces, Projects and tasks](/getting-started/overview) |
-| Run my first task | [Task Composer](/core-workflows/task-composer) |
-| Run tasks on a schedule or in a loop | [Scheduled & Infinite Tasks](/core-workflows/scheduled-tasks) |
-| Split big work across parallel agents | [Workflows & Agent Swarm](/core-workflows/task-workflows) |
-| Talk to Meowbert from Telegram, Discord, or email | [Connectors](/core-workflows/connectors) |
-| Choose and configure models | [Models & Providers](/self-hosting/models-and-providers) |
-| Harden the sandbox | [Sandbox & Security](/self-hosting/sandbox-security) |
-| Add my own skill | [Custom Skills](/self-hosting/custom-skills) |
-| Fix something that isn't working | [Common Issues](/troubleshooting/common-issues) |
+| Start and steer tasks | [Task Composer](/core-workflows/task-composer), [Task Follow-up](/core-workflows/task-follow-up) |
+| Run a task every morning, or for hours | [Scheduled & Infinite Tasks](/core-workflows/scheduled-tasks) |
+| Have a reviewer check big jobs | [Workflows & Agent Swarm](/core-workflows/task-workflows) |
+| Send tasks from Telegram, Discord, GitHub or email | [Connectors](/core-workflows/connectors) |
+| Use the desktop app | [Desktop App](/getting-started/desktop-app) |
+| Add models | [Models & Providers](/self-hosting/models-and-providers) |
+| Lock down the sandbox | [Sandbox & Security](/self-hosting/sandbox-security) |
+| Fix something | [Common Issues](/troubleshooting/common-issues) |

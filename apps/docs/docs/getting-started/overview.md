@@ -1,11 +1,11 @@
 ---
-title: Workspaces, Projects and tasks
+title: Projects and tasks
 summary: Understand how work is organized before creating your first task.
 onboardingId: welcome
 checklistLabel: Welcome
 ---
 
-# Workspaces, Projects and tasks
+# Projects and tasks
 
 ## Overview
 
@@ -21,7 +21,7 @@ For example, your Personal workspace might have a Reports Project for analysis a
 | **Project** | Related files, Project Context and task history | Reports or Website |
 | **Task** | A conversation and the work toward a particular outcome | Analyze sales, or fix website navigation |
 
-If you are new to the product itself, start with the [Meowbert overview](/introduction/principles).
+If you are new to Meowbert, start with [What is Meowbert?](/introduction/principles)
 
 ## Workspace: access and shared settings
 
