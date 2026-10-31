@@ -3,23 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Meowbert: a self-hosted AI agent workspace</title>
+    <title>Meowbert</title>
     <meta
       name="description"
-      content="Meowbert is an open-source, self-hosted workspace for AI agents. Each task runs in a sandboxed container on your server, and projects keep their files and task history."
+      content="Meowbert is an open-source AI agent server you run yourself. You describe a job, an agent works on it in its own sandbox, and a reviewer checks the result before it comes back to you."
     />
-    <meta name="theme-color" content="#0f1012" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="preload" href="assets/fonts/google-sans.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="assets/site.css" />
+    <script src="assets/site.js" defer></script>
 
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Meowbert: a self-hosted AI agent workspace" />
+    <meta property="og:title" content="Meowbert" />
     <meta
       property="og:description"
-      content="An open-source workspace where AI agents work in sandboxed containers on your own server."
+      content="An open-source AI agent server you run yourself. Agents work in their own sandbox, and a reviewer checks the result before it comes back to you."
     />
     <meta property="og:image" content="https://meowbert.com/assets/media/social-card.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -28,418 +29,383 @@
     <a class="skip-link" href="#main">Skip to content</a>
 
     <header class="nav">
-      <div class="container nav-inner">
-        <a class="brand" href="#top" aria-label="Meowbert home">
-          <img src="assets/img/logo.svg" alt="" width="28" height="28" />
+      <div class="wrap nav-inner">
+        <a class="brand" href="#top">
+          <img src="assets/img/logo.svg" alt="" width="24" height="24" />
           Meowbert
         </a>
-        <nav class="nav-links" aria-label="Sections">
-          <a href="#who">Who it's for</a>
-          <a href="#made">Examples</a>
-          <a href="#tour">Features</a>
-          <a href="#status">Status</a>
+        <nav class="nav-links" aria-label="Main">
+          <a href="#story">How it works</a>
+          <a href="#examples">Examples</a>
+          <a href="#features">Features</a>
           <a href="#install">Install</a>
+          <a href="https://docs.meowbert.com">Docs</a>
+          <a href="https://github.com/XInTheDark/meowbert-ai-agent">GitHub</a>
         </nav>
-        <div class="nav-actions">
-          <a class="button button-small" href="https://docs.meowbert.com">Docs</a>
-          <a class="button button-small button-primary nav-github" href="https://github.com/XInTheDark/meowbert-ai-agent">
-            <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-            <span>GitHub</span>
-          </a>
-        </div>
       </div>
     </header>
 
     <main id="main">
       <section class="hero" id="top">
-        <div class="container">
-          <p class="eyebrow"><span class="eyebrow-dot">Open source</span> Self-hosted · AGPL-3.0</p>
-          <h1>A self-hosted workspace <span class="gradient-text">for AI agents</span></h1>
-          <p class="hero-lede">
-            You give an agent a task, and it works on it in a sandboxed container on your server, with a shell,
-            a browser, and document tools. Projects keep their files and task history, so you can reopen a task
-            later and continue it.
+        <div class="wrap">
+          <h1>Meowbert is an AI agent server you run yourself.</h1>
+          <p class="lede">
+            You describe a job. An agent works on it in its own sandbox for as long as it needs, a second agent
+            reviews the result, and you get a message when it's done. It runs on your hardware, with the model
+            you choose, for you alone or for a whole team.
           </p>
-          <div class="hero-actions">
-            <a class="button button-primary" href="#install">Install</a>
-            <a class="button" href="https://docs.meowbert.com">Documentation</a>
+          <div class="actions">
+            <a class="btn btn-primary" href="#install">Install</a>
+            <a class="btn" href="https://docs.meowbert.com">Documentation</a>
           </div>
-          <p class="hero-meta">Works with any model provider that supports the OpenAI Responses API.</p>
+          <p class="meta">Free and open source under AGPL-3.0. No telemetry.</p>
+        </div>
+      </section>
 
-          <div class="hero-shot">
-            <div class="window">
-              <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span><em>meowbert</em></div>
-              <img
-                src="assets/media/hero.webp"
-                width="2880"
-                height="1800"
-                alt="A Meowbert task: the agent has charted three months of bike rides, and the activity panel shows the shell commands it ran."
-              />
+      <section class="story" id="story" aria-labelledby="story-title">
+        <div class="wrap">
+          <h2 id="story-title" class="visually-hidden">The same request in a chat and in Meowbert</h2>
+
+          <div class="request">
+            <p class="request-label">The request</p>
+            <p class="request-text">
+              There are 380 papers in my Drive folder "Lit review". Make a spreadsheet with each paper's method,
+              sample size and main finding, and flag any papers that contradict each other.
+            </p>
+          </div>
+
+          <div class="player" data-player>
+            <div class="player-controls" hidden data-controls>
+              <button class="player-arrow" type="button" data-prev aria-label="Previous step">&larr;</button>
+              <ol class="player-steps">
+                <li><button type="button" data-goto="1"><span>21:02</span>Handing it off</button></li>
+                <li><button type="button" data-goto="2"><span>21:30</span>Working</button></li>
+                <li><button type="button" data-goto="3"><span>22:15</span>A mistake</button></li>
+                <li><button type="button" data-goto="4"><span>23:40</span>Done</button></li>
+              </ol>
+              <button class="player-arrow" type="button" data-next aria-label="Next step">&rarr;</button>
+            </div>
+
+            <div class="columns" data-current="4">
+              <!-- Chat column -->
+              <section class="col col-chat" aria-label="In a chat window">
+                <h3 class="col-title">In a chat window</h3>
+                <div class="chat">
+                  <div class="beat" data-step="1">
+                    <p class="bubble bubble-ai">
+                      I can read a few files per message. Upload the PDFs and I'll go through them in batches.
+                    </p>
+                    <div class="bubble bubble-you">
+                      <span class="files">paper_001.pdf to paper_010.pdf</span>
+                      Batch 1 of 38.
+                    </div>
+                  </div>
+
+                  <div class="beat" data-step="2">
+                    <div class="bubble bubble-ai">
+                      <table class="mini">
+                        <tr><th>Paper</th><th>Method</th><th>n</th></tr>
+                        <tr><td>Alvarez 2021</td><td>RCT</td><td>340</td></tr>
+                        <tr><td>Brandt 2018</td><td>Cohort</td><td>2,105</td></tr>
+                      </table>
+                    </div>
+                    <p class="aside">You copy each table into your own spreadsheet.</p>
+                    <div class="bubble bubble-you">
+                      <span class="files">paper_021.pdf to paper_030.pdf</span>
+                      Batch 3 of 38.
+                    </div>
+                  </div>
+
+                  <div class="beat" data-step="3">
+                    <div class="bubble bubble-ai">
+                      <table class="mini">
+                        <tr><th>Paper</th><th>Design</th><th>Sample</th></tr>
+                        <tr class="wrong"><td>Okafor 2019</td><td>Survey</td><td>1,200</td></tr>
+                        <tr><td>Park 2020</td><td>Interviews</td><td>32</td></tr>
+                      </table>
+                    </div>
+                    <p class="aside aside-wrong">The columns have changed names, and Okafor 2019 reports 120, not 1,200. Nobody notices.</p>
+                  </div>
+
+                  <div class="beat" data-step="4">
+                    <div class="bubble bubble-you">
+                      <span class="files">paper_081.pdf to paper_090.pdf</span>
+                      Batch 9 of 38. Next one.
+                    </div>
+                    <p class="aside">29 batches to go. The contradictions haven't been looked at yet.</p>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Meowbert column -->
+              <section class="col col-mb" aria-label="In Meowbert">
+                <div class="cat-perch" data-cat="story"></div>
+                <h3 class="col-title">In Meowbert</h3>
+                <div class="app">
+                  <div class="app-bar">
+                    <span class="app-task">Lit review table</span>
+                    <span class="app-mode">Agent Swarm</span>
+                  </div>
+
+                  <div class="beat" data-step="1">
+                    <p class="app-msg">
+                      Started <b>Lit review table</b> as an Agent Swarm with 6 lanes. I'll message you when it's
+                      been reviewed.
+                    </p>
+                    <p class="app-note">You close the laptop.</p>
+                  </div>
+
+                  <div class="beat" data-step="2">
+                    <ul class="log">
+                      <li><span class="ok">&check;</span> Read 380 PDFs from Drive / Lit review</li>
+                      <li><span class="ok">&check;</span> <code>$ python extract_text.py</code> 380 files, 0 errors</li>
+                      <li><span class="ok">&check;</span> 6 lanes started, about 63 papers each</li>
+                    </ul>
+                    <div class="lanes" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                  </div>
+
+                  <div class="beat" data-step="3">
+                    <div class="review review-no">
+                      <p class="review-head">Reviewer: changes requested</p>
+                      <p>Row 212 says n = 1,200. The Okafor 2019 paper reports 120.</p>
+                    </div>
+                    <ul class="log">
+                      <li><span class="run">&#8635;</span> Lane 4 rechecking its 63 rows</li>
+                    </ul>
+                  </div>
+
+                  <div class="beat" data-step="4">
+                    <div class="review review-yes">
+                      <p class="review-head">Reviewer: approved</p>
+                      <p>380 rows. 7 contradicting pairs flagged. 3 rows corrected.</p>
+                    </div>
+                    <div class="notify">
+                      <p class="notify-head">Telegram <span>23:41</span></p>
+                      <p>
+                        Lit review table is ready. 380 papers, 7 contradicting pairs flagged, 3 rows corrected in
+                        review. It's saved to your Drive folder as <code>summary.xlsx</code>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
+
+          <p class="story-line">
+            With a chat, you stay and check every answer. With Meowbert, you can leave, and a reviewer checks the
+            work before it reaches you.
+          </p>
+          <p class="story-note">An example run. Names, times and numbers are illustrative.</p>
         </div>
       </section>
 
-      <section class="section" id="who">
-        <div class="container">
-          <div class="section-head">
-            <span class="kicker">Who it's for</span>
-            <h2>Personal projects, coursework, and client work</h2>
+      <section class="section section-tint" id="examples" aria-labelledby="examples-title">
+        <div class="wrap">
+          <h2 id="examples-title">Examples</h2>
+          <p class="section-intro">
+            Three requests on a fresh install. The files are shown as the agent produced them; the chart took one
+            follow-up message.
+          </p>
+          <div class="examples">
+            <figure class="example">
+              <blockquote>Draft a 6-slide PowerPoint proposing a quarterly IT maintenance plan for my client.</blockquote>
+              <img
+                src="assets/media/made-deck.webp"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                alt="Four slides from a generated PowerPoint deck: a quarterly IT maintenance plan with a risk table, a four-quarter cycle, and next steps."
+              />
+              <figcaption>PowerPoint, about 2 minutes</figcaption>
+            </figure>
+            <figure class="example">
+              <blockquote>Find credible sources on tree canopy and urban heat, and write a two-page literature summary.</blockquote>
+              <img
+                src="assets/media/made-doc.webp"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                alt="The first page of a generated Word document titled Urban Tree Canopy and Summer Surface Temperatures, with a summary and key findings citing published studies."
+              />
+              <figcaption>Word document citing 4 published studies, about 2 minutes</figcaption>
+            </figure>
+            <figure class="example">
+              <blockquote>Make a CSV of my rides, then a Python script that charts a weekly summary.</blockquote>
+              <img
+                src="assets/media/made-chart.webp"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                alt="A bar and line chart of weekly riding distance and elevation, with the longest ride called out."
+              />
+              <figcaption>Python in the sandbox, about 1 minute plus one follow-up</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="features" aria-labelledby="features-title">
+        <div class="wrap">
+          <h2 id="features-title">Features</h2>
+
+          <div class="pair">
+            <figure>
+              <img
+                src="assets/media/project.webp"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="A project's Master answering a status question and confirming a weekly scheduled review."
+              />
+              <figcaption>A project's Master reporting on a task and setting up a weekly review.</figcaption>
+            </figure>
+            <figure>
+              <img
+                src="assets/media/sandbox.webp"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="A research task with its activity panel open, showing the agent's reasoning steps and the tools it called to build a Word document."
+              />
+              <figcaption>A task's activity panel, with every command and file the agent touched.</figcaption>
+            </figure>
+          </div>
+
+          <div class="feature">
+            <div>
+              <h3>Project Master</h3>
+              <p>
+                Every project has a Master agent. It turns your request into a brief, starts tasks, checks on
+                them, and tells you when something is done or needs you.
+              </p>
+            </div>
+            <div>
+              <h3>A container per task</h3>
+              <p>
+                Each task gets a fresh container with a shell, git, Python, Node, a browser, and Office and PDF
+                tools. Read-only system filesystem, no Linux capabilities, resource limits, optional gVisor.
+              </p>
+            </div>
+            <div>
+              <h3>Review before delivery</h3>
+              <p>
+                Long Horizon, Deep Research and Agent Swarm tasks go to a separate reviewer, and only finish once
+                it approves. Quality control also opens the finished files to check how they look.
+              </p>
+            </div>
+            <div>
+              <h3>Projects</h3>
+              <p>
+                A project keeps its files, instructions, memory, and every task. Tasks don't expire: open one
+                weeks later and send a follow-up, or branch it to try a different approach.
+              </p>
+            </div>
+            <div>
+              <h3>Scheduled and long tasks</h3>
+              <p>
+                Run a task on a cron schedule, loop it until you stop it, or give it a time budget. Queued and
+                running work resumes after a server restart.
+              </p>
+            </div>
+            <div>
+              <h3>Teams</h3>
+              <p>
+                Shared workspaces with owner, admin, and member roles, per-person limits, and closed, approval, or
+                open sign-ups.
+              </p>
+            </div>
+          </div>
+
+          <table class="more">
+            <caption>Also included</caption>
+            <tbody>
+              <tr><th scope="row">Models</th><td>Any provider with the OpenAI Responses API, including model servers on your own machine.</td></tr>
+              <tr><th scope="row">Connectors</th><td>Start and continue tasks from Telegram, Discord, GitHub issues and pull requests, and email.</td></tr>
+              <tr><th scope="row">File sync</th><td>Google Drive, OneDrive, pCloud, and any rclone remote, with conflict detection.</td></tr>
+              <tr><th scope="row">Documents</th><td>Word, PowerPoint, and PDF, rendered so the agent can check the layout.</td></tr>
+              <tr><th scope="row">Browser</th><td>Agents open pages, click through them, and extract content.</td></tr>
+              <tr><th scope="row">Desktop apps</th><td>macOS and Windows, with a quick-launch composer and computer use.</td></tr>
+              <tr><th scope="row">Shells</th><td>Servers and REPLs that keep running between turns, with live output.</td></tr>
+              <tr><th scope="row">Skills</th><td>Add a folder to <code>skills/</code> to give agents your own tools.</td></tr>
+              <tr><th scope="row">Mobile</th><td>Install the web app on your phone with push notifications.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section section-tint" id="status" aria-labelledby="status-title">
+        <div class="wrap split">
+          <div class="split-head">
+            <h2 id="status-title">Current status</h2>
             <p>
-              Meowbert runs on one machine with Docker Compose, supports multiple users, and stores everything in
-              your own database. One person can run it on a home server, and a small team can share it on a VPS.
+              Meowbert started as a personal project in February 2026 and was developed privately for about seven
+              months before its first public release. It's in daily use, and some parts are more finished than
+              others.
             </p>
           </div>
-
-          <div class="audience">
-            <article class="card">
-              <div class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>
-              </div>
-              <h3>Hobbyists</h3>
-              <p>
-                Run it on a home server or a small VPS and connect whichever model you use, including one you host
-                locally. Long tasks keep running after you close the browser.
-              </p>
-            </article>
-            <article class="card">
-              <div class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 9 12 4 2 9l10 5 10-5z"/><path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/><path d="M22 9v5"/></svg>
-              </div>
-              <h3>Students</h3>
-              <p>
-                Keep a project per course with its files and tasks together. Agents can look up sources, write Word
-                documents and slides, and run code in a sandbox rather than on your laptop.
-              </p>
-            </article>
-            <article class="card">
-              <div class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>
-              </div>
-              <h3>Small teams</h3>
-              <p>
-                Workspaces can have several members, shared projects, and per-user limits, managed from an admin
-                panel. Results can be sent to Telegram, Discord, email, or push notifications.
-              </p>
-            </article>
-          </div>
-
-          <div class="balance">
-            <div><strong>One Compose stack</strong><span>The app, Postgres, Redis, Meilisearch, and a sandbox image.</span></div>
-            <div><strong>AGPL-3.0</strong><span>The full source is on GitHub.</span></div>
-            <div><strong>No telemetry</strong><span>Nothing is sent to the Meowbert project.</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="made">
-        <div class="container">
-          <div class="section-head center">
-            <span class="kicker">Examples</span>
-            <h2>Example outputs</h2>
-            <p>
-              These came from a fresh install and three short requests. The files are shown as the agent produced
-              them; the chart took one follow-up message.
-            </p>
-          </div>
-          <div class="made">
-            <figure class="made-item">
-              <img src="assets/media/made-deck.webp" width="1600" height="1000" alt="Four slides from a generated PowerPoint deck: a quarterly IT maintenance plan with a risk table, a four-quarter cycle, and next steps." loading="lazy" />
-              <figcaption>
-                <q>Draft a 6-slide PowerPoint proposing a quarterly IT maintenance plan for my client.</q>
-                <span>PowerPoint, about 2 minutes</span>
-              </figcaption>
-            </figure>
-            <figure class="made-item">
-              <img src="assets/media/made-doc.webp" width="1600" height="1000" alt="The first page of a generated Word document titled Urban Tree Canopy and Summer Surface Temperatures, with a summary and key findings citing published studies." loading="lazy" />
-              <figcaption>
-                <q>Find credible sources on tree canopy and urban heat, and write a two-page literature summary.</q>
-                <span>Word document citing 4 published studies, about 2 minutes</span>
-              </figcaption>
-            </figure>
-            <figure class="made-item">
-              <img src="assets/media/made-chart.webp" width="1600" height="1000" alt="A bar and line chart of weekly riding distance and elevation, with the longest ride called out." loading="lazy" />
-              <figcaption>
-                <q>Make a CSV of my rides, then a Python script that charts a weekly summary.</q>
-                <span>Python in the sandbox, about 1 minute plus one follow-up</span>
-              </figcaption>
-            </figure>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="tour">
-        <div class="container">
-          <div class="section-head center">
-            <span class="kicker">Features</span>
-            <h2>Main features</h2>
-          </div>
-
-          <div class="tour">
-            <article class="feature">
-              <div class="feature-copy">
-                <h3>Projects keep their files and history</h3>
-                <p>
-                  Each project has its own files, instructions, memory, and task list. Tasks don't expire, so you
-                  can reopen one weeks later and send a follow-up. Each project also has a Master, an agent you can
-                  ask to start tasks, check on them, and report back.
-                </p>
-                <ul class="ticks">
-                  <li>Continue any past task</li>
-                  <li>Branch a conversation to try a different approach</li>
-                  <li>Workspace memory that agents search and update</li>
-                </ul>
-              </div>
-              <div class="feature-media">
-                <div class="window">
-                  <img src="assets/media/project.webp" width="2880" height="1800" alt="A project's Master answering a status question and confirming a weekly scheduled review." loading="lazy" />
-                </div>
-              </div>
-            </article>
-
-            <article class="feature flip">
-              <div class="feature-copy">
-                <h3>Each task runs in its own container</h3>
-                <p>
-                  Tasks run in short-lived Docker containers with a shell, git, Python, Node, a browser, and Office
-                  and PDF tools. The agent can install packages and run the code it writes, and it can only reach
-                  that container and the project's files.
-                </p>
-                <ul class="ticks">
-                  <li>Read-only system filesystem, no Linux capabilities, CPU and memory limits</li>
-                  <li>Optional gVisor runtime</li>
-                  <li>Live terminal access to any project</li>
-                </ul>
-              </div>
-              <div class="feature-media glow-teal">
-                <div class="window">
-                  <img src="assets/media/sandbox.webp" width="2880" height="1800" alt="A research task with its activity panel open, showing the agent's reasoning steps and the tools it called to build a Word document." loading="lazy" />
-                </div>
-              </div>
-            </article>
-
-            <article class="feature">
-              <div class="feature-copy">
-                <h3>Scheduled and long-running tasks</h3>
-                <p>
-                  Tasks can run on a cron schedule, loop until you stop them, or run for a set number of minutes.
-                  You can also start tasks and get their results through Telegram, Discord, GitHub, or email.
-                </p>
-                <ul class="ticks">
-                  <li>Step and time budgets</li>
-                  <li>Push and email notifications</li>
-                  <li>Queued and running work resumes after a server restart</li>
-                </ul>
-              </div>
-              <div class="feature-media glow-pink">
-                <div class="window">
-                  <img src="assets/media/schedule.webp" width="1824" height="1140" alt="The task composer's parameters menu: workflows such as Long Horizon and Agent Swarm, and scheduled, infinite, and timed tasks." loading="lazy" />
-                </div>
-              </div>
-            </article>
-
-            <article class="feature flip">
-              <div class="feature-copy">
-                <h3>Any model with the Responses API</h3>
-                <p>
-                  Meowbert connects to models through the OpenAI Responses API, so it works with OpenAI, API
-                  gateways, and local model servers that support it. Admins can offer several models with different
-                  reasoning effort, and an Agent Swarm can run parts of a task on different models.
-                </p>
-                <ul class="ticks">
-                  <li>Reasoning effort set per model</li>
-                  <li>Users can bring their own API key if the admin allows it</li>
-                  <li>Long Horizon and Deep Research workflows with a reviewer step</li>
-                </ul>
-              </div>
-              <div class="feature-media glow-amber">
-                <div class="window">
-                  <img src="assets/media/models.webp" width="1824" height="1140" alt="The model picker in the task composer, listing hosted models alongside one running locally." loading="lazy" />
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div class="spotlight">
-            <article class="card">
-              <div class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M10.7 7.2 6.3 15.8M13.3 7.2l4.4 8.6M7.5 18h9"/></svg>
-              </div>
-              <h3>Agent Swarm</h3>
-              <p>
-                One agent that copies itself when the work is big: it splits the parts across lanes that share
-                what they find, compares independent answers to judgment calls, and has a fresh reviewer check the
-                reply before it's sent.
-              </p>
-              <ul class="ticks">
-                <li>Talk to the leader while its lanes work</li>
-                <li>Open any lane to watch it live, or stop it</li>
-                <li>Finished lanes stay ready for follow-ups</li>
-              </ul>
-            </article>
-            <article class="card">
-              <div class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
-              </div>
-              <h3>Connectors</h3>
-              <p>
-                Send tasks from Telegram, Discord, GitHub issues and pull requests, or email. Routing rules pick
-                the project, and the reply comes back in the same thread.
-              </p>
-              <ul class="ticks">
-                <li>Reply in the thread to continue the task</li>
-                <li>Route by prefix, keyword, or let the model choose</li>
-                <li>Trusted-sender lists for email</li>
-              </ul>
-            </article>
-            <article class="card">
-              <div class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2.1.7 3.5 2.9 3.5 5.7"/></svg>
-              </div>
-              <h3>Teams and user management</h3>
-              <p>
-                Invite people to a shared workspace with its own projects, connectors, and memory. The admin panel
-                handles sign-ups, accounts, and how much each person can use.
-              </p>
-              <ul class="ticks">
-                <li>Closed, approval-based, or open sign-ups</li>
-                <li>Per-user message limits and token-based plans</li>
-                <li>Owner, admin, and member roles per workspace</li>
-              </ul>
-            </article>
-            <article class="card">
-              <div class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2"/><path d="M19 2v4h-4M5 22v-4h4"/></svg>
-              </div>
-              <h3>Live sync with your files</h3>
-              <p>
-                Link files and folders from Google Drive, OneDrive, pCloud, or any rclone remote. The agent works on
-                them in the project, and you push the results back.
-              </p>
-              <ul class="ticks">
-                <li>Pull and push, with conflict detection</li>
-                <li>Google Drive folders sync automatically</li>
-                <li>Edit Google Docs, Sheets, and Slides directly (experimental)</li>
-              </ul>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="more">
-        <div class="container">
-          <div class="section-head center">
-            <span class="kicker">Other features</span>
-            <h2>Also included</h2>
-          </div>
-          <div class="grid">
-            <div class="grid-item"><h3>Documents and slides</h3><p>Agents create Word, PowerPoint, and PDF files and render them to check the layout.</p></div>
-            <div class="grid-item"><h3>Deep Research</h3><p>The agent plans its research, reads sources, and a reviewer checks the report before it's delivered.</p></div>
-            <div class="grid-item"><h3>Long Horizon and Quality control</h3><p>The agent works from a written plan, and a reviewer approves the result. Quality control also opens the finished files to check how they look.</p></div>
-            <div class="grid-item"><h3>Browser automation</h3><p>Agents can open pages, click through them, and extract content.</p></div>
-            <div class="grid-item"><h3>Interactive Canvas</h3><p>A small website stored in a project that agents build and keep editing.</p></div>
-            <div class="grid-item"><h3>Sources</h3><p>Google Drive, OneDrive, pCloud, Outlook, rclone remotes, and YouTube.</p></div>
-            <div class="grid-item"><h3>Desktop apps</h3><p>macOS and Windows apps with a quick-launch composer and computer use.</p></div>
-            <div class="grid-item"><h3>Custom skills</h3><p>Add a folder to <code>skills/</code> to give agents your own tools.</p></div>
-            <div class="grid-item"><h3>Background shells</h3><p>Agents keep servers and REPLs running across runs, and you can watch their output.</p></div>
-            <div class="grid-item"><h3>Conversation map</h3><p>A map, outline, and one-line summaries make long tasks easy to navigate.</p></div>
-            <div class="grid-item"><h3>Installable web app</h3><p>Install it on your phone as a PWA with push notifications.</p></div>
-            <div class="grid-item"><h3>Personalities</h3><p>Set a tone per project, from concise to friendly, or write your own.</p></div>
-          </div>
-          <p class="grid-foot">
-            See the <a href="https://docs.meowbert.com">documentation</a> for the full feature list.
-          </p>
-        </div>
-      </section>
-
-      <section class="section" id="status">
-        <div class="container">
-          <div class="section-head center">
-            <span class="kicker">Status</span>
-            <h2>Current status</h2>
-          </div>
-          <p class="story">
-            Meowbert started as a personal project in February 2026 and was developed privately for about 7 months
-            before this first public release. It's in daily use, but some parts are less polished than others.
-          </p>
-          <div class="honest">
-            <article class="card">
+          <div class="status">
+            <div>
               <h3>Guarantees</h3>
               <ul>
-                <li>The app, database, search index, and sandboxes all run on your hardware, and there's no telemetry.</li>
+                <li>The app, database, search index, and sandboxes all run on your hardware, with no telemetry.</li>
                 <li>Tasks and files are stored in your own Postgres database and on your own disk, and nothing expires.</li>
                 <li>The code is licensed under AGPL-3.0.</li>
               </ul>
-            </article>
-            <article class="card">
+            </div>
+            <div>
               <h3>Known limitations</h3>
               <ul>
                 <li>Model providers must support the OpenAI Responses API. Servers that only offer Chat Completions don't work yet.</li>
                 <li>Production use is only tested on Linux. Docker Desktop on macOS and Windows works for trying it out.</li>
-                <li>Sandboxes use Docker isolation, optionally with gVisor, but no sandbox is guaranteed escape-proof. Run Meowbert on a machine you're comfortable letting agents use.</li>
+                <li>No sandbox is guaranteed escape-proof. Run Meowbert on a machine you're comfortable letting agents use.</li>
               </ul>
-              <p style="margin-top: 18px; font-size: 15px">
-                <a href="https://docs.meowbert.com/introduction/limitations">All known limitations</a>
-              </p>
-            </article>
+              <a href="https://docs.meowbert.com/introduction/limitations">All known limitations</a>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="section" id="install">
-        <div class="container install">
-          <div class="install-copy">
-            <span class="kicker">Install</span>
-            <h2>Installation</h2>
+      <section class="section" id="install" aria-labelledby="install-title">
+        <div class="wrap split">
+          <div class="split-head">
+            <h2 id="install-title">Install</h2>
             <p>
-              Clone the repository, run the setup script, and start the stack. The first account you create
-              becomes the admin, and a setup wizard asks for your model provider.
+              Clone the repository, run the setup script, and start the stack. The first account you create becomes
+              the admin, and a setup wizard asks for your model provider.
             </p>
             <dl class="reqs">
-              <div><dt>Server</dt><dd>Linux, x86-64, 2+ cores</dd></div>
-              <div><dt>Memory</dt><dd>4 GB minimum, 8 GB recommended</dd></div>
-              <div><dt>Software</dt><dd>Docker with Compose v2</dd></div>
-              <div><dt>Model</dt><dd>Any OpenAI Responses API provider</dd></div>
+              <dt>Server</dt><dd>Linux, x86-64, 2 or more cores</dd>
+              <dt>Memory</dt><dd>4 GB minimum, 8 GB recommended</dd>
+              <dt>Software</dt><dd>Docker with Compose v2</dd>
+              <dt>Model</dt><dd>Any OpenAI Responses API provider</dd>
             </dl>
           </div>
-          <div>
-            <div class="terminal">
-              <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span><em>~</em></div>
-              <pre><code><span class="prompt">$ </span>git clone https://github.com/XInTheDark/meowbert-ai-agent.git
-<span class="prompt">$ </span>cd meowbert-ai-agent
-<span class="prompt">$ </span>./scripts/setup.sh
-<span class="prompt">$ </span>docker compose up -d
-
-<span class="comment"># then open</span> <span class="ok">http://localhost:5173</span></code></pre>
-            </div>
-            <p class="install-note">
-              The <a href="https://docs.meowbert.com/getting-started/quickstart">quickstart guide</a> covers access
-              from other machines, adding users, and backups.
+          <div class="install">
+<pre><code>git clone https://github.com/XInTheDark/meowbert-ai-agent.git
+cd meowbert-ai-agent
+./scripts/setup.sh
+docker compose up -d</code></pre>
+            <p>
+              Then open <code>http://localhost:5173</code>. The
+              <a href="https://docs.meowbert.com/getting-started/quickstart">quickstart</a> covers access from other
+              devices, adding users, and backups.
             </p>
-          </div>
-        </div>
-
-        <div class="container">
-          <div class="cta">
-            <img src="assets/img/logo.svg" alt="" width="56" height="56" />
-            <h2>Meowbert is free and open source</h2>
-            <p>Bug reports, feature requests, and pull requests are welcome on GitHub.</p>
-            <div class="hero-actions">
-              <a class="button button-primary" href="https://github.com/XInTheDark/meowbert-ai-agent">View on GitHub</a>
-              <a class="button" href="https://docs.meowbert.com">Documentation</a>
-            </div>
           </div>
         </div>
       </section>
     </main>
 
     <footer class="footer">
-      <div class="container footer-inner">
-        <span class="brand"><img src="assets/img/logo.svg" alt="" width="22" height="22" />Meowbert</span>
-        <nav class="footer-links" aria-label="Footer">
+      <div class="wrap footer-inner">
+        <span class="brand"><img src="assets/img/logo.svg" alt="" width="20" height="20" />Meowbert</span>
+        <div class="cat-bed" data-cat="footer"></div>
+        <nav aria-label="Footer">
           <a href="https://docs.meowbert.com">Documentation</a>
           <a href="https://github.com/XInTheDark/meowbert-ai-agent">GitHub</a>
-          <a href="https://github.com/XInTheDark/meowbert-ai-agent/blob/main/LICENSE">License (AGPL-3.0)</a>
+          <a href="https://github.com/XInTheDark/meowbert-ai-agent/blob/main/LICENSE">License</a>
           <a href="https://github.com/XInTheDark/meowbert-ai-agent/blob/main/SECURITY.md">Security</a>
         </nav>
       </div>

@@ -1,6 +1,6 @@
 # Meowbert website
 
-The public landing page for Meowbert. It is a plain static site with no build step, no JavaScript, and no external requests (fonts are bundled). It is **not** part of a self-hosted Meowbert install, and nothing else in this repository depends on it.
+The public landing page for Meowbert. It is a plain static site with no build step and no external requests (fonts are bundled). One small script, `assets/site.js`, runs the story player and the pixel cat; the page reads fine without it. It is **not** part of a self-hosted Meowbert install, and nothing else in this repository depends on it.
 
 ## Preview
 
@@ -21,7 +21,8 @@ For Cloudflare Workers, `wrangler.jsonc` serves this folder as static assets. Se
 | Path | What it is |
 | --- | --- |
 | `index.html` | The whole page |
-| `assets/site.css` | Styles (dark theme, close to the app's palette) |
+| `assets/site.css` | Styles |
+| `assets/site.js` | Story player and pixel cat sprites |
 | `assets/fonts/` | Google Sans and Google Sans Code, Latin subsets, SIL OFL 1.1 |
 | `assets/img/logo.svg` | Brand mark |
 | `assets/media/` | Screenshots and example outputs (WebP), plus `social-card.png` |
