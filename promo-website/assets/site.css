@@ -266,17 +266,18 @@ figcaption {
 .examples {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 32px;
+  gap: 56px 32px;
   margin-top: 48px;
 }
 
 .example {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 
 .example blockquote {
-  flex: 1;
   margin: 0 0 16px;
   font-size: 17px;
   line-height: 1.5;
@@ -342,6 +343,99 @@ figcaption {
 
 .more td {
   color: var(--muted);
+}
+
+.skills {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  gap: clamp(32px, 5vw, 72px);
+  margin-top: 88px;
+  padding-top: 40px;
+  border-top: 1px solid var(--line);
+}
+
+.skills-head h3 {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
+.skills-head p {
+  margin-top: 12px;
+  color: var(--muted);
+}
+
+.skills-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 40px;
+  margin: 0;
+}
+
+.skills-list dt {
+  font-weight: 600;
+}
+
+.skills-list dd {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.skill-lead {
+  grid-column: 1 / -1;
+  padding: 20px 22px;
+  border-radius: 10px;
+  background: var(--tint);
+}
+
+.skill-lead dt {
+  font-size: 18px;
+}
+
+/* Click to enlarge */
+
+.zoomable {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.zoomable:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 4px;
+  border-radius: 10px;
+}
+
+.zoom {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+  background: transparent;
+  cursor: zoom-out;
+}
+
+.zoom::backdrop {
+  background: rgb(10 11 14 / 88%);
+}
+
+.zoom[open] {
+  display: grid;
+  place-items: center;
+}
+
+.zoom img {
+  max-width: 100%;
+  max-height: calc(100vh - 48px);
+  width: auto;
+  height: auto;
+  border-radius: 8px;
 }
 
 /* Status */
@@ -1004,7 +1098,8 @@ figcaption {
 
   .split,
   .pair,
-  .status {
+  .status,
+  .skills {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -1026,7 +1121,8 @@ figcaption {
   }
 
   .examples,
-  .feature {
+  .feature,
+  .skills-list {
     grid-template-columns: 1fr;
   }
 

@@ -206,8 +206,7 @@
         <div class="wrap">
           <h2 id="examples-title">Examples</h2>
           <p class="section-intro">
-            Three requests on a fresh install. The files are shown as the agent produced them; the chart took one
-            follow-up message.
+            Three requests on a fresh install. The files are shown as the agent produced them.
           </p>
           <div class="examples">
             <figure class="example">
@@ -319,17 +318,41 @@
             </div>
           </div>
 
+          <div class="skills">
+            <div class="skills-head">
+              <h3>Skills for everyday work</h3>
+              <p>
+                Agents come with a curated set of skills, so the result is a finished file you can use rather than
+                text to paste somewhere. You can add your own by dropping a folder into <code>skills/</code>.
+              </p>
+            </div>
+            <dl class="skills-list">
+              <div class="skill-lead">
+                <dt>Canvas</dt>
+                <dd>
+                  Interactive pages that stay in the project: explainers, dashboards, prototypes, HTML slide decks
+                  and small apps. Agents keep editing them across tasks.
+                </dd>
+              </div>
+              <div><dt>Word</dt><dd>Write and edit documents, fill templates, and export a matching PDF.</dd></div>
+              <div><dt>PowerPoint</dt><dd>Decks from templates, with built-in visuals, rendered so the agent can check every slide.</dd></div>
+              <div><dt>PDF reports</dt><dd>Reports, guides and handouts with automatic pagination, written in Typst.</dd></div>
+              <div><dt>Web research</dt><dd>Search, read sources in depth, and cite them.</dd></div>
+              <div><dt>Browser</dt><dd>Open pages, click through them, fill in forms, and pull out content.</dd></div>
+              <div><dt>Google Docs, Sheets and Slides</dt><dd>Edit files in a linked Drive folder directly.</dd></div>
+              <div><dt>Images</dt><dd>Generate or edit images and save them to the project.</dd></div>
+              <div><dt>Guided learning</dt><dd>Teach a topic step by step, with checks and interactive explanations.</dd></div>
+            </dl>
+          </div>
+
           <table class="more">
             <caption>Also included</caption>
             <tbody>
               <tr><th scope="row">Models</th><td>Any provider with the OpenAI Responses API, including model servers on your own machine.</td></tr>
               <tr><th scope="row">Connectors</th><td>Start and continue tasks from Telegram, Discord, GitHub issues and pull requests, and email.</td></tr>
               <tr><th scope="row">File sync</th><td>Google Drive, OneDrive, pCloud, and any rclone remote, with conflict detection.</td></tr>
-              <tr><th scope="row">Documents</th><td>Word, PowerPoint, and PDF, rendered so the agent can check the layout.</td></tr>
-              <tr><th scope="row">Browser</th><td>Agents open pages, click through them, and extract content.</td></tr>
               <tr><th scope="row">Desktop apps</th><td>macOS and Windows, with a quick-launch composer and computer use.</td></tr>
               <tr><th scope="row">Shells</th><td>Servers and REPLs that keep running between turns, with live output.</td></tr>
-              <tr><th scope="row">Skills</th><td>Add a folder to <code>skills/</code> to give agents your own tools.</td></tr>
               <tr><th scope="row">Mobile</th><td>Install the web app on your phone with push notifications.</td></tr>
             </tbody>
           </table>

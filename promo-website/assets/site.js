@@ -337,6 +337,37 @@
     }
   }
 
+  // ---------- Click to enlarge ----------
+
+  function setupZoom() {
+    const images = document.querySelectorAll(".examples img, .pair img");
+    if (!images.length || typeof HTMLDialogElement !== "function") return;
+
+    const dialog = document.createElement("dialog");
+    dialog.className = "zoom";
+    dialog.setAttribute("aria-label", "Enlarged image");
+    const large = document.createElement("img");
+    large.alt = "";
+    dialog.appendChild(large);
+    document.body.appendChild(dialog);
+    dialog.addEventListener("click", () => dialog.close());
+
+    images.forEach((image) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "zoomable";
+      button.setAttribute("aria-label", `Enlarge: ${image.alt}`);
+      image.replaceWith(button);
+      button.appendChild(image);
+      button.addEventListener("click", () => {
+        large.src = image.currentSrc || image.src;
+        large.alt = image.alt;
+        dialog.showModal();
+      });
+    });
+  }
+
   document.querySelectorAll("[data-player]").forEach(createPlayer);
   document.querySelectorAll('[data-cat="footer"]').forEach(createFooterCat);
+  setupZoom();
 })();
