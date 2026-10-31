@@ -340,7 +340,7 @@
   // ---------- Click to enlarge ----------
 
   function setupZoom() {
-    const images = document.querySelectorAll(".examples img, .pair img");
+    const images = document.querySelectorAll(".hero-shot img, .examples img, .pair img");
     if (!images.length || typeof HTMLDialogElement !== "function") return;
 
     const dialog = document.createElement("dialog");

@@ -59,6 +59,14 @@
             <a class="btn" href="https://docs.meowbert.com">Documentation</a>
           </div>
           <p class="meta">Free and open source under AGPL-3.0. No telemetry.</p>
+          <figure class="hero-shot">
+            <img
+              src="assets/media/hero.webp"
+              width="2880"
+              height="1800"
+              alt="A Meowbert task that built a bike ride dashboard: the agent's reply on the left, and the finished dashboard with ride totals and a weekly distance chart open in the Canvas panel on the right."
+            />
+          </figure>
         </div>
       </section>
 
@@ -206,41 +214,53 @@
         <div class="wrap">
           <h2 id="examples-title">Examples</h2>
           <p class="section-intro">
-            Three requests on a fresh install. The files are shown as the agent produced them.
+            Three requests on a fresh install, each sent once with Claude Haiku 5.5. The files are shown as the
+            agent produced them.
           </p>
           <div class="examples">
             <figure class="example">
-              <blockquote>Draft a 6-slide PowerPoint proposing a quarterly IT maintenance plan for my client.</blockquote>
+              <figcaption class="example-text">
+                <p class="example-kind">PowerPoint</p>
+                <blockquote>Draft a 6-slide PowerPoint pitch for our landlord and local bank: the concept, why the location works, the menu, the opening timeline, the budget, and what we're asking for.</blockquote>
+                <p class="example-result">Six slides with charts and speaker notes, in about 4 minutes.</p>
+              </figcaption>
               <img
                 src="assets/media/made-deck.webp"
-                width="1600"
-                height="1000"
+                width="2400"
+                height="1500"
                 loading="lazy"
-                alt="Four slides from a generated PowerPoint deck: a quarterly IT maintenance plan with a risk table, a four-quarter cycle, and next steps."
+                alt="All six slides of a generated pitch deck for Harbor Coffee: a dark cover slide, a footfall bar chart, a menu with a revenue doughnut, an opening timeline, a budget breakdown, and the ask to the landlord and bank."
               />
-              <figcaption>PowerPoint, about 2 minutes</figcaption>
             </figure>
             <figure class="example">
-              <blockquote>Find credible sources on tree canopy and urban heat, and write a two-page literature summary.</blockquote>
+              <figcaption class="example-text">
+                <p class="example-kind">Word</p>
+                <blockquote>Find credible published studies on how tree canopy cover affects summer temperatures in cities, and write a two-page literature summary as a Word document: key findings, where studies disagree, and a references list.</blockquote>
+                <p class="example-result">
+                  Two pages with a comparison table of six studies and seven references with DOIs, in about 12 minutes.
+                </p>
+              </figcaption>
               <img
                 src="assets/media/made-doc.webp"
-                width="1600"
-                height="1000"
+                width="2400"
+                height="1500"
                 loading="lazy"
-                alt="The first page of a generated Word document titled Urban Tree Canopy and Summer Surface Temperatures, with a summary and key findings citing published studies."
+                alt="Both pages of a generated Word literature summary on tree canopy and urban summer temperatures, with key findings, a table comparing six studies, and a references list."
               />
-              <figcaption>Word document citing 4 published studies, about 2 minutes</figcaption>
             </figure>
             <figure class="example">
-              <blockquote>Make a CSV of my rides, then a Python script that charts a weekly summary.</blockquote>
+              <figcaption class="example-text">
+                <p class="example-kind">Canvas</p>
+                <blockquote>Make a CSV of three months of my bike rides, then build me a Canvas dashboard of it: weekly distance and climbing, my longest ride, and how my average speed is trending.</blockquote>
+                <p class="example-result">A CSV of 43 rides and a live dashboard, in about 3 minutes.</p>
+              </figcaption>
               <img
                 src="assets/media/made-chart.webp"
-                width="1600"
-                height="1000"
+                width="2400"
+                height="1500"
                 loading="lazy"
-                alt="A bar and line chart of weekly riding distance and elevation, with the longest ride called out."
+                alt="A generated bike ride dashboard: ride totals, weekly distance and weekly climbing bar charts, and an average speed scatter plot with a rising trend line."
               />
-              <figcaption>Python in the sandbox, about 1 minute plus one follow-up</figcaption>
             </figure>
           </div>
         </div>
@@ -257,9 +277,9 @@
                 width="2880"
                 height="1800"
                 loading="lazy"
-                alt="A project's Master answering a status question and confirming a weekly scheduled review."
+                alt="A project's Master reporting on the finished pitch deck and setting up a weekly supplier invoice check."
               />
-              <figcaption>A project's Master reporting on a task and setting up a weekly review.</figcaption>
+              <figcaption>A project's Master reporting on a task and setting up a weekly invoice check.</figcaption>
             </figure>
             <figure>
               <img
@@ -267,9 +287,9 @@
                 width="2880"
                 height="1800"
                 loading="lazy"
-                alt="A research task with its activity panel open, showing the agent's reasoning steps and the tools it called to build a Word document."
+                alt="A research task with its activity panel open, showing the agent's plan and each tool call it made while building a Word document."
               />
-              <figcaption>A task's activity panel, with every command and file the agent touched.</figcaption>
+              <figcaption>A task's activity panel, with the plan and every tool call the agent made.</figcaption>
             </figure>
           </div>
 
