@@ -134,7 +134,13 @@ export async function rehydrateTaskMedia<T extends { content_json: Record<string
         AND sha256 = ANY($2::text[])`,
     [taskId, [...hashes]]
   );
-  const dataUrls = new Map(result.rows.map((row) => [row.sha256, `data:${row.mime_type};base64,${row.bytes.toString("base64")}`]));
+  const found = new Set(result.rows.map((row) => row.sha256));
+  const missing = [...hashes].filter((hash) => !found.has(hash));
+  const archived = db.readPayloads && missing.length
+    ? await db.readPayloads(taskId, "media", missing.map((sha256) => ({ sha256, bytes_base64: "", mime_type: "" }))) : [];
+  const archivedUrls = archived.filter((blob) => blob.bytes_base64 && blob.mime_type)
+    .map((blob): [string, string] => [blob.sha256, `data:${blob.mime_type};base64,${blob.bytes_base64}`]);
+  const dataUrls = new Map(result.rows.map((row) => [row.sha256, `data:${row.mime_type};base64,${row.bytes.toString("base64")}`] as [string, string]).concat(archivedUrls));
 
   return messages.map((message) => {
     if (!Array.isArray(message.content_json.response_items)) {

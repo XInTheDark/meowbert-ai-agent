@@ -4,7 +4,8 @@ import {
   TASK_EVENT_RETENTION_DELETE_LIMIT,
   TASK_EVENT_RETENTION_LIMIT,
   TASK_EVENT_RETENTION_SAFETY_INTERVAL_MS,
-  pruneTaskEvents
+  pruneTaskEvents,
+  taskHistorySegmentEligibilitySql
 } from "@meowbert/shared";
 import { query, withConnection } from "../../lib/db.js";
 import { getConfiguredTaskHistoryArchiveHealth } from "../tasks/task-history.js";
@@ -212,12 +213,12 @@ async function loadTaskHistoryStateCounts(
               WHERE $1::int > 0
                 AND t.task_history_state = 'warm'
                 AND t.task_history_archive_failed_attempts < 3
-                AND t.status NOT IN ('queued', 'starting', 'running')
-                AND COALESCE(ts.schedule_state, 'cancelled') <> 'active'
-                AND GREATEST(
-                  t.task_history_last_active_at,
-                  COALESCE(t.task_history_last_warmed_at, to_timestamp(0))
-                ) < $2::timestamptz
+                AND ((t.status NOT IN ('queued', 'starting', 'running')
+                  AND COALESCE(ts.schedule_state, 'cancelled') <> 'active'
+                  AND t.task_history_last_active_at < $2::timestamptz
+                  AND NOT EXISTS (SELECT 1 FROM task_subagent_mail mail WHERE mail.recipient_task_id = t.id AND mail.delivered_at IS NULL)
+                  AND NOT EXISTS (SELECT 1 FROM task_subagent_waits wait WHERE wait.task_id = t.id))
+                  OR ${taskHistorySegmentEligibilitySql("$2")})
             )::text AS eligible_count
        FROM tasks t
        LEFT JOIN task_schedules ts ON ts.task_id = t.id`,

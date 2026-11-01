@@ -26,9 +26,9 @@ async function request(suffix = "") {
   finally { await app.close(); }
 }
 describe("conversation navigation endpoint", () => {
-  it("defaults on and warms history before loading snapshots", async () => {
+  it("defaults on and reads snapshots without restoring task history", async () => {
     expect((await request()).json()).toEqual(empty);
-    expect(ensureTaskHistoryWarm).toHaveBeenCalledWith(taskId);
+    expect(ensureTaskHistoryWarm).not.toHaveBeenCalled();
     expect(loadConversationNavigation).toHaveBeenCalled();
   });
   it("does not read or warm organization when disabled", async () => {

@@ -10,7 +10,7 @@ import type {
   TaskHistoryResult
 } from "@meowbert/run-executor/agent/types";
 import { asText } from "@meowbert/run-executor/agent/utils";
-import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import { loadTaskOutputFiles } from "./task-output-files.js";
 import { config } from "../../lib/config.js";
 
@@ -262,8 +262,8 @@ async function loadHistoryTargetTask(targetTaskId: string, environmentId: string
 }
 
 async function loadTaskHistoryMessages(targetTaskId: string, maxMessages: number): Promise<TaskHistoryMessage[]> {
-  const messagesRes = await query<{ role: string; content_json: Record<string, unknown>; created_at: string }>(
-    `SELECT tm.role, tm.content_json, tm.created_at
+  const messagesRes = await query<{ id: string; role: string; content_json: Record<string, unknown>; created_at: string }>(
+    `SELECT tm.id, tm.role, tm.content_json, tm.created_at
        FROM task_messages tm
       WHERE tm.task_id = $1
         AND tm.role IN ('user', 'assistant')
@@ -272,7 +272,7 @@ async function loadTaskHistoryMessages(targetTaskId: string, maxMessages: number
     [targetTaskId, maxMessages]
   );
 
-  return messagesRes.rows
+  return (await readTaskPayloads(targetTaskId, "messages", messagesRes.rows))
     .map((row) => ({
       role: row.role,
       text: asText(row.content_json),
@@ -291,7 +291,6 @@ export async function viewTaskHistory(
   if (!task) {
     return null;
   }
-  await ensureTaskHistoryWarm(task.id);
 
   return {
     task_id: task.id,

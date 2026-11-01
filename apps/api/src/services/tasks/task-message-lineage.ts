@@ -1,4 +1,5 @@
 import { query } from "../../lib/db.js";
+import { readTaskPayloads } from "./task-history-reader.js";
 
 export interface LineageUserMessage {
   id: string;
@@ -57,5 +58,5 @@ export async function findNearestUserAncestorMessage(
     [taskId, messageId]
   );
 
-  return result.rows[0] ?? null;
+  return (await readTaskPayloads(taskId, "messages", result.rows))[0] ?? null;
 }

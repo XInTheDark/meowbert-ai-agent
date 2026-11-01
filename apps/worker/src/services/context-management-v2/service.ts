@@ -1,3 +1,4 @@
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { query, withTransaction } from "../../lib/db.js";
@@ -178,7 +179,7 @@ export async function loadWindowItems(taskId: string, windowId: string): Promise
       ORDER BY ordinal ASC`,
     [windowId, taskId]
   );
-  return result.rows.map((row) => row.payload_json);
+  return (await readTaskPayloads(taskId, "context_history", result.rows)).map((row) => row.payload_json);
 }
 
 export async function loadLastCallNumber(taskId: string): Promise<number> {

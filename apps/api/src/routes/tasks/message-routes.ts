@@ -17,6 +17,7 @@ import {
 } from "../../services/tasks/task-service/index.js";
 import { isProjectMasterTask } from "../../services/project-master/master-task.js";
 import { ensureTaskHistoryWarm } from "../../services/tasks/task-history.js";
+import { readTaskPayloads } from "../../services/tasks/task-history-reader.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import {
   buildEntitlementExceededPayload,
@@ -160,7 +161,6 @@ async function handleBranchSelection(request: FastifyRequest, reply: FastifyRepl
   const params = taskParams.parse(request.params);
   const body = taskBranchSelectionBody.parse(request.body ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  await ensureTaskHistoryWarm(params.taskId);
 
   const messageRes = await query<{ id: string }>(
     `SELECT id
@@ -321,6 +321,7 @@ async function handleEditTaskMessage(request: FastifyRequest, reply: FastifyRepl
   if (messageRes.rows[0].role !== "user") {
     throw new Error("Only user messages can be edited");
   }
+  const [message] = await readTaskPayloads(params.taskId, "messages", messageRes.rows);
 
   const run = await replaceTaskMessageAndEnqueue({
     taskId: params.taskId,
@@ -330,7 +331,7 @@ async function handleEditTaskMessage(request: FastifyRequest, reply: FastifyRepl
     userId: request.user.id,
     sourceMessageId: params.messageId,
     parentMessageId: messageRes.rows[0].parent_message_id,
-    oldContent: messageRes.rows[0].content_json,
+    oldContent: message.content_json,
     nextContent: buildUserMessageContent({
       message: nextMessage,
       attachments: body.attachments,

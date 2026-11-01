@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../lib/db.js", () => ({
   query: vi.fn()
 }));
+vi.mock("./task-history-reader.js", () => ({
+  readTaskPayloads: vi.fn(async (_taskId, _kind, rows) => rows)
+}));
 
 import { query } from "../../lib/db.js";
 import { findNearestUserAncestorMessage, listTaskMessageLineageIds } from "./task-message-lineage.js";

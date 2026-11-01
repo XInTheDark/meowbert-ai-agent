@@ -11,7 +11,7 @@ import { getAdminSettings } from "../../services/admin/admin-settings.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { getTaskWorkflowOverview } from "../../services/tasks/task-workflows.js";
 import { legacyAgentSwarmTaskSql } from "../../services/agent-swarm/legacy.js";
-import { ensureTaskHistoryWarm } from "../../services/tasks/task-history.js";
+import { readTaskPayloads } from "../../services/tasks/task-history-reader.js";
 import {
   sanitizeContextUsagePayloadForDebugMode,
   sanitizeTaskMessageForDebugMode
@@ -153,6 +153,7 @@ interface SubtaskRow {
 }
 
 interface ContextUsageRow {
+  id: string;
   payload_json: {
     usedTokens?: number;
     maxContextTokens?: number;
@@ -283,7 +284,7 @@ async function loadTaskMessages(taskId: string, messageDetail: "full" | "metadat
     [taskId]
   );
 
-  return messagesRes.rows.map(serializeTaskMessageRow);
+  return (await readTaskPayloads(taskId, "messages", messagesRes.rows)).map(serializeTaskMessageRow);
 }
 
 function selectConversationMessageContent(row: Pick<TaskConversationLineageRow, "role" | "content_json">): Record<string, unknown> {
@@ -352,7 +353,7 @@ async function loadConversationPageRows(
       ORDER BY page.ord`,
     [taskId, pageMessageIds, options.skipToolMessages === true]
   );
-  return pageRes.rows;
+  return readTaskPayloads(taskId, "messages", pageRes.rows);
 }
 
 function resolveConversationPageBounds(
@@ -598,15 +599,12 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
   const params = taskParams.parse(request.params);
   const queryInput = taskDetailQuery.parse(request.query ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  if (queryInput.messageDetail === "full") {
-    await ensureTaskHistoryWarm(params.taskId);
-  }
 
   const [taskRes, messages, contextUsageRes, lastIdleCompactionAt, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow, queuedMessages] = await Promise.all([
     loadTaskDetailRecord(params.taskId),
     loadTaskMessages(params.taskId, queryInput.messageDetail),
     query<ContextUsageRow>(
-      `SELECT payload_json, created_at
+      `SELECT id, payload_json, created_at
          FROM task_events
         WHERE task_id = $1
           AND type = 'context_usage'
@@ -643,6 +641,7 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
     return reply.status(404).send({ error: "Task not found" });
   }
 
+  const usage = await readTaskPayloads(params.taskId, "events", contextUsageRes.rows);
   const debugMode = adminSettings.debugMode;
   return {
     task: {
@@ -660,10 +659,10 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
     thread_counts: threadCounts,
     active_leaf_message_id: activeLeafMessageId,
     subtasks: subtasksRes.rows,
-    latest_context_usage: contextUsageRes.rows[0]
+    latest_context_usage: usage[0]
       ? {
-          ...sanitizeContextUsagePayloadForDebugMode(contextUsageRes.rows[0].payload_json, debugMode),
-          createdAt: contextUsageRes.rows[0].created_at
+          ...sanitizeContextUsagePayloadForDebugMode(usage[0].payload_json, debugMode),
+          createdAt: usage[0].created_at
         }
       : null,
     last_idle_compaction_at: lastIdleCompactionAt,
@@ -676,7 +675,6 @@ async function handleGetTaskMessageContent(request: FastifyRequest) {
   const params = taskParams.parse(request.params);
   const body = taskMessageContentBody.parse(request.body ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  await ensureTaskHistoryWarm(params.taskId);
 
   const orderedIds = uniqueIdsPreserveOrder(body.ids);
   if (orderedIds.length === 0) {
@@ -707,7 +705,7 @@ async function handleGetTaskMessageContent(request: FastifyRequest) {
   ]);
 
   return {
-    items: messagesRes.rows
+    items: (await readTaskPayloads(params.taskId, "messages", messagesRes.rows))
       .map(serializeTaskMessageRow)
       .map((message) => sanitizeTaskMessageForDebugMode(message, adminSettings.debugMode))
   };
@@ -717,7 +715,6 @@ async function handleGetTaskConversation(request: FastifyRequest) {
   const params = taskParams.parse(request.params);
   const queryInput = taskConversationQuery.parse(request.query ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  await ensureTaskHistoryWarm(params.taskId);
 
   const [conversation, adminSettings] = await Promise.all([
     loadTaskConversationPage({
@@ -778,7 +775,6 @@ async function handleGetPublicTask(request: FastifyRequest, reply: FastifyReply)
   }
 
   const task = taskRes.rows[0];
-  await ensureTaskHistoryWarm(task.id);
   const [messagesRes, runsRes, subtasksRes, adminSettings, workflow] = await Promise.all([
     query<TaskMessageRow>(
       `SELECT tm.id,
@@ -827,7 +823,7 @@ async function handleGetPublicTask(request: FastifyRequest, reply: FastifyReply)
       is_publicly_shared: true,
       schedule: buildTaskScheduleResponse(task)
     },
-    messages: messagesRes.rows
+    messages: (await readTaskPayloads(task.id, "messages", messagesRes.rows))
       .map(serializeTaskMessageRow)
       .map((message) => sanitizeTaskMessageForDebugMode(message, debugMode)),
     run_count: runsRes.rows[0]?.run_count ?? 0,
@@ -931,7 +927,6 @@ async function handleSearchTaskConversation(request: FastifyRequest) {
   const params = taskParams.parse(request.params);
   const queryInput = taskConversationSearchQuery.parse(request.query ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  await ensureTaskHistoryWarm(params.taskId);
   const activeLeafMessageId = await resolveConversationLeafMessageId({
     taskId: params.taskId,
     userId: request.user.id,

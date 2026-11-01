@@ -3,10 +3,12 @@ import type { PoolClient } from "pg";
 import {
   createTaskMessageMetadata,
   normalizeAgentSwarmSettings,
+  readTaskHistoryPayloads,
   type TaskWorkflowType
 } from "@meowbert/shared";
 import type { z } from "zod";
 import type { taskWorkflowPatchSchema } from "../../routes/tasks/shared.js";
+import { config } from "../../lib/config.js";
 import { deleteTaskTreesInTx, type TaskCleanupCandidateResult } from "./task-cleanup.js";
 import { enableAgentSwarmOnTaskInTx } from "../agent-swarm/swarm-row.js";
 import { assertNotLegacyAgentSwarmTaskInTx } from "../agent-swarm/legacy.js";
@@ -115,8 +117,8 @@ export async function clearTaskWorkflowInTx(
 }
 
 async function loadTaskInitialUserPrompt(client: PoolClient, taskId: string, fallbackTitle?: string | null): Promise<string> {
-  const messageRes = await client.query<{ content_json: { text?: string } }>(
-    `SELECT content_json
+  const messageRes = await client.query<{ id: string; content_json: { text?: string } }>(
+    `SELECT id, content_json
        FROM task_messages
       WHERE task_id = $1
         AND role = 'user'
@@ -125,7 +127,10 @@ async function loadTaskInitialUserPrompt(client: PoolClient, taskId: string, fal
     [taskId]
   );
 
-  return messageRes.rows[0]?.content_json?.text?.trim()
+  const messages = config.taskHistoryArchive?.enabled
+    ? await readTaskHistoryPayloads(taskId, "messages", messageRes.rows, { archiveConfig: config.taskHistoryArchive, db: client })
+    : messageRes.rows;
+  return messages[0]?.content_json?.text?.trim()
     || fallbackTitle?.trim()
     || "Execute the assigned task workflow.";
 }

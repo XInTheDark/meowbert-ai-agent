@@ -17,6 +17,9 @@ vi.mock("../../lib/config.js", () => ({
 }));
 
 vi.mock("../../lib/db.js", () => ({ query: vi.fn() }));
+vi.mock("../tasks/task-history-reader.js", () => ({
+  readTaskPayloads: vi.fn(async (_taskId, _kind, rows) => rows)
+}));
 
 vi.mock("@meowbert/run-executor/agent/openai-client", () => ({
   getOpenAiClient: () => ({
@@ -33,6 +36,7 @@ vi.mock("@meowbert/run-executor/agent/openai-client", () => ({
 }));
 
 import { query } from "../../lib/db.js";
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import { applyHistoryIndexDeletions, indexTaskHistory, searchTaskHistory } from "./index.js";
 import { openHistoryConnection, openHistoryTable, writeDeletionCursor } from "./storage.js";
 
@@ -57,7 +61,7 @@ function fakeQuery(sql: string, params: unknown[] = []) {
   if (sql.includes("history_index_deletions")) return { rows: [{ checked_at: new Date(), task_ids: queuedDeletions }] };
   if (sql.includes("memory_search_enabled")) return { rows: [{ memory_search_enabled: true, history_search_enabled: historySearchEnabled }] };
   if (sql.includes("memory_embedding_settings")) return { rows: [{ model: "test-embedding", index_generation: 1, base_url: "https://embeddings.test/v1", api_key: "key" }] };
-  if (sql.includes("task_history_archived_at")) return { rows: [{ archived: false }] };
+  if (sql.includes("task_history_state")) return { rows: [{ archived: false }] };
   if (sql.includes("closed_at FROM task_context_windows")) {
     return { rows: [{ id: "w1", closed_at: "2026-01-01" }, { id: "w2", closed_at: null }, { id: "w3", closed_at: null }] };
   }
@@ -82,6 +86,7 @@ async function countTaskRows(): Promise<number> {
 beforeEach(async () => {
   historySearchEnabled = true;
   queuedDeletions = [];
+  vi.mocked(readTaskPayloads).mockImplementation(async (_taskId, _kind, rows) => rows);
   vi.mocked(query).mockImplementation((async (sql: string, params?: unknown[]) => fakeQuery(sql, params)) as never);
   fs.rmSync(path.join(paths.cacheRoot, "v1"), { recursive: true, force: true });
 });
@@ -107,6 +112,19 @@ describe("session history search", () => {
 
     expect(rows).toBe(4);
     expect(await countTaskRows()).toBe(rows);
+  });
+  it("rebuilds searchable excerpts when closed-window database payloads are cold", async () => {
+    vi.mocked(query).mockImplementation((async (sql: string, params?: unknown[]) => {
+      const result = fakeQuery(sql, params);
+      return sql.includes("FROM task_context_history_items")
+        ? { rows: result.rows.map((row) => ({ ...row, payload_json: {} })) } : result;
+    }) as never);
+    vi.mocked(readTaskPayloads).mockImplementation(async (_taskId, _kind, rows) => rows.map((row) => ({
+      ...row, payload_json: Object.values(items).flat().find((item) => item.id === (row as { id: string }).id)?.payload_json
+    })));
+    await indexTaskHistory(taskId);
+    const result = await searchTaskHistory(state, { query: "pnpm", limit: 10, window_id: null, role: null, tool: null });
+    expect(result.items.find((item) => item.item_id === "item-2")?.excerpt).toContain("pnpm install finished");
   });
 
   it("drops archived or deleted tasks queued for removal and keeps the rest", async () => {

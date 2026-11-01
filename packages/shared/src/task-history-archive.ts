@@ -1,3 +1,6 @@
+import { restoreTaskArchiveRecords } from "./task-history-archive-batches.js";
+import { materializeWarmTaskPayloads } from "./task-history-warm-payloads.js";
+import { readTaskExecutionArchive, clearRestoredArchiveReferences } from "./task-history-execution-restore.js";
 import { conversationSnapshotArchiveSchema, loadConversationSnapshotArchive, stubConversationSnapshotArchive, restoreConversationSnapshotArchive, type ConversationSnapshotArchive } from "./conversation-organization-archive.js";
 import { loadTaskSubagentArchive, stubTaskSubagentArchive, restoreTaskSubagentArchive, taskSubagentArchiveSchema, type TaskSubagentArchive } from "./task-subagent-archive.js";
 import { loadTaskSwarmArchive, stubTaskSwarmArchive, restoreTaskSwarmArchive, taskSwarmArchiveSchema, type TaskSwarmArchive } from "./task-swarm-archive.js";
@@ -7,19 +10,19 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
-import { gzip as gzipCallback, gunzip as gunzipCallback } from "node:zlib";
+import { readTaskArchive, writeTaskArchive } from "./task-history-archive-format.js";
+import { taskArchivePath } from "./task-history-archive-files.js";
+import { publishTaskArchiveReferences, readTaskHistoryPayloads, type TaskHistoryPayloadReader } from "./task-history-payload-reader.js";
+import type { TaskArchiveReference } from "./task-history-archive-sections.js";
 import { z } from "zod";
 import { parseInlineArtifact, serializeInlineArtifact } from "./inline-artifacts.js";
 
-const gzip = promisify(gzipCallback);
-const gunzip = promisify(gunzipCallback);
 const execFile = promisify(execFileCallback);
 const MOUNTPOINT_COMMAND = "mountpoint";
 const MOUNTPOINT_TIMEOUT_MS = 5_000;
 const ARCHIVE_STALE_AFTER_MS = 10 * 60 * 1000;
-const ARCHIVE_TEMP_FILE_SUFFIX = ".tmp";
 
-export const TASK_HISTORY_ARCHIVE_VERSION = 1;
+export const TASK_HISTORY_ARCHIVE_VERSION = 2;
 export const TASK_HISTORY_ARCHIVE_STATE_VALUES = ["warm", "archiving", "archived"] as const;
 export type TaskHistoryArchiveState = (typeof TASK_HISTORY_ARCHIVE_STATE_VALUES)[number];
 
@@ -102,6 +105,7 @@ interface TaskArchiveSnapshotRow {
   environment_id: string;
   status: string;
   schedule_state: "active" | "paused" | "cancelled" | null;
+  has_pending_work?: boolean;
   task_history_state: TaskHistoryArchiveState;
   task_history_archive_key: string | null;
   task_history_archive_failed_attempts: number;
@@ -145,6 +149,7 @@ interface QueryResultLike<T> {
 }
 
 export interface TaskHistoryArchiveQueryable {
+  readPayloads?: TaskHistoryPayloadReader;
   query<T extends object>(text: string, params?: unknown[]): Promise<QueryResultLike<T>>;
 }
 
@@ -274,15 +279,6 @@ async function isMounted(mountPath: string): Promise<boolean> {
   }
 }
 
-async function ensureArchiveDirectory(archiveConfig: NormalizedTaskHistoryArchiveConfig): Promise<string> {
-  if (!archiveConfig.enabled || !archiveConfig.rootPath) {
-    throw new Error("Task history archive storage is disabled.");
-  }
-
-  await fsPromises.mkdir(archiveConfig.rootPath, { recursive: true });
-  return archiveConfig.rootPath;
-}
-
 async function checkArchiveRootWritable(
   archiveConfig: NormalizedTaskHistoryArchiveConfig,
   deps: TaskHistoryArchiveHealthDeps
@@ -310,11 +306,7 @@ async function checkArchiveRootWritable(
   }
 }
 
-function buildArchiveTempPath(absolutePath: string): string {
-  return `${absolutePath}${ARCHIVE_TEMP_FILE_SUFFIX}-${process.pid}-${Date.now()}`;
-}
-
-function buildTaskArchiveStub(role: TaskArchivePayloadMessageRow["role"], content: Record<string, unknown>): Record<string, unknown> {
+export function buildTaskArchiveStub(role: TaskArchivePayloadMessageRow["role"], content: Record<string, unknown>): Record<string, unknown> {
   if (role !== "tool") {
     return { text: "" };
   }
@@ -347,6 +339,8 @@ async function loadTaskArchiveSnapshot(
             t.environment_id,
             t.status,
             ts.schedule_state,
+            (EXISTS (SELECT 1 FROM task_subagent_mail mail WHERE mail.recipient_task_id = t.id AND mail.delivered_at IS NULL)
+             OR EXISTS (SELECT 1 FROM task_subagent_waits wait WHERE wait.task_id = t.id)) AS has_pending_work,
             t.task_history_state,
             t.task_history_archive_key,
             t.task_history_archive_failed_attempts,
@@ -405,27 +399,6 @@ async function loadArchivePayload(client: TaskHistoryArchiveQueryable, taskId: s
   };
 }
 
-async function writeTaskHistoryArchiveDocument(
-  archiveConfig: NormalizedTaskHistoryArchiveConfig,
-  archiveKey: string,
-  document: TaskHistoryArchiveDocument
-): Promise<{ originalSizeBytes: number; compressedSizeBytes: number }> {
-  const rootPath = await ensureArchiveDirectory(archiveConfig);
-  const absolutePath = path.resolve(rootPath, archiveKey);
-  const tempPath = buildArchiveTempPath(absolutePath);
-
-  await fsPromises.mkdir(path.dirname(absolutePath), { recursive: true });
-  const serialized = JSON.stringify(document);
-  const original = Buffer.from(serialized, "utf8");
-  const compressed = await gzip(original);
-  await fsPromises.writeFile(tempPath, compressed);
-  await fsPromises.rename(tempPath, absolutePath);
-  return {
-    originalSizeBytes: original.byteLength,
-    compressedSizeBytes: compressed.byteLength
-  };
-}
-
 async function readTaskHistoryArchiveDocument(
   archiveConfig: NormalizedTaskHistoryArchiveConfig,
   archiveKey: string
@@ -434,11 +407,7 @@ async function readTaskHistoryArchiveDocument(
     throw new Error("Task history archive root path is not configured.");
   }
 
-  const absolutePath = path.resolve(archiveConfig.rootPath, archiveKey);
-  const compressed = await fsPromises.readFile(absolutePath);
-  const raw = await gunzip(compressed);
-  const parsed = JSON.parse(raw.toString("utf8")) as unknown;
-  return taskHistoryArchiveDocumentSchema.parse(parsed);
+  return taskHistoryArchiveDocumentSchema.parse(await readTaskArchive(archiveConfig, archiveKey));
 }
 
 async function markTaskArchiveFailure(db: TaskHistoryArchiveDbAccess, taskId: string, error: unknown): Promise<void> {
@@ -448,7 +417,7 @@ async function markTaskArchiveFailure(db: TaskHistoryArchiveDbAccess, taskId: st
             task_history_archive_started_at = NULL,
             task_history_archive_error = $2,
             task_history_archive_failed_attempts = task_history_archive_failed_attempts + 1
-      WHERE id = $1`,
+      WHERE id = $1 AND task_history_state IN ('warm', 'archiving')`,
     [taskId, formatArchiveError(error)]
   );
 }
@@ -475,7 +444,7 @@ async function applyArchiveStubs(
 
   await client.query(
     `UPDATE task_events
-        SET payload_json = '{}'::jsonb
+        SET payload_json = jsonb_strip_nulls(jsonb_build_object('source', payload_json->'source', 'trigger', payload_json->'trigger'))
       WHERE task_id = $1`,
     [taskId]
   );
@@ -488,46 +457,10 @@ async function applyArchiveStubs(
   );
 }
 
-async function restoreArchivedPayload(
-  client: TaskHistoryArchiveQueryable,
-  document: TaskHistoryArchiveDocument
-): Promise<void> {
-  for (const message of document.messages) {
-    await client.query(
-      `UPDATE task_messages
-          SET content_json = $2::jsonb,
-              token_usage_json = $3::jsonb
-        WHERE id = $1`,
-      [
-        message.id,
-        JSON.stringify(message.content_json),
-        message.token_usage_json ? JSON.stringify(message.token_usage_json) : null
-      ]
-    );
-  }
-
-  for (const event of document.events) {
-    await client.query(
-      `UPDATE task_events
-          SET payload_json = $2::jsonb
-        WHERE id = $1`,
-      [event.id, JSON.stringify(event.payload_json)]
-    );
-  }
-
-  for (const revision of document.message_revisions) {
-    await client.query(
-      `UPDATE task_message_revisions
-          SET old_content_json = $2::jsonb,
-              new_content_json = $3::jsonb
-        WHERE id = $1`,
-      [
-        revision.id,
-        JSON.stringify(revision.old_content_json),
-        JSON.stringify(revision.new_content_json)
-      ]
-    );
-  }
+async function restoreArchivedPayload(client: TaskHistoryArchiveQueryable, document: TaskHistoryArchiveDocument): Promise<void> {
+  await restoreTaskArchiveRecords(client, document.task.id, "messages", document.messages);
+  await restoreTaskArchiveRecords(client, document.task.id, "events", document.events);
+  await restoreTaskArchiveRecords(client, document.task.id, "message_revisions", document.message_revisions);
 }
 
 export function normalizeTaskHistoryArchiveConfig(input: {
@@ -676,6 +609,7 @@ interface PreparedTaskArchive {
   lastActiveAt: string;
   lastWarmedAt: string | null;
   document: TaskHistoryArchiveDocument;
+  references?: TaskArchiveReference[];
 }
 
 async function prepareTaskArchive(
@@ -695,6 +629,7 @@ async function prepareTaskArchive(
       return { reason: `Task became ${snapshot.status} before archiving started.` };
     }
 
+    if (snapshot.has_pending_work) return { reason: "Task has pending subagent work." };
     if (snapshot.schedule_state === "active") {
       return { reason: "Task has an active schedule." };
     }
@@ -703,53 +638,60 @@ async function prepareTaskArchive(
       workspaceId: snapshot.workspace_id,
       environmentId: snapshot.environment_id,
       taskId: snapshot.id
-  });
-  const payload = await loadArchivePayload(client, snapshot.id);
-  const context = await loadTaskContextArchive(client, snapshot.id);
-  const subagents = await loadTaskSubagentArchive(client, snapshot.id);
-  const swarm = await loadTaskSwarmArchive(client, snapshot.id);
-  const media = await loadTaskMediaArchive(client, snapshot.id);
-  const conversationSnapshots = await loadConversationSnapshotArchive(client, snapshot.id);
+    });
+    const readDeps = { ...deps, db: { ...deps.db, query: client.query.bind(client) } };
+    const reader: TaskHistoryPayloadReader = (id, kind, rows) => readTaskHistoryPayloads(id, kind, rows, readDeps);
+    const loaded = await loadArchivePayload(client, snapshot.id);
+    const payload = {
+      messages: await reader(snapshot.id, "messages", loaded.messages),
+      events: await reader(snapshot.id, "events", loaded.events),
+      message_revisions: await reader(snapshot.id, "message_revisions", loaded.message_revisions)
+    };
+    const context = await loadTaskContextArchive(client, snapshot.id, reader);
+    const subagents = await loadTaskSubagentArchive(client, snapshot.id);
+    const swarm = await loadTaskSwarmArchive(client, snapshot.id);
+    const media = await loadTaskMediaArchive(client, snapshot.id, reader);
+    const conversationSnapshots = await loadConversationSnapshotArchive(client, snapshot.id, reader);
 
-  await client.query(
-    `UPDATE tasks
-        SET task_history_state = 'archiving',
-            task_history_archive_key = $2,
-            task_history_archive_started_at = $3,
-            task_history_archive_error = NULL
-      WHERE id = $1`,
-    [snapshot.id, archiveKey, now]
-  );
+    await client.query(
+      `UPDATE tasks
+          SET task_history_state = 'archiving',
+              task_history_archive_key = $2,
+              task_history_archive_started_at = $3,
+              task_history_archive_error = NULL
+        WHERE id = $1`,
+      [snapshot.id, archiveKey, now]
+    );
 
-  const lastActiveAt = normalizeArchiveTimestamp(snapshot.task_history_last_active_at);
-  const lastWarmedAt = normalizeOptionalArchiveTimestamp(snapshot.task_history_last_warmed_at);
+    const lastActiveAt = normalizeArchiveTimestamp(snapshot.task_history_last_active_at);
+    const lastWarmedAt = normalizeOptionalArchiveTimestamp(snapshot.task_history_last_warmed_at);
 
-  return {
-    taskId: snapshot.id,
-    workspaceId: snapshot.workspace_id,
-    environmentId: snapshot.environment_id,
-    archiveKey,
-    lastActiveAt,
-    lastWarmedAt,
-    document: {
-      version: TASK_HISTORY_ARCHIVE_VERSION,
-      context,
-      subagents,
-      swarm,
-      media,
-      conversation_snapshots: conversationSnapshots,
-      task: {
-        id: snapshot.id,
-        workspace_id: snapshot.workspace_id,
-        environment_id: snapshot.environment_id,
-        archived_at: now,
-        last_active_at: lastActiveAt
-      },
-      messages: payload.messages,
-      events: payload.events,
-      message_revisions: payload.message_revisions
-    }
-  };
+    return {
+      taskId: snapshot.id,
+      workspaceId: snapshot.workspace_id,
+      environmentId: snapshot.environment_id,
+      archiveKey,
+      lastActiveAt,
+      lastWarmedAt,
+      document: {
+        version: TASK_HISTORY_ARCHIVE_VERSION,
+        context,
+        subagents,
+        swarm,
+        media,
+        conversation_snapshots: conversationSnapshots,
+        task: {
+          id: snapshot.id,
+          workspace_id: snapshot.workspace_id,
+          environment_id: snapshot.environment_id,
+          archived_at: now,
+          last_active_at: lastActiveAt
+        },
+        messages: payload.messages,
+        events: payload.events,
+        message_revisions: payload.message_revisions
+      }
+    };
   });
 }
 
@@ -767,7 +709,9 @@ async function finishTaskArchive(
     }
 
     if (
-      normalizeArchiveTimestamp(snapshot.task_history_last_active_at) !== preparedArchive.lastActiveAt
+      snapshot.has_pending_work || snapshot.schedule_state === "active"
+      || ["queued", "starting", "running"].includes(snapshot.status)
+      || normalizeArchiveTimestamp(snapshot.task_history_last_active_at) !== preparedArchive.lastActiveAt
       || normalizeOptionalArchiveTimestamp(snapshot.task_history_last_warmed_at) !== preparedArchive.lastWarmedAt
     ) {
       await client.query(
@@ -788,9 +732,11 @@ async function finishTaskArchive(
     await stubTaskSwarmArchive(client, preparedArchive.taskId);
     await stubTaskMediaArchive(client, preparedArchive.taskId);
     await stubConversationSnapshotArchive(client, preparedArchive.taskId);
+    await publishTaskArchiveReferences(client, preparedArchive.taskId, preparedArchive.references ?? []);
     await client.query(
       `UPDATE tasks
           SET task_history_state = 'archived',
+              task_history_archive_conversion_requested = false,
               task_history_archive_key = $2,
               task_history_archived_at = $3,
               task_history_archive_started_at = NULL,
@@ -816,7 +762,9 @@ export async function archiveTaskHistory(
     const result = await prepareTaskArchive(taskId, deps, now);
     if ("reason" in result) return { status: "skipped", reason: result.reason };
     prepared = result;
-    const sizeMetrics = await writeTaskHistoryArchiveDocument(deps.archiveConfig, prepared.archiveKey, prepared.document);
+    const sizeMetrics = await writeTaskArchive(deps.archiveConfig, prepared.document);
+    prepared.archiveKey = sizeMetrics.archiveKey;
+    prepared.references = sizeMetrics.references;
     const reason = await finishTaskArchive(prepared, deps, now);
     if (reason) return { status: "skipped", reason };
     deps.logger?.info?.(`[task-history] Archived task ${prepared.taskId} to ${prepared.archiveKey}`);
@@ -831,14 +779,70 @@ export async function archiveTaskHistory(
       }
     };
   } catch (error) {
-    if (prepared) await markTaskArchiveFailure(deps.db, prepared.taskId, error).catch(() => undefined);
+    await markTaskArchiveFailure(deps.db, prepared?.taskId ?? taskId, error).catch(() => undefined);
     throw error;
   }
 }
 
+async function restoreDocument(client: TaskHistoryArchiveQueryable, document: TaskHistoryArchiveDocument): Promise<void> {
+  await restoreArchivedPayload(client, document);
+  await restoreTaskContextArchive(client, document.context, document.task.id);
+  await restoreTaskSubagentArchive(client, document.subagents);
+  await restoreTaskSwarmArchive(client, document.swarm);
+  await restoreTaskMediaArchive(client, document.task.id, document.media);
+  await restoreConversationSnapshotArchive(client, document.conversation_snapshots);
+  await clearRestoredArchiveReferences(client, document.task.id, document);
+}
+
+async function restoreArchivedTask(
+  taskId: string, document: TaskHistoryArchiveDocument, deps: TaskHistoryArchiveDeps, warmedAt: string
+): Promise<boolean> {
+  return deps.db.withTransaction(async (client) => {
+    const snapshot = await loadTaskArchiveSnapshot(client, taskId);
+    if (!snapshot) {
+      return false;
+    }
+
+    if (snapshot.task_history_state === "warm") {
+      return false;
+    }
+
+    if (snapshot.task_history_state === "archiving") {
+      await client.query(
+        `UPDATE tasks
+            SET task_history_state = 'warm',
+                task_history_last_warmed_at = $2,
+                task_history_archive_started_at = NULL,
+                task_history_archive_error = NULL,
+                task_history_archive_failed_attempts = 0
+          WHERE id = $1`,
+        [taskId, warmedAt]
+      );
+      return false;
+    }
+
+    if (document.task.id !== taskId || document.task.workspace_id !== snapshot.workspace_id || document.task.environment_id !== snapshot.environment_id) {
+      throw new Error("Archive does not belong to this task.");
+    }
+    await restoreDocument(client, document);
+    await client.query(
+      `UPDATE tasks
+          SET task_history_state = 'warm',
+              task_history_last_warmed_at = $2,
+              task_history_archive_started_at = NULL,
+              task_history_archive_error = NULL,
+              task_history_archive_failed_attempts = 0
+        WHERE id = $1`,
+      [taskId, warmedAt]
+    );
+    return true;
+  });
+}
+
 export async function ensureTaskHistoryWarm(
   taskId: string,
-  deps: TaskHistoryArchiveDeps
+  deps: TaskHistoryArchiveDeps,
+  options: { executionOnly?: boolean } = {}
 ): Promise<EnsureTaskHistoryWarmResult> {
   let pendingArchiveKey: string | null = null;
   const warmedAt = (deps.now ?? (() => new Date()))().toISOString();
@@ -848,6 +852,8 @@ export async function ensureTaskHistoryWarm(
     if (!snapshot) {
       return { status: "not_found" as const };
     }
+    // Only execution and mutation paths call this function; browsing never does.
+    await touchTaskHistoryActivity(client, taskId, warmedAt);
 
     if (snapshot.task_history_state === "warm") {
       return { status: "warm" as const };
@@ -875,62 +881,25 @@ export async function ensureTaskHistoryWarm(
     return { status: "not_found" };
   }
   if (initial.status === "warm") {
+    if (!options.executionOnly && deps.archiveConfig.enabled) await materializeWarmTaskPayloads(taskId, deps, restoreDocument);
     return { status: "warm" };
   }
   if (!pendingArchiveKey) {
     throw new Error(`Task ${taskId} is archived but has no archive key.`);
   }
 
-  const document = await readTaskHistoryArchiveDocument(deps.archiveConfig, pendingArchiveKey);
+  const document = options.executionOnly
+    ? await readTaskExecutionArchive(taskId, pendingArchiveKey, deps)
+    : await readTaskHistoryArchiveDocument(deps.archiveConfig, pendingArchiveKey);
 
-  const restored = await deps.db.withTransaction(async (client) => {
-    const snapshot = await loadTaskArchiveSnapshot(client, taskId);
-    if (!snapshot) {
-      return false;
-    }
-
-    if (snapshot.task_history_state === "warm") {
-      return false;
-    }
-
-    if (snapshot.task_history_state === "archiving") {
-      await client.query(
-        `UPDATE tasks
-            SET task_history_state = 'warm',
-                task_history_last_warmed_at = $2,
-                task_history_archive_started_at = NULL,
-                task_history_archive_error = NULL,
-                task_history_archive_failed_attempts = 0
-          WHERE id = $1`,
-        [taskId, warmedAt]
-      );
-      return false;
-    }
-
-    await restoreArchivedPayload(client, document);
-    await restoreTaskContextArchive(client, document.context);
-    await restoreTaskSubagentArchive(client, document.subagents);
-    await restoreTaskSwarmArchive(client, document.swarm);
-    await restoreTaskMediaArchive(client, taskId, document.media);
-    await restoreConversationSnapshotArchive(client, document.conversation_snapshots);
-    await client.query(
-      `UPDATE tasks
-          SET task_history_state = 'warm',
-              task_history_last_warmed_at = $2,
-              task_history_archive_started_at = NULL,
-              task_history_archive_error = NULL,
-              task_history_archive_failed_attempts = 0
-        WHERE id = $1`,
-      [taskId, warmedAt]
-    );
-    return true;
-  });
+  const restored = await restoreArchivedTask(taskId, document, deps, warmedAt);
 
   if (restored) {
     deps.logger?.info?.(`[task-history] Restored archived task ${taskId}`);
     return { status: "restored" };
   }
 
+  if (!options.executionOnly) await materializeWarmTaskPayloads(taskId, deps, restoreDocument);
   return { status: "warm" };
 }
 
@@ -962,6 +931,8 @@ export async function deleteTaskHistoryArchiveByKey(
     return;
   }
 
-  const absolutePath = path.resolve(archiveConfig.rootPath, archiveKey);
-  await fsPromises.rm(absolutePath, { force: true });
+  const match = /^(v[12])\/(workspaces\/[^/]+\/environments\/[^/]+\/tasks\/[^/]+?)(?:\.json\.gz|\/(?:chunks|manifests)\/[^/]+)$/.exec(archiveKey);
+  if (!match) throw new Error("Invalid task archive key.");
+  await fsPromises.rm(taskArchivePath(archiveConfig, `v2/${match[2]}`), { recursive: true, force: true });
+  await fsPromises.rm(taskArchivePath(archiveConfig, `v1/${match[2]}.json.gz`), { force: true });
 }

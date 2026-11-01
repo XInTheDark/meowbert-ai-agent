@@ -1,3 +1,4 @@
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import { loadConversationNavigation, type TaskExecutionJob } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import {
@@ -113,7 +114,7 @@ export function createDbRunControl(
     },
     emitEvent: (type, payload) => emitTaskEvent(taskId, type, payload),
     isDebugEnabled: () => isTaskDebugModeEnabled(),
-    loadConversationNavigation: (leafMessageId) => loadConversationNavigation({ query }, taskId, leafMessageId),
+    loadConversationNavigation: (leafMessageId) => loadConversationNavigation({ query, readPayloads: readTaskPayloads }, taskId, leafMessageId),
     setGeneratedTitle: (title) => setGeneratedTaskTitle(taskId, title),
     recordToolCallStart: (call) => recordToolCallStarted(taskId, runId, call),
     recordToolCallResult: ({ callId }) => recordToolCallFinished(runId, callId),

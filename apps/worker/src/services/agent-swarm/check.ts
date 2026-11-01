@@ -3,11 +3,12 @@ import { query } from "../../lib/db.js";
 import type { SwarmDispatchContext } from "@meowbert/run-executor/agent-swarm/dispatch-context";
 import { createCheckLane, type CreatedLane } from "./lane-creation.js";
 import { buildCheckBrief } from "@meowbert/run-executor/agent-swarm/prompt";
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 
 // Every message the user wrote on the current branch of the swarm's conversation, oldest first. The
 // Check lane gets these and the deliverable, never the author's reasoning.
 export async function loadBranchUserMessages(swarmTaskId: string, leafMessageId: string | null): Promise<string[]> {
-  const result = await query<{ text: string | null }>(
+  const result = await query<{ id: string; content_json: { text?: string } }>(
     `WITH RECURSIVE branch AS (
        SELECT id, parent_message_id, role, content_json, created_at, 0 AS level
          FROM task_messages
@@ -17,10 +18,11 @@ export async function loadBranchUserMessages(swarmTaskId: string, leafMessageId:
        SELECT message.id, message.parent_message_id, message.role, message.content_json, message.created_at, branch.level + 1
          FROM task_messages message JOIN branch ON message.id = branch.parent_message_id
      )
-     SELECT content_json ->> 'text' AS text FROM branch WHERE role = 'user' ORDER BY level DESC`,
+     SELECT id, content_json FROM branch WHERE role = 'user' ORDER BY level DESC`,
     [swarmTaskId, leafMessageId]
   );
-  return result.rows.map((row) => row.text?.trim() ?? "").filter((text) => text.length > 0);
+  const messages = await readTaskPayloads(swarmTaskId, "messages", result.rows);
+  return messages.map((row) => row.content_json?.text?.trim() ?? "").filter((text) => text.length > 0);
 }
 
 // The spine of the parent's latest split, if it wrote one.

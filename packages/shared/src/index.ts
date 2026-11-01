@@ -79,3 +79,10 @@ export * from "./workspace-file-features.js";
 export * from "./workspace-files.js";
 
 export * from "./google-drive-mount.js";
+
+export * from "./task-history-payload-reader.js";
+export type { TaskArchiveSection } from "./task-history-archive-sections.js";
+
+export * from "./task-history-archive-segments.js";
+export * from "./task-history-archive-conversion.js";
+export { TASK_HISTORY_SEGMENT_CANDIDATE_SQL, taskHistorySegmentEligibilitySql } from "./task-history-segment-store.js";

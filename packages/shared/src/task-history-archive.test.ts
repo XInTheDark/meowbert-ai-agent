@@ -1,3 +1,4 @@
+import { readTaskArchive } from "./task-history-archive-format.js";
 import fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -180,10 +181,9 @@ describe("archiveTaskHistory", () => {
         eventCount: 1,
         revisionCount: 1
       });
-      expect(archived.metrics?.originalSizeBytes).toBeGreaterThan(archived.metrics?.compressedSizeBytes ?? 0);
+      expect(archived.metrics?.originalSizeBytes).toBeGreaterThan(0);
 
-      const archivePath = path.join(archiveConfig.rootPath, archived.archiveKey ?? "");
-      const document = JSON.parse((await gunzip(await fsPromises.readFile(archivePath))).toString("utf8"));
+      const document = await readTaskArchive(archiveConfig, archived.archiveKey!);
       expect(document.messages[0].content_json).toEqual({ text: "Archived answer" });
       expect(document.events[0].payload_json).toEqual({ message: "event" });
       expect(document.context.history[0]).toEqual({id: lifecycleIds.contextItem, payload_json: {type: "function_call_output", output: "Private history"}});
@@ -220,25 +220,23 @@ describe("archiveTaskHistory", () => {
       });
 
       expect(restored.status).toBe("restored");
-      expect(restoreUpdates).toEqual(expect.arrayContaining([
-        {text: expect.stringContaining("UPDATE task_context_history_items"), params: [lifecycleIds.contextItem, JSON.stringify(document.context.history[0].payload_json)]},
-        {text: expect.stringContaining("UPDATE task_context_notes"), params: [lifecycleIds.note, "Branch notes"]},
-        {text: expect.stringContaining("UPDATE task_context_windows"), params: [lifecycleIds.window, JSON.stringify(document.context.windowPrompts[0].opening_prompt_json)]},
-        {text: expect.stringContaining("UPDATE task_context_windows"), params: [lifecycleIds.window, JSON.stringify(document.context.windowRequests[0].request_state_json)]}
+      const restoredRows = restoreUpdates.flatMap(({ params }) => {
+        try { const rows = JSON.parse(String(params?.[1])); return Array.isArray(rows) ? rows : []; }
+        catch { return []; }
+      });
+      expect(restoredRows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: lifecycleIds.message, content_json: { text: "Archived answer" } }),
+        expect.objectContaining({ id: lifecycleIds.event, payload_json: { message: "event" } }),
+        expect.objectContaining({ id: lifecycleIds.contextItem, payload_json: document.context!.history[0].payload_json }),
+        expect.objectContaining({ id: lifecycleIds.note, content: "Branch notes" }),
+        expect.objectContaining({ id: lifecycleIds.window, opening_prompt_json: document.context!.windowPrompts![0].opening_prompt_json }),
+        expect.objectContaining({ id: lifecycleIds.window, request_state_json: document.context!.windowRequests![0].request_state_json })
       ]));
-      expect(restoreUpdates.some(({ text, params }) =>
-        text.includes("UPDATE task_messages")
-        && params?.[1] === JSON.stringify({ text: "Archived answer" })
-      )).toBe(true);
       expect(restoreUpdates.some(({ text, params }) =>
         text.includes("INSERT INTO task_media_blobs")
         && params?.[0] === lifecycleIds.task
         && params?.[1] === "abc123"
         && Buffer.from("png-bytes").equals(params?.[3] as Buffer)
-      )).toBe(true);
-      expect(restoreUpdates.some(({ text, params }) =>
-        text.includes("UPDATE task_events")
-        && params?.[1] === JSON.stringify({ message: "event" })
       )).toBe(true);
     } finally {
       await fsPromises.rm(mountPath, { recursive: true, force: true });

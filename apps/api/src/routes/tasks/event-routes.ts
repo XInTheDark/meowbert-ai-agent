@@ -7,7 +7,7 @@ import { createRedisSubscriber } from "../../lib/redis.js";
 import { getAdminSettings } from "../../services/admin/admin-settings.js";
 import { issueScopedAccessTicket, verifyScopedAccessTicket } from "../../services/auth/scoped-access-tickets.js";
 import { sanitizeTaskEventPayloadForDebugMode } from "../../services/tasks/task-debug-visibility.js";
-import { ensureTaskHistoryWarm } from "../../services/tasks/task-history.js";
+import { readTaskPayloads } from "../../services/tasks/task-history-reader.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { taskEventsPageQuery, taskEventsStreamQuery, taskParams } from "./shared.js";
 
@@ -63,7 +63,6 @@ async function handleGetTaskEvents(request: FastifyRequest, reply: FastifyReply)
   const params = taskParams.parse(request.params);
   const queryInput = taskEventsPageQuery.parse(request.query ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  await ensureTaskHistoryWarm(params.taskId);
   const debugMode = (await getAdminSettings()).debugMode;
 
   const hasCursor = Boolean(queryInput.cursorCreatedAt) || Boolean(queryInput.cursorId);
@@ -96,7 +95,7 @@ async function handleGetTaskEvents(request: FastifyRequest, reply: FastifyReply)
         );
 
     const hasMore = olderRows.rows.length > queryInput.limit;
-    const pageItems = olderRows.rows.slice(0, queryInput.limit).reverse();
+    const pageItems = await readTaskPayloads(params.taskId, "events", olderRows.rows.slice(0, queryInput.limit).reverse());
     return { direction: "older", hasMore, items: pageItems.map((event) => toTaskEventResponse(event, debugMode)) };
   }
 
@@ -111,7 +110,7 @@ async function handleGetTaskEvents(request: FastifyRequest, reply: FastifyReply)
   );
 
   const hasMore = newerRows.rows.length > queryInput.limit;
-  const pageItems = newerRows.rows.slice(0, queryInput.limit);
+  const pageItems = await readTaskPayloads(params.taskId, "events", newerRows.rows.slice(0, queryInput.limit));
   return { direction: "newer", hasMore, items: pageItems.map((event) => toTaskEventResponse(event, debugMode)) };
 }
 
@@ -129,7 +128,7 @@ async function replayRecentEvents(taskId: string, replayLimit: number, debugMode
     [taskId, replayLimit]
   );
 
-  for (const event of [...replayEvents.rows].reverse()) {
+  for (const event of await readTaskPayloads(taskId, "events", [...replayEvents.rows].reverse())) {
     writeEvent(stream, event.type, toTaskEventResponse(event, debugMode));
   }
 }
@@ -138,7 +137,6 @@ async function handleStreamTaskEvents(request: FastifyRequest, reply: FastifyRep
   const params = taskParams.parse(request.params);
   const queryInput = taskEventsStreamQuery.parse(request.query ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  await ensureTaskHistoryWarm(params.taskId);
   const debugMode = (await getAdminSettings()).debugMode;
 
   reply.hijack();

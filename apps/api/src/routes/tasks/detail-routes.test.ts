@@ -27,6 +27,10 @@ vi.mock("../../services/tasks/task-workflows.js", () => ({
   getTaskWorkflowOverview: vi.fn(async () => null)
 }));
 
+vi.mock("../../services/tasks/task-history-reader.js", () => ({
+  readTaskPayloads: vi.fn(async (_taskId, _kind, rows) => rows)
+}));
+
 vi.mock("../../services/tasks/task-history.js", () => ({
   ensureTaskHistoryWarm: vi.fn(async () => {})
 }));
@@ -144,7 +148,7 @@ describe("registerTaskDetailRoutes", () => {
       url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261/artifacts"
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     expect(response.json()).toMatchObject({
       items: [{ id: "artifact-1", relative_path: "report.pdf" }],
       canvases: [{ id: "canvas-1", name: "Quadratics Lab" }]
@@ -270,7 +274,7 @@ describe("registerTaskDetailRoutes", () => {
       url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261?messageDetail=metadata"
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
     expect(body.task.thread_agent_id).toBe("agent-2");
     expect(body.messages).toEqual([
@@ -433,7 +437,7 @@ describe("registerTaskDetailRoutes", () => {
       url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261/conversation?limit=50&activeLeafMessageId=326522d1-67cc-4475-92ce-a85b18556261"
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
     expect(body.active_leaf_message_id).toBe("326522d1-67cc-4475-92ce-a85b18556261");
     expect(body.messages).toEqual([
@@ -573,7 +577,7 @@ describe("registerTaskDetailRoutes", () => {
       url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261/conversation?limit=50&activeLeafMessageId=326522d1-67cc-4475-92ce-a85b18556261"
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
     expect(body.branch_options["msg-user"]).toEqual({
       current_index: 0,
@@ -638,7 +642,7 @@ describe("registerTaskDetailRoutes", () => {
       url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261/conversation?limit=50&activeLeafMessageId=326522d1-67cc-4475-92ce-a85b18556261"
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
     expect(body.messages.find((message: { id: string }) => message.id === "msg-tool").content_json.output).toBeUndefined();
     expect(body.tool_message_contents).toEqual([
@@ -695,7 +699,7 @@ describe("registerTaskDetailRoutes", () => {
       url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261/conversation?limit=50&activeLeafMessageId=326522d1-67cc-4475-92ce-a85b18556261"
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     expect(response.body).not.toContain(imagePayload);
     const [message] = response.json().messages;
     expect(message.content_json).toEqual({ text: "Marked both papers." });
@@ -777,7 +781,7 @@ describe("registerTaskDetailRoutes", () => {
       url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261/conversation/search?q=Stored&pageSize=20"
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
     expect(body.totalItems).toBe(2);
     expect(body.items).toEqual([

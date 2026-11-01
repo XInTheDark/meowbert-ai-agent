@@ -4,7 +4,7 @@ import { loadConversationNavigation, loadConversationPublicIndex, type Conversat
 import { query } from "../../lib/db.js";
 import { getNewestLeafMessageId } from "./messages.js";
 import { loadTaskOutputFiles } from "./task-output-files.js";
-import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 
 
 export async function readOrganizedTaskHistory(input: z.infer<typeof organizationHistoryArgumentsSchema>, context: {
@@ -22,12 +22,11 @@ export async function readOrganizedTaskHistory(input: z.infer<typeof organizatio
     const valid = await query("SELECT id FROM task_messages WHERE id = $1 AND task_id = $2", [leaf, taskId]);
     if (!valid.rows.length) throw new Error("Conversation branch not found.");
   }
-  await ensureTaskHistoryWarm(taskId);
   const header = { task_id: taskId, title: target.rows[0].title, status: target.rows[0].status, branch_leaf_id: leaf,
     files: await loadTaskOutputFiles({ query }, taskId) };
   const limit = input.max_messages ?? 50;
   if (input.view === "navigation") {
-    const navigation = await loadConversationNavigation({ query }, taskId, leaf);
+    const navigation = await loadConversationNavigation({ query, readPayloads: readTaskPayloads }, taskId, leaf);
     if (context.staged && taskId === context.taskId && leaf === context.branchLeafId) {
       if (context.staged.outlineChanged && context.staged.outline !== null) navigation.outline = { markdown: context.staged.outline, message_id: "current" };
       if (context.staged.mapChanged && context.staged.graph) navigation.map = { graph: context.staged.graph, message_id: "current" };
@@ -38,16 +37,20 @@ export async function readOrganizedTaskHistory(input: z.infer<typeof organizatio
         nodes: navigation.map.graph.nodes.filter((node) => page.items.some((turn) => turn.id === node.id) || (node.id === "current" && !page.next_cursor)) }
     }, turns: page.items, next_cursor: page.next_cursor };
   }
-  const index = await loadConversationPublicIndex({ query }, taskId, leaf);
+  const index = await loadConversationPublicIndex({ query, readPayloads: readTaskPayloads }, taskId, leaf);
   const page = historyPage(index, limit, input.cursor);
   const ids = input.message_ids ?? page.items.map((message) => message.id);
   if (ids.some((id) => !index.some((message) => message.id === id))) throw new Error("Message is not in this conversation branch.");
-  const messages = await query<ConversationPublicMessage>(
-    `SELECT m.id, m.role, COALESCE(m.content_json->>'text', '') AS text,
+  const messages = await query<ConversationPublicMessage & { content_json?: Record<string, unknown> }>(
+    `SELECT m.id, m.role, m.content_json, COALESCE(m.content_json->>'text', '') AS text,
       m.content_json->>'turn_summary' AS summary, m.created_at, m.parent_message_id
      FROM unnest($2::uuid[]) WITH ORDINALITY AS requested(id, ord)
      JOIN task_messages m ON m.id = requested.id AND m.task_id = $1 ORDER BY requested.ord`, [taskId, ids]);
-  return { ...header, messages: messages.rows, next_cursor: input.message_ids ? null : page.next_cursor };
+  const rows = await readTaskPayloads(taskId, "messages", messages.rows);
+  return { ...header, messages: rows.map(({ content_json, ...row }) => ({ ...row,
+    text: content_json ? String(content_json.text ?? "") : row.text,
+    summary: content_json ? typeof content_json.turn_summary === "string" ? content_json.turn_summary : null : row.summary
+  })), next_cursor: input.message_ids ? null : page.next_cursor };
 }
 
 function historyPage<T extends { id: string }>(items: T[], limit: number, cursor?: string | null) {

@@ -19,6 +19,9 @@ vi.mock("../tasks/task-service/index.js", () => ({
   appendTaskUserMessageAndEnqueue: vi.fn(async () => ({ mode: "enqueued" }))
 }));
 vi.mock("../tasks/task-history.js", () => ({ ensureTaskHistoryWarm: vi.fn() }));
+vi.mock("../tasks/task-history-reader.js", () => ({
+  readTaskPayloads: vi.fn(async (_taskId, _kind, rows) => rows)
+}));
 vi.mock("../tasks/task-cancellation.js", () => ({ cancelTaskAndSchedules: vi.fn() }));
 
 import { query } from "../../lib/db.js";

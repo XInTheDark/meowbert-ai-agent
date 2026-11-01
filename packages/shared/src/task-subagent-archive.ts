@@ -13,7 +13,7 @@ export async function loadTaskSubagentArchive(client: TaskHistoryArchiveQueryabl
     client.query<TaskSubagentArchive["sessions"][number]>(
       "SELECT task_id, runtime_json FROM task_subagent_sessions WHERE task_id = $1", [taskId]),
     client.query<TaskSubagentArchive["mail"][number]>(
-      "SELECT id, body FROM task_subagent_mail WHERE recipient_task_id = $1", [taskId]),
+      "SELECT id, body FROM task_subagent_mail WHERE recipient_task_id = $1 ORDER BY id", [taskId]),
     client.query<TaskSubagentArchive["waits"][number]>(
       "SELECT task_id, resume_job_json FROM task_subagent_waits WHERE task_id = $1", [taskId])
   ]);

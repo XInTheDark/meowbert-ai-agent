@@ -1,7 +1,7 @@
-import { getTaskHistoryArchiveHealth } from "@meowbert/shared";
+import { getTaskHistoryArchiveHealth, TASK_HISTORY_SEGMENT_CANDIDATE_SQL } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import { query, withConnection, withTransaction } from "../../lib/db.js";
-import { archiveTaskHistory, resetStaleTaskHistoryArchiving } from "./task-history.js";
+import { archiveTaskHistory, archiveTaskHistorySegments, convertTaskHistoryArchive, resetStaleTaskHistoryArchiving } from "./task-history.js";
 import {
   attachTaskToArchiveRun,
   completeArchiveRun,
@@ -51,15 +51,10 @@ async function claimNextArchiveCandidate(cutoffIso: string): Promise<string | nu
           AND t.task_history_archive_failed_attempts < $2
           AND t.status NOT IN ('queued', 'starting', 'running')
           AND COALESCE(ts.schedule_state, 'cancelled') <> 'active'
-          AND GREATEST(
-            t.task_history_last_active_at,
-            COALESCE(t.task_history_last_warmed_at, to_timestamp(0))
-          ) < $1::timestamptz
-        ORDER BY GREATEST(
-            t.task_history_last_active_at,
-            COALESCE(t.task_history_last_warmed_at, to_timestamp(0))
-          ) ASC,
-          t.task_history_last_active_at ASC,
+          AND NOT EXISTS (SELECT 1 FROM task_subagent_mail mail WHERE mail.recipient_task_id = t.id AND mail.delivered_at IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM task_subagent_waits wait WHERE wait.task_id = t.id)
+          AND t.task_history_last_active_at < $1::timestamptz
+        ORDER BY t.task_history_last_active_at ASC,
           t.id ASC
         LIMIT 1
         FOR UPDATE OF t SKIP LOCKED`,
@@ -102,7 +97,18 @@ async function runLockedTaskHistoryArchivePass(
   }
 
   const cutoffIso = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
-  const candidateTaskId = await claimNextArchiveCandidate(cutoffIso);
+  let candidateTaskId = await claimNextArchiveCandidate(cutoffIso);
+  let mode: "task" | "segments" | "conversion" = "task";
+  if (!candidateTaskId) {
+    mode = "segments";
+    candidateTaskId = (await query<ArchiveCandidateRow>(TASK_HISTORY_SEGMENT_CANDIDATE_SQL, [cutoffIso])).rows[0]?.id ?? null;
+  }
+  if (!candidateTaskId) {
+    mode = "conversion";
+    candidateTaskId = (await query<ArchiveCandidateRow>(
+      `SELECT id FROM tasks WHERE task_history_state = 'archived' AND task_history_archive_conversion_requested
+        AND task_history_archive_failed_attempts < 3 ORDER BY id LIMIT 1`)).rows[0]?.id ?? null;
+  }
   if (!candidateTaskId) {
     if (input.activityRunId) {
       await skipArchiveRun(input.activityRunId, "No task is currently eligible for cold storage.");
@@ -117,7 +123,9 @@ async function runLockedTaskHistoryArchivePass(
   }
 
   try {
-    const result = await archiveTaskHistory(candidateTaskId);
+    const result = mode === "task" ? await archiveTaskHistory(candidateTaskId)
+      : mode === "segments" ? await archiveTaskHistorySegments(candidateTaskId, cutoffIso)
+      : await convertTaskHistoryArchive(candidateTaskId);
     await completeArchiveRun(activityRunId, result);
     if (result.status === "archived") {
       console.log(`[task-history] Archived task ${candidateTaskId} (${triggerSource})`);
@@ -125,6 +133,9 @@ async function runLockedTaskHistoryArchivePass(
     }
     return 0;
   } catch (error) {
+    if (mode !== "task") await query(
+      `UPDATE tasks SET task_history_archive_failed_attempts = task_history_archive_failed_attempts + 1,
+        task_history_archive_error = $2 WHERE id = $1`, [candidateTaskId, String(error).slice(0, 1000)]).catch(() => undefined);
     await failArchiveRun(activityRunId, error).catch(() => undefined);
     throw error;
   }

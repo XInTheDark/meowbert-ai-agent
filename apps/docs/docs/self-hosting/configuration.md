@@ -45,6 +45,35 @@ Off by default. See [Outgoing Email](/reference/email-delivery).
 
 Where project and workspace files live. The default keeps everything under `/srv/meowbert/runtime`. See [Storage Backends](/reference/storage-backends) and, for per-workspace disk quotas, [XFS Project Quotas](/reference/xfs-project-quotas).
 
+### Cold task history
+
+Cold storage moves large conversation and execution payloads from PostgreSQL to a mounted archive. Conversations remain browsable; continuing a task loads its execution state, while older messages and media are read when needed. Task IDs, branches, and ordering stay in PostgreSQL. Task files remain in their normal project storage.
+
+When updating an existing installation, apply migration 160 before using the new archive readers. Docker installs run migrations when the API starts; source installs use `npm run migrate`.
+
+Configure `taskHistoryArchive` in your server JSON config, with the same archive mount available to the API and worker:
+
+```json
+{
+  "taskHistoryArchive": {
+    "mountPath": "/app/runtime/storage/task-history-archive",
+    "archivesDir": "tasks"
+  }
+}
+```
+
+The example path must be an existing mounted filesystem inside both containers. Restart the API and worker after changing it. In **Admin → Host Storage**, set **Warm retention (days)** to choose when inactive history can move to the archive. `0` disables automatic archiving.
+
+Retention follows three rules:
+
+- Browsing reads archived chunks directly. Each process keeps a disposable read cache for one hour, capped at 128 MiB; reading again does not extend the hour. Oversized chunks bypass the cache.
+- Actual task work uses the configured retention period. Opening an old answer does not restore it to PostgreSQL or start another full retention period.
+- Older messages and closed context windows can cool independently of an active task. The latest 128 messages, current run, open windows, notes, and pending work stay available. Cooling an old segment leaves the active task's scratch intact.
+
+New archives separate conversation, execution state, and individual media blobs. Existing single-file archives remain readable; their first uncached read still decompresses the old file. While automatic archiving is enabled, the worker converts accessed legacy archives in the background, retaining the original until task deletion.
+
+Global search for a fully cold task remains limited to its title and metadata. Search within an opened conversation reads archived message text as needed. Keep the archive with your database backups: PostgreSQL alone no longer contains every historical payload. See [Backups & Upgrades](./backups-and-upgrades) for what to copy and restore together.
+
 ### Local task execution
 
 Meowbert Desktop can execute tasks on the user's computer while the server keeps conversations, model access and task state. Local execution is disabled by default; both a server configuration change and desktop setup are required.
@@ -67,7 +96,7 @@ Each task gets a scratch folder on local disk, `$TASK_SCRATCH_DIR`, for work tha
 - `root`: where scratch folders live inside the API and worker containers. It defaults to `task-scratch` next to `tasksRoot`, which is `/srv/meowbert/runtime/task-scratch` on the host. Keep it on local disk.
 - `xfsProjectQuota`: optional. When `root` is an XFS mount with project quotas, each workspace's scratch is capped at its workspace storage limit (`storageMb`). Without it, scratch is limited only by the disk it's on.
 
-Scratch is deleted when its task is deleted, expires, or moves to cold storage. It isn't shown in the file browser.
+Scratch is deleted when its task is deleted, expires, or is archived as a whole. Cooling older messages or closed context windows while the task remains active does not clear its scratch. Scratch isn't shown in the file browser.
 
 To give scratch its own fixed-size XFS filesystem from an image file:
 

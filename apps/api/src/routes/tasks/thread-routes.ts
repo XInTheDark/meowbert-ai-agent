@@ -32,7 +32,7 @@ async function handleCreateTaskThread(request: FastifyRequest, reply: FastifyRep
   const access = await assertTaskMember(params.taskId, request.user.id);
   const localError = await localTaskMutationError(params.taskId, request.user.id, { thread: true });
   if (localError) return reply.status(400).send({ error: localError });
-  await ensureTaskHistoryWarm(params.taskId);
+  await ensureTaskHistoryWarm(params.taskId, { executionOnly: false });
   const entitlement = await getPromptEntitlementStatus(request.user.id);
 
   if (!entitlement.allowed) {

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { query } from "../../lib/db.js";
 import { getAdminSettings } from "../../services/admin/admin-settings.js";
-import { ensureTaskHistoryWarm } from "../../services/tasks/task-history.js";
+import { readTaskPayloads } from "../../services/tasks/task-history-reader.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { taskParams } from "./shared.js";
 
@@ -30,7 +30,6 @@ async function handleGetTaskDebugMessageItems(request: FastifyRequest, reply: Fa
     return reply.status(404).send({ error: "Not found" });
   }
 
-  await ensureTaskHistoryWarm(params.taskId);
 
   const messagesRes = await query<DebugTaskMessageRow>(
     `SELECT id,
@@ -48,7 +47,7 @@ async function handleGetTaskDebugMessageItems(request: FastifyRequest, reply: Fa
 
   return {
     taskId: params.taskId,
-    items: messagesRes.rows.map((message) => ({
+    items: (await readTaskPayloads(params.taskId, "messages", messagesRes.rows)).map((message) => ({
       id: message.id,
       role: message.role,
       created_at: message.created_at,

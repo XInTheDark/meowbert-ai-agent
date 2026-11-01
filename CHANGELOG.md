@@ -1,5 +1,17 @@
 # Changelog
 
+## Nov 1, 2026
+
+### Task history
+
+- **Read old conversations without restoring the whole task** — Messages, attachments, public shares, and conversation navigation now read archived history as needed. Opening an old answer no longer restarts its warm-retention period, and navigation keeps lightweight previews instead of loading full response bodies.
+- **Cool older history while work continues** — Older messages and closed context windows can move to cold storage while a task or schedule stays active. The latest messages, current execution state, and live scratch space stay available.
+- **Reviewers keep the original requirements** — Agent Swarm Check lanes and reviewers created when switching to Long Horizon, Deep Research, or Quality control now read the original prompt even when its history has moved to cold storage.
+
+### Self-hosting
+
+- **Cold history migration** — Run `npm run migrate` for migration 160 when running from source; Docker installs apply migrations when the API starts. Keep the archive mount available to both API and worker, and back it up alongside PostgreSQL. Existing single-file archives remain readable and convert in the background while automatic archiving is enabled. See **Configuration** and **Backups & Upgrades** in the docs.
+
 ## Oct 30, 2026
 
 - Audited and fixed cases where the prompt cache would break.

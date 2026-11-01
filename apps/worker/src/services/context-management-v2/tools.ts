@@ -1,3 +1,4 @@
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import { query } from "../../lib/db.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { ContextHistoryWindow, ContextWindowRef, StoredContextHistoryItem } from "@meowbert/run-executor/agent/ports/run-control";
@@ -36,7 +37,7 @@ export async function loadContextHistoryWindow(state: ContextWindowRef, windowId
       ORDER BY ordinal ASC`,
     [state.taskId, windowId]
   );
-  return result.rows.map((row) => ({ id: row.id, callNumber: row.call_number, item: row.payload_json }));
+  return (await readTaskPayloads(state.taskId, "context_history", result.rows)).map((row) => ({ id: row.id, callNumber: row.call_number, item: row.payload_json }));
 }
 
 export async function listContextNotes(state: ContextWindowRef, input: {

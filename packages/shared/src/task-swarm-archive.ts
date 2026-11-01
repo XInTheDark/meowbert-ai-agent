@@ -19,9 +19,9 @@ export type TaskSwarmArchive = z.infer<typeof taskSwarmArchiveSchema>;
 export async function loadTaskSwarmArchive(client: TaskHistoryArchiveQueryable, taskId: string): Promise<TaskSwarmArchive> {
   const [seeds, notes, lanes] = await Promise.all([
     client.query<TaskSwarmArchive["fork_seeds"][number]>(
-      "SELECT id, envelope_json, tools_json, items_json FROM task_swarm_fork_seeds WHERE swarm_task_id = $1", [taskId]),
+      "SELECT id, envelope_json, tools_json, items_json FROM task_swarm_fork_seeds WHERE swarm_task_id = $1 ORDER BY id", [taskId]),
     client.query<TaskSwarmArchive["notes"][number]>(
-      "SELECT seq::text AS seq, content FROM task_swarm_notes WHERE swarm_task_id = $1", [taskId]),
+      "SELECT seq::text AS seq, content FROM task_swarm_notes WHERE swarm_task_id = $1 ORDER BY task_swarm_notes.seq", [taskId]),
     client.query<TaskSwarmArchive["lane_results"][number]>(
       "SELECT task_id, result_json FROM task_swarm_lanes WHERE task_id = $1 AND result_json IS NOT NULL", [taskId])
   ]);

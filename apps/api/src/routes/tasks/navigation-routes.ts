@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getNewMessageOrganizationEnabled, loadConversationNavigation } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
-import { ensureTaskHistoryWarm } from "../../services/tasks/task-history.js";
+import { readTaskPayloads } from "../../services/tasks/task-history-reader.js";
 import { resolveActiveLeafMessageId } from "../../services/tasks/task-service/index.js";
 import { taskParams } from "./shared.js";
 
@@ -24,7 +24,6 @@ export async function registerTaskNavigationRoutes(fastify: FastifyInstance): Pr
     } else {
       leaf = await resolveActiveLeafMessageId({ taskId, userId: request.user.id });
     }
-    await ensureTaskHistoryWarm(taskId);
-    return loadConversationNavigation({ query }, taskId, leaf);
+    return loadConversationNavigation({ query, readPayloads: readTaskPayloads }, taskId, leaf);
   });
 }

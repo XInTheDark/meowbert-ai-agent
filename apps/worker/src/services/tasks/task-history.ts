@@ -1,3 +1,4 @@
+import { archiveTaskHistorySegments as archiveSharedSegments, convertTaskHistoryArchive as convertSharedArchive } from "@meowbert/shared";
 import {
   archiveTaskHistory as archiveSharedTaskHistory,
   deleteTaskHistoryArchiveByKey,
@@ -23,7 +24,7 @@ const taskHistoryDeps = {
 } as const;
 
 export async function ensureTaskHistoryWarm(taskId: string): Promise<void> {
-  await ensureSharedTaskHistoryWarm(taskId, taskHistoryDeps);
+  await ensureSharedTaskHistoryWarm(taskId, taskHistoryDeps, { executionOnly: true });
 }
 
 export async function archiveTaskHistory(taskId: string) {
@@ -50,4 +51,12 @@ export async function resetStaleTaskHistoryArchiving(now?: Date): Promise<number
 
 export async function deleteTaskHistoryArchive(archiveKey: string | null | undefined): Promise<void> {
   await deleteTaskHistoryArchiveByKey(config.taskHistoryArchive, archiveKey);
+}
+
+export function archiveTaskHistorySegments(taskId: string, cutoff: string) {
+  return archiveSharedSegments(taskId, cutoff, taskHistoryDeps);
+}
+
+export function convertTaskHistoryArchive(taskId: string) {
+  return convertSharedArchive(taskId, taskHistoryDeps);
 }

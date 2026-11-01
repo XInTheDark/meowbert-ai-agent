@@ -69,6 +69,10 @@ Use follow-ups to:
 - Extend the work: _"Now also generate a chart from `output/q1_summary.csv`."_
 - Request a retry with different parameters: _"Retry the analysis but exclude January."_
 
+## Reading older conversations
+
+On servers with cold storage enabled, older conversations load saved messages and attachments as you open them. Reading an old conversation does not restart the task. Send a follow-up to continue working with its saved execution context.
+
 ## Starting a thread from an assistant reply
 
 Sometimes you want to ask a narrow follow-up without derailing the main conversation. In Task Detail, hover an assistant message and click the **thread icon** to open a sidebar thread.

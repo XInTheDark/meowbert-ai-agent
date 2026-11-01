@@ -106,7 +106,7 @@ async function handleForkTask(request: FastifyRequest, reply: FastifyReply) {
     extendForkCopySocketTimeout(request, reply);
   }
   const access = await assertTaskMember(params.taskId, request.user.id);
-  await ensureTaskHistoryWarm(params.taskId);
+  await ensureTaskHistoryWarm(params.taskId, { executionOnly: false });
   const lineageMessageIds = await loadForkLineageMessageIds(params.taskId, body.messageId);
   if (body.messageId && !lineageMessageIds) {
     return reply.status(404).send({ error: "Message not found" });
@@ -141,7 +141,7 @@ async function handleForkPublicTask(request: FastifyRequest, reply: FastifyReply
   }
 
   const sourceTaskId = sourceTaskRes.rows[0].id;
-  await ensureTaskHistoryWarm(sourceTaskId);
+  await ensureTaskHistoryWarm(sourceTaskId, { executionOnly: false });
   const lineageMessageIds = await loadForkLineageMessageIds(sourceTaskId, body.messageId);
   if (body.messageId && !lineageMessageIds) {
     return reply.status(404).send({ error: "Message not found" });

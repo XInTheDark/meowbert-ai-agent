@@ -1,3 +1,4 @@
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import { saveConversationSnapshots, remapConversationMap, remapConversationOutline, conversationMapSchema, type ConversationSnapshot, type TaskHistoryArchiveQueryable } from "@meowbert/shared";
 import { createTaskMessageMetadata, externalizeTaskMedia, rehydrateTaskMedia, touchTaskHistoryActivity } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
@@ -159,5 +160,5 @@ export async function loadBranchPathMessages(taskId: string, leafMessageId: stri
     ORDER BY depth DESC`,
     [taskId, leafMessageId]
   );
-  return rehydrateTaskMedia({ query }, taskId, pathRes.rows);
+  return rehydrateTaskMedia({ query, readPayloads: readTaskPayloads }, taskId, await readTaskPayloads(taskId, "messages", pathRes.rows));
 }

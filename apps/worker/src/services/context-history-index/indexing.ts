@@ -1,3 +1,4 @@
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { readEmbeddingFeatures } from "@meowbert/shared";
 import { toHistoryFileLine } from "@meowbert/run-executor/context-management-v2/history-item";
@@ -125,7 +126,7 @@ async function indexWindow(taskId: string, window: WindowRow, watermark: TaskHis
       if (window.closed_at) await writeRows({ taskId, windowId: window.id, rows: [], lastOrdinal: after, closed: true, configHash: config.configHash });
       return;
     }
-    const rows = await embedRows(items.rows.flatMap((item) => buildChunks(taskId, window.id, item)), config);
+    const rows = await embedRows((await readTaskPayloads(taskId, "context_history", items.rows)).flatMap((item) => buildChunks(taskId, window.id, item)), config);
     await writeRows({ taskId, windowId: window.id, rows, lastOrdinal: last.ordinal, closed: drained && window.closed_at !== null, configHash: config.configHash });
     after = last.ordinal;
     if (drained) return;
@@ -134,7 +135,7 @@ async function indexWindow(taskId: string, window: WindowRow, watermark: TaskHis
 
 async function indexTask(taskId: string): Promise<void> {
   const task = await query<{ archived: boolean }>(
-    "SELECT task_history_archived_at IS NOT NULL AS archived FROM tasks WHERE id = $1",
+    "SELECT task_history_state = 'archived' AS archived FROM tasks WHERE id = $1",
     [taskId]
   );
   if (!task.rows[0] || task.rows[0].archived) return;

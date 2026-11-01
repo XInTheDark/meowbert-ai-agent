@@ -7,7 +7,8 @@ vi.mock("@meowbert/shared", () => ({
   TASK_EVENT_RETENTION_DELETE_LIMIT: 5000,
   TASK_EVENT_RETENTION_LIMIT: 20,
   TASK_EVENT_RETENTION_SAFETY_INTERVAL_MS: 86400000,
-  pruneTaskEvents: vi.fn()
+  pruneTaskEvents: vi.fn(),
+  taskHistorySegmentEligibilitySql: vi.fn(() => "FALSE")
 }));
 
 vi.mock("../../lib/db.js", () => ({

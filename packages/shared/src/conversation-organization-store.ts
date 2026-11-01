@@ -18,20 +18,25 @@ export interface ConversationSnapshot {
 export async function loadConversationSnapshots(db: TaskHistoryArchiveQueryable, taskId: string, leafId: string | null): Promise<ConversationSnapshot[]> {
   if (!leafId) return [];
   const result = await db.query<ConversationSnapshot>(`${CONVERSATION_ANCESTRY_SQL}
-    SELECT DISTINCT ON (s.kind) s.kind, s.payload_json, s.message_id
+    SELECT DISTINCT ON (s.kind) s.id, s.kind, s.payload_json, s.message_id
     FROM task_conversation_snapshots s JOIN lineage l ON l.id = s.message_id
     WHERE s.task_id = $1 ORDER BY s.kind, l.depth ASC`, [taskId, leafId]);
-  return result.rows;
+  return db.readPayloads ? db.readPayloads(taskId, "conversation_snapshots", result.rows) : result.rows;
 }
 
 export async function loadConversationPublicIndex(db: TaskHistoryArchiveQueryable, taskId: string, leafId: string | null): Promise<ConversationPublicMessage[]> {
   if (!leafId) return [];
-  const result = await db.query<ConversationPublicMessage>(`${CONVERSATION_ANCESTRY_SQL}
-    SELECT m.id, m.role, LEFT(COALESCE(m.content_json->>'text', ''), 500) AS text,
-      m.content_json->>'turn_summary' AS summary, m.created_at, m.parent_message_id
+  const result = await db.query<Omit<ConversationPublicMessage, "text" | "summary"> & { content_json: Record<string, unknown> }>(`${CONVERSATION_ANCESTRY_SQL}
+    SELECT m.id, m.role,
+      jsonb_build_object('text', LEFT(COALESCE(m.content_json->>'text', ''), 500), 'turn_summary', m.content_json->'turn_summary') AS content_json,
+      m.created_at, m.parent_message_id
     FROM lineage l JOIN task_messages m ON m.id = l.id
     WHERE m.role IN ('user', 'assistant') ORDER BY l.depth DESC`, [taskId, leafId]);
-  return result.rows;
+  const rows = db.readPayloads ? await db.readPayloads(taskId, "messages", result.rows, "message_preview") : result.rows;
+  return rows.map(({ content_json, ...row }) => ({ ...row,
+    text: String(content_json.text ?? "").slice(0, 500),
+    summary: typeof content_json.turn_summary === "string" ? content_json.turn_summary : null
+  }));
 }
 
 export async function loadConversationNavigation(db: TaskHistoryArchiveQueryable, taskId: string, leafId: string | null): Promise<ConversationNavigation> {

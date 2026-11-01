@@ -7,6 +7,7 @@ import { resolveAgentSwarmSettings } from "../agent-swarm/settings.js";
 import { loadWorkspaceDefaultAgentId } from "../workspaces/workspace-default-agent.js";
 import { cancelTaskAndSchedules } from "../tasks/task-cancellation.js";
 import { ensureTaskHistoryWarm } from "../tasks/task-history.js";
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import {
   appendTaskUserMessageAndEnqueue,
   createTaskWithInitialMessage,
@@ -91,15 +92,15 @@ async function loadTaskCurrentModel(taskId: string): Promise<{
   agent: TaskMessageAgentSelection | undefined;
   modelRoute: ChosenModelRoute | null;
 }> {
-  const result = await query<{ content_json: Record<string, unknown> }>(
-    `SELECT content_json
+  const result = await query<{ id: string; content_json: Record<string, unknown> }>(
+    `SELECT id, content_json
        FROM task_messages
       WHERE task_id = $1 AND role = 'user'
       ORDER BY created_at DESC, id DESC
       LIMIT 1`,
     [taskId]
   );
-  const content = result.rows[0]?.content_json ?? {};
+  const content = (await readTaskPayloads(taskId, "messages", result.rows))[0]?.content_json ?? {};
   const agentId = (content.agent as { id?: unknown } | undefined)?.id;
   return {
     agent: typeof agentId === "string" ? { id: agentId } : undefined,

@@ -19,8 +19,8 @@ const taskHistoryDeps = {
   }
 } as const;
 
-export async function ensureTaskHistoryWarm(taskId: string): Promise<void> {
-  await ensureSharedTaskHistoryWarm(taskId, taskHistoryDeps);
+export async function ensureTaskHistoryWarm(taskId: string, options = { executionOnly: true }): Promise<void> {
+  await ensureSharedTaskHistoryWarm(taskId, taskHistoryDeps, options);
 }
 
 export async function deleteTaskHistoryArchive(archiveKey: string | null | undefined): Promise<void> {

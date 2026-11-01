@@ -1,14 +1,16 @@
 import { z } from "zod";
 import type { TaskHistoryArchiveQueryable } from "./task-history-archive.js";
+import type { TaskHistoryPayloadReader } from "./task-history-payload-reader.js";
 
 export const conversationSnapshotArchiveSchema = z.array(z.object({
   id: z.string().uuid(), payload_json: z.record(z.string(), z.unknown())
 }));
 export type ConversationSnapshotArchive = z.infer<typeof conversationSnapshotArchiveSchema>;
 
-export async function loadConversationSnapshotArchive(db: TaskHistoryArchiveQueryable, taskId: string): Promise<ConversationSnapshotArchive> {
-  return (await db.query<ConversationSnapshotArchive[number]>(
-    "SELECT id, payload_json FROM task_conversation_snapshots WHERE task_id = $1", [taskId])).rows;
+export async function loadConversationSnapshotArchive(db: TaskHistoryArchiveQueryable, taskId: string, reader?: TaskHistoryPayloadReader): Promise<ConversationSnapshotArchive> {
+  const result = await db.query<ConversationSnapshotArchive[number]>(
+    "SELECT id, payload_json FROM task_conversation_snapshots WHERE task_id = $1 ORDER BY id", [taskId]);
+  return reader ? reader(taskId, "conversation_snapshots", result.rows) : result.rows;
 }
 
 export async function stubConversationSnapshotArchive(db: TaskHistoryArchiveQueryable, taskId: string): Promise<void> {
