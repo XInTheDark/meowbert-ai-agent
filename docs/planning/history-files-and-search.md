@@ -1,6 +1,6 @@
 # Context History as Files, with Semantic Search
 
-Status: proposed, not implemented.
+Status: implemented. Section 9 records where the build differs from this plan and what is still open.
 
 ## 1. Summary
 
@@ -187,3 +187,14 @@ Each milestone passes `npm run test`, `npm run lint` and `npm run build`.
    - catch-up indexes items a missed job skipped.
 5. **Cold storage.** Archive deletes the index rows and the directory; restore rebuilds lazily. Tests: no `history_chunks` rows remain for an archived task.
 6. **Docs.**
+
+## 9. As built
+
+- **Lineage (7.1, 7.2).** A branch can keep appending to a window it shares with another branch, and the agent's context replays every item in that window. So a file holds all of its window's items, and only the list of windows is filtered by lineage. Run start lists the lineage windows, rewrites the open window, writes missing files and removes files of other branches. Windows the branches share are reused, so switching branches only writes the windows that differ.
+- **Location.** `<scratch root>/.history/<workspace id>/<task id>`, created by `prepareHistoryDir` on each machine provider and removed with the task's scratch (server cleanup and desktop scratch tombstones).
+- **Index layout.** One `history_chunks` table per host under `<memory index cache root>/v1/session-history`, not one per workspace. Rows are filtered by `task_id`, so one table serves every workspace, and one write lock covers it. Embedding happens outside the lock. Watermarks live in `tasks/<task id>.json` next to the table, per window, with closed windows marked done so later passes skip them.
+- **Settings change.** A different embedding config hash or vector size drops the whole history index. It rebuilds as tasks are indexed or searched again.
+- **Restore.** The watermark is removed on archive, so a restored task is indexed again from its next recorded turn (when the switch is on), not only on its first search. A restored task that is only viewed adds nothing.
+- **Still open.**
+  - A device-hosted task that is archived keeps its history files on that device until the task is deleted, since archive creates no device tombstone.
+  - Tasks deleted through the API's cleanup path leave their rows in a worker's history index. Worker task cleanup removes them.

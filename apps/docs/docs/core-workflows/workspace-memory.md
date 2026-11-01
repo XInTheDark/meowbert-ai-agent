@@ -105,4 +105,4 @@ Both point to the workspace `.memory` directory.
 
 ## Self-hosted embedding configuration
 
-Server admins choose the embedding model used for Memory search in **Admin Panel → Platform → Embeddings**. See [Models & Providers](/self-hosting/models-and-providers#memory-embeddings).
+Server admins choose the embedding model used for Memory search, and can switch Memory search off, in **Admin Panel → Platform → Embeddings**. See [Models & Providers](/self-hosting/models-and-providers#embeddings).

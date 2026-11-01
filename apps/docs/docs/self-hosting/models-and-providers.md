@@ -59,13 +59,28 @@ A swarm preset adds a leader, optional model router, delegation effort, budgets 
 
 A small, fast model is a good choice for `internalModel` and `fastModel`.
 
-## Memory embeddings
+## Embeddings
 
-[Workspace Memory](/core-workflows/workspace-memory) search uses an embedding model. Set it in **Admin Panel → Platform → Embeddings**:
+Two features use an embedding model: [Workspace Memory](/core-workflows/workspace-memory) search, and session history search, which lets agents search earlier [context windows](/core-workflows/context-compaction#reading-earlier-windows) of a task by meaning. Both are set up in **Admin Panel → Platform → Embeddings**.
+
+### Features
+
+Each feature has its own switch at the top of the tab. Changes save right away and apply from each task's next run.
+
+| Switch | Default | When it is off |
+| --- | --- | --- |
+| **Memory search** | On | Memory is not indexed and agents get no `memory_search` tool. Memory files are still read and written. |
+| **Session history search** | Off | Agents get no `history_search` tool. They can still read earlier windows from the task's history files. |
+
+Session history search embeds every message and tool output of every running task, up to the first 16,000 characters of each item, so it costs more than Memory search. Its index lives on each worker's local disk, next to the Memory index cache, and is built as tasks run. Archiving a task removes it from the index; a restored task is indexed again the next time it runs.
+
+### Model
 
 - **Provider** — Follow the selected AI provider, or pin one of your saved providers. It must support the OpenAI-compatible `/v1/embeddings` endpoint.
 - **Model** — The embedding model ID. Defaults to `text-embedding-3-small`.
 - **Prompt templates** — Only for models that expect a prefix, such as `search_query: {text}`. Leave them empty otherwise.
+
+The session history index rebuilds by itself when these settings change. The rest of this section is about Memory.
 
 Saving these settings never re-embeds Memory, so you can switch providers that serve the same model without rebuilding anything. After changing the model or templates, the tab shows that the indexes are out of date, and search quality drops until you re-embed. If the new model returns a different vector size, Memory search stops working until you do:
 

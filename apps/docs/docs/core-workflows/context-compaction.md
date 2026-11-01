@@ -85,11 +85,26 @@ When Context management V2 is active, Meowbert keeps the full conversation in pr
 
 Each window keeps the notes snapshot it opened with, including when a task resumes or runs idle compaction. Saving notes does not rewrite that opening snapshot and invalidate the cached conversation. The notes tools always read the latest notes, and a new window starts with a fresh snapshot.
 
-The window also keeps its opening task instructions stable. Updated memory, project context and other setup details arrive at the end of the conversation on resume. Idle compaction reuses the preceding request's tools where they remain available; it can still execute only notes and history actions. Revoked access takes effect immediately.
+The window also keeps its opening task instructions stable. Updated memory, project context and other setup details arrive at the end of the conversation on resume. Idle compaction reuses the preceding request's tools where they remain available; it can still execute only notes actions. Revoked access takes effect immediately.
 
-As the base context budget runs low, the agent receives a reminder to save progress in private notes. When the base budget is exhausted, it receives a final checkpoint instruction and up to 16,384 additional tokens to save a note and request a new window. The model's hard context limit can shorten this interval. Reaching either the buffered budget or the hard limit starts a new window automatically. The next window includes the continuity note and can use private history to recover details.
+As the base context budget runs low, the agent receives a reminder to save progress in private notes. When the base budget is exhausted, it receives a final checkpoint instruction and up to 16,384 additional tokens to save a note and request a new window. The model's hard context limit can shorten this interval. Reaching either the buffered budget or the hard limit starts a new window automatically. The next window includes the continuity note and can read the earlier windows to recover details.
 
 By default, the base budget is 90% of the configured model context window, the reminder threshold is 6,144 remaining tokens, and the hard limit is 95%. A configured `auto_compact_token_limit` can lower the base budget; `effective_context_window_percent` changes the hard limit.
+
+### Reading earlier windows
+
+Every context window of a task is kept as a read-only file in the agent's sandbox, one per window, with one line per message, tool call or tool output. The agent reads them with ordinary file tools, the same way it reads your project files. When a new window starts, the agent's notes point it to the exact messages and calls it needs, and it looks them up in these files.
+
+```
+history/
+  0001-<window id>.jsonl   first window
+  0002-<window id>.jsonl   after the first reset
+  0003-<window id>.jsonl   current window, updated as the task runs
+```
+
+If you edit an earlier message and continue from there, the files follow that branch: windows from the other branch are removed, and windows the branches share stay.
+
+When your server admin has turned on **Session history search**, the agent can also search these windows by meaning, which helps when it remembers what happened but not the exact words. Without it, the agent still has the files.
 
 ### Replacing finished tool calls
 
@@ -102,7 +117,7 @@ Before:  call 10: read src/parser.ts → 4,000 lines
 After:   summary of calls 10-12: "The bug is in parser.ts:212; lexer.ts is fine. Snippet: …"
 ```
 
-It can keep the calls themselves and replace only their outputs, or replace both. The original calls stay in private history, so the agent can read them again if it needs exact details. Your task transcript always shows every call as it ran.
+It can keep the calls themselves and replace only their outputs, or replace both. The original calls stay in the window's history file, so the agent can read them again if it needs exact details. Your task transcript always shows every call as it ran.
 
 In code mode, the agent can read earlier outputs with a script, pull out the exact snippets it needs, and pass them straight into the summary. The extracted text never has to be written out by the model, which saves tokens.
 
@@ -112,7 +127,7 @@ Replacing calls works best for the calls the agent just made. Providers cache th
 
 The Project Master is one long conversation that wakes up whenever a task reports back, often long after its last turn. By then the provider's prompt cache has usually expired, so the next turn pays full price for the whole window.
 
-To avoid that, Meowbert compacts an idle Master while its cache is still warm. Once 80% of the cache lifetime has passed since the start of the Master's last model request, and no new turn has happened, Meowbert runs one extra turn. That turn sends the same conversation the next turn would, plus a short instruction to update its notes, so it reads from the cache. Only the notes and history tools work in that turn, and nothing reaches the user. Afterwards the Master starts a fresh window, and its next wake begins from its notes instead of the full history.
+To avoid that, Meowbert compacts an idle Master while its cache is still warm. Once 80% of the cache lifetime has passed since the start of the Master's last model request, and no new turn has happened, Meowbert runs one extra turn. That turn sends the same conversation the next turn would, plus a short instruction to update its notes, so it reads from the cache. Only the notes tools work in that turn, and nothing reaches the user. Afterwards the Master starts a fresh window, and its next wake begins from its notes instead of the full history.
 
 Idle compaction is skipped when the last request used fewer tokens than the minimum, when a task report is already waiting (the Master is about to wake anyway), or when the cache has already expired. See [Idle compaction settings](#idle-compaction-settings) to change the cache lifetime and threshold.
 
