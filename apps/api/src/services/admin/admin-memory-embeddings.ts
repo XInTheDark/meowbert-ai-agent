@@ -1,8 +1,10 @@
 import {
   MEMORY_REINDEX_EVENT_CHANNEL,
+  embeddingFeaturesInputSchema,
   memoryEmbeddingSettingsInputSchema,
   memoryReindexInputSchema,
   type AdminMemoryEmbeddingSettings,
+  type EmbeddingFeatures,
   type MemoryEmbeddingSettingsInput,
   type MemoryReindexJob
 } from "@meowbert/shared";
@@ -16,6 +18,8 @@ interface SettingsRow {
   document_template: string | null;
   query_template: string | null;
   index_generation: number;
+  memory_search_enabled: boolean;
+  history_search_enabled: boolean;
   indexed_settings_json: { model?: string; documentTemplate?: string | null; queryTemplate?: string | null } | null;
   updated_at: Date;
 }
@@ -56,6 +60,8 @@ function mapSettings(row: SettingsRow): AdminMemoryEmbeddingSettings {
     documentTemplate: row.document_template,
     queryTemplate: row.query_template,
     indexGeneration: row.index_generation,
+    memorySearchEnabled: row.memory_search_enabled,
+    historySearchEnabled: row.history_search_enabled,
     updatedAt: row.updated_at.toISOString(),
     indexedModel: row.indexed_settings_json?.model ?? null,
     indexOutdated: isIndexOutdated(row)
@@ -119,6 +125,17 @@ export async function updateMemoryEmbeddingSettings(raw: MemoryEmbeddingSettings
         SET provider_id = $1, model = $2, document_template = $3, query_template = $4, updated_at = now()
       RETURNING *`,
     [input.providerId, input.model, input.documentTemplate?.trim() || null, input.queryTemplate?.trim() || null]
+  );
+  return mapSettings(result.rows[0]);
+}
+
+export async function updateEmbeddingFeatures(raw: EmbeddingFeatures): Promise<AdminMemoryEmbeddingSettings> {
+  const input = embeddingFeaturesInputSchema.parse(raw);
+  const result = await query<SettingsRow>(
+    `UPDATE memory_embedding_settings
+        SET memory_search_enabled = $1, history_search_enabled = $2, updated_at = now()
+      RETURNING *`,
+    [input.memorySearchEnabled, input.historySearchEnabled]
   );
   return mapSettings(result.rows[0]);
 }

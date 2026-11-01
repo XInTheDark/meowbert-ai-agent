@@ -81,6 +81,22 @@
   gap: 1rem;
 }
 
+.admin-embeddings-features {
+  display: grid;
+  gap: .75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.admin-embeddings-features legend {
+  margin-bottom: .75rem;
+  padding: 0;
+  font-size: .875rem;
+  font-weight: 550;
+}
+
 .admin-embeddings-form label,
 .admin-reindex__controls label {
   display: grid;

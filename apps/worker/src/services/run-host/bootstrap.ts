@@ -1,8 +1,10 @@
 import {
   normalizeWorkspaceFileHost,
+  readEmbeddingFeatures,
   workspaceFileFeatures,
   deviceWorkspaceProjectPath,
   setSandboxNetworkEnabled,
+  type EmbeddingFeatures,
   type WorkspaceFileHost
 } from "@meowbert/shared";
 import { loadSubagentRuntime, loadSubagentPlatformProvider } from "../subagents/runtime.js";
@@ -480,11 +482,11 @@ async function resolveRuntimeConfig(
 }
 
 // The model router reads the memory files to judge the request; the executor reads its own copy.
-async function readRoutingMemoryFiles(snapshot: TaskSnapshot, workspaceRoot: string) {
+async function readRoutingMemoryFiles(snapshot: TaskSnapshot, workspaceRoot: string, embeddingFeatures: EmbeddingFeatures) {
   if (snapshot.environment.workspace_memory_enabled !== true) {
     return { memoryMainFile: null, projectMemoryMainFile: null };
   }
-  void ensureWorkspaceMemoryWatcher(workspaceRoot);
+  if (embeddingFeatures.memorySearchEnabled) void ensureWorkspaceMemoryWatcher(workspaceRoot);
   const project = { workspaceRoot, projectId: snapshot.environment.id, projectName: snapshot.environment.name };
   const [memoryMainFile, projectMemoryMainFile] = await Promise.all([
     readWorkspaceMemoryMainFile(workspaceRoot).catch(() => null),
@@ -678,7 +680,8 @@ export async function loadServerRunState(
   // environment, so it runs alongside the model route instead of before it.
   const githubPromise = refreshStartupGitHubAccess(refreshGitHubToken, snapshot, debugLogger);
   githubPromise.catch(() => undefined);
-  const memoryFiles = roots.fileHost.kind === "device" ? { memoryMainFile: null, projectMemoryMainFile: null } : await readRoutingMemoryFiles(snapshot, roots.workspaceRoot);
+  const embeddingFeatures = await readEmbeddingFeatures(query);
+  const memoryFiles = roots.fileHost.kind === "device" ? { memoryMainFile: null, projectMemoryMainFile: null } : await readRoutingMemoryFiles(snapshot, roots.workspaceRoot, embeddingFeatures);
   const runtime = await debugLogger.stage({
     stage: "startup.runtime_config",
     startMessage: "Resolving runtime configuration.",
@@ -732,6 +735,7 @@ export async function loadServerRunState(
       liveSyncFiles: tooling.liveSyncFiles,
       runtime: runtime.route,
       memoryEnabled,
+      embeddingFeatures,
       thoughtPersistenceEnabled: memoryEnabled && snapshot.thought_persistence_enabled === true,
       github,
       sandboxResources: tooling.sandboxResources,

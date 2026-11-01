@@ -388,6 +388,7 @@ async function prepareTaskDirectories(
 function resolveRunTooling(bootstrap: RunBootstrap, job: TaskExecutionJob, settings: ExecutorSettings) {
   const runToolOptions = resolveRunToolOptions(bootstrap.snapshot, job, bootstrap.memoryEnabled);
   if (!workspaceFileFeatures(normalizeWorkspaceFileHost(bootstrap.fileHost)).memorySearch) runToolOptions.memorySearch = false;
+  if (!bootstrap.embeddingFeatures.memorySearchEnabled) runToolOptions.memorySearch = false;
   // Attached Google files make the Google Workspace skill available, but its large toolset loads
   // only when the agent enables it.
   const onDemandSkills = (bootstrap.googleWorkspaceReferences.length > 0 || bootstrap.hasGoogleWorkspaceFolders)

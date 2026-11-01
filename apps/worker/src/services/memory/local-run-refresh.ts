@@ -1,4 +1,4 @@
-import { normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
+import { normalizeWorkspaceFileHost, readEmbeddingFeatures, workspaceFileFeatures } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { resolveTaskWorkspaceRoot } from "../workspaces/workspace-storage.js";
 import { syncWorkspaceMemoryNow } from "./watcher.js";
@@ -12,9 +12,10 @@ export async function refreshLocalRunMemoryOnce(): Promise<void> {
        FROM due WHERE r.run_id = due.run_id AND r.delay_seconds = due.delay_seconds RETURNING r.*)
      SELECT r.*, w.root_path, w.file_host FROM claimed r JOIN workspaces w ON w.id = r.workspace_id`
   );
+  const { memorySearchEnabled } = result.rows.length > 0 ? await readEmbeddingFeatures(query) : { memorySearchEnabled: false };
   for (const refresh of result.rows) {
     try {
-      if (!workspaceFileFeatures(normalizeWorkspaceFileHost(refresh.file_host)).memorySearch) {
+      if (!memorySearchEnabled || !workspaceFileFeatures(normalizeWorkspaceFileHost(refresh.file_host)).memorySearch) {
         await query("DELETE FROM local_run_memory_refreshes WHERE run_id = $1 AND delay_seconds = $2", [refresh.run_id, refresh.delay_seconds]);
         continue;
       }

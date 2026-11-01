@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type {
   AdminAiProvider,
   AdminMemoryEmbeddingSettings,
+  EmbeddingFeatures,
   MemoryEmbeddingSettingsInput,
   MemoryReindexJob
 } from "@meowbert/shared";
@@ -76,6 +77,10 @@ export function useAdminMemoryEmbeddings() {
     settings, providers, job, isLoading, isSaving, error, reload,
     saveSettings: (input: MemoryEmbeddingSettingsInput) => run(async () => {
       const response = await api.put<{ settings: AdminMemoryEmbeddingSettings }>("/api/admin/memory-embeddings", input);
+      setSettings(response.settings);
+    }),
+    saveFeatures: (input: EmbeddingFeatures) => run(async () => {
+      const response = await api.put<{ settings: AdminMemoryEmbeddingSettings }>("/api/admin/memory-embeddings/features", input);
       setSettings(response.settings);
     }),
     reembedLazily: () => run(async () => {

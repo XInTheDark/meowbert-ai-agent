@@ -15,11 +15,20 @@ export const memoryEmbeddingSettingsInputSchema = z.object({
 
 export type MemoryEmbeddingSettingsInput = z.infer<typeof memoryEmbeddingSettingsInputSchema>;
 
+export const embeddingFeaturesInputSchema = z.object({
+  memorySearchEnabled: z.boolean(),
+  historySearchEnabled: z.boolean()
+}).strict();
+
+export type EmbeddingFeatures = z.infer<typeof embeddingFeaturesInputSchema>;
+
+export const DEFAULT_EMBEDDING_FEATURES: EmbeddingFeatures = { memorySearchEnabled: true, historySearchEnabled: false };
+
 export const memoryReindexInputSchema = z.object({
   concurrency: z.number().int().min(1).max(MEMORY_REINDEX_MAX_CONCURRENCY)
 }).strict();
 
-export interface AdminMemoryEmbeddingSettings extends MemoryEmbeddingSettingsInput {
+export interface AdminMemoryEmbeddingSettings extends MemoryEmbeddingSettingsInput, EmbeddingFeatures {
   indexGeneration: number;
   updatedAt: string;
   /** The model the current indexes were built with. */
@@ -57,6 +66,17 @@ type EmbeddingSettingsQuery = (sql: string) => Promise<{ rows: Array<Record<stri
 
 function nonEmpty(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+// Which embedding features are on. Reading them never needs an embedding provider.
+export async function readEmbeddingFeatures(query: EmbeddingSettingsQuery): Promise<EmbeddingFeatures> {
+  const result = await query("SELECT memory_search_enabled, history_search_enabled FROM memory_embedding_settings LIMIT 1");
+  const row = result.rows[0];
+  if (!row) return DEFAULT_EMBEDDING_FEATURES;
+  return {
+    memorySearchEnabled: row.memory_search_enabled !== false,
+    historySearchEnabled: row.history_search_enabled === true
+  };
 }
 
 // A missing provider means "follow the provider selected in Admin → AI providers".

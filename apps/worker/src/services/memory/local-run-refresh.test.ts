@@ -15,7 +15,7 @@ it("retains failed syncs for retry even when the watcher reports errors through 
   vi.mocked(readMemorySyncStatus).mockResolvedValue({ state: "error", error: "mount unavailable" } as never);
   const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
   await refreshLocalRunMemoryOnce();
-  expect(query).toHaveBeenCalledTimes(1);
+  expect(query).not.toHaveBeenCalledWith(expect.stringContaining("DELETE"), expect.anything());
   vi.mocked(readMemorySyncStatus).mockResolvedValue({ state: "ready" } as never);
   await refreshLocalRunMemoryOnce();
   expect(syncWorkspaceMemoryNow).toHaveBeenCalledTimes(2);
@@ -25,6 +25,15 @@ it("retains failed syncs for retry even when the watcher reports errors through 
 
 it("removes refresh requests for device folders without trying to index server paths", async () => {
   vi.mocked(query).mockResolvedValue({ rows: [{ run_id: "run", workspace_id: "workspace", delay_seconds: 60, file_host: { kind: "device", deviceId: "11111111-1111-4111-8111-111111111111" } }] } as never);
+  await refreshLocalRunMemoryOnce();
+  expect(syncWorkspaceMemoryNow).not.toHaveBeenCalled();
+  expect(query).toHaveBeenLastCalledWith(expect.stringContaining("DELETE"), ["run", 60]);
+});
+
+it("removes refresh requests without indexing while Memory search is switched off", async () => {
+  vi.mocked(query).mockImplementation((async (sql: string) => sql.includes("memory_search_enabled")
+    ? { rows: [{ memory_search_enabled: false, history_search_enabled: false }] }
+    : { rows: [{ run_id: "run", workspace_id: "workspace", delay_seconds: 60, root_path: "/workspace" }] }) as never);
   await refreshLocalRunMemoryOnce();
   expect(syncWorkspaceMemoryNow).not.toHaveBeenCalled();
   expect(query).toHaveBeenLastCalledWith(expect.stringContaining("DELETE"), ["run", 60]);

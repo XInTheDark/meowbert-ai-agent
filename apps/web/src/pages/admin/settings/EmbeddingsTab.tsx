@@ -1,3 +1,4 @@
+import { EmbeddingFeaturesForm } from "./EmbeddingFeaturesForm";
 import { EmbeddingSettingsForm } from "./EmbeddingSettingsForm";
 import { MemoryReindexPanel } from "./MemoryReindexPanel";
 import { useAdminMemoryEmbeddings } from "./useAdminMemoryEmbeddings";
@@ -10,9 +11,12 @@ export function EmbeddingsTab() {
     <section className="admin-embeddings" aria-labelledby="embeddings-title">
       <div>
         <h2 id="embeddings-title">Embeddings</h2>
-        <p className="muted-text">The model used to index and search workspace Memory.</p>
+        <p className="muted-text">The model used to index and search Memory and session history.</p>
       </div>
       {state.isLoading && !state.settings ? <p role="status">Loading embedding settings…</p> : null}
+      {state.settings ? (
+        <EmbeddingFeaturesForm settings={state.settings} disabled={disabled} onSave={state.saveFeatures} />
+      ) : null}
       {state.settings ? (
         <EmbeddingSettingsForm settings={state.settings} providers={state.providers} disabled={disabled} onSave={state.saveSettings} />
       ) : null}
