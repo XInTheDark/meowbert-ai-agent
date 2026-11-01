@@ -4,7 +4,6 @@ import { isWithinPath, parseTaskCleanupSettings, normalizeWorkspaceFileHost, wor
 import { query, withTransaction } from "../../lib/db.js";
 import { resolveTaskEnvironmentRoot } from "../runtime/environment-storage.js";
 import { deleteTaskHistoryArchive } from "./task-history.js";
-import { deleteTaskHistoryIndex } from "../context-history-index/index.js";
 import { removeTasksScratch } from "./task-scratch.js";
 
 const TERMINAL_TASK_STATUSES = ["succeeded", "failed", "cancelled"] as const;
@@ -221,7 +220,6 @@ async function runEnvironmentCleanup(input: {
     workspacePaths: combinedDeleted.workspacePaths
   });
   await removeTasksScratch(input.workspaceId, combinedDeleted.taskIds);
-  for (const taskId of combinedDeleted.taskIds) await deleteTaskHistoryIndex(taskId);
   await removeTaskArchiveFiles(combinedDeleted.archiveKeys);
 
   return combinedDeleted.taskIds.length;

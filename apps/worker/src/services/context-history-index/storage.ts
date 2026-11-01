@@ -83,19 +83,34 @@ export async function dropHistoryIndex(connection: Connection): Promise<void> {
   await fs.rm(path.join(indexDir(), "tasks"), { recursive: true, force: true });
 }
 
-export async function deleteTaskHistoryIndex(taskId: string): Promise<void> {
-  // Hosts that never indexed history have nothing to remove.
-  if (!await fs.stat(path.join(indexDir(), "lancedb")).then(() => true, () => false)) return;
-  await withHistoryIndexWriteLock(async () => {
-    const connection = await openHistoryConnection();
-    try {
-      const table = await openHistoryTable(connection);
-      if (table) await table.delete(`task_id = '${escapeSqlString(taskId)}'`);
-      await fs.rm(watermarkPath(taskId), { force: true });
-    } finally {
-      connection.close();
-    }
-  });
+export interface HistoryDeletionCursor {
+  checkedAt: string;
+}
+
+function deletionCursorPath(): string {
+  return path.join(indexDir(), "deletions.json");
+}
+
+export async function historyIndexExists(): Promise<boolean> {
+  return fs.stat(path.join(indexDir(), "lancedb")).then(() => true, () => false);
+}
+
+export async function readDeletionCursor(): Promise<HistoryDeletionCursor | null> {
+  return readJsonFile<HistoryDeletionCursor>(deletionCursorPath());
+}
+
+export async function writeDeletionCursor(cursor: HistoryDeletionCursor): Promise<void> {
+  await writeJsonFileAtomic(deletionCursorPath(), cursor);
+}
+
+// Call under the write lock.
+export async function deleteTasksFromHistoryIndex(connection: Connection, taskIds: string[]): Promise<void> {
+  if (taskIds.length === 0) return;
+  const table = await openHistoryTable(connection);
+  const predicate = `task_id IN (${taskIds.map((taskId) => `'${escapeSqlString(taskId)}'`).join(", ")})`;
+  // Skipping the delete when nothing matches keeps repeat passes from writing new table versions.
+  if (table && await table.countRows(predicate) > 0) await table.delete(predicate);
+  await Promise.all(taskIds.map((taskId) => fs.rm(watermarkPath(taskId), { force: true })));
 }
 
 export async function ensureHistoryTableIndices(table: Table): Promise<void> {

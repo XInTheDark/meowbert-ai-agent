@@ -72,7 +72,7 @@ Each feature has its own switch at the top of the tab. Changes save right away a
 | **Memory search** | On | Memory is not indexed and agents get no `memory_search` tool. Memory files are still read and written. |
 | **Session history search** | Off | Agents get no `history_search` tool. They can still read earlier windows from the task's history files. |
 
-Session history search embeds every message and tool output of every running task, up to the first 16,000 characters of each item, so it costs more than Memory search. Its index lives on each worker's local disk, next to the Memory index cache, and is built as tasks run. Archiving a task removes it from the index; a restored task is indexed again the next time it runs.
+Session history search embeds every message and tool output of every running task, up to the first 16,000 characters of each item, so it costs more than Memory search. Its index lives on each worker's local disk, next to the Memory index cache, and is built as tasks run. Each worker removes archived and deleted tasks from its index within about a minute; a restored task is indexed again the next time it runs. A worker that was offline for more than 30 days rebuilds its index from scratch.
 
 ### Model
 

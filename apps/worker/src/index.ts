@@ -26,6 +26,7 @@ import { startWorkspaceStorageMigrationLoop } from "./services/storage/workspace
 import { storageBackendRegistry } from "./services/storage/backend-registry.js";
 import { startTaskRunDispatchLoop } from "./services/tasks/task-run-dispatch.js";
 import { startTaskHistoryArchiveLoop } from "./services/tasks/task-history-archive-loop.js";
+import { startHistoryIndexDeletionLoop } from "./services/context-history-index/index.js";
 import { startTaskHistoryArchiveRequestLoop } from "./services/tasks/task-history-archive-request-loop.js";
 import { startSandboxOrphanCleanupLoop } from "./services/tasks/sandbox-orphan-cleanup.js";
 import { startEventRetentionCleanupLoop } from "./services/tasks/event-retention.js";
@@ -141,6 +142,7 @@ async function start(): Promise<void> {
   const taskRunDispatchLoop = startTaskRunDispatchLoop();
   const taskHistoryArchiveLoop = startTaskHistoryArchiveLoop();
   const taskHistoryArchiveRequestLoop = startTaskHistoryArchiveRequestLoop();
+  const historyIndexDeletionLoop = startHistoryIndexDeletionLoop();
   const eventRetentionCleanupLoop = startEventRetentionCleanupLoop();
   const adminRuntimeMigrationLoop = startAdminRuntimeMigrationLoop();
   const workspaceStorageMigrationLoop = startWorkspaceStorageMigrationLoop();
@@ -207,6 +209,7 @@ async function start(): Promise<void> {
     await taskRunDispatchLoop.stop();
     await taskHistoryArchiveLoop.stop();
     await taskHistoryArchiveRequestLoop.stop();
+    await historyIndexDeletionLoop.stop();
     await eventRetentionCleanupLoop.stop();
     await adminRuntimeMigrationLoop.stop();
     await workspaceStorageMigrationLoop.stop();

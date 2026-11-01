@@ -30,8 +30,8 @@ vi.mock("@meowbert/run-executor/agent/openai-client", () => ({
 }));
 
 import { query } from "../../lib/db.js";
-import { deleteTaskHistoryIndex, indexTaskHistory, searchTaskHistory } from "./index.js";
-import { openHistoryConnection, openHistoryTable } from "./storage.js";
+import { applyHistoryIndexDeletions, indexTaskHistory, searchTaskHistory } from "./index.js";
+import { openHistoryConnection, openHistoryTable, writeDeletionCursor } from "./storage.js";
 
 const taskId = "11111111-1111-4111-8111-111111111111";
 const state = { taskId, windowId: "w3", contextNodeId: "node-3" };
@@ -47,8 +47,11 @@ const items: Record<string, Array<{ id: string; ordinal: number; call_number: nu
   w3: [{ id: "item-4", ordinal: 1, call_number: null, payload_json: message("assistant", "Writing the release notes") }]
 };
 let historySearchEnabled = true;
+let queuedDeletions: string[] = [];
 
 function fakeQuery(sql: string, params: unknown[] = []) {
+  if (sql.startsWith("DELETE FROM history_index_deletions")) return { rows: [] };
+  if (sql.includes("history_index_deletions")) return { rows: [{ checked_at: new Date(), task_ids: queuedDeletions }] };
   if (sql.includes("memory_search_enabled")) return { rows: [{ memory_search_enabled: true, history_search_enabled: historySearchEnabled }] };
   if (sql.includes("memory_embedding_settings")) return { rows: [{ model: "test-embedding", index_generation: 1, base_url: "https://embeddings.test/v1", api_key: "key" }] };
   if (sql.includes("task_history_archived_at")) return { rows: [{ archived: false }] };
@@ -75,8 +78,9 @@ async function countTaskRows(): Promise<number> {
 
 beforeEach(async () => {
   historySearchEnabled = true;
+  queuedDeletions = [];
   vi.mocked(query).mockImplementation((async (sql: string, params?: unknown[]) => fakeQuery(sql, params)) as never);
-  await deleteTaskHistoryIndex(taskId);
+  fs.rmSync(path.join(paths.cacheRoot, "v1"), { recursive: true, force: true });
 });
 
 afterAll(() => {
@@ -102,9 +106,20 @@ describe("session history search", () => {
     expect(await countTaskRows()).toBe(rows);
   });
 
-  it("drops a task's rows from the index", async () => {
+  it("drops archived or deleted tasks queued for removal and keeps the rest", async () => {
     await indexTaskHistory(taskId);
-    await deleteTaskHistoryIndex(taskId);
+    await applyHistoryIndexDeletions();
+    expect(await countTaskRows()).toBe(4);
+
+    queuedDeletions = [taskId];
+    await applyHistoryIndexDeletions();
+    expect(await countTaskRows()).toBe(0);
+  });
+
+  it("starts over on a host that missed more of the queue than is kept", async () => {
+    await indexTaskHistory(taskId);
+    await writeDeletionCursor({ checkedAt: new Date(Date.now() - 40 * 24 * 60 * 60_000).toISOString() });
+    await applyHistoryIndexDeletions();
 
     expect(await countTaskRows()).toBe(0);
   });

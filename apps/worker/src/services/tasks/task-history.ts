@@ -7,7 +7,6 @@ import {
 import { config } from "../../lib/config.js";
 import { pool, query, withTransaction } from "../../lib/db.js";
 import { expireSwarmLanes } from "../agent-swarm/dormancy.js";
-import { deleteTaskHistoryIndex } from "../context-history-index/index.js";
 import { removeTasksScratch } from "./task-scratch.js";
 
 const taskHistoryDeps = {
@@ -31,7 +30,6 @@ export async function archiveTaskHistory(taskId: string) {
   const result = await archiveSharedTaskHistory(taskId, taskHistoryDeps);
   if (result.status === "archived") {
     await removeArchivedTaskScratch(taskId);
-    await removeArchivedTaskHistoryIndex(taskId);
     await expireSwarmLanes(pool, taskId);
   }
   return result;
@@ -44,13 +42,6 @@ async function removeArchivedTaskScratch(taskId: string): Promise<void> {
   if (workspaceId) {
     await removeTasksScratch(workspaceId, [taskId]);
   }
-}
-
-// The search index is derived from history; a restored task is indexed again when it is next used.
-async function removeArchivedTaskHistoryIndex(taskId: string): Promise<void> {
-  await deleteTaskHistoryIndex(taskId).catch((error: unknown) => {
-    console.warn(`[history-index] Could not drop archived task ${taskId}: ${error instanceof Error ? error.message : String(error)}`);
-  });
 }
 
 export async function resetStaleTaskHistoryArchiving(now?: Date): Promise<number> {
