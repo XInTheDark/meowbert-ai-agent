@@ -40,6 +40,11 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
       await fs.mkdir(scratch, { recursive: true });
       return scratch;
     },
+    async prepareHistoryDir(input) {
+      const dir = path.join(options.scratchRoot, ".history", input.workspaceId, input.taskId);
+      await fs.mkdir(dir, { recursive: true });
+      return dir;
+    },
     async start(spec: MachineSpec): Promise<MachineHost> {
       await verifyDockerStorage(manager, options);
       await fs.mkdir(spec.taskDir, { recursive: true });
@@ -47,6 +52,7 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
         envRoot: spec.envRoot,
         workspaceRoot: spec.workspaceRoot,
         taskScratchDir: spec.taskScratchDir,
+        taskHistoryDir: spec.taskHistoryDir,
         readOnly: spec.readOnly,
         skillsRootDir: process.platform === "win32" ? null : options.skillsRootDir
       });

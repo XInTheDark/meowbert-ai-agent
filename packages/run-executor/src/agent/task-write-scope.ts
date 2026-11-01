@@ -37,6 +37,7 @@ export async function buildTaskSandboxMounts(input: {
   envRoot: string;
   workspaceRoot: string;
   taskScratchDir: string;
+  taskHistoryDir: string;
   readOnly: boolean;
   skillsRootDir: string | null;
 }): Promise<SandboxMountPath[]> {
@@ -51,6 +52,7 @@ export async function buildTaskSandboxMounts(input: {
       ...(input.readOnly ? { readOnly: true } : {})
     })),
     { path: input.taskScratchDir },
+    { path: input.taskHistoryDir, readOnly: true },
     ...(input.skillsRootDir ? [{ path: input.skillsRootDir, readOnly: true, optional: true }] : [])
   ];
 }

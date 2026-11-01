@@ -15,9 +15,11 @@ import {
   startNewContextWindowRecord
 } from "./service.js";
 import {
+  listContextHistoryWindows,
   listContextItems,
   listContextNotes,
   listContextWindows,
+  loadContextHistoryWindow,
   readContextItem,
   readContextNote,
   searchContextHistory
@@ -47,6 +49,8 @@ export function createDbContextStore(taskId: string): RunContextStore {
     prepareWindowRequest: (window, request, idle) => own(window).then((ref) => prepareContextWindowRequest(ref, request, idle)),
     startNewWindow: (window, branchLeafMessageId, reason) => own(window).then((ref) => startNewContextWindowRecord(ref, branchLeafMessageId, reason)),
     linkVisibleMessage: (window, visibleMessageId) => own(window).then((ref) => linkVisibleContextNode(ref, visibleMessageId)),
+    listHistoryWindows: (window) => own(window).then((ref) => listContextHistoryWindows(ref)),
+    loadHistoryWindow: (window, windowId) => own(window).then((ref) => loadContextHistoryWindow(ref, windowId)),
     writeNote: (window, input) => own(window).then((ref) => writeContextNote({
       state: ref, path: input.path, text: input.text, append: input.append
     })),

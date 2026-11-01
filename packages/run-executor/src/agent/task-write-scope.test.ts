@@ -11,6 +11,7 @@ import {
 
 const tempDirs: string[] = [];
 const taskScratchDir = "/scratch/workspace-1/task-1";
+const taskHistoryDir = "/scratch/.history/workspace-1/task-1";
 
 function createTempDir(prefix: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -53,6 +54,7 @@ describe("task write scope", () => {
       envRoot,
       workspaceRoot,
       taskScratchDir,
+      taskHistoryDir,
       readOnly: true,
       skillsRootDir
     });
@@ -60,6 +62,7 @@ describe("task write scope", () => {
     expect(mounts).toEqual([
       { path: storageUnitRoot, readOnly: true },
       { path: taskScratchDir },
+      { path: taskHistoryDir, readOnly: true },
       { path: skillsRootDir, readOnly: true, optional: true }
     ]);
   });
@@ -71,13 +74,15 @@ describe("task write scope", () => {
       envRoot,
       workspaceRoot,
       taskScratchDir,
+      taskHistoryDir,
       readOnly: false,
       skillsRootDir: null
     });
 
     expect(mounts).toEqual([
       { path: storageUnitRoot },
-      { path: taskScratchDir }
+      { path: taskScratchDir },
+      { path: taskHistoryDir, readOnly: true }
     ]);
   });
 
@@ -89,6 +94,7 @@ describe("task write scope", () => {
       envRoot,
       workspaceRoot,
       taskScratchDir,
+      taskHistoryDir,
       readOnly: false,
       skillsRootDir: null
     });
@@ -96,7 +102,8 @@ describe("task write scope", () => {
     expect(mounts).toEqual([
       { path: storageUnitRoot },
       { path: envRoot },
-      { path: taskScratchDir }
+      { path: taskScratchDir },
+      { path: taskHistoryDir, readOnly: true }
     ]);
   });
 

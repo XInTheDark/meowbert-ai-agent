@@ -104,6 +104,18 @@ export interface OpenedContextWindow {
   windowId: string;
   contextNodeId: string;
   previousWindowId: string | null;
+  ordinal: number;
+}
+
+export interface ContextHistoryWindow {
+  windowId: string;
+  ordinal: number;
+}
+
+export interface StoredContextHistoryItem {
+  id: string;
+  callNumber: number | null;
+  item: ResponseInputItem;
 }
 
 export interface ContextHistoryRecord {
@@ -139,8 +151,12 @@ export interface RunContextStore {
   freezeWindowPrompt(window: ContextWindowRef, items: ResponseInputItem[]): Promise<ResponseInputItem[]>;
   // Freeze setup once; ordinary requests update the last tool recipe, idle requests only read it.
   prepareWindowRequest(window: ContextWindowRef, request: WindowRequestState, idle: boolean): Promise<WindowRequestState>;
-  startNewWindow(window: ContextWindowRef, branchLeafMessageId: string | null, reason: string): Promise<{ windowId: string; contextNodeId: string }>;
+  startNewWindow(window: ContextWindowRef, branchLeafMessageId: string | null, reason: string): Promise<{ windowId: string; contextNodeId: string; ordinal: number }>;
   linkVisibleMessage(window: ContextWindowRef, visibleMessageId: string): Promise<string>;
+  // The windows on this window's lineage, oldest first.
+  listHistoryWindows(window: ContextWindowRef): Promise<ContextHistoryWindow[]>;
+  // Every item of one of the task's windows, in order.
+  loadHistoryWindow(window: ContextWindowRef, windowId: string): Promise<StoredContextHistoryItem[]>;
   writeNote(window: ContextWindowRef, input: { path: string; text: string; append: boolean }): Promise<{ path: string; bytes: number }>;
   listWindows(window: ContextWindowRef, input: { limit?: number | null; recent_first?: boolean | null }): Promise<{ windows: Array<{ window_id: string; item_count: number }> }>;
   listItems(window: ContextWindowRef, input: ContextHistoryFilter & {

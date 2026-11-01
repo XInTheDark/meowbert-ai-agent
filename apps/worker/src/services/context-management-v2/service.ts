@@ -9,31 +9,10 @@ import type {
 } from "@meowbert/run-executor/agent/ports/run-control";
 import type { ContextHistoryRow, ContextNoteRow, ContextWindowRow } from "@meowbert/run-executor/context-management-v2/types";
 
+import { getHistoryMetadata } from "@meowbert/run-executor/context-management-v2/history-item";
 import { accessibleNodesCte } from "./lineage.js";
 export { accessibleNodesCte } from "./lineage.js";
 export { writeContextNote } from "./notes.js";
-
-function getRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? value as Record<string, unknown> : {};
-}
-
-function getHistoryMetadata(item: ResponseInputItem): {
-  role: string;
-  itemType: string | null;
-  toolNamespace: string | null;
-  toolName: string | null;
-} {
-  const record = getRecord(item);
-  const type = typeof record.type === "string" ? record.type : null;
-  const name = typeof record.name === "string" ? record.name : null;
-  const [toolNamespace, toolName] = name?.includes(".") ? name.split(".", 2) : [null, name];
-  return {
-    role: typeof record.role === "string" ? record.role : (type?.endsWith("_output") ? "tool" : "assistant"),
-    itemType: type,
-    toolNamespace,
-    toolName
-  };
-}
 
 async function createWindow(input: {
   taskId: string;
@@ -165,7 +144,8 @@ export async function openContextWindow(taskId: string, branchLeafMessageId: str
     firstWindowId: first.rows[0]?.id ?? window.id,
     windowId: window.id,
     contextNodeId: window.context_node_id,
-    previousWindowId: window.parent_window_id
+    previousWindowId: window.parent_window_id,
+    ordinal: window.ordinal
   };
 }
 
@@ -265,7 +245,7 @@ export async function startNewContextWindowRecord(
   state: ContextWindowRef,
   branchLeafMessageId: string | null,
   reason: string
-): Promise<{ windowId: string; contextNodeId: string }> {
+): Promise<{ windowId: string; contextNodeId: string; ordinal: number }> {
   await query("UPDATE task_context_windows SET closed_at = now() WHERE id = $1 AND closed_at IS NULL", [state.windowId]);
   const contextNodeId = await createPrivateContextNode(state.taskId, state.contextNodeId);
   const window = await createWindow({
@@ -275,7 +255,7 @@ export async function startNewContextWindowRecord(
     branchLeafMessageId,
     reason
   });
-  return { windowId: window.id, contextNodeId: window.context_node_id };
+  return { windowId: window.id, contextNodeId: window.context_node_id, ordinal: window.ordinal };
 }
 
 // The visible context node for a message, created under the window's node when it has none.

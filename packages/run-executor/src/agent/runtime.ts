@@ -46,6 +46,7 @@ import {
 } from "./google-workspace-references.js";
 import type { RunBootstrap } from "./ports/run-bootstrap.js";
 import type { RunControl, RunToolCallStart } from "./ports/run-control.js";
+import { withHistoryFiles } from "../context-management-v2/history-files.js";
 import type { ModelGateway } from "./ports/model-gateway.js";
 import type { MachineHost } from "./ports/machine-host.js";
 import type { RunEnvironment } from "./ports/run-environment.js";
@@ -327,12 +328,14 @@ function buildInitialShellEnvironment(
   snapshot: TaskSnapshot,
   envRoot: string,
   workspaceRoot: string,
-  taskScratchDir: string
+  taskScratchDir: string,
+  taskHistoryDir: string
 ): Record<string, string> {
   const shellEnvOverrides: Record<string, string> = {
     WORKSPACE_ROOT: workspaceRoot,
     MEOWBERT_WORKSPACE_ROOT: workspaceRoot,
-    TASK_SCRATCH_DIR: taskScratchDir
+    TASK_SCRATCH_DIR: taskScratchDir,
+    TASK_HISTORY_DIR: taskHistoryDir
   };
   if (snapshot.interactive_canvas) {
     const canvasDir = path.resolve(envRoot, snapshot.interactive_canvas.root_path);
@@ -378,7 +381,8 @@ async function prepareTaskDirectories(
     run: () => env.machines.prepareScratchDir({ workspaceId: snapshot.task.workspace_id, taskId: snapshot.task.id }),
     successPayload: (resolvedScratchDir) => ({ taskScratchDir: resolvedScratchDir })
   });
-  return { taskDir, taskScratchDir };
+  const taskHistoryDir = await env.machines.prepareHistoryDir({ workspaceId: snapshot.task.workspace_id, taskId: snapshot.task.id });
+  return { taskDir, taskScratchDir, taskHistoryDir };
 }
 
 function resolveRunTooling(bootstrap: RunBootstrap, job: TaskExecutionJob, settings: ExecutorSettings) {
@@ -465,6 +469,7 @@ interface PreparedRunState {
   cancellationMonitor: TaskCancellationMonitor;
   taskDir: string;
   taskScratchDir: string;
+  taskHistoryDir: string;
   shellEnvOverrides: Record<string, string>;
   memoryFiles: Awaited<ReturnType<typeof prepareWorkspaceMemory>>;
 }
@@ -480,6 +485,7 @@ async function startRunMachine(state: PreparedRunState, tooling: ReturnType<type
     actorUserId: bootstrap.runActorUserId,
     taskDir: state.taskDir,
     taskScratchDir: state.taskScratchDir,
+    taskHistoryDir: state.taskHistoryDir,
     envRoot: roots.envRoot,
     workspaceRoot: roots.workspaceRoot,
     workspaceRootRelative: roots.workspaceRootRelative,
@@ -649,9 +655,13 @@ export async function prepareAgentRunContext(
 ): Promise<PreparedAgentRunContext> {
   const bootstrap = await env.control.bootstrap();
   const { snapshot, roots } = bootstrap;
-  const { taskDir, taskScratchDir } = await prepareTaskDirectories(env, bootstrap, debugLogger);
+  const { taskDir, taskScratchDir, taskHistoryDir } = await prepareTaskDirectories(env, bootstrap, debugLogger);
+  env = {
+    ...env,
+    control: { ...env.control, context: withHistoryFiles(env.control.context, { taskId: snapshot.task.id, historyDir: taskHistoryDir }) }
+  };
   const shellEnvOverrides = {
-    ...buildInitialShellEnvironment(snapshot, roots.envRoot, roots.workspaceRoot, taskScratchDir),
+    ...buildInitialShellEnvironment(snapshot, roots.envRoot, roots.workspaceRoot, taskScratchDir, taskHistoryDir),
     ...bootstrap.github.env
   };
   const cancellationMonitor = startPreparedCancellationMonitor(env.control, snapshot);
@@ -688,6 +698,7 @@ export async function prepareAgentRunContext(
       cancellationMonitor,
       taskDir,
       taskScratchDir,
+      taskHistoryDir,
       shellEnvOverrides,
       memoryFiles
     });

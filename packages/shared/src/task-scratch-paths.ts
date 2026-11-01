@@ -18,6 +18,16 @@ export function resolveTaskScratchDir(scratchRoot: string, workspaceId: string, 
   return resolveScratchChild(resolveWorkspaceScratchDir(scratchRoot, workspaceId), taskId);
 }
 
+// Read-only history files of a task's context windows. They sit under the scratch root but outside
+// the workspace directories, so the workspace scratch quota does not count them.
+function resolveWorkspaceHistoryDir(scratchRoot: string, workspaceId: string): string {
+  return resolveScratchChild(resolveScratchChild(scratchRoot, ".history"), workspaceId);
+}
+
+export function resolveTaskHistoryDir(scratchRoot: string, workspaceId: string, taskId: string): string {
+  return resolveScratchChild(resolveWorkspaceHistoryDir(scratchRoot, workspaceId), taskId);
+}
+
 async function removeScratchPath(scratchRoot: string, targetPath: string): Promise<void> {
   if (!isWithinPath(path.resolve(scratchRoot), targetPath) || path.resolve(scratchRoot) === targetPath) {
     return;
@@ -31,9 +41,11 @@ async function removeScratchPath(scratchRoot: string, targetPath: string): Promi
 export async function removeTaskScratchDirs(scratchRoot: string, workspaceId: string, taskIds: string[]): Promise<void> {
   for (const taskId of new Set(taskIds)) {
     await removeScratchPath(scratchRoot, resolveTaskScratchDir(scratchRoot, workspaceId, taskId));
+    await removeScratchPath(scratchRoot, resolveTaskHistoryDir(scratchRoot, workspaceId, taskId));
   }
 }
 
 export async function removeWorkspaceScratchDir(scratchRoot: string, workspaceId: string): Promise<void> {
   await removeScratchPath(scratchRoot, resolveWorkspaceScratchDir(scratchRoot, workspaceId));
+  await removeScratchPath(scratchRoot, resolveWorkspaceHistoryDir(scratchRoot, workspaceId));
 }

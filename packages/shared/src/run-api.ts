@@ -26,6 +26,8 @@ export const RUN_API_READ_METHODS = [
   "context.loadWindowItems",
   "context.loadLastCallNumber",
   "context.loadNotesSummary",
+  "context.listHistoryWindows",
+  "context.loadHistoryWindow",
   "context.listWindows",
   "context.listItems",
   "context.readItem",

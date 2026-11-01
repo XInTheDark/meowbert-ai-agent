@@ -22,7 +22,10 @@ export async function applyDeviceTombstones(input: { api: DeviceApi; deviceId: s
     if (item.kind === "scratch" || item.kind === "workspace") {
       const relative = item.workspace_id + (item.kind === "scratch" && item.relative_path ? "/" + item.target_id : "");
       const root = await fs.realpath(input.scratchRoot).catch((error) => { if (error.code === "ENOENT") return null; throw error; });
-      if (root) await fs.rm(await resolveDevicePath(root, relative), { recursive: true, force: true });
+      if (root) {
+        await fs.rm(await resolveDevicePath(root, relative), { recursive: true, force: true });
+        await fs.rm(await resolveDevicePath(root, ".history/" + relative), { recursive: true, force: true });
+      }
     } else {
       const root = input.workspaceRoots[item.workspace_id];
       // Keep the tombstone pending until the owner reconnects the missing folder.

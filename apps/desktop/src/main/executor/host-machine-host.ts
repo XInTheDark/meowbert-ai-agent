@@ -38,6 +38,11 @@ export function createHostMachineProvider(options: { scratchRoot: string; runsRo
       await fs.mkdir(dir, { recursive: true });
       return dir;
     },
+    async prepareHistoryDir({ workspaceId, taskId }) {
+      const dir = path.join(options.scratchRoot, ".history", workspaceId, taskId);
+      await fs.mkdir(dir, { recursive: true });
+      return dir;
+    },
     async start(spec) {
       if (!options.consent) throw new Error("Host mode requires consent on this device.");
       if (spec.readOnly) throw new Error("Read-only tasks require the sandbox.");

@@ -1,5 +1,6 @@
 import { query } from "../../lib/db.js";
-import type { ContextWindowRef } from "@meowbert/run-executor/agent/ports/run-control";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
+import type { ContextHistoryWindow, ContextWindowRef, StoredContextHistoryItem } from "@meowbert/run-executor/agent/ports/run-control";
 import type { ContextHistoryRow, ContextNoteRow } from "@meowbert/run-executor/context-management-v2/types";
 import { accessibleNodesCte, writeContextNote } from "./service.js";
 
@@ -16,6 +17,30 @@ function truncate(value: string, maximum: number): string {
 
 function itemText(payload: unknown): string {
   return typeof payload === "string" ? payload : JSON.stringify(payload);
+}
+
+export async function listContextHistoryWindows(state: ContextWindowRef): Promise<ContextHistoryWindow[]> {
+  const result = await query<{ id: string; ordinal: number }>(
+    `${accessibleNodesCte(2)}
+     SELECT w.id, w.ordinal
+       FROM task_context_windows w
+       JOIN context_lineage ON context_lineage.id = w.context_node_id
+      WHERE w.task_id = $1
+      ORDER BY w.ordinal ASC`,
+    [state.taskId, state.contextNodeId]
+  );
+  return result.rows.map((row) => ({ windowId: row.id, ordinal: row.ordinal }));
+}
+
+export async function loadContextHistoryWindow(state: ContextWindowRef, windowId: string): Promise<StoredContextHistoryItem[]> {
+  const result = await query<{ id: string; call_number: number | null; payload_json: ResponseInputItem }>(
+    `SELECT id, call_number, payload_json
+       FROM task_context_history_items
+      WHERE task_id = $1 AND window_id = $2
+      ORDER BY ordinal ASC`,
+    [state.taskId, windowId]
+  );
+  return result.rows.map((row) => ({ id: row.id, callNumber: row.call_number, item: row.payload_json }));
 }
 
 export async function listContextWindows(state: ContextWindowRef, input: { limit?: number | null; recent_first?: boolean | null }) {

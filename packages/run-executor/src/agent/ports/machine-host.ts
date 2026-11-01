@@ -9,6 +9,7 @@ export interface MachineSpec {
   actorUserId: string | null;
   taskDir: string;
   taskScratchDir: string;
+  taskHistoryDir: string;
   envRoot: string;
   workspaceRoot: string;
   workspaceRootRelative?: string;
@@ -37,5 +38,7 @@ export interface MachineHost {
 export interface MachineProvider {
   // Machine-local scratch space for the task, outside workspace storage.
   prepareScratchDir(input: { workspaceId: string; taskId: string }): Promise<string>;
+  // Machine-local directory for the task's context history files, mounted read-only.
+  prepareHistoryDir(input: { workspaceId: string; taskId: string }): Promise<string>;
   start(spec: MachineSpec): Promise<MachineHost>;
 }

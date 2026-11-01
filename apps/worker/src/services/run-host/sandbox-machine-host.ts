@@ -4,7 +4,7 @@ import { buildTaskSandboxMounts } from "@meowbert/run-executor/agent/task-write-
 import { ensureTaskSourceMounts, releaseTaskSourceMounts } from "../agent/live-sync-client.js";
 import { prepareTaskSourceMounts, verifyTaskSourceMounts } from "../agent/live-sync-mounts.js";
 import { createRecoverableSandboxController } from "../agent/recoverable-sandbox.js";
-import { ensureTaskScratchDir } from "../tasks/task-scratch.js";
+import { ensureTaskHistoryDir, ensureTaskScratchDir } from "../tasks/task-scratch.js";
 import type { MachineHost, MachineProvider, MachineSpec } from "@meowbert/run-executor/agent/ports/machine-host";
 
 async function createSandbox(spec: MachineSpec): Promise<DockerSandboxHandle> {
@@ -12,6 +12,7 @@ async function createSandbox(spec: MachineSpec): Promise<DockerSandboxHandle> {
     envRoot: spec.envRoot,
     workspaceRoot: spec.workspaceRoot,
     taskScratchDir: spec.taskScratchDir,
+    taskHistoryDir: spec.taskHistoryDir,
     readOnly: spec.readOnly,
     skillsRootDir: spec.skillsRootDir
   });
@@ -119,5 +120,6 @@ async function startSandboxMachine(spec: MachineSpec): Promise<MachineHost> {
 // Runs task commands in containers on this host's Docker daemon.
 export const sandboxMachineProvider: MachineProvider = {
   prepareScratchDir: (input) => ensureTaskScratchDir(input),
+  prepareHistoryDir: (input) => ensureTaskHistoryDir(input),
   start: startSandboxMachine
 };

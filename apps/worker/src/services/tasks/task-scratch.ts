@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import {
   ensureSandboxWritablePath,
   removeTaskScratchDirs,
+  resolveTaskHistoryDir,
   resolveTaskScratchDir,
   resolveWorkspaceScratchDir
 } from "@meowbert/shared";
@@ -23,6 +24,13 @@ export async function ensureTaskScratchDir(input: { workspaceId: string; taskId:
   await fs.mkdir(taskScratchDir, { recursive: true, mode: SCRATCH_DIR_MODE });
   await ensureSandboxWritablePath({ rootPath: scratchRoot, targetPath: taskScratchDir });
   return taskScratchDir;
+}
+
+// Only the executor writes here; the sandbox mounts it read-only.
+export async function ensureTaskHistoryDir(input: { workspaceId: string; taskId: string }): Promise<string> {
+  const historyDir = resolveTaskHistoryDir(config.runtime.taskScratch.root, input.workspaceId, input.taskId);
+  await fs.mkdir(historyDir, { recursive: true, mode: 0o755 });
+  return historyDir;
 }
 
 export async function removeTasksScratch(workspaceId: string, taskIds: string[]): Promise<void> {
