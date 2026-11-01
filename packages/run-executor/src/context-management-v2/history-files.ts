@@ -15,14 +15,51 @@ function serializeLines(records: Array<{ id: string; callNumber: number | null; 
   return records.map((record) => `${JSON.stringify(toHistoryFileLine(record))}\n`).join("");
 }
 
+const TAIL_CHUNK_BYTES = 64 * 1024;
+const LAST_LINE_ID = /^\{"id":"([^"\\]*)"/;
+
+// Whether the file's last complete line is the given item, read from the end so a large file is
+// not read whole. Each line starts with its item id.
+async function fileEndsWithItem(filePath: string, itemId: string | null): Promise<boolean> {
+  const handle = await fs.open(filePath, "r").catch(() => null);
+  if (!handle) return false;
+  try {
+    const { size } = await handle.stat();
+    if (size === 0) return itemId === null;
+    const lastByte = Buffer.alloc(1);
+    await handle.read(lastByte, 0, 1, size - 1);
+    // A line cut short by a crash means the file needs rebuilding.
+    if (itemId === null || lastByte[0] !== 0x0a) return false;
+    let searchEnd = size - 1;
+    let lineStart = 0;
+    while (searchEnd > 0) {
+      const start = Math.max(0, searchEnd - TAIL_CHUNK_BYTES);
+      const chunk = Buffer.alloc(searchEnd - start);
+      await handle.read(chunk, 0, chunk.length, start);
+      const newline = chunk.lastIndexOf(0x0a);
+      if (newline >= 0) {
+        lineStart = start + newline + 1;
+        break;
+      }
+      searchEnd = start;
+    }
+    const head = Buffer.alloc(Math.min(256, size - lineStart));
+    await handle.read(head, 0, head.length, lineStart);
+    return LAST_LINE_ID.exec(head.toString("utf8"))?.[1] === itemId;
+  } finally {
+    await handle.close();
+  }
+}
+
 async function writeFileAtomically(filePath: string, text: string): Promise<void> {
   const temporaryPath = `${filePath}.${process.pid}.tmp`;
   await fs.writeFile(temporaryPath, text, { mode: 0o644 });
   await fs.rename(temporaryPath, filePath);
 }
 
-// Rewrites the open window's file, writes any lineage window that has none, and removes files of
-// windows on other branches. Closed windows never change, so their existing files are kept.
+// Writes any lineage window that has no file, rewrites the open window's file when it does not end
+// with the window's last item, and removes files of windows on other branches. Closed windows never
+// change, so their existing files are kept.
 export async function syncHistoryFiles(store: RunContextStore, window: ContextWindowRef, historyDir: string): Promise<Map<string, string>> {
   const windows = await store.listHistoryWindows(window);
   const expected = new Map(windows.map((entry) => [entry.windowId, historyFileName(entry)]));
@@ -31,9 +68,13 @@ export async function syncHistoryFiles(store: RunContextStore, window: ContextWi
   for (const name of existing) {
     if (!expectedNames.has(name)) await fs.rm(path.join(historyDir, name), { force: true });
   }
-  for (const [windowId, name] of expected) {
-    if (windowId !== window.windowId && existing.has(name)) continue;
-    const items = await store.loadHistoryWindow(window, windowId);
+  for (const entry of windows) {
+    const name = historyFileName(entry);
+    if (existing.has(name)) {
+      if (entry.windowId !== window.windowId) continue;
+      if (entry.lastItemId !== undefined && await fileEndsWithItem(path.join(historyDir, name), entry.lastItemId)) continue;
+    }
+    const items = await store.loadHistoryWindow(window, entry.windowId);
     await writeFileAtomically(path.join(historyDir, name), serializeLines(items));
   }
   return expected;

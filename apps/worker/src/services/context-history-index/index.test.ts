@@ -4,6 +4,8 @@ import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const paths = vi.hoisted(() => ({ cacheRoot: "" }));
+// While set, embedding history items waits on it; query embeddings never wait.
+const embedding = vi.hoisted(() => ({ gate: null as Promise<void> | null }));
 paths.cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), "meowbert-history-index-"));
 
 vi.mock("../../lib/config.js", () => ({
@@ -19,12 +21,13 @@ vi.mock("../../lib/db.js", () => ({ query: vi.fn() }));
 vi.mock("@meowbert/run-executor/agent/openai-client", () => ({
   getOpenAiClient: () => ({
     embeddings: {
-      create: async ({ input }: { input: string[] }) => ({
-        data: input.map((text, index) => {
+      create: async ({ input }: { input: string[] }) => {
+        if (embedding.gate && input.some((text) => text.includes("\n\n"))) await embedding.gate;
+        return { data: input.map((text, index) => {
           const lower = text.toLowerCase();
           return { index, embedding: [lower.includes("pnpm") ? 10 : 0, lower.includes("deploy") ? 10 : 0, 1] };
-        })
-      })
+        }) };
+      }
     }
   })
 }));
@@ -123,6 +126,23 @@ describe("session history search", () => {
 
     expect(await countTaskRows()).toBe(0);
   });
+
+  it("answers from what is indexed while a long catch-up carries on", async () => {
+    let release = () => {};
+    embedding.gate = new Promise<void>((resolve) => { release = resolve; });
+    const search = () => searchTaskHistory(state, { query: "pnpm", limit: 10, window_id: null, role: null, tool: null });
+
+    const early = await search();
+    expect(early.notice).toBeTruthy();
+    expect(early.items).toEqual([]);
+
+    release();
+    embedding.gate = null;
+    await indexTaskHistory(taskId);
+    const later = await search();
+    expect(later.notice).toBeUndefined();
+    expect(later.items.map((item) => item.item_id)).toContain("item-2");
+  }, 15_000);
 
   it("indexes nothing while session history search is switched off", async () => {
     historySearchEnabled = false;

@@ -12,16 +12,20 @@ function limit(value: number | null | undefined): number {
 }
 
 export async function listContextHistoryWindows(state: ContextWindowRef): Promise<ContextHistoryWindow[]> {
-  const result = await query<{ id: string; ordinal: number }>(
+  const result = await query<{ id: string; ordinal: number; last_item_id: string | null }>(
     `${accessibleNodesCte(2)}
-     SELECT w.id, w.ordinal
+     SELECT w.id, w.ordinal,
+            (SELECT item.id FROM task_context_history_items item
+              WHERE item.window_id = w.id
+              ORDER BY item.ordinal DESC
+              LIMIT 1) AS last_item_id
        FROM task_context_windows w
        JOIN context_lineage ON context_lineage.id = w.context_node_id
       WHERE w.task_id = $1
       ORDER BY w.ordinal ASC`,
     [state.taskId, state.contextNodeId]
   );
-  return result.rows.map((row) => ({ windowId: row.id, ordinal: row.ordinal }));
+  return result.rows.map((row) => ({ windowId: row.id, ordinal: row.ordinal, lastItemId: row.last_item_id }));
 }
 
 export async function loadContextHistoryWindow(state: ContextWindowRef, windowId: string): Promise<StoredContextHistoryItem[]> {

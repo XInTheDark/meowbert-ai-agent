@@ -11,25 +11,43 @@ import { escapeSqlString, openHistoryConnection, openHistoryTable } from "./stor
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
+// A task that was long before search was switched on can take a while to index, so search waits
+// this long and then answers from what is indexed while the rest carries on in the background.
+const CATCH_UP_WAIT_MS = 3_000;
+const CATCH_UP_NOTICE = "Earlier history is still being indexed, so these results may be incomplete. Search again shortly, or read the history files.";
 const RESULT_COLUMNS = ["item_id", "window_id", "call_number", "role", "tool", MEMORY_SEARCH_TEXT_COLUMN];
 
 function inList(column: string, values: string[]): string {
   return `${column} IN (${values.map((value) => `'${escapeSqlString(value)}'`).join(", ")})`;
 }
 
+async function catchUpWithin(taskId: string, waitMs: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const caughtUp = indexTaskHistory(taskId).then(() => true, (error: unknown) => {
+    console.warn(`[history-index] Could not index task ${taskId}: ${error instanceof Error ? error.message : String(error)}`);
+    return true;
+  });
+  const waited = new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), waitMs); });
+  try {
+    return await Promise.race([caughtUp, waited]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Searches the windows on this window's lineage, the same ones its history files show.
 export async function searchTaskHistory(state: ContextWindowRef, input: HistorySearchInput): Promise<HistorySearchResult> {
   if (!(await readEmbeddingFeatures(query)).historySearchEnabled) return { error: "Session history search is switched off.", items: [] };
-  await indexTaskHistory(state.taskId);
+  const notice = await catchUpWithin(state.taskId, CATCH_UP_WAIT_MS) ? undefined : CATCH_UP_NOTICE;
   const windowIds = (await listContextHistoryWindows(state))
     .map((window) => window.windowId)
     .filter((windowId) => !input.window_id || windowId === input.window_id);
-  if (windowIds.length === 0) return { items: [] };
+  if (windowIds.length === 0) return { notice, items: [] };
 
   const connection = await openHistoryConnection();
   try {
     const table = await openHistoryTable(connection);
-    if (!table) return { items: [] };
+    if (!table) return { notice, items: [] };
     const config = await resolveMemoryEmbeddingConfig();
     const [queryVector] = await embedTexts([applyEmbeddingTemplate(config.queryPromptTemplate, input.query)], config);
     const predicate = [
@@ -56,7 +74,7 @@ export async function searchTaskHistory(state: ContextWindowRef, input: HistoryS
         excerpt: String(row[MEMORY_SEARCH_TEXT_COLUMN] ?? "")
       }];
     }).slice(0, limit);
-    return { items };
+    return { notice, items };
   } finally {
     connection.close();
   }

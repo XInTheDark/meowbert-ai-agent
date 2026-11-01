@@ -110,6 +110,8 @@ export interface OpenedContextWindow {
 export interface ContextHistoryWindow {
   windowId: string;
   ordinal: number;
+  // Null for an empty window. Older control planes leave it out.
+  lastItemId?: string | null;
 }
 
 export interface StoredContextHistoryItem {
@@ -128,6 +130,8 @@ export interface HistorySearchInput {
 
 export interface HistorySearchResult {
   error?: string;
+  // Set while earlier history is still being indexed and results may be incomplete.
+  notice?: string;
   items: Array<{
     item_id: string;
     window_id: string;

@@ -25,6 +25,7 @@ function createStore(input: { lineages: Record<string, string[]> }) {
   const ordinals = new Map<string, number>();
   let openWindowId = "w1";
   let openNodeId = "n1";
+  const loads: string[] = [];
   const addWindow = (windowId: string, ordinal: number, windowItems: StoredContextHistoryItem[] = []) => {
     ordinals.set(windowId, ordinal);
     items.set(windowId, windowItems);
@@ -32,8 +33,11 @@ function createStore(input: { lineages: Record<string, string[]> }) {
   const store = {
     openWindow: async () => ({ firstWindowId: "w1", windowId: openWindowId, contextNodeId: openNodeId, previousWindowId: null, ordinal: ordinals.get(openWindowId) ?? 1 }),
     listHistoryWindows: async (window: ContextWindowRef) => (input.lineages[window.contextNodeId] ?? [])
-      .map((windowId) => ({ windowId, ordinal: ordinals.get(windowId) ?? 0 })),
-    loadHistoryWindow: async (_window: ContextWindowRef, windowId: string) => items.get(windowId) ?? [],
+      .map((windowId) => ({ windowId, ordinal: ordinals.get(windowId) ?? 0, lastItemId: items.get(windowId)?.at(-1)?.id ?? null })),
+    loadHistoryWindow: async (_window: ContextWindowRef, windowId: string) => {
+      loads.push(windowId);
+      return items.get(windowId) ?? [];
+    },
     recordItems: async (window: ContextWindowRef, records: ContextHistoryRecord[]) => {
       items.get(window.windowId)?.push(...records.map((record) => ({ id: record.id, callNumber: record.callNumber ?? null, item: record.item })));
     },
@@ -46,6 +50,7 @@ function createStore(input: { lineages: Record<string, string[]> }) {
   return {
     store,
     addWindow,
+    loads,
     open: (windowId: string, nodeId: string) => { openWindowId = windowId; openNodeId = nodeId; }
   };
 }
@@ -86,6 +91,24 @@ describe("history files", () => {
     expect(await readLines(dir, { windowId: "w2", ordinal: 2 })).toEqual([
       toHistoryFileLine({ id: "c", callNumber: null, item: message("next window") })
     ]);
+  });
+
+  it("reloads the open window only when its file is behind", async () => {
+    const dir = await createHistoryDir();
+    const fake = createStore({ lineages: { n1: ["w1"] } });
+    fake.addWindow("w1", 1, [{ id: "a", callNumber: null, item: message("first") }]);
+    const store = withHistoryFiles(fake.store, { taskId: "task", historyDir: dir });
+    const opened = await store.openWindow(null);
+    await store.recordItems(opened, [{ id: "b", item: message("second") }]);
+
+    await store.openWindow(null);
+    expect(fake.loads).toEqual(["w1"]);
+
+    // An item recorded without reaching the file, as after a crash.
+    await fake.store.recordItems(opened, [{ id: "c", item: message("third") }]);
+    await store.openWindow(null);
+    expect(fake.loads).toEqual(["w1", "w1"]);
+    expect(await readLines(dir, { windowId: "w1", ordinal: 1 })).toHaveLength(3);
   });
 
   it("removes windows of another branch and repairs the open window", async () => {
