@@ -143,7 +143,7 @@ describe("resetV2ContextWindow", () => {
     expect(execution.state.dispatchState.conversationItems).toHaveLength(3);
     expect(execution.state.dispatchState.conversationItems[2]).toEqual({
       role: "user",
-      content: expect.stringContaining("[recovery excerpt truncated; use context history tools for the full request]")
+      content: expect.stringContaining("[recovery excerpt truncated; read the history files for the full request]")
     });
     expect((execution.state.dispatchState.conversationItems[2] as { content: string }).content).toContain(
       "[id: 123e4567-e89b-12d3-a456-426614174000]"

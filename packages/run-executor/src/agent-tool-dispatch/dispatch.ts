@@ -431,7 +431,7 @@ async function assignCallNumbers(items: ResponseOutputItem[], ctx: ToolDispatchC
   }
 }
 
-const NOTES_ONLY_ERROR = "Only the notes and history tools are available right now.";
+const NOTES_ONLY_ERROR = "Only the notes tools are available right now.";
 
 // Answers a tool call that a notes-only turn may not run. Returns false for items that are not tool calls.
 async function rejectOutsideNotes(item: ResponseOutputItem, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<boolean> {

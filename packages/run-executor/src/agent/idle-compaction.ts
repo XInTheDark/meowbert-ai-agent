@@ -10,7 +10,7 @@ const IDLE_COMPACTION_MAX_STEPS = 8;
 const IDLE_COMPACTION_NOTE = [
   "This conversation has gone idle, so its context window will be cleared after this turn.",
   "Update your notes now with what you need to pick up where you left off.",
-  "Only the notes and history tools work here, and nothing you write reaches the user."
+  "Only the notes tools work here, and nothing you write reaches the user."
 ].join(" ");
 
 export function isIdleCompactionRun(job: Pick<TaskExecutionJob, "mode" | "contextAction">): boolean {

@@ -10,7 +10,6 @@ const TOOL_OUTPUT_INPUT_FIELDS = new Map<string, readonly string[]>([
   ["enable_skill", ["skill"]],
   ["view_image", ["file_path"]],
   ["view_pdf_file", ["file_path"]],
-  ["history_read_item", ["item_id"]],
   ["notes_read_file", ["path"]],
   ["notes_append_to_file", ["path"]],
   ["notes_write_file", ["path"]],

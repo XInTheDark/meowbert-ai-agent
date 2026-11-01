@@ -34,7 +34,7 @@ function boundRecoveryItem(item: ResponseInputItem): ResponseInputItem {
   }
 
   const marker = content.match(OPAQUE_ITEM_MARKER)?.[0] ?? "";
-  const truncationNotice = "\n[recovery excerpt truncated; use context history tools for the full request]";
+  const truncationNotice = "\n[recovery excerpt truncated; read the history files for the full request]";
   const availableChars = Math.max(
     0,
     MAX_CONTEXT_OVERFLOW_RECOVERY_CHARS - marker.length - truncationNotice.length

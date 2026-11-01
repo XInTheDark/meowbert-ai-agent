@@ -82,6 +82,6 @@ describe("Context Management V2 tool calls", () => {
     expect(mocks.writeNote).toHaveBeenCalledTimes(1);
     expect(result.finalResponse).toBeNull();
     const refused = state.runPersistedItems.find((item) => item.type === "function_call_output" && item.call_id === "call-answer");
-    expect((refused as { output: string }).output).toContain("Only the notes and history tools are available");
+    expect((refused as { output: string }).output).toContain("Only the notes tools are available");
   });
 });

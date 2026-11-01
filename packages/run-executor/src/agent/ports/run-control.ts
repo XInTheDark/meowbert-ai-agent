@@ -129,15 +129,6 @@ export interface ContextNotesSummary {
   index: Array<{ path: string; size: number; updatedAt: string }>;
 }
 
-export interface ContextHistoryFilter {
-  limit?: number | null;
-  recent_first?: boolean | null;
-  role?: string | null;
-  tool_namespace?: string | null;
-  tool_name?: string | null;
-  window_id?: string | null;
-}
-
 // Persistence for v2 context windows, their history items and private notes.
 export interface RunContextStore {
   freezeVersion(requestedVersion: "v1" | "v2", runtimeModel: string): Promise<"v1" | "v2">;
@@ -158,20 +149,6 @@ export interface RunContextStore {
   // Every item of one of the task's windows, in order.
   loadHistoryWindow(window: ContextWindowRef, windowId: string): Promise<StoredContextHistoryItem[]>;
   writeNote(window: ContextWindowRef, input: { path: string; text: string; append: boolean }): Promise<{ path: string; bytes: number }>;
-  listWindows(window: ContextWindowRef, input: { limit?: number | null; recent_first?: boolean | null }): Promise<{ windows: Array<{ window_id: string; item_count: number }> }>;
-  listItems(window: ContextWindowRef, input: ContextHistoryFilter & {
-    max_chars_per_item?: number | null;
-    from_call_number?: number | null;
-    to_call_number?: number | null;
-  }): Promise<{ items: ContextHistoryItemSummary[] }>;
-  readItem(window: ContextWindowRef, input: {
-    window_id?: string | null;
-    item_id?: string | null;
-    call_number?: number | null;
-    offset_chars?: number | null;
-    limit_chars?: number | null;
-  }): Promise<Record<string, unknown>>;
-  searchHistory(window: ContextWindowRef, input: ContextHistoryFilter & { query: string }): Promise<{ items: ContextHistoryItemSummary[] }>;
   listNotes(window: ContextWindowRef, input: {
     prefix?: string | null;
     max_results?: number | null;
@@ -179,13 +156,4 @@ export interface RunContextStore {
     file_order?: "ascending" | "descending" | null;
   }): Promise<{ files: Array<{ path: string; bytes: number; created_at: string; updated_at: string }> }>;
   readNote(window: ContextWindowRef, input: { path: string; start_line?: number | null; stop_line?: number | null }): Promise<Record<string, unknown>>;
-}
-
-export interface ContextHistoryItemSummary {
-  item_id: string;
-  call_number?: number;
-  role: string;
-  tool_namespace: string | null;
-  tool_name: string | null;
-  truncated_content: string;
 }

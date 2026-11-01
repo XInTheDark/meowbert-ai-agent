@@ -108,7 +108,6 @@ describe("tool output request shaping", () => {
       ["enable_skill", "skill"],
       ["view_image", "file_path"],
       ["view_pdf_file", "file_path"],
-      ["history_read_item", "item_id"],
       ["notes_read_file", "path"],
       ["notes_append_to_file", "path"],
       ["notes_write_file", "path"],

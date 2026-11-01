@@ -3,19 +3,11 @@ import {
   contextEmptyArgumentsSchema,
   contextReplaceCallsArgumentsSchema,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
-  historyListItemsArgumentsSchema,
-  historyListWindowsArgumentsSchema,
-  historyReadItemArgumentsSchema,
-  historySearchContentsArgumentsSchema,
   notesListFilesArgumentsSchema,
   notesMutationArgumentsSchema,
   notesReadFileArgumentsSchema,
   notesSearchContentsArgumentsSchema,
   GET_CONTEXT_REMAINING_TOOL_NAME,
-  HISTORY_LIST_ITEMS_TOOL_NAME,
-  HISTORY_LIST_WINDOWS_TOOL_NAME,
-  HISTORY_READ_ITEM_TOOL_NAME,
-  HISTORY_SEARCH_CONTENTS_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
@@ -34,10 +26,6 @@ const V2_TOOL_NAMES = new Set([
   NEW_CONTEXT_TOOL_NAME,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
-  HISTORY_LIST_WINDOWS_TOOL_NAME,
-  HISTORY_LIST_ITEMS_TOOL_NAME,
-  HISTORY_READ_ITEM_TOOL_NAME,
-  HISTORY_SEARCH_CONTENTS_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
   NOTES_SEARCH_CONTENTS_TOOL_NAME,
@@ -109,18 +97,6 @@ export async function handleContextManagementV2Tool(
       output = { tokens_left: state.contextWindowUsage
         ? getContextWindowTokenStatus(state.contextWindowUsage, state.conversationItems).tokensRemaining
         : null };
-      break;
-    case HISTORY_LIST_WINDOWS_TOOL_NAME:
-      output = await store.listWindows(context, historyListWindowsArgumentsSchema.parse(raw));
-      break;
-    case HISTORY_LIST_ITEMS_TOOL_NAME:
-      output = await store.listItems(context, historyListItemsArgumentsSchema.parse(raw));
-      break;
-    case HISTORY_READ_ITEM_TOOL_NAME:
-      output = await store.readItem(context, historyReadItemArgumentsSchema.parse(raw));
-      break;
-    case HISTORY_SEARCH_CONTENTS_TOOL_NAME:
-      output = await store.searchHistory(context, historySearchContentsArgumentsSchema.parse(raw));
       break;
     case NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME:
       output = await store.listNotes(context, notesListFilesArgumentsSchema.parse(raw));

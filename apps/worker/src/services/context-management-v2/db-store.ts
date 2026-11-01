@@ -16,13 +16,9 @@ import {
 } from "./service.js";
 import {
   listContextHistoryWindows,
-  listContextItems,
   listContextNotes,
-  listContextWindows,
   loadContextHistoryWindow,
-  readContextItem,
-  readContextNote,
-  searchContextHistory
+  readContextNote
 } from "./tools.js";
 
 // Context windows of one task, read and written directly in the database. Window references are
@@ -54,10 +50,6 @@ export function createDbContextStore(taskId: string): RunContextStore {
     writeNote: (window, input) => own(window).then((ref) => writeContextNote({
       state: ref, path: input.path, text: input.text, append: input.append
     })),
-    listWindows: (window, input) => own(window).then((ref) => listContextWindows(ref, input)),
-    listItems: (window, input) => own(window).then((ref) => listContextItems(ref, input)),
-    readItem: (window, input) => own(window).then((ref) => readContextItem(ref, input)),
-    searchHistory: (window, input) => own(window).then((ref) => searchContextHistory(ref, input)),
     listNotes: (window, input) => own(window).then((ref) => listContextNotes(ref, input)),
     readNote: (window, input) => own(window).then((ref) => readContextNote(ref, input))
   };

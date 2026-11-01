@@ -20,7 +20,7 @@ describe("buildCodeModeToolSet", () => {
     expect(directNames).toEqual(expect.arrayContaining(["final_response", "wait", "new_context", "notes_write_file", "enable_skill", "web_search", "exec", "update_progress"]));
     expect(nestedNames).toEqual(expect.arrayContaining(["run_shell", "memory_search", "spawn_subagent", "view_image", "view_pdf_file"]));
     // A script reads earlier outputs and replaces them without the model writing them out.
-    expect(nestedNames).toEqual(expect.arrayContaining(["history_list_items", "history_read_item", "context_replace_calls"]));
+    expect(nestedNames).toEqual(expect.arrayContaining(["run_shell", "context_replace_calls"]));
     expect(directNames.filter((name) => nestedNames.includes(name))).toEqual([]);
     expect(responseTools.length + nestedTools.length).toBe(tools.length + 2);
     expect(directNames).toContain("search_tools");

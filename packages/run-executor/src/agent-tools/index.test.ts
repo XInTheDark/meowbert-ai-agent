@@ -9,7 +9,6 @@ import {
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
-  HISTORY_LIST_ITEMS_TOOL_NAME,
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
   INIT_SANDBOX_TOOL_NAME,
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
@@ -275,7 +274,6 @@ describe("buildResponseTools", () => {
       .toHaveLength(2);
     expect(v2.some((tool) => tool.type === "function" && tool.name === NEW_CONTEXT_TOOL_NAME)).toBe(true);
     expect(v2.some((tool) => tool.type === "function" && tool.name === GET_CONTEXT_REMAINING_TOOL_NAME)).toBe(true);
-    expect(v2.some((tool) => tool.type === "function" && tool.name === HISTORY_LIST_ITEMS_TOOL_NAME)).toBe(true);
     expect(v2.some((tool) => tool.type === "function" && tool.name === NOTES_READ_FILE_TOOL_NAME)).toBe(true);
     expect(v2.some((tool) => tool.type === "function" && contextToolNames.includes(tool.name))).toBe(false);
   });
