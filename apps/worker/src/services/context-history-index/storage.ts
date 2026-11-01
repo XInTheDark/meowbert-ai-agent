@@ -84,6 +84,8 @@ export async function dropHistoryIndex(connection: Connection): Promise<void> {
 }
 
 export async function deleteTaskHistoryIndex(taskId: string): Promise<void> {
+  // Hosts that never indexed history have nothing to remove.
+  if (!await fs.stat(path.join(indexDir(), "lancedb")).then(() => true, () => false)) return;
   await withHistoryIndexWriteLock(async () => {
     const connection = await openHistoryConnection();
     try {
