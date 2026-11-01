@@ -33,6 +33,7 @@ import {
   NEW_CONTEXT_TOOL_NAME,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
+  HISTORY_SEARCH_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
   NOTES_SEARCH_CONTENTS_TOOL_NAME,
@@ -77,6 +78,10 @@ function isToolEnabled(
     || tool.name === CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME
   ) {
     return availability.contextManagementVersion === "v1";
+  }
+
+  if (tool.name === HISTORY_SEARCH_TOOL_NAME) {
+    return availability.contextManagementVersion === "v2" && availability.allowHistorySearch === true;
   }
 
   if ([

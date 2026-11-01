@@ -3,17 +3,20 @@ import type { ResponseInputItem } from "openai/resources/responses/responses";
 
 const THREAD_HINT_MAX_BYTES = 4_000;
 
-export const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
+// Fixed for a run: history_search is offered only when the admin has session history search on.
+export function buildContextWindowGuidance(options: { historySearch: boolean }): string {
+  return `<context_window_guidance>
 For tasks that may span context windows, use notes to maintain a concise checkpoint of the goal, decisions, progress, learnings and next steps. Include the window ID and item ID for every relevant user request you are currently solving, as well as important actions and tool calls. Use the history files to look up details through those references later. User and developer items have an item id \`[id: ...]\` immediately after their content, and every tool output starts with its \`call_number\`.
 
 Take incremental notes while you work so important details are not missed.
 
 Keep the window lean with context_replace_calls. When you finish a stretch of work whose raw output you no longer need, such as exploring part of a codebase or reading material, replace those calls with the key findings and any exact snippets you will reuse. Do it right after them, never for calls far back in the window. Use get_context_remaining when useful. Once the token budget is exhausted, the current window is unavailable and recovery is through notes and the history files.
 
-Every context window of this task is a read-only JSONL file in $TASK_HISTORY_DIR, named \`<ordinal>-<window id>.jsonl\`, with one line per item: \`id\`, \`call_number\`, \`role\`, \`type\`, \`tool\` and \`content\`. Read them with rg, jq or sed. When a previous context window ID is present, a reset occurred. Read the checkpoint, then recover missing exact material from the history files, for example \`rg <item id> $TASK_HISTORY_DIR\`.
+Every context window of this task is a read-only JSONL file in $TASK_HISTORY_DIR, named \`<ordinal>-<window id>.jsonl\`, with one line per item: \`id\`, \`call_number\`, \`role\`, \`type\`, \`tool\` and \`content\`. Read them with rg, jq or sed. When a previous context window ID is present, a reset occurred. Read the checkpoint, then recover missing exact material from the history files, for example \`rg <item id> $TASK_HISTORY_DIR\`.${options.historySearch ? " When you don't know the exact text, find it with history_search." : ""}
 
 Treat notes and history files as internal bookkeeping. Do not mention them in user-facing messages.
 </context_window_guidance>`;
+}
 
 export function truncateUtf8(value: string, maxBytes: number): string {
   const buffer = Buffer.from(value, "utf8");

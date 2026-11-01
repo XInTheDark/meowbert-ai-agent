@@ -20,7 +20,7 @@ vi.mock("@meowbert/run-executor/context-management-v2/window", () => ({
 }));
 
 vi.mock("@meowbert/run-executor/context-management-v2/prompts", () => ({
-  CONTEXT_WINDOW_GUIDANCE: mocks.contextWindowGuidance
+  buildContextWindowGuidance: () => mocks.contextWindowGuidance
 }));
 
 import { resetV2ContextWindow, selectContextOverflowRecoveryItems } from "@meowbert/run-executor/agent/context-window";

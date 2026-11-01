@@ -118,6 +118,27 @@ export interface StoredContextHistoryItem {
   item: ResponseInputItem;
 }
 
+export interface HistorySearchInput {
+  query: string;
+  limit: number | null;
+  window_id: string | null;
+  role: string | null;
+  tool: string | null;
+}
+
+export interface HistorySearchResult {
+  error?: string;
+  items: Array<{
+    item_id: string;
+    window_id: string;
+    call_number: number | null;
+    role: string;
+    tool: string | null;
+    score: number;
+    excerpt: string;
+  }>;
+}
+
 export interface ContextHistoryRecord {
   id: string;
   item: ResponseInputItem;
@@ -148,6 +169,8 @@ export interface RunContextStore {
   listHistoryWindows(window: ContextWindowRef): Promise<ContextHistoryWindow[]>;
   // Every item of one of the task's windows, in order.
   loadHistoryWindow(window: ContextWindowRef, windowId: string): Promise<StoredContextHistoryItem[]>;
+  // Semantic and keyword search over the lineage's windows, when the admin has it switched on.
+  searchHistory(window: ContextWindowRef, input: HistorySearchInput): Promise<HistorySearchResult>;
   writeNote(window: ContextWindowRef, input: { path: string; text: string; append: boolean }): Promise<{ path: string; bytes: number }>;
   listNotes(window: ContextWindowRef, input: {
     prefix?: string | null;

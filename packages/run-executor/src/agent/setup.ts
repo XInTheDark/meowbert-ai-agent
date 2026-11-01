@@ -13,7 +13,7 @@ import {
   getMessagesForV2ActiveWindow,
   getVisibleMessagesForContextClear,
 } from "../context-compaction/index.js";
-import { CONTEXT_WINDOW_GUIDANCE } from "../context-management-v2/prompts.js";
+import { buildContextWindowGuidance } from "../context-management-v2/prompts.js";
 import { buildV2WindowDeveloperItems, recordContextItems, resolveContextManagementState } from "../context-management-v2/window.js";
 import { appendPromptEnvelopeDelta, createPromptEnvelope } from "./prompt-envelope.js";
 import { ensureRecurringTaskStateFile } from "./recurring-state-file.js";
@@ -379,7 +379,7 @@ async function buildRunPromptEnvelope(input: {
         state: input.contextManagement,
         agentName: prepared.runtimeAgentId ?? "main"
       })),
-      { role: "developer", content: CONTEXT_WINDOW_GUIDANCE }
+      { role: "developer", content: buildContextWindowGuidance({ historySearch: prepared.historySearchEnabled }) }
     );
   }
   if (workflowPrompt?.liveState) {

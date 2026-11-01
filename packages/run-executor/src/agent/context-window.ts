@@ -1,4 +1,4 @@
-import { CONTEXT_WINDOW_GUIDANCE } from "../context-management-v2/prompts.js";
+import { buildContextWindowGuidance } from "../context-management-v2/prompts.js";
 import {
   buildV2WindowDeveloperItems,
   linkContextNodeToVisibleMessage,
@@ -96,7 +96,7 @@ export async function resetV2ContextWindow(
     0,
     execution.state.dispatchState.conversationItems.length,
     ...windowDeveloperItems,
-    { role: "developer", content: CONTEXT_WINDOW_GUIDANCE },
+    { role: "developer", content: buildContextWindowGuidance({ historySearch: execution.prepared.historySearchEnabled }) },
     ...seedItems
   );
   await recordContextItems(control.context, next, seedItems);

@@ -51,6 +51,7 @@ const CONTEXT_MANAGEMENT_TOOL_NAMES = new Set([
   "history_list_items",
   "history_read_item",
   "history_search_contents",
+  "history_search",
   "notes_list_files_by_prefix",
   "notes_read_file",
   "notes_search_contents",

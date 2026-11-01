@@ -17,7 +17,7 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
   const host = local && job.executionTarget?.kind === "local" && job.executionTarget.mode === "host";
   const features = workspaceFileFeatures(normalizeWorkspaceFileHost(bootstrap.fileHost));
   const options = resolveRunToolOptions(snapshot, job, bootstrap.memoryEnabled);
-  if (!features.memorySearch) options.memorySearch = false;
+  if (!features.memorySearch || bootstrap.embeddingFeatures?.memorySearchEnabled === false) options.memorySearch = false;
   const maximum = Math.max(1, Math.floor(snapshot.shell_tool_max_timeout_ms / 1000));
   const schedule = bootstrap.scheduleInfo ?? null;
   const allowStopTask = shouldExposeStopTaskForRecurringRun({ hasSchedule: schedule !== null, scheduleState: schedule?.scheduleState ?? null,
@@ -28,6 +28,7 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
       allowFinalResponse: true, allowWaitTool: snapshot.task.allow_waiting !== false, allowStopTask,
       allowScheduleTools: snapshot.task.read_only !== true, loadedToolGroups: [TASK_SCHEDULING_TOOL_GROUP_ID],
       allowSubtaskTools: !local, allowPdfFileTool: !host && !bootstrap.runtime.compatibilityModes.includes("disablePdfFile"),
+      allowHistorySearch: bootstrap.embeddingFeatures?.historySearchEnabled === true,
       newMessageOrganizationEnabled: organization, allowTaskHistoryTools: bootstrap.memoryEnabled,
       allowProjectMasterTools: !local && bootstrap.isProjectMaster,
       projectMasterTaskRouter: bootstrap.projectMasterTaskAgent?.router ?? null,

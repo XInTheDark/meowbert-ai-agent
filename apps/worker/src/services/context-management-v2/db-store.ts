@@ -1,4 +1,5 @@
 import type { RunContextStore } from "@meowbert/run-executor/agent/ports/run-control";
+import { scheduleTaskHistoryIndex, searchTaskHistory } from "../context-history-index/index.js";
 import { writeContextNote } from "./notes.js";
 import { freezeContextWindowPrompt } from "./window-prompt.js";
 import { prepareContextWindowRequest } from "./window-request.js";
@@ -38,7 +39,9 @@ export function createDbContextStore(taskId: string): RunContextStore {
     freezeVersion: (requestedVersion, runtimeModel) => resolveFrozenContextManagementVersion({ taskId, requestedVersion, runtimeModel }),
     openWindow: (branchLeafMessageId) => openContextWindow(taskId, branchLeafMessageId),
     loadWindowItems: (windowId) => loadWindowItems(taskId, windowId),
-    recordItems: (window, records) => own(window).then((ref) => recordContextHistoryRecords(ref, records)),
+    recordItems: (window, records) => own(window)
+      .then((ref) => recordContextHistoryRecords(ref, records))
+      .then(() => scheduleTaskHistoryIndex(taskId)),
     loadLastCallNumber: () => loadLastCallNumber(taskId),
     loadNotesSummary: (contextNodeId) => loadContextNotesSummary(taskId, contextNodeId),
     freezeWindowPrompt: (window, items) => own(window).then((ref) => freezeContextWindowPrompt(ref, items)),
@@ -47,6 +50,7 @@ export function createDbContextStore(taskId: string): RunContextStore {
     linkVisibleMessage: (window, visibleMessageId) => own(window).then((ref) => linkVisibleContextNode(ref, visibleMessageId)),
     listHistoryWindows: (window) => own(window).then((ref) => listContextHistoryWindows(ref)),
     loadHistoryWindow: (window, windowId) => own(window).then((ref) => loadContextHistoryWindow(ref, windowId)),
+    searchHistory: (window, input) => own(window).then((ref) => searchTaskHistory(ref, input)),
     writeNote: (window, input) => own(window).then((ref) => writeContextNote({
       state: ref, path: input.path, text: input.text, append: input.append
     })),

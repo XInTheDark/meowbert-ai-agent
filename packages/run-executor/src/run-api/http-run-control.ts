@@ -7,7 +7,7 @@ import { createRunLeaseKeeper, type RunLeaseKeeperOptions } from "./lease-keeper
 
 const CONTEXT_METHODS = [
   "freezeVersion", "openWindow", "loadWindowItems", "recordItems", "loadLastCallNumber", "loadNotesSummary", "freezeWindowPrompt", "prepareWindowRequest", "startNewWindow",
-  "linkVisibleMessage", "listHistoryWindows", "loadHistoryWindow", "writeNote", "listNotes", "readNote"
+  "linkVisibleMessage", "listHistoryWindows", "loadHistoryWindow", "searchHistory", "writeNote", "listNotes", "readNote"
 ] as const satisfies readonly (keyof RunContextStore)[];
 
 const PLATFORM_METHODS = [

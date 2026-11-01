@@ -3,6 +3,7 @@ import {
   contextEmptyArgumentsSchema,
   contextReplaceCallsArgumentsSchema,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
+  historySearchArgumentsSchema,
   notesListFilesArgumentsSchema,
   notesMutationArgumentsSchema,
   notesReadFileArgumentsSchema,
@@ -10,6 +11,7 @@ import {
   GET_CONTEXT_REMAINING_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
+  HISTORY_SEARCH_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
   NOTES_SEARCH_CONTENTS_TOOL_NAME,
@@ -26,6 +28,7 @@ const V2_TOOL_NAMES = new Set([
   NEW_CONTEXT_TOOL_NAME,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
+  HISTORY_SEARCH_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
   NOTES_SEARCH_CONTENTS_TOOL_NAME,
@@ -97,6 +100,9 @@ export async function handleContextManagementV2Tool(
       output = { tokens_left: state.contextWindowUsage
         ? getContextWindowTokenStatus(state.contextWindowUsage, state.conversationItems).tokensRemaining
         : null };
+      break;
+    case HISTORY_SEARCH_TOOL_NAME:
+      output = await store.searchHistory(context, historySearchArgumentsSchema.parse(raw));
       break;
     case NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME:
       output = await store.listNotes(context, notesListFilesArgumentsSchema.parse(raw));

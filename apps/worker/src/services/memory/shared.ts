@@ -138,7 +138,7 @@ function createWorkspaceMemoryCacheKey(workspaceRoot: string): string {
   return createHash("sha256").update(path.resolve(workspaceRoot)).digest("hex");
 }
 
-function resolveMemoryIndexCacheRoot(): string {
+export function resolveMemoryIndexCacheRoot(): string {
   const memoryConfig = config.memory as { indexCacheRoot?: string } | undefined;
   return memoryConfig?.indexCacheRoot ?? path.resolve(config.runtime.tasksRoot, "..", "memory-index-cache");
 }

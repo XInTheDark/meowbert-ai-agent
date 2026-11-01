@@ -47,6 +47,7 @@ export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartb
   "context.linkVisibleMessage": contextCall("linkVisibleMessage"),
   "context.listHistoryWindows": contextCall("listHistoryWindows"),
   "context.loadHistoryWindow": contextCall("loadHistoryWindow"),
+  "context.searchHistory": contextCall("searchHistory"),
   "context.writeNote": contextCall("writeNote"),
   "context.listNotes": contextCall("listNotes"),
   "context.readNote": contextCall("readNote"),

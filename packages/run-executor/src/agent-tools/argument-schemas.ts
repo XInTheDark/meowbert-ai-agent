@@ -114,6 +114,13 @@ export const contextReplaceCallsArgumentsSchema = z.object({
   input_summary: z.string().nullable(),
   output_summary: z.string().min(1)
 }).strict();
+export const historySearchArgumentsSchema = z.object({
+  query: z.string().min(1),
+  limit: z.number().int().min(1).max(50).nullable(),
+  window_id: z.string().uuid().nullable(),
+  role: z.enum(["user", "assistant", "tool", "system", "developer"]).nullable(),
+  tool: z.string().nullable()
+}).strict();
 export const notesListFilesArgumentsSchema = z.object({
   prefix: z.string().nullable(),
   max_results: z.number().int().min(1).max(100).nullable(),

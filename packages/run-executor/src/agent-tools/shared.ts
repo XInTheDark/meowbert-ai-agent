@@ -49,6 +49,7 @@ export const CONTEXT_CHECKPOINT_AND_TRIM_TOOL_NAME = "context_checkpoint_and_tri
 export const NEW_CONTEXT_TOOL_NAME = "new_context";
 export const CONTEXT_REPLACE_CALLS_TOOL_NAME = "context_replace_calls";
 export const GET_CONTEXT_REMAINING_TOOL_NAME = "get_context_remaining";
+export const HISTORY_SEARCH_TOOL_NAME = "history_search";
 export const NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME = "notes_list_files_by_prefix";
 export const NOTES_READ_FILE_TOOL_NAME = "notes_read_file";
 export const NOTES_SEARCH_CONTENTS_TOOL_NAME = "notes_search_contents";
@@ -89,6 +90,8 @@ export interface ResponseToolAvailability {
   allowComputerLocalShell?: boolean;
   allowComputerVisualTools?: boolean;
   allowPdfFileTool?: boolean;
+  // Session history search is switched on in Admin, Embeddings.
+  allowHistorySearch?: boolean;
   allowTaskHistoryTools?: boolean;
   allowProjectMasterTools?: boolean;
   // When the Master's tasks run on a model router, create_task lets the Master pick its target.

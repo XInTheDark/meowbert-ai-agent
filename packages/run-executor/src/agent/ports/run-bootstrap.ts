@@ -17,8 +17,8 @@ export interface RunBootstrap {
   liveSyncFiles: TaskLiveSyncFileSummary[];
   runtime: RunRuntimeRoute;
   memoryEnabled: boolean;
-  // Admin switches for Memory search and session history search.
-  embeddingFeatures: import("@meowbert/shared").EmbeddingFeatures;
+  // Admin switches for Memory search and session history search; older control planes omit them.
+  embeddingFeatures?: import("@meowbert/shared").EmbeddingFeatures;
   thoughtPersistenceEnabled: boolean;
   github: RunGitHubAccess;
   sandboxResources: RunSandboxResources;

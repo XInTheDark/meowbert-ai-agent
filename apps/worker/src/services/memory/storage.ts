@@ -79,8 +79,7 @@ function isRecoverableMissingMemoryTableError(error: unknown): boolean {
   return RECOVERABLE_MEMORY_TABLE_ERROR_PATTERNS.some((pattern) => pattern.test(text));
 }
 
-async function withLocalWorkspaceMemoryWriteLock<T>(workspaceRoot: string, fn: () => Promise<T>): Promise<T> {
-  const lockKey = path.resolve(workspaceRoot);
+async function withLocalIndexWriteLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
   while (localWriteLocks.has(lockKey)) {
     await localWriteLocks.get(lockKey);
   }
@@ -234,9 +233,13 @@ export async function maybeOptimizeTable(optimizeState: { lastOptimizeAtMs: numb
 }
 
 export async function withWorkspaceMemoryWriteLock<T>(workspaceRoot: string, fn: () => Promise<T>): Promise<T> {
-  return withLocalWorkspaceMemoryWriteLock(workspaceRoot, async () => {
-    const lockKey = `workspace_memory:${path.resolve(workspaceRoot)}`;
+  return withIndexWriteLock(`workspace_memory:${path.resolve(workspaceRoot)}`, fn);
+}
 
+// Serializes writes to one LanceDB index across this process and, through an advisory lock,
+// across every worker that shares the index cache.
+export async function withIndexWriteLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
+  return withLocalIndexWriteLock(lockKey, async () => {
     try {
       const client = await getMemoryLockPool().connect();
       try {
@@ -252,7 +255,7 @@ export async function withWorkspaceMemoryWriteLock<T>(workspaceRoot: string, fn:
     } catch (error) {
       if (shouldUseLocalMemoryLockFallback(error)) {
         console.warn(
-          `[memory] Falling back to local-only write lock for ${workspaceRoot}: ${getErrorText(error)}`
+          `[memory] Falling back to local-only write lock for ${lockKey}: ${getErrorText(error)}`
         );
         return await fn();
       }

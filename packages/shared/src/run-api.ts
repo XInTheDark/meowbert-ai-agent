@@ -28,6 +28,7 @@ export const RUN_API_READ_METHODS = [
   "context.loadNotesSummary",
   "context.listHistoryWindows",
   "context.loadHistoryWindow",
+  "context.searchHistory",
   "context.listNotes",
   "context.readNote",
   "platform.queryTasks",

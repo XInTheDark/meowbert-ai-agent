@@ -349,6 +349,7 @@ async function requestModelTurn(input: {
       loadedToolGroups: [...execution.loadedToolGroups],
       allowSubtaskTools: execution.allowSubtaskTools,
       allowPdfFileTool: !execution.prepared.settings.hostMode && !execution.prepared.runtimeCompatibilityModes.includes("disablePdfFile"),
+      allowHistorySearch: execution.prepared.historySearchEnabled,
       newMessageOrganizationEnabled: Boolean(execution.state.dispatchState.organization),
       allowTaskHistoryTools: execution.prepared.memoryEnabled,
       allowProjectMasterTools: execution.prepared.isProjectMaster === true,

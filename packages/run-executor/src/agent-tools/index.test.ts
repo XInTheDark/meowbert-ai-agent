@@ -16,6 +16,7 @@ import {
   MEMORY_SEARCH_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
+  HISTORY_SEARCH_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
   NOTES_WRITE_FILE_TOOL_NAME,
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
@@ -276,6 +277,24 @@ describe("buildResponseTools", () => {
     expect(v2.some((tool) => tool.type === "function" && tool.name === GET_CONTEXT_REMAINING_TOOL_NAME)).toBe(true);
     expect(v2.some((tool) => tool.type === "function" && tool.name === NOTES_READ_FILE_TOOL_NAME)).toBe(true);
     expect(v2.some((tool) => tool.type === "function" && contextToolNames.includes(tool.name))).toBe(false);
+  });
+
+  it("offers history_search only under V2 with session history search switched on", () => {
+    const options = {
+      webSearch: false,
+      memorySearch: false,
+      scheduleTask: false,
+      subtasks: false,
+      computerUse: false,
+      enabledSkills: [],
+      enabledSources: []
+    };
+    const hasHistorySearch = (tools: ReturnType<typeof buildResponseTools>) =>
+      tools.some((tool) => tool.type === "function" && tool.name === HISTORY_SEARCH_TOOL_NAME);
+
+    expect(hasHistorySearch(buildResponseTools(options, [], { contextManagementVersion: "v2", allowHistorySearch: true }))).toBe(true);
+    expect(hasHistorySearch(buildResponseTools(options, [], { contextManagementVersion: "v2" }))).toBe(false);
+    expect(hasHistorySearch(buildResponseTools(options, [], { contextManagementVersion: "v1", allowHistorySearch: true }))).toBe(false);
   });
 
   it("emits provider-compatible names for V2 function tools", () => {
