@@ -7,5 +7,6 @@ Your base instructions contain the writing rules that apply everywhere. The guid
 - `technical-docs.md`: READMEs, setup guides, configuration references, PR descriptions, and changelogs
 - `work-messages.md`: emails, status updates, and announcements
 - `public-writing.md`: social posts, bios, cover letters, and other writing in the user's own voice
+- `editing.md`: revising writing the user already has, such as papers, essays, and docs
 
 In every example, the preferred version keeps the original facts and limitations. Only the writing changes.

@@ -8,7 +8,11 @@ Point out silent bugs: errors that run without crashing but produce wrong number
 
 Pull parameter ranges and constraints out of the prose into bullets of the form `If [condition], [what happens]`. Say what the reader can safely ignore for now so they aren't buried in premature detail, and finish with a rule of thumb they will remember.
 
+Order topics so each depends only on what came before, and say which prerequisites you assume and which material you're teaching. Motivate a formal tool with the concrete problem it solves before you define it. After a general result, work through a specific case, and state the assumptions and regimes it needs: where it holds, where it degenerates, and what to use instead. When comparing methods, compare what each lets the reader do.
+
 For math, say what the equation calculates, define unfamiliar symbols, put each calculation stage on its own line, and explain what the result means in practice. A short exercise with a hidden answer helps a concept stick when the reader asked to learn it, as opposed to just looking something up.
+
+Skip takeaway boxes and end-of-section summaries that repeat the paragraphs just above them, and don't preview the next chapter at the end of every section.
 
 ## Example
 

@@ -8,6 +8,8 @@ Describe methods as the rules that shape the results: grouping, filters, thresho
 
 State results with their numbers, units, and denominators ("exceptions in 12 of 40 categories", not "some categories"). Keep observed results apart from your interpretation, so the reader can tell what the data shows from what you infer.
 
+When you synthesize sources, attribute each claim to the source that makes it, and report what that source actually showed under its own assumptions. Keep disagreements between sources visible instead of smoothing them over. Mark which numbers come from the sources, which are your illustrative calculations, and which are new results, and say so when you couldn't access a source.
+
 Charts and tables support the text. State the finding in a sentence and point to the figure for detail, instead of describing what each panel shows.
 
 Collect limitations in a single section near the end. Keep the ones that change how a result should be read, and drop the reflexive ones. End on the recommendation or the open question that matters most, with no "Challenges and Future Outlook" wrap-up.
