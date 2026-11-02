@@ -37,6 +37,21 @@ describe("saveUploadedFile", () => {
     await expect(fs.readFile(path.join(targetDirectory.absolutePath, "report.txt"), "utf8")).resolves.toBe("hello");
   });
 
+  it("keeps every copy when files with the same name upload in parallel", async () => {
+    const targetDirectory = await createTargetDirectory();
+
+    const saved = await Promise.all(["first", "second", "third"].map((content) => saveUploadedFile({
+      targetDirectory,
+      filename: "image.jpg",
+      file: uploadStream(content, false),
+      limitBytes: 100
+    })));
+
+    expect(saved.map((upload) => upload.file.name).sort()).toEqual(["image (1).jpg", "image (2).jpg", "image.jpg"]);
+    const contents = await Promise.all(saved.map((upload) => fs.readFile(upload.absolutePath, "utf8")));
+    expect(contents.sort()).toEqual(["first", "second", "third"]);
+  });
+
   it("rejects an upload cut off at the size limit and leaves no partial file", async () => {
     const targetDirectory = await createTargetDirectory();
 

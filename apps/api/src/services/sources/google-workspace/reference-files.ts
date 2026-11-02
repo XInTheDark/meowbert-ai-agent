@@ -3,7 +3,7 @@ import path from "node:path";
 import { ensureSandboxWritablePath } from "@meowbert/shared";
 import { ensureDirectoryWithinRoot } from "@meowbert/shared/server-security";
 import {
-  createAvailableFilePath,
+  claimAvailableFilePath,
   sanitizeUploadFilename,
   toIsoTimestamp
 } from "../../files/file-paths.js";
@@ -73,16 +73,13 @@ export async function createGoogleWorkspaceReferenceFile(input: {
     ...payload,
     referenceToken: signGoogleWorkspaceReference(payload)
   };
-  const destinationPath = await createAvailableFilePath(path.join(
+  const destinationPath = await claimAvailableFilePath(path.join(
     targetDirectory.absolutePath,
     buildReferenceFileName(input.name, input.mimeType)
   ));
   const serialized = `${JSON.stringify(referenceFile, null, 2)}\n`;
 
-  await fsPromises.writeFile(destinationPath, serialized, {
-    encoding: "utf8",
-    flag: "wx"
-  });
+  await fsPromises.writeFile(destinationPath, serialized, "utf8");
   await ensureSandboxWritablePath({
     rootPath: input.environmentRootPath,
     targetPath: destinationPath

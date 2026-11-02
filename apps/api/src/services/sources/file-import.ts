@@ -6,7 +6,7 @@ import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { pipeline } from "node:stream/promises";
 import { ensureSandboxWritablePath } from "@meowbert/shared";
 import { ensureDirectoryWithinRoot } from "@meowbert/shared/server-security";
-import { createAvailableFilePath, sanitizeUploadFilename, toIsoTimestamp } from "../files/file-paths.js";
+import { claimAvailableFilePath, sanitizeUploadFilename, toIsoTimestamp } from "../files/file-paths.js";
 import { downloadWorkspaceSourceFile } from "./source-operations.js";
 
 export async function importWorkspaceSourceFileToEnvironment(input: {
@@ -40,7 +40,7 @@ export async function importWorkspaceSourceFileToEnvironment(input: {
 
   const safeFilename = sanitizeUploadFilename(download.fileName);
   const preferredPath = path.join(targetDirectory.absolutePath, safeFilename);
-  const destinationPath = await createAvailableFilePath(preferredPath);
+  const destinationPath = await claimAvailableFilePath(preferredPath);
 
   await pipeline(
     Readable.fromWeb(download.response.body as unknown as NodeReadableStream),

@@ -4,7 +4,7 @@ import { ensureSandboxWritablePath } from "@meowbert/shared";
 import { ensureDirectoryWithinRoot } from "@meowbert/shared/server-security";
 import {
   assertPathInsideRoot,
-  createAvailableFilePath,
+  claimAvailableFilePath,
   sanitizeUploadFilename,
   toIsoTimestamp,
   toWebPath
@@ -29,10 +29,9 @@ export async function createTextFileWithinRoot(input: {
   });
 
   const safeFilename = sanitizeUploadFilename(input.name);
-  const preferredPath = path.join(targetDirectory.absolutePath, safeFilename);
-  let destinationPath = await createAvailableFilePath(preferredPath);
-  destinationPath = path.resolve(destinationPath);
-  assertPathInsideRoot(targetDirectory.rootRealPath, destinationPath);
+  const preferredPath = path.resolve(targetDirectory.absolutePath, safeFilename);
+  assertPathInsideRoot(targetDirectory.rootRealPath, preferredPath);
+  const destinationPath = await claimAvailableFilePath(preferredPath);
   const readableRootPath = await fsPromises.realpath(input.rootPath).catch(() => path.resolve(input.rootPath));
 
   await fsPromises.writeFile(destinationPath, input.content, "utf8");

@@ -33,18 +33,40 @@ export function sanitizeUploadFilename(filename: string | undefined): string {
   return base;
 }
 
-export async function createAvailableFilePath(targetPath: string): Promise<string> {
+function* availableFilePathCandidates(targetPath: string): Generator<string> {
   const directory = path.dirname(targetPath);
   const extension = path.extname(targetPath);
   const base = path.basename(targetPath, extension);
 
   for (let index = 0; index < 200; index += 1) {
     const suffix = index === 0 ? "" : ` (${index})`;
-    const candidatePath = path.join(directory, `${base}${suffix}${extension}`);
+    yield path.join(directory, `${base}${suffix}${extension}`);
+  }
+}
+
+export async function createAvailableFilePath(targetPath: string): Promise<string> {
+  for (const candidatePath of availableFilePathCandidates(targetPath)) {
     try {
       await fsPromises.access(candidatePath);
     } catch {
       return candidatePath;
+    }
+  }
+
+  throw new Error("Too many files with the same name in this folder");
+}
+
+// Reserves the name by creating an empty file, so concurrent writers of the same name
+// each get their own path. The caller owns the file and writes over it.
+export async function claimAvailableFilePath(targetPath: string): Promise<string> {
+  for (const candidatePath of availableFilePathCandidates(targetPath)) {
+    try {
+      await (await fsPromises.open(candidatePath, "wx")).close();
+      return candidatePath;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
     }
   }
 

@@ -7,7 +7,7 @@ import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import {
   assertPathInsideRoot,
-  createAvailableFilePath,
+  claimAvailableFilePath,
   sanitizeUploadFilename,
   toIsoTimestamp,
   toWebPath
@@ -42,9 +42,9 @@ export async function saveUploadedFile(input: {
   file: Readable & { truncated?: boolean };
   limitBytes: number;
 }): Promise<{ absolutePath: string; file: SavedUploadedFile }> {
-  const preferredPath = path.join(input.targetDirectory.absolutePath, sanitizeUploadFilename(input.filename));
-  const destinationPath = path.resolve(await createAvailableFilePath(preferredPath));
-  assertPathInsideRoot(input.targetDirectory.rootRealPath, destinationPath);
+  const preferredPath = path.resolve(input.targetDirectory.absolutePath, sanitizeUploadFilename(input.filename));
+  assertPathInsideRoot(input.targetDirectory.rootRealPath, preferredPath);
+  const destinationPath = await claimAvailableFilePath(preferredPath);
 
   const hash = createHash("sha256");
   const hashing = new Transform({
