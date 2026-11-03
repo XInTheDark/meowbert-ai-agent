@@ -379,7 +379,7 @@ async function buildRunPromptEnvelope(input: {
         state: input.contextManagement,
         agentName: prepared.runtimeAgentId ?? "main"
       })),
-      { role: "developer", content: buildContextWindowGuidance({ historySearch: prepared.historySearchEnabled }) }
+      { role: "developer", content: buildContextWindowGuidance({ historySearch: prepared.historySearchEnabled, historyFiles: prepared.isProjectMaster !== true }) }
     );
   }
   if (workflowPrompt?.liveState) {

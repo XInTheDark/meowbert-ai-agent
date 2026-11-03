@@ -33,6 +33,7 @@ import {
   NEW_CONTEXT_TOOL_NAME,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
+  HISTORY_READ_ITEM_TOOL_NAME,
   HISTORY_SEARCH_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
@@ -82,6 +83,11 @@ function isToolEnabled(
 
   if (tool.name === HISTORY_SEARCH_TOOL_NAME) {
     return availability.contextManagementVersion === "v2" && availability.allowHistorySearch === true;
+  }
+
+  // Everyone else reads the history files with a shell, which the Master never gets.
+  if (tool.name === HISTORY_READ_ITEM_TOOL_NAME) {
+    return availability.contextManagementVersion === "v2" && availability.allowProjectMasterTools === true;
   }
 
   if ([

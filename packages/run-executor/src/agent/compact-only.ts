@@ -1,4 +1,5 @@
 import { compactContextNow } from "../context-compaction/index.js";
+import { selectRolloverSeedItems } from "../context-management-v2/rollover-seed.js";
 import { resetV2ContextWindow } from "./context-window.js";
 import { persistContextCheckpoint } from "../context-management/index.js";
 import { reconstructResponseInputItems } from "./utils.js";
@@ -69,7 +70,11 @@ export async function maybeHandleCompactOnlyRun(execution: AgentExecutionContext
   }
 
   if (execution.state.contextManagement.version === "v2") {
-    await resetV2ContextWindow(execution, "manual");
+    await resetV2ContextWindow(
+      execution,
+      "manual",
+      selectRolloverSeedItems(execution.state.dispatchState.conversationItems, { replies: true })
+    );
     await execution.prepared.control.emitEvent("log", {
       message: "Context compaction completed.",
       trigger: "manual",

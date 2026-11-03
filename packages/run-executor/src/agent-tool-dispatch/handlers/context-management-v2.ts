@@ -11,12 +11,16 @@ import {
   GET_CONTEXT_REMAINING_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
+  HISTORY_READ_ITEM_TOOL_NAME,
   HISTORY_SEARCH_TOOL_NAME,
+  historyReadItemArgumentsSchema,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
   NOTES_SEARCH_CONTENTS_TOOL_NAME,
   NOTES_WRITE_FILE_TOOL_NAME
 } from "../../agent-tools/index.js";
+import type { StoredContextHistoryItem } from "../../agent/ports/run-control.js";
+import { toHistoryFileLine } from "../../context-management-v2/history-item.js";
 import { searchContextNotes } from "../../context-management-v2/window.js";
 import { validateContextEdit } from "../../context-management-v2/context-edits.js";
 import { EXEC_TOOL_NAME } from "../../code-mode/exec-tool.js";
@@ -28,6 +32,7 @@ const V2_TOOL_NAMES = new Set([
   NEW_CONTEXT_TOOL_NAME,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
+  HISTORY_READ_ITEM_TOOL_NAME,
   HISTORY_SEARCH_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
   NOTES_READ_FILE_TOOL_NAME,
@@ -41,6 +46,7 @@ export function isContextManagementV2Tool(name: string): boolean {
 }
 
 const CONTEXT_EDIT_REQUEST_TOOL_NAMES = new Set([EXEC_TOOL_NAME, CONTEXT_REPLACE_CALLS_TOOL_NAME]);
+const HISTORY_READ_MAX_CHARS = 20_000;
 
 // Queues the edit for the turn boundary; see context-management-v2/context-edits.ts.
 function queueContextEdit(call: ResponseFunctionToolCall, raw: unknown, ctx: ToolDispatchContext, state: ToolDispatchState): unknown {
@@ -62,6 +68,24 @@ function queueContextEdit(call: ResponseFunctionToolCall, raw: unknown, ctx: Too
   if (error) throw new Error(error);
   state.pendingContextEdits = [...pending, request];
   return { queued: true, note: "The calls are replaced once this turn ends." };
+}
+
+// A call number names both the call and its output, so it can match two items.
+export function readHistoryItems(items: StoredContextHistoryItem[], args: {
+  item_id: string | null;
+  call_number: number | null;
+  offset_chars: number | null;
+}) {
+  const offset = args.offset_chars ?? 0;
+  const matches = items.filter((item) => args.item_id ? item.id === args.item_id : item.callNumber === args.call_number);
+  if (matches.length === 0) throw new Error("No such item in that context window.");
+  return {
+    items: matches.map((item) => {
+      const line = toHistoryFileLine(item);
+      const end = offset + HISTORY_READ_MAX_CHARS;
+      return { ...line, content: line.content.slice(offset, end), ...(line.content.length > end ? { next_offset_chars: end } : {}) };
+    })
+  };
 }
 
 function parseArguments(call: ResponseFunctionToolCall): unknown {
@@ -86,7 +110,7 @@ export async function handleContextManagementV2Tool(
     case NEW_CONTEXT_TOOL_NAME:
       contextEmptyArgumentsSchema.parse(raw);
       if (context.recoveryPhase === "needs_note") {
-        throw new Error("Write or append one continuity note before starting the new context window.");
+        throw new Error("Write or append to the note continuity.md before starting the new context window.");
       }
       state.pendingContextV2Reset = true;
       context.pendingReset = true;
@@ -103,6 +127,12 @@ export async function handleContextManagementV2Tool(
       break;
     case HISTORY_SEARCH_TOOL_NAME:
       output = await store.searchHistory(context, historySearchArgumentsSchema.parse(raw));
+      break;
+    case HISTORY_READ_ITEM_TOOL_NAME:
+      {
+        const args = historyReadItemArgumentsSchema.parse(raw);
+        output = readHistoryItems(await store.loadHistoryWindow(context, args.window_id), args);
+      }
       break;
     case NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME:
       output = await store.listNotes(context, notesListFilesArgumentsSchema.parse(raw));

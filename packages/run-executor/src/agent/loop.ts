@@ -14,7 +14,7 @@ import {
 import { checkpointAndTrimContext, persistContextCheckpoint } from "../context-management/index.js";
 import { getResponseTotalTokens } from "../context-management-v2/token-usage.js";
 import { maybeAdvanceV2ContextWindow, prepareV2ContextWindowUsage } from "./context-window-budget.js";
-import { resetV2ContextWindow, selectContextOverflowRecoveryItems } from "./context-window.js";
+import { resetV2ContextWindow } from "./context-window.js";
 import { applyPendingContextEdits } from "./context-edits.js";
 import { createModelResponseWithRetry, type ModelToolChoice } from "./model.js";
 import { resolveModelErrorAction } from "./model-error-actions.js";
@@ -502,11 +502,7 @@ async function requestModelTurnWithRecovery(input: {
         phase: "context_window_recovery",
         error: message
       });
-      await resetV2ContextWindow(
-        input.execution,
-        "provider_overflow",
-        selectContextOverflowRecoveryItems(input.execution.state.dispatchState.conversationItems)
-      );
+      await resetV2ContextWindow(input.execution, "provider_overflow");
       return requestModelTurn(input);
     }
 

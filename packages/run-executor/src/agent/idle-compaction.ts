@@ -1,5 +1,6 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { TaskExecutionJob } from "@meowbert/shared";
+import { selectRolloverSeedItems } from "../context-management-v2/rollover-seed.js";
 import { recordContextItems } from "../context-management-v2/window.js";
 import { resetV2ContextWindow } from "./context-window.js";
 import type { AgentExecutionContext } from "./execution-types.js";
@@ -9,7 +10,7 @@ const IDLE_COMPACTION_MAX_STEPS = 8;
 
 const IDLE_COMPACTION_NOTE = [
   "This conversation has gone idle, so its context window will be cleared after this turn.",
-  "Update your notes now with what you need to pick up where you left off.",
+  "Your recent messages with the user will stay. Update the note continuity.md now with anything else you need to pick up where you left off.",
   "Only the notes tools work here, and nothing you write reaches the user."
 ].join(" ");
 
@@ -24,6 +25,8 @@ export async function runIdleCompaction(
   runStepLoop: (execution: AgentExecutionContext) => Promise<void>
 ): Promise<void> {
   const { dispatchState } = execution.state;
+  // Taken before the turn, whose own closing text is not part of the conversation with the user.
+  const seedItems = selectRolloverSeedItems(dispatchState.conversationItems, { replies: true });
   const note: ResponseInputItem = { role: "developer", content: IDLE_COMPACTION_NOTE };
   dispatchState.conversationItems.push(note);
   dispatchState.runPersistedItems.push(note);
@@ -33,5 +36,5 @@ export async function runIdleCompaction(
 
   execution.maxRunSteps = Math.min(execution.maxRunSteps, IDLE_COMPACTION_MAX_STEPS);
   await runStepLoop(execution);
-  await resetV2ContextWindow(execution, "idle");
+  await resetV2ContextWindow(execution, "idle", seedItems);
 }

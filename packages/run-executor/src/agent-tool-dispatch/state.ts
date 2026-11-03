@@ -8,6 +8,7 @@ const TOOL_OUTPUT_INPUT_FIELDS = new Map<string, readonly string[]>([
   ["computer_local_shell", ["command"]],
   ["memory_search", ["query"]],
   ["history_search", ["query"]],
+  ["history_read_item", ["item_id", "call_number"]],
   ["enable_skill", ["skill"]],
   ["view_image", ["file_path"]],
   ["view_pdf_file", ["file_path"]],

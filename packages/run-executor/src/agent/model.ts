@@ -94,7 +94,6 @@ type CreateModelResponseInput = {
   prefixItems: ResponseInputItem[];
   conversationItems: ResponseInputItem[];
   modelPayload: Record<string, unknown>;
-  maxOutputTokens?: number;
   tools: Tool[];
   toolChoice?: ModelToolChoice;
   parallelToolCalls?: boolean;
@@ -143,7 +142,6 @@ function buildModelRequestPayload(input: CreateModelResponseInput): Record<strin
 
   const requestPayload: Record<string, unknown> = {
     ...normalizedModelPayload,
-    ...(input.maxOutputTokens ? { max_output_tokens: input.maxOutputTokens } : {}),
     ...promptCacheOptions,
     input: requestInput,
     include: ["reasoning.encrypted_content"],

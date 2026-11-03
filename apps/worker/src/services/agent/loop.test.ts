@@ -52,15 +52,7 @@ vi.mock("@meowbert/run-executor/agent/model-request-recovery", () => ({
 }));
 
 vi.mock("@meowbert/run-executor/agent/context-window", () => ({
-  resetV2ContextWindow: vi.fn(),
-  selectContextOverflowRecoveryItems: vi.fn((items: Array<{ role?: string; content?: unknown }>) => {
-    const latestUserItem = [...items].reverse().find((item) =>
-      item.role === "user"
-      && typeof item.content === "string"
-      && !item.content.startsWith("[System:")
-    );
-    return latestUserItem ? [latestUserItem] : [];
-  })
+  resetV2ContextWindow: vi.fn()
 }));
 
 vi.mock("@meowbert/run-executor/agent-tool-dispatch/index", () => ({
@@ -330,7 +322,6 @@ describe("runAgentStepLoop", () => {
     await runAgentStepLoop(execution as never);
 
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(2);
-    expect(mockedCreateModelResponseWithRetry.mock.calls[0][1]).not.toHaveProperty("maxOutputTokens");
     expect(execution.state.dispatchState.conversationItems).toContainEqual({
       role: "user",
       content: expect.stringContaining("hit the output token limit")
@@ -986,17 +977,13 @@ describe("runAgentStepLoop", () => {
       { role: "user", content: "[System: Call final_response if ready.]" },
       { role: "assistant", content: "old assistant output" }
     ];
-    mockedResetV2ContextWindow.mockImplementationOnce(async (contextExecution, _reason, seedItems) => {
-      contextExecution.state.dispatchState.conversationItems = seedItems ?? [];
+    mockedResetV2ContextWindow.mockImplementationOnce(async (contextExecution) => {
+      contextExecution.state.dispatchState.conversationItems = [{ role: "user", content: "current user request" }];
     });
 
     await runAgentStepLoop(execution as never);
 
-    expect(mockedResetV2ContextWindow).toHaveBeenCalledWith(
-      execution,
-      "provider_overflow",
-      [{ role: "user", content: "current user request" }]
-    );
+    expect(mockedResetV2ContextWindow).toHaveBeenCalledWith(execution, "provider_overflow");
     expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(2);
     expect((mockedCreateModelResponseWithRetry.mock.calls[1]?.[1] as { conversationItems: unknown }).conversationItems)
       .toEqual([{ role: "user", content: "current user request" }]);

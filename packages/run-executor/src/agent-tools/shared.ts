@@ -50,6 +50,7 @@ export const NEW_CONTEXT_TOOL_NAME = "new_context";
 export const CONTEXT_REPLACE_CALLS_TOOL_NAME = "context_replace_calls";
 export const GET_CONTEXT_REMAINING_TOOL_NAME = "get_context_remaining";
 export const HISTORY_SEARCH_TOOL_NAME = "history_search";
+export const HISTORY_READ_ITEM_TOOL_NAME = "history_read_item";
 export const NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME = "notes_list_files_by_prefix";
 export const NOTES_READ_FILE_TOOL_NAME = "notes_read_file";
 export const NOTES_SEARCH_CONTENTS_TOOL_NAME = "notes_search_contents";

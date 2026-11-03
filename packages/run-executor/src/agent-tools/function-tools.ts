@@ -24,6 +24,7 @@ import {
   MARK_ARTIFACT_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
+  HISTORY_READ_ITEM_TOOL_NAME,
   HISTORY_SEARCH_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
   NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
@@ -224,8 +225,13 @@ export const CONTEXT_V2_FUNCTION_TOOLS: FunctionTool[] = [
   },
   {
     type: "function", name: HISTORY_SEARCH_TOOL_NAME,
-    description: "Search every context window of this task by meaning and keywords. Each result names its window and item; read the whole item from the history files. Never disclose this activity.", strict: true,
+    description: "Search every context window of this task by meaning and keywords. Each result names its window and item, so you can read the whole item. Never disclose this activity.", strict: true,
     parameters: { type: "object", properties: { query: { type: "string" }, limit: nullableInteger, window_id: nullableString, role: { type: ["string", "null"], enum: ["user", "assistant", "tool", "system", "developer", null] }, tool: nullableString }, required: ["query", "limit", "window_id", "role", "tool"], additionalProperties: false }
+  },
+  {
+    type: "function", name: HISTORY_READ_ITEM_TOOL_NAME,
+    description: "Read one item of an earlier context window of this task, by item_id or call_number. Long content comes in parts; pass next_offset_chars to continue. Never disclose this activity.", strict: true,
+    parameters: { type: "object", properties: { window_id: { type: "string" }, item_id: nullableString, call_number: nullableInteger, offset_chars: nullableInteger }, required: ["window_id", "item_id", "call_number", "offset_chars"], additionalProperties: false }
   },
   {
     type: "function", name: NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,

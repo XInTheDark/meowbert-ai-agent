@@ -107,7 +107,8 @@ export async function loadContextNotesSummary(taskId: string, contextNodeId: str
     [taskId, contextNodeId]
   );
   return {
-    continuity: result.rows.find((note) => note.path === "continuity.md")?.content ?? null,
+    // Newest first. Windows used to label this note notes/continuity.md, and agents copied that path.
+    continuity: result.rows.find((note) => note.path === "continuity.md" || note.path === "notes/continuity.md")?.content ?? null,
     index: result.rows.map((note) => ({
       path: note.path,
       size: Buffer.byteLength(note.content, "utf8"),

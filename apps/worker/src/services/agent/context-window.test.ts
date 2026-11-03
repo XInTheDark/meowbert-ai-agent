@@ -23,7 +23,7 @@ vi.mock("@meowbert/run-executor/context-management-v2/prompts", () => ({
   buildContextWindowGuidance: () => mocks.contextWindowGuidance
 }));
 
-import { resetV2ContextWindow, selectContextOverflowRecoveryItems } from "@meowbert/run-executor/agent/context-window";
+import { resetV2ContextWindow } from "@meowbert/run-executor/agent/context-window";
 import { createFakeRunControl, type FakeRunControl } from "../run-host/test-run-environment.test-fixtures.js";
 
 let control: FakeRunControl;
@@ -113,20 +113,20 @@ describe("resetV2ContextWindow", () => {
     expect(execution.state.dispatchState.runPersistedItems).toEqual([]);
     expect(execution.state.dispatchState.conversationItems).toEqual([
       { role: "developer", content: "window prompt" },
-      { role: "developer", content: "window guidance" }
+      { role: "developer", content: "window guidance" },
+      { role: "user", content: "old" }
     ]);
   });
 
-  it("seeds the next window with bounded recovery items and records them", async () => {
+  it("keeps the user's bounded request in the next window by default and records it", async () => {
     const longRequest = `request ${"x".repeat(20_000)}\n[id: 123e4567-e89b-12d3-a456-426614174000]`;
-    const seedItems = [{ role: "user", content: longRequest }] as const;
     const execution = {
       job: { taskId: "task-1" },
       state: {
         contextManagement: currentState,
         currentLeafMessageId: "message-2",
         dispatchState: {
-          conversationItems: [{ role: "user", content: "old" }],
+          conversationItems: [{ role: "user", content: longRequest }, { type: "function_call_output", call_id: "call-1", output: "large" }],
           runPersistedItems: [],
           contextUsage: null,
           pendingContextV2Reset: false
@@ -137,17 +137,16 @@ describe("resetV2ContextWindow", () => {
       prepared: { runtimeAgentId: "main", control }
     } as never;
 
-    const recoveryItems = selectContextOverflowRecoveryItems(seedItems as never);
-    await resetV2ContextWindow(execution, "provider_overflow", recoveryItems);
+    await resetV2ContextWindow(execution, "provider_overflow");
 
     expect(execution.state.dispatchState.conversationItems).toHaveLength(3);
     expect(execution.state.dispatchState.conversationItems[2]).toEqual({
       role: "user",
-      content: expect.stringContaining("[recovery excerpt truncated; read the history files for the full request]")
+      content: expect.stringContaining("[excerpt truncated; the full item is in the context history]")
     });
     expect((execution.state.dispatchState.conversationItems[2] as { content: string }).content).toContain(
       "[id: 123e4567-e89b-12d3-a456-426614174000]"
     );
-    expect(mocks.recordContextItems).toHaveBeenCalledWith(control.context, nextState, recoveryItems);
+    expect(mocks.recordContextItems).toHaveBeenCalledWith(control.context, nextState, [execution.state.dispatchState.conversationItems[2]]);
   });
 });

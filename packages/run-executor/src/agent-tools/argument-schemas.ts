@@ -121,6 +121,12 @@ export const historySearchArgumentsSchema = z.object({
   role: z.enum(["user", "assistant", "tool", "system", "developer"]).nullable(),
   tool: z.string().nullable()
 }).strict();
+export const historyReadItemArgumentsSchema = z.object({
+  window_id: z.string().uuid(),
+  item_id: z.string().uuid().nullable(),
+  call_number: z.number().int().min(1).nullable(),
+  offset_chars: z.number().int().min(0).nullable()
+}).strict().refine((value) => (value.item_id === null) !== (value.call_number === null), "Pass item_id or call_number, not both.");
 export const notesListFilesArgumentsSchema = z.object({
   prefix: z.string().nullable(),
   max_results: z.number().int().min(1).max(100).nullable(),

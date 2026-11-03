@@ -89,10 +89,17 @@ describe("maybeHandleCompactOnlyRun", () => {
       pendingReset: false,
       recoveryPhase: "normal"
     };
+    execution.state.dispatchState.conversationItems = [
+      { role: "user", content: "request" },
+      { type: "function_call", call_id: "call-1", name: "final_response", arguments: JSON.stringify({ response: "answer" }) }
+    ];
 
     await expect(maybeHandleCompactOnlyRun(execution)).resolves.toBe(true);
 
-    expect(resetV2ContextWindow).toHaveBeenCalledWith(execution, "manual");
+    expect(resetV2ContextWindow).toHaveBeenCalledWith(execution, "manual", [
+      { role: "user", content: "request" },
+      { role: "assistant", content: "answer" }
+    ]);
     expect(compactContextNow).not.toHaveBeenCalled();
   });
 
