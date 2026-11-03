@@ -90,6 +90,11 @@ export const taskAgentSelectionSchema = z
   .strict()
   .optional();
 
+function isRelativeAttachmentPath(value: string): boolean {
+  const normalized = value.replace(/\\/g, "/");
+  return !normalized.startsWith("/") && !/^[a-zA-Z]:/.test(normalized) && !normalized.split("/").includes("..");
+}
+
 export const taskAttachmentSchema = z
   .object({
     id: z.string().min(1).max(240).optional(),
@@ -100,7 +105,11 @@ export const taskAttachmentSchema = z
     sizeBytes: z.number().finite().nullable().optional(),
     forceInclude: z.boolean().optional()
   })
-  .strict();
+  .strict()
+  .refine((attachment) => {
+    const paths = [attachment.relativePath, attachment.kind === "file" || attachment.kind === "directory" ? attachment.content : undefined];
+    return paths.every((value) => value === undefined || isRelativeAttachmentPath(value));
+  }, { message: "Attachment paths must stay inside the task or project." });
 
 export const taskAttachmentsSchema = z.array(taskAttachmentSchema).max(50).optional();
 

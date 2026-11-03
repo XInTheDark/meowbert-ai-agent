@@ -363,60 +363,36 @@ describe("chat input submit flow", () => {
     expect(container?.textContent).toContain("Quality control selected");
   });
 
-  it("does not force textarea layout when the value changes", async () => {
-    const scrollHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "scrollHeight");
-    let scrollHeightReads = 0;
-    Object.defineProperty(HTMLTextAreaElement.prototype, "scrollHeight", {
-      configurable: true,
-      get: () => {
-        scrollHeightReads += 1;
-        return 64;
-      }
+  it("shows citations in the message as pills and removes them with their attachment", async () => {
+    const attachment = { id: "attachment-1", kind: "file" as const, label: "notes.txt", content: "inputs/notes.txt", relativePath: "inputs/notes.txt" };
+    const onChange = vi.fn();
+    const onRemoveAttachment = vi.fn();
+    await act(async () => {
+      root?.render(
+        <AppRuntimeContext.Provider value={createAppRuntimeValue() as any}>
+          <ChatInput
+            value="Read [notes.txt](inputs/notes.txt) now"
+            onChange={onChange}
+            onSubmit={() => {}}
+            isSubmitting={false}
+            attachments={[attachment]}
+            onRemoveAttachment={onRemoveAttachment}
+            onAttachFiles={() => {}}
+            isUploading={false}
+          />
+        </AppRuntimeContext.Provider>
+      );
     });
 
-    try {
-      await act(async () => {
-        root?.render(
-          <AppRuntimeContext.Provider value={createAppRuntimeValue() as any}>
-            <ChatInput
-              value="First"
-              onChange={() => {}}
-              onSubmit={() => {}}
-              isSubmitting={false}
-              attachments={[]}
-              onRemoveAttachment={() => {}}
-              onAttachFiles={() => {}}
-              isUploading={false}
-            />
-          </AppRuntimeContext.Provider>
-        );
-      });
+    expect(container?.querySelector(".chat-textarea .citation-pill")?.textContent).toBe("notes.txt");
 
-      await act(async () => {
-        root?.render(
-          <AppRuntimeContext.Provider value={createAppRuntimeValue() as any}>
-            <ChatInput
-              value="First\nSecond"
-              onChange={() => {}}
-              onSubmit={() => {}}
-              isSubmitting={false}
-              attachments={[]}
-              onRemoveAttachment={() => {}}
-              onAttachFiles={() => {}}
-              isUploading={false}
-            />
-          </AppRuntimeContext.Provider>
-        );
-      });
+    await act(async () => {
+      container?.querySelector<HTMLElement>("[aria-label=\"Remove notes.txt\"]")?.click();
+    });
 
-      expect(scrollHeightReads).toBe(0);
-    } finally {
-      if (scrollHeightDescriptor) {
-        Object.defineProperty(HTMLTextAreaElement.prototype, "scrollHeight", scrollHeightDescriptor);
-      } else {
-        delete (HTMLTextAreaElement.prototype as { scrollHeight?: number }).scrollHeight;
-      }
-    }
+    expect(onRemoveAttachment).toHaveBeenCalledWith("attachment-1");
+    expect(container?.querySelector(".chat-textarea .citation-pill")).toBeNull();
+    expect(onChange).toHaveBeenLastCalledWith("Read  now");
   });
 
   it("toggles force include for individual attachments", async () => {
@@ -491,7 +467,7 @@ describe("chat input submit flow", () => {
 
     expect(chip).not.toBeNull();
     expect(label?.textContent).toBe("tetris-trainer-suite (1).zip");
-    expect(label?.getAttribute("title")).toBe("tetris-trainer-suite (1).zip");
+    expect(label?.getAttribute("title")).toBe("Cite tetris-trainer-suite (1).zip");
     expect(forceIncludeButton?.getAttribute("aria-label")).toBe("Force include tetris-trainer-suite (1).zip");
     expect(removeButton?.getAttribute("aria-label")).toBe("Remove tetris-trainer-suite (1).zip");
 

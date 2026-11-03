@@ -1,11 +1,13 @@
-import { LoaderCircle, Paperclip, X } from "lucide-react";
+import { GripVertical, LoaderCircle, Pin, X } from "lucide-react";
 import type { TaskAttachment } from "../../lib/types";
 import { isGoogleWorkspaceReferenceFileName } from "../../sources/googleWorkspaceAttachments";
+import { isCitableAttachment, startAttachmentDrag } from "./composer/useComposerCitations";
 
 interface ChatInputAttachmentRowProps {
   pendingUploads: Array<{ id: string; label: string }>;
   attachments: TaskAttachment[];
   onRemoveAttachment: (id: string) => void;
+  onCiteAttachment?: (attachment: TaskAttachment) => void;
   onToggleAttachmentForceInclude?: (id: string) => void;
   onResetInput: () => void;
   isSubmitting: boolean;
@@ -15,6 +17,7 @@ export function ChatInputAttachmentRow({
   pendingUploads,
   attachments,
   onRemoveAttachment,
+  onCiteAttachment,
   onToggleAttachmentForceInclude,
   onResetInput,
   isSubmitting
@@ -35,19 +38,40 @@ export function ChatInputAttachmentRow({
       {attachments.length > 0 && (
         <div className="attachment-list">
           <div className="chip-row attachment-chip-row">
-            {attachments.map((att) => (
-              <div key={att.id} className={`chip attachment-chip${att.forceInclude === true ? " chip-force-include" : ""}`}>
-                <span className="attachment-chip-label" title={att.label}>{att.label}</span>
+            {attachments.map((att) => {
+              const canCite = onCiteAttachment !== undefined && isCitableAttachment(att);
+              return (
+              <div
+                key={att.id}
+                className={`chip attachment-chip${att.forceInclude === true ? " chip-force-include" : ""}`}
+                draggable={canCite}
+                onDragStart={canCite ? (event) => startAttachmentDrag(event, att.id) : undefined}
+              >
+                {canCite ? (
+                  <>
+                    <GripVertical size={12} className="attachment-chip-grip" aria-hidden="true" />
+                    <button
+                      type="button"
+                      className="attachment-chip-label attachment-chip-cite-btn"
+                      title={`Cite ${att.label}`}
+                      onClick={() => onCiteAttachment(att)}
+                    >
+                      {att.label}
+                    </button>
+                  </>
+                ) : (
+                  <span className="attachment-chip-label" title={att.label}>{att.label}</span>
+                )}
                 {onToggleAttachmentForceInclude && !isGoogleWorkspaceReferenceFileName(att.label) ? (
                   <button
                     type="button"
                     className={`attachment-force-include-btn${att.forceInclude === true ? " active" : ""}`}
                     aria-pressed={att.forceInclude === true}
                     aria-label={att.forceInclude === true ? `Stop force including ${att.label}` : `Force include ${att.label}`}
-                    title={att.forceInclude === true ? "Force include is on" : "Force include from first turn"}
+                    title={att.forceInclude === true ? "Force include is on" : "Force include: send the full file to the model"}
                     onClick={() => onToggleAttachmentForceInclude(att.id)}
                   >
-                    <Paperclip size={12} />
+                    <Pin size={12} />
                   </button>
                 ) : null}
                 <button
@@ -60,7 +84,8 @@ export function ChatInputAttachmentRow({
                   <X size={14} />
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
           <button
             type="button"

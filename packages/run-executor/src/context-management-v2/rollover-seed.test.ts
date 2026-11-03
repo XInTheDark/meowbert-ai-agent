@@ -11,6 +11,16 @@ const assistant = (text: string) => ({
 }) as unknown as ResponseInputItem;
 
 describe("selectRolloverSeedItems", () => {
+  it("leaves force-included files out of new windows", () => {
+    const items = [
+      user("Review this"),
+      user("Force-included file (notes.txt, inputs/notes.txt):\nbody"),
+      user("[Attachment force include skipped: a.pdf. PDF exceeds viewer limit.]"),
+      user("[Attachment marked force include: b.zip]\nKind: file")
+    ];
+    expect(selectRolloverSeedItems(items, { replies: false })).toEqual([user("Review this")]);
+  });
+
   it("keeps user messages, without replies or tool activity, while the agent is working", () => {
     const items = [
       user("first"),

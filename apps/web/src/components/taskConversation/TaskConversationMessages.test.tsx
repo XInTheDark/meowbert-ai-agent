@@ -1017,6 +1017,27 @@ describe("TaskConversationMessages", () => {
     expect(html).toContain("Sleeping unless the leader asks for another pass.");
   });
 
+  it("shows force include problems as an error", () => {
+    const html = renderToStaticMarkup(
+      <TaskConversationMessages
+        messages={[
+          {
+            id: "issue-1",
+            role: "system",
+            content_json: { kind: "force_include_issue", text: "deck.pptx can't be force included." },
+            parent_message_id: null,
+            edited_from_message_id: null,
+            created_at: "2026-03-10T00:00:00.000Z"
+          }
+        ]}
+        hydratedMessageIds={new Set<string>()}
+      />
+    );
+
+    expect(html).toContain("error-banner");
+    expect(html).toContain("deck.pptx can&#x27;t be force included.");
+  });
+
   it("renders native compaction messages without requiring a human summary", () => {
     const html = renderToStaticMarkup(
       <TaskConversationMessages

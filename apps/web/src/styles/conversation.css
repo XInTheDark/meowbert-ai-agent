@@ -2729,6 +2729,97 @@
   line-height: 1.45;
   box-shadow: none;
   transition: none;
+  outline: none;
+}
+
+.chat-editor {
+  position: relative;
+  min-width: 0;
+}
+
+.chat-editor-placeholder {
+  position: absolute;
+  inset: 0 auto auto 0;
+  padding: 0.2rem 0.05rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+.citation-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: min(16rem, 100%);
+  padding: 0 0.4rem 0 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: 0.86em;
+  line-height: 1.5;
+  vertical-align: -0.15em;
+  white-space: nowrap;
+  user-select: all;
+  cursor: default;
+  text-decoration: none;
+}
+
+.citation-pill svg {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.citation-pill-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+a.citation-pill {
+  cursor: pointer;
+}
+
+a.citation-pill:hover {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--border));
+}
+
+.citation-pill.selected {
+  border-color: color-mix(in srgb, var(--brand) 60%, var(--border));
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+}
+
+.citation-pill.uploading {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.attachment-chip[draggable="true"] {
+  cursor: grab;
+}
+
+.attachment-chip-grip {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.attachment-chip-cite-btn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.attachment-chip-cite-btn:hover {
+  color: var(--text);
+}
+
+.force-include-issue {
+  align-self: stretch;
+  font-size: 0.875rem;
+  white-space: pre-line;
 }
 
 .chat-textarea:hover {

@@ -4,6 +4,7 @@ import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "../lib/api";
+import type { TaskAttachment } from "../lib/types";
 import { buildTaskInputAttachmentPath } from "../task/taskFileDestinations";
 import { useFileUpload } from "./useFileUpload";
 
@@ -42,6 +43,32 @@ describe("useFileUpload", () => {
     container?.remove();
     container = null;
     root = null;
+  });
+
+  it("resolves to each file's attachment in order, with null for failures", async () => {
+    const postForm = vi.fn(async (_path: string, formData: FormData) => {
+      const file = formData.get("file") as File;
+      if (file.name === "bad.txt") throw new Error("nope");
+      return { file: { name: file.name, relativePath: `inputs/${file.name}`, sizeBytes: file.size, createdAt: null, modifiedAt: null } };
+    });
+    let uploadFiles: ReturnType<typeof useFileUpload>["uploadFiles"] = async () => [];
+
+    function Harness() {
+      uploadFiles = useFileUpload({ postForm } as unknown as ApiClient, "11111111-1111-4111-8111-111111111111", { destinationPath: "inputs" }).uploadFiles;
+      return null;
+    }
+
+    await act(async () => {
+      root?.render(<Harness />);
+    });
+
+    let results: Array<TaskAttachment | null> = [];
+    await act(async () => {
+      results = await uploadFiles([createUploadFile("bad.txt"), createUploadFile("good.txt")]);
+    });
+
+    expect(results[0]).toBeNull();
+    expect(results[1]?.relativePath).toBe("inputs/good.txt");
   });
 
   it("preserves folder paths when uploading task input folders", async () => {

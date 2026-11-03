@@ -155,7 +155,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
   // Focus inside the same tap so the phone raises its keyboard straight away instead of needing a second tap.
   function expandMobileComposer(): void {
     flushSync(() => props.onMobileInputExpandedChange(true));
-    composerRef.current?.querySelector("textarea")?.focus();
+    composerRef.current?.querySelector<HTMLElement>(".chat-textarea")?.focus();
   }
   const showMessageActions = props.showMessageActions ?? true;
   const hideComposer = props.hideComposer === true;

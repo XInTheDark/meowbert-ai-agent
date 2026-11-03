@@ -1,7 +1,5 @@
 import { fileTypeFromBuffer } from "file-type";
 import { labelMessageSender } from "../project-master/message-sender.js";
-import fs from "node:fs";
-import path from "node:path";
 import type {
   ResponseInputContent,
   ResponseCustomToolCall,
@@ -24,18 +22,16 @@ import {
 import { z } from "zod";
 import type { TaskMessageRow, TaskMessageToolOptions } from "./types.js";
 import { isApplyPatchCallItem } from "./apply-patch.js";
-import { preparePdfView, type PdfSandboxRuntime } from "../agent-tool-dispatch/pdf.js";
+import {
+  buildForceIncludedAttachmentItems,
+  FORCE_INCLUDE_ISSUE_KIND,
+  parseTaskMessageAttachments,
+  selectUnansweredUserMessageIds,
+  SUPPORTED_VIEW_IMAGE_MIME_TYPES
+} from "./force-included-attachments.js";
+import type { PdfSandboxRuntime } from "../agent-tool-dispatch/pdf.js";
 import { prepareToolOutputForModel } from "../agent-tool-dispatch/state.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
-import {
-  VIEW_PDF_DEFAULT_PAGE_START
-} from "../agent-tools/index.js";
-import {
-  IMAGE_MIME_SNIFF_BYTES,
-  VIEW_IMAGE_MAX_BYTES,
-  VIEW_PDF_MAX_INPUT_BYTES,
-  VIEW_PDF_MAX_OUTPUT_BYTES
-} from "../agent-tool-dispatch/view-limits.js";
 
 export function asText(content: Record<string, unknown>): string {
   if (typeof content.text === "string") {
@@ -376,203 +372,9 @@ function resolveMessageText(text: string, taskInputDir: string): string {
   // Normalize both legacy ../inputs/ references and current inputs/ references to the
   // absolute task inputs directory path so the model sees a single unambiguous location.
   return text.replace(
-    /(^|[\s([{"'])(?:\.\.\/|\.\/)?inputs\//g,
+    /(^|[\s([{"'<])(?:\.\.\/|\.\/)?inputs\//g,
     (_match, prefix: string) => `${prefix}${taskInputDir}/`
   );
-}
-
-interface TaskMessageAttachment {
-  kind: "note" | "file" | "directory";
-  label: string;
-  content: string;
-  relativePath?: string;
-  sizeBytes?: number | null;
-  forceInclude?: boolean;
-}
-
-function parseTaskMessageAttachments(content: Record<string, unknown>): TaskMessageAttachment[] {
-  if (!Array.isArray(content.attachments)) {
-    return [];
-  }
-
-  return content.attachments.reduce<TaskMessageAttachment[]>((attachments, rawAttachment) => {
-    if (!rawAttachment || typeof rawAttachment !== "object") {
-      return attachments;
-    }
-
-    const candidate = rawAttachment as {
-      kind?: unknown;
-      label?: unknown;
-      content?: unknown;
-      relativePath?: unknown;
-      sizeBytes?: unknown;
-      forceInclude?: unknown;
-    };
-    if (
-      (candidate.kind !== "note" && candidate.kind !== "file" && candidate.kind !== "directory")
-      || typeof candidate.label !== "string"
-      || typeof candidate.content !== "string"
-    ) {
-      return attachments;
-    }
-
-    attachments.push({
-      kind: candidate.kind,
-      label: candidate.label,
-      content: candidate.content,
-      ...(typeof candidate.relativePath === "string" ? { relativePath: candidate.relativePath } : {}),
-      ...(typeof candidate.sizeBytes === "number" && Number.isFinite(candidate.sizeBytes)
-        ? { sizeBytes: candidate.sizeBytes }
-        : candidate.sizeBytes === null
-          ? { sizeBytes: null }
-          : {}),
-      ...(candidate.forceInclude === true ? { forceInclude: true } : {})
-    });
-    return attachments;
-  }, []);
-}
-
-function resolveAttachmentAbsolutePath(attachment: TaskMessageAttachment, taskInputDir: string): string | null {
-  const attachmentPath = attachment.relativePath ?? attachment.content;
-  if (attachment.kind !== "file" || typeof attachmentPath !== "string" || attachmentPath.trim().length === 0) {
-    return null;
-  }
-
-  const normalizedPath = attachmentPath.replace(/\\/g, "/").replace(/^\.?\//, "");
-  if (normalizedPath === "inputs" || normalizedPath.startsWith("inputs/")) {
-    return path.resolve(taskInputDir, normalizedPath === "inputs" ? "." : normalizedPath.slice("inputs/".length));
-  }
-
-  if (path.isAbsolute(attachmentPath)) {
-    return path.resolve(attachmentPath);
-  }
-
-  return path.resolve(taskInputDir, attachmentPath);
-}
-
-function isLikelyTextAttachment(attachment: TaskMessageAttachment, filePath: string): boolean {
-  const lowerName = `${attachment.label} ${filePath}`.toLowerCase();
-  return /\.(txt|md|markdown|csv|tsv|json|jsonl|yaml|yml|xml|html|htm|css|js|jsx|ts|tsx|py|rb|go|rs|java|c|cc|cpp|h|hpp|sh|zsh|bash|sql|toml|ini|env|log)$/i.test(lowerName);
-}
-
-function buildForceIncludeFailureItem(attachment: TaskMessageAttachment, reason: string): ResponseInputItem {
-  return {
-    role: "user",
-    content: `[Attachment force include skipped: ${attachment.label}. ${reason}]`
-  };
-}
-
-function buildForceIncludeMetadataItem(attachment: TaskMessageAttachment): ResponseInputItem {
-  return {
-    role: "user",
-    content: [
-      `[Attachment marked force include: ${attachment.label}]`,
-      `Kind: ${attachment.kind}`,
-      `Path/content: ${attachment.relativePath ?? attachment.content}`,
-      typeof attachment.sizeBytes === "number" ? `Size: ${attachment.sizeBytes} bytes` : null
-    ].filter((line): line is string => typeof line === "string").join("\n")
-  };
-}
-
-async function tryBuildForceIncludedAttachmentItems(
-  attachment: TaskMessageAttachment,
-  taskInputDir: string,
-  imageDetail: WorkspaceImageDetail,
-  mode: "normal" | "quick",
-  pdfRuntime?: PdfSandboxRuntime
-): Promise<ResponseInputItem[]> {
-  if (mode === "normal" && attachment.forceInclude !== true) {
-    return [];
-  }
-
-  if (mode === "quick" && attachment.kind !== "file") {
-    return [];
-  }
-
-  if (attachment.kind === "note") {
-    return [{
-      role: "user",
-      content: `Force-included note attachment (${attachment.label}):\n${attachment.content}`
-    }];
-  }
-
-  const filePath = resolveAttachmentAbsolutePath(attachment, taskInputDir);
-  if (!filePath) {
-    if (mode === "quick") {
-      return [];
-    }
-    return [buildForceIncludeMetadataItem(attachment)];
-  }
-
-  try {
-    const fileStats = fs.statSync(filePath);
-    if (!fileStats.isFile()) {
-      return [buildForceIncludeMetadataItem(attachment)];
-    }
-
-    const lowerPath = filePath.toLowerCase();
-    if (lowerPath.endsWith(".pdf")) {
-      if (mode === "quick") {
-        return [];
-      }
-      if (fileStats.size > VIEW_PDF_MAX_INPUT_BYTES) {
-        return [buildForceIncludeFailureItem(attachment, "PDF exceeds viewer limit.")];
-      }
-      const preparedPdf = await preparePdfView({
-        fileBuffer: fs.readFileSync(filePath),
-        fileName: path.basename(filePath),
-        pageStart: VIEW_PDF_DEFAULT_PAGE_START,
-        pageEnd: Number.MAX_SAFE_INTEGER,
-        maxOutputBytes: VIEW_PDF_MAX_OUTPUT_BYTES,
-        runtime: pdfRuntime
-      });
-      const fileContent: ResponseInputContent = {
-        type: "input_file",
-        file_data: `data:application/pdf;base64,${preparedPdf.outputBuffer.toString("base64")}`,
-        filename: preparedPdf.outputFileName
-      };
-      return [{ role: "user", content: [fileContent] }];
-    }
-
-    const header = fs.readFileSync(filePath).subarray(0, IMAGE_MIME_SNIFF_BYTES);
-    const imageMimeType = await detectImageMimeTypeFromBuffer(header);
-    if (imageMimeType) {
-      if (fileStats.size > VIEW_IMAGE_MAX_BYTES) {
-        return [buildForceIncludeFailureItem(attachment, "Image exceeds viewer limit.")];
-      }
-      const imageContent = {
-        type: "input_image",
-        detail: imageDetail,
-        image_url: `data:${imageMimeType};base64,${fs.readFileSync(filePath).toString("base64")}`
-      } as ResponseInputContent;
-      return [{
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Force-included image file: ${attachment.label}`
-          } as ResponseInputContent,
-          imageContent
-        ]
-      }];
-    }
-
-    if (mode === "quick") {
-      return [];
-    }
-
-    if (isLikelyTextAttachment(attachment, filePath)) {
-      return [{
-        role: "user",
-        content: `Force-included file (${attachment.label}, ${attachment.relativePath ?? attachment.content}):\n${fs.readFileSync(filePath, "utf8")}`
-      }];
-    }
-
-    return [buildForceIncludeMetadataItem(attachment)];
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return [buildForceIncludeFailureItem(attachment, message)];
-  }
 }
 
 function resolveMessageReplayMetadata(message: TaskMessageRow): unknown {
@@ -834,13 +636,18 @@ export async function mapMessagesForResponsesInput(
   messages: TaskMessageRow[],
   taskInputDir: string,
   imageDetail: WorkspaceImageDetail,
-  options: { quickMode?: boolean; sendMetadataToModel?: boolean; pdfRuntime?: PdfSandboxRuntime } = {}
+  options: { quickMode?: boolean; sendMetadataToModel?: boolean; pdfRuntime?: PdfSandboxRuntime; projectRoot?: string | null; onForceIncludeIssue?: (issue: string) => void } = {}
 ): Promise<ResponseInputItem[]> {
   const output: ResponseInputItem[] = [];
   const fallbackOutputs: ResponseInputItem[] = [];
   const persistedCallIds = collectPersistedToolCallIds(messages);
+  const unansweredMessageIds = selectUnansweredUserMessageIds(messages);
 
   for (const message of messages) {
+    if (message.content_json.kind === FORCE_INCLUDE_ISSUE_KIND) {
+      continue;
+    }
+
     const persistedItems = parsePersistedResponseItems(message);
     if (persistedItems.length > 0) {
       for (const persistedItem of persistedItems) {
@@ -892,14 +699,19 @@ export async function mapMessagesForResponsesInput(
       if (metadataItem) output.push(metadataItem);
     }
 
+    // Quick runs replay attached images instead of relying on a window that kept them.
+    if (options.quickMode !== true && !unansweredMessageIds.has(message.id)) {
+      continue;
+    }
+
     for (const attachment of parseTaskMessageAttachments(message.content_json)) {
-      output.push(...await tryBuildForceIncludedAttachmentItems(
-        attachment,
-        taskInputDir,
+      output.push(...await buildForceIncludedAttachmentItems(attachment, {
+        roots: { taskInputDir, projectRoot: options.projectRoot },
         imageDetail,
-        options.quickMode === true ? "quick" : "normal",
-        options.pdfRuntime
-      ));
+        mode: options.quickMode === true ? "quick" : "normal",
+        pdfRuntime: options.pdfRuntime,
+        onIssue: options.onForceIncludeIssue
+      }));
     }
   }
 
@@ -989,14 +801,6 @@ export function buildAssistantHistoryItem(text: string): ResponseInputItem {
     content: text
   };
 }
-
-const SUPPORTED_VIEW_IMAGE_MIME_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-  "image/bmp"
-]);
 
 export async function detectImageMimeTypeFromBuffer(buffer: Buffer): Promise<string | null> {
   const detected = await fileTypeFromBuffer(buffer);

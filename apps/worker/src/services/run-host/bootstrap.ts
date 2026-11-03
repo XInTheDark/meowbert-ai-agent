@@ -44,6 +44,7 @@ import {
   resolveUserSandboxContainerResources,
   setTaskStatusForRun
 } from "../agent-db/index.js";
+import { hasUnansweredForceIncludedAttachment } from "@meowbert/run-executor/agent/force-included-attachments";
 import type { TaskSnapshot } from "@meowbert/run-executor/agent/types";
 import {
   deepMergeJsonObjects,
@@ -298,6 +299,10 @@ async function resolveRoutedRuntime(input: {
     quickMode = false;
   }
   if (input.snapshot.interactive_canvas || pickRunToolOptions(input.snapshot.messages).interactiveCanvas === true) {
+    quickMode = false;
+  }
+  // Quick mode has no sandbox to prepare files in, and the user asked for these to reach the model.
+  if (hasUnansweredForceIncludedAttachment(input.snapshot.messages)) {
     quickMode = false;
   }
   return { runtimeModel, runtimeEnvironmentPayload, quickMode };

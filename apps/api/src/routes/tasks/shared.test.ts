@@ -24,7 +24,7 @@ vi.mock("../../services/tasks/task-service/index.js", () => ({
   enqueueRun: vi.fn()
 }));
 
-import { createTaskBodySchema, taskForkBody, taskParametersPatchBody } from "./shared.js";
+import { createTaskBodySchema, taskAttachmentsSchema, taskForkBody, taskParametersPatchBody } from "./shared.js";
 
 describe("taskForkBody", () => {
   it("accepts the task-file copy option for private forks", () => {
@@ -69,6 +69,19 @@ describe("createTaskBodySchema", () => {
     });
 
     expect(parsed.incognito).toBe(true);
+  });
+
+  it.each(["/app/config/global.json", "../../config/global.json", "inputs/../../secret", "C:\\secret.txt"])("rejects the attachment path %s", (attachmentPath) => {
+    const attachment = { kind: "file", label: "x", content: attachmentPath, relativePath: attachmentPath };
+    expect(taskAttachmentsSchema.safeParse([attachment]).success).toBe(false);
+    expect(taskAttachmentsSchema.safeParse([{ ...attachment, relativePath: "inputs/x" }]).success).toBe(false);
+  });
+
+  it("accepts attachment paths inside the task and free text in notes", () => {
+    expect(taskAttachmentsSchema.safeParse([
+      { kind: "file", label: "x", content: "inputs/my file.pdf", relativePath: "inputs/my file.pdf" },
+      { kind: "note", label: "n", content: "see /etc/hosts and ../other" }
+    ]).success).toBe(true);
   });
 
   it("accepts canvas attachments and interactive canvas task fields", () => {

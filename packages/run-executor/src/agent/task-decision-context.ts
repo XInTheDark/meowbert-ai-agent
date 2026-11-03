@@ -1,9 +1,9 @@
 import fs from "node:fs";
-import path from "node:path";
 import type { ResponseInputContent, ResponseInputItem } from "openai/resources/responses/responses";
 import type { MemoryMainFile } from "../memory/main-files.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
 import { VIEW_IMAGE_MAX_BYTES } from "../agent-tool-dispatch/view-limits.js";
+import { resolveContainedAttachmentPath } from "./attachment-paths.js";
 import type { TaskMessageRow } from "./types.js";
 import { asText, detectImageMimeTypeFromBuffer } from "./utils.js";
 
@@ -98,29 +98,16 @@ function parseTaskMessageAttachments(content: Record<string, unknown>): TaskMess
 }
 
 function resolveAttachmentAbsolutePath(attachment: TaskMessageAttachment, taskInputDir: string | null): string | null {
-  if (attachment.kind !== "file") {
-    return null;
-  }
-
   const attachmentPath = attachment.relativePath ?? attachment.content;
-  if (attachmentPath.trim().length === 0) {
+  if (attachment.kind !== "file" || !taskInputDir || attachmentPath.trim().length === 0) {
     return null;
   }
 
-  if (path.isAbsolute(attachmentPath)) {
-    return path.resolve(attachmentPath);
-  }
-
-  if (!taskInputDir) {
+  try {
+    return resolveContainedAttachmentPath(attachmentPath, { taskInputDir });
+  } catch {
     return null;
   }
-
-  const normalizedPath = attachmentPath.replace(/\\/g, "/").replace(/^\.?\//, "");
-  if (normalizedPath === "inputs" || normalizedPath.startsWith("inputs/")) {
-    return path.resolve(taskInputDir, normalizedPath === "inputs" ? "." : normalizedPath.slice("inputs/".length));
-  }
-
-  return path.resolve(taskInputDir, attachmentPath);
 }
 
 function hasBinaryMarkers(buffer: Buffer): boolean {

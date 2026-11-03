@@ -9,7 +9,12 @@ const TRUNCATION_NOTICE = "\n[excerpt truncated; the full item is in the context
 const INTERNAL_USER_NOTICE_PREFIXES = [
   "[System:",
   "Shell tool result:",
-  "The timed task's deadline has been reached."
+  "The timed task's deadline has been reached.",
+  // Force-included files belong to the window they were sent in; the path stays in the user's message.
+  "Force-included file (",
+  "Force-included note attachment (",
+  "[Attachment force include skipped:",
+  "[Attachment marked force include:"
 ];
 
 function isUserMessage(item: ResponseInputItem): boolean {

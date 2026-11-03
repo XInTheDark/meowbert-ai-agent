@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,6 +14,7 @@ import {
   extractModelRequestPayload,
   toContinuityInputItem
 } from "./utils.js";
+import { FORCE_INCLUDE_ISSUE_KIND, FORCE_INCLUDE_TEXT_MAX_BYTES, hasUnansweredForceIncludedAttachment } from "./force-included-attachments.js";
 import type { TaskMessageRow } from "./types.js";
 
 function createPngBuffer(width: number, height: number): Buffer {
@@ -857,6 +858,113 @@ describe("mapMessagesForResponsesInput", () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  describe("force include limits", () => {
+    function forcedMessage(id: string, relativePath: string, label = "notes.txt"): TaskMessageRow {
+      return {
+        id,
+        role: "user",
+        content_json: { text: "Review this", attachments: [{ kind: "file", label, content: relativePath, relativePath, forceInclude: true }] },
+        parent_message_id: null,
+        edited_from_message_id: null,
+        created_at: "2026-02-28T00:00:00.000Z"
+      };
+    }
+
+    async function withInputs(run: (dir: string) => Promise<void>): Promise<void> {
+      const tempDir = mkdtempSync(path.join(tmpdir(), "meowbert-force-limits-"));
+      try {
+        await run(tempDir);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    }
+
+    it("does not read files for messages a run already answered", async () => {
+      await withInputs(async (dir) => {
+        writeFileSync(path.join(dir, "notes.txt"), "secret body", "utf8");
+        const answer: TaskMessageRow = { ...forcedMessage("m2", "inputs/x"), role: "assistant", content_json: { text: "done" } };
+        const mapped = await mapMessagesForResponsesInput([forcedMessage("m1", "inputs/notes.txt"), answer], dir, "high");
+        expect(JSON.stringify(mapped)).not.toContain("secret body");
+      });
+    });
+
+    it("refuses paths outside the task and tells the user", async () => {
+      await withInputs(async (dir) => {
+        const outside = path.join(path.dirname(dir), `${path.basename(dir)}-outside.txt`);
+        writeFileSync(outside, "server secret", "utf8");
+        try {
+          for (const attempt of [outside, `../${path.basename(outside)}`]) {
+            const issues: string[] = [];
+            const mapped = await mapMessagesForResponsesInput([forcedMessage("m1", attempt)], dir, "high", { onForceIncludeIssue: (issue) => issues.push(issue) });
+            expect(JSON.stringify(mapped)).not.toContain("server secret");
+            expect(issues).toHaveLength(1);
+          }
+        } finally {
+          rmSync(outside, { force: true });
+        }
+      });
+    });
+
+    it("refuses symlinks that leave the task", async () => {
+      await withInputs(async (dir) => {
+        const outside = path.join(path.dirname(dir), `${path.basename(dir)}-link-target.txt`);
+        writeFileSync(outside, "server secret", "utf8");
+        symlinkSync(outside, path.join(dir, "link.txt"));
+        try {
+          const mapped = await mapMessagesForResponsesInput([forcedMessage("m1", "inputs/link.txt")], dir, "high");
+          expect(JSON.stringify(mapped)).not.toContain("server secret");
+        } finally {
+          rmSync(outside, { force: true });
+        }
+      });
+    });
+
+    it("resolves project files from the project root", async () => {
+      await withInputs(async (dir) => {
+        const inputs = path.join(dir, "inputs");
+        mkdirSync(inputs);
+        writeFileSync(path.join(dir, "brief.md"), "project brief", "utf8");
+        const mapped = await mapMessagesForResponsesInput([forcedMessage("m1", "brief.md", "brief.md")], inputs, "high", { projectRoot: dir });
+        expect(JSON.stringify(mapped)).toContain("project brief");
+      });
+    });
+
+    it("truncates long text and tells the user", async () => {
+      await withInputs(async (dir) => {
+        writeFileSync(path.join(dir, "notes.txt"), "a".repeat(FORCE_INCLUDE_TEXT_MAX_BYTES + 10), "utf8");
+        const issues: string[] = [];
+        const mapped = await mapMessagesForResponsesInput([forcedMessage("m1", "inputs/notes.txt")], dir, "high", { onForceIncludeIssue: (issue) => issues.push(issue) });
+        const content = (mapped[1] as { content: string }).content;
+        expect(content.length).toBeLessThan(FORCE_INCLUDE_TEXT_MAX_BYTES + 300);
+        expect(content).toContain("Truncated");
+        expect(issues).toHaveLength(1);
+      });
+    });
+
+    it("tells the user when a file type cannot be sent", async () => {
+      await withInputs(async (dir) => {
+        writeFileSync(path.join(dir, "deck.pptx"), "binary", "utf8");
+        const issues: string[] = [];
+        await mapMessagesForResponsesInput([forcedMessage("m1", "inputs/deck.pptx", "deck.pptx")], dir, "high", { onForceIncludeIssue: (issue) => issues.push(issue) });
+        expect(issues).toHaveLength(1);
+      });
+    });
+
+    it("only counts force includes no run has answered yet", () => {
+      const forced = forcedMessage("m1", "inputs/notes.txt");
+      const answer: TaskMessageRow = { ...forced, id: "m2", role: "assistant", content_json: { text: "done" } };
+      const followUp: TaskMessageRow = { ...forced, id: "m3", content_json: { text: "thanks" } };
+      expect(hasUnansweredForceIncludedAttachment([forced])).toBe(true);
+      expect(hasUnansweredForceIncludedAttachment([forced, answer, followUp])).toBe(false);
+    });
+
+    it("keeps its issue messages away from the model", async () => {
+      const issue: TaskMessageRow = { ...forcedMessage("m2", "x"), role: "system", content_json: { kind: FORCE_INCLUDE_ISSUE_KIND, text: "nope" } };
+      const mapped = await mapMessagesForResponsesInput([issue], "/tmp/none", "high");
+      expect(mapped).toEqual([]);
+    });
   });
 
   it("does not include attachment bytes unless force include is enabled", async () => {

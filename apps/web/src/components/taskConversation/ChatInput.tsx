@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, KeyboardEvent, DragEvent, ClipboardEvent } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback, DragEvent } from "react";
 import { Brain, Search, ShieldCheck, Users } from "lucide-react";
 import { useAppRuntime } from "../../contexts/AppRuntimeContext";
 import { TaskAttachment, TaskParameters, TaskToolOptions, TaskType, TaskWorkflowComposerConfig } from "../../lib/types";
@@ -9,6 +9,8 @@ import { CreateTextFileModal } from "../files/CreateTextFileModal";
 import type { SubscriptionUsageWarning } from "../../subscription/usageLimits";
 import { ChatInputAttachmentRow } from "./ChatInputAttachmentRow";
 import { ChatInputControls } from "./ChatInputControls";
+import { ComposerEditor, type ComposerEditorHandle } from "./composer/ComposerEditor";
+import { useComposerCitations, type AttachFiles } from "./composer/useComposerCitations";
 import type { MasterTaskAgentPicker } from "./masterTaskAgentPicker";
 import type { ChatToolsPopoverPlacement } from "../tasks/useChatToolsDropdownPlacement";
 
@@ -25,7 +27,7 @@ interface ChatInputProps {
   popoverPlacement?: ChatToolsPopoverPlacement;
   onRemoveAttachment: (id: string) => void;
   onToggleAttachmentForceInclude?: (id: string) => void;
-  onAttachFiles: (files: FileList | File[] | null) => void;
+  onAttachFiles: AttachFiles;
   onOpenEnvironmentFiles?: () => void;
   onOpenProjectFiles?: () => void;
   onOpenCanvases?: () => void;
@@ -64,7 +66,7 @@ interface ChatInputProps {
   subscriptionUsageWarning?: SubscriptionUsageWarning | null;
 }
 
-export function isPasteAsFileShortcut(event: Pick<KeyboardEvent<HTMLTextAreaElement>, "key" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">): boolean {
+export function isPasteAsFileShortcut(event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">): boolean {
   return event.key.toLowerCase() === "v"
     && event.shiftKey
     && !event.altKey
@@ -158,7 +160,7 @@ export function ChatInput({
   onOpenEnvironmentFiles,
   onOpenProjectFiles,
   onOpenCanvases,
-  isUploading,
+  isUploading: isUploadingFiles,
   pendingUploads = [],
   toolOptions,
   onToolOptionsChange,
@@ -194,12 +196,19 @@ export function ChatInput({
   popoverPlacement
 }: ChatInputProps) {
   const openProjectFiles = onOpenProjectFiles ?? onOpenEnvironmentFiles;
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<ComposerEditorHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isCreateTextFileOpen, setIsCreateTextFileOpen] = useState(false);
   const [isSubmitQueued, setIsSubmitQueued] = useState(false);
   const { platform, capabilities } = useAppRuntime();
+  const citations = useComposerCitations({ editorRef, attachments, onAttachFiles, onRemoveAttachment });
+  // A citation fills in its path just after the upload ends, so a queued send waits for it too.
+  const isUploading = isUploadingFiles || citations.isCitingUpload;
+  const citablePaths = useMemo(
+    () => attachments.flatMap((attachment) => attachment.relativePath ? [attachment.relativePath] : []),
+    [attachments]
+  );
   const hasContent = hasExternalContent || canSubmitChatInput(value, attachments, pendingUploads.length);
   const submitBlockedByUploads = shouldQueueSubmit({
     hasContent,
@@ -223,11 +232,10 @@ export function ChatInput({
   }, [hasContent, isSubmitting, isUploading, onSubmit]);
 
   useEffect(() => {
-    if (!autoFocus || !textareaRef.current) {
+    if (!autoFocus) {
       return;
     }
-    // Focusing scrolls every scrollable ancestor to the input, which can move the conversation beside it.
-    textareaRef.current.focus({ preventScroll: true });
+    editorRef.current?.focus();
   }, [autoFocus, focusToken]);
 
   useEffect(() => {
@@ -250,33 +258,34 @@ export function ChatInput({
     && availableAgents.length > 0
     && typeof onAgentChange === "function";
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (isPasteAsFileShortcut(e)) {
-      if (!canReadClipboardText()) {
-        return;
-      }
-      e.preventDefault();
-      void navigator.clipboard.readText()
-        .then((clipboardText) => {
-          if (clipboardText.length === 0) return;
-          onAttachFiles([createClipboardTextFile(clipboardText)]);
-        })
-        .catch((error) => console.error("Failed to paste clipboard as file", error));
-      return;
+  const handleEditorKeyDown = (event: KeyboardEvent): boolean => {
+    if (!isPasteAsFileShortcut(event) || !canReadClipboardText()) {
+      return false;
     }
+    event.preventDefault();
+    void navigator.clipboard.readText()
+      .then((clipboardText) => {
+        if (clipboardText.length === 0) return;
+        void citations.attachAndCite([createClipboardTextFile(clipboardText)]);
+      })
+      .catch((error) => console.error("Failed to paste clipboard as file", error));
+    return true;
+  };
 
-    if (shouldSubmitOnEnter({
-      key: e.key,
-      shiftKey: e.shiftKey,
-      metaKey: e.metaKey,
-      ctrlKey: e.ctrlKey,
+  const handleEditorEnter = (event: KeyboardEvent): boolean => {
+    if (!shouldSubmitOnEnter({
+      key: event.key,
+      shiftKey: event.shiftKey,
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
       isNarrowViewport: window.matchMedia("(max-width: 900px)").matches,
       mobileEnterBehavior,
       submitWithShiftEnter
     })) {
-      e.preventDefault();
-      handleSubmitRequest();
+      return false;
     }
+    handleSubmitRequest();
+    return true;
   };
 
   const handleAttachClick = useCallback(async (): Promise<void> => {
@@ -331,15 +340,14 @@ export function ChatInput({
         e.preventDefault();
         e.stopPropagation();
         setIsDragOver(false);
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          onAttachFiles(e.dataTransfer.files);
-        }
+        citations.handleDrop(e);
       }}
     >
       <ChatInputAttachmentRow
         pendingUploads={pendingUploads}
         attachments={attachments}
-        onRemoveAttachment={onRemoveAttachment}
+        onRemoveAttachment={citations.removeAttachment}
+        onCiteAttachment={citations.citeAttachment}
         onToggleAttachmentForceInclude={onToggleAttachmentForceInclude}
         onResetInput={handleResetInput}
         isSubmitting={isSubmitting}
@@ -356,22 +364,16 @@ export function ChatInput({
         </div>
       ) : null}
 
-      <textarea
-        ref={textareaRef}
-        className="chat-textarea"
-        placeholder={placeholder}
+      <ComposerEditor
+        ref={editorRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onPaste={(e: ClipboardEvent<HTMLTextAreaElement>) => {
-          const files = e.clipboardData?.files;
-          if (files && files.length > 0) {
-            e.preventDefault();
-            onAttachFiles(files);
-          }
-        }}
+        onChange={onChange}
+        placeholder={placeholder}
         disabled={isSubmitting}
-        rows={1}
+        citablePaths={citablePaths}
+        onEnter={handleEditorEnter}
+        onKeyDown={handleEditorKeyDown}
+        onPasteFiles={(files) => void citations.attachAndCite(files)}
       />
 
       <ChatInputControls

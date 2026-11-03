@@ -37,6 +37,7 @@ import type { SwarmRunContext } from "../agent-swarm/run-context.js";
 import { loadCheckPrompt, loadSwarmGuide } from "../agent-swarm/prompt.js";
 import { resolveLaneMaxSteps } from "../agent-swarm/forced-submit.js";
 import type { ContextManagementState } from "../context-management-v2/types.js";
+import { reportForceIncludeIssues } from "./force-include-issues.js";
 import { reportInterruptedToolCalls } from "./interrupted-tool-calls.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 
@@ -317,8 +318,10 @@ async function resolveRunConversation(input: {
 }): Promise<{
   mappedConversationItems: ResponseInputItem[];
   resolvedContextManagement: { state: ContextManagementState; conversationItems: ResponseInputItem[] };
+  forceIncludeIssues: string[];
 }> {
   const { job, prepared, isManualClear } = input;
+  const forceIncludeIssues: string[] = [];
   const frozenContextManagementVersion = await prepared.control.context.freezeVersion(
     prepared.requestedContextManagementVersion,
     prepared.runtimeModel
@@ -335,6 +338,8 @@ async function resolveRunConversation(input: {
     {
       quickMode: prepared.quickMode,
       sendMetadataToModel: prepared.snapshot.send_metadata_to_model,
+      projectRoot: prepared.envRoot,
+      onForceIncludeIssue: (issue) => forceIncludeIssues.push(issue),
       ...(prepared.settings.sandboxPdfPreparation ? { pdfRuntime: { sandbox: prepared.sandbox, scratchDir: prepared.taskScratchDir } } : {})
     }
   );
@@ -346,7 +351,7 @@ async function resolveRunConversation(input: {
     seedItems: isManualClear ? [] : mappedConversationItems,
     skipHistoryReplay: isManualClear
   });
-  return { mappedConversationItems, resolvedContextManagement };
+  return { mappedConversationItems, resolvedContextManagement, forceIncludeIssues };
 }
 
 // The stable prefix of an ordinary run, plus the window notes and live state at the start of its
@@ -474,8 +479,8 @@ export async function initializeAgentExecution(
     })
     : null;
   const isManualClear = job.mode === "compact_only" && job.contextAction === "clear";
-  const { mappedConversationItems, resolvedContextManagement } = laneRun
-    ? { mappedConversationItems: [], resolvedContextManagement: { state: laneRun.contextManagement, conversationItems: laneRun.conversationItems } }
+  const { mappedConversationItems, resolvedContextManagement, forceIncludeIssues } = laneRun
+    ? { mappedConversationItems: [], resolvedContextManagement: { state: laneRun.contextManagement, conversationItems: laneRun.conversationItems }, forceIncludeIssues: [] }
     : await resolveRunConversation({ job, prepared, taskInputDir, isManualClear });
   const conversationItems = resolvedContextManagement.conversationItems;
   await prepared.cancellationMonitor.assertNotCancelled();
@@ -485,6 +490,7 @@ export async function initializeAgentExecution(
       contextManagement: resolvedContextManagement.state,
       conversationItems
     });
+    prepared.currentLeafMessageId = await reportForceIncludeIssues(prepared.control, prepared.currentLeafMessageId, forceIncludeIssues);
   }
 
   const projectContextInitData = await debugLogger.stage({

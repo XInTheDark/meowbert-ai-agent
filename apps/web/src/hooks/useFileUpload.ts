@@ -111,16 +111,17 @@ export function useFileUpload(api: ApiClient, activeEnvironmentId: string | null
     setError(null);
   }, [activeEnvironmentId, destinationPath]);
 
-  async function uploadFiles(files: UploadFilesInput): Promise<void> {
-    if (!files || !activeEnvironmentId) return;
+  // Resolves to each file's attachment, in order, with null for the ones that failed.
+  async function uploadFiles(files: UploadFilesInput): Promise<Array<TaskAttachment | null>> {
+    if (!files || !activeEnvironmentId) return [];
 
     const normalizedFiles = Array.isArray(files) ? files : Array.from(files);
-    if (normalizedFiles.length === 0) return;
+    if (normalizedFiles.length === 0) return [];
 
     const normalizedDestinationPath = options.destinationPath?.trim() ?? "";
     if (normalizedDestinationPath.length === 0) {
       setError(options.missingDestinationMessage ?? TASK_FILE_DESTINATION_PENDING_MESSAGE);
-      return;
+      return [];
     }
 
     setError(null);
@@ -169,9 +170,7 @@ export function useFileUpload(api: ApiClient, activeEnvironmentId: string | null
           };
 
           setAttachments((prev) => mergeAttachments(prev, [attachment]));
-          return {
-            ok: true as const
-          };
+          return attachment;
         } finally {
           setPendingUploads((prev) => prev.filter((item) => item.id !== entry.pendingId));
         }
@@ -194,6 +193,8 @@ export function useFileUpload(api: ApiClient, activeEnvironmentId: string | null
           : `${failedUploads.length} uploads failed — ${failedUploads.join(" | ")}`;
       setError(summary);
     }
+
+    return uploadResults.map((result) => (result.status === "fulfilled" ? result.value : null));
   }
 
   function removeAttachment(id: string) {

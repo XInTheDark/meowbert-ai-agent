@@ -2,11 +2,19 @@ import { useState, type ComponentPropsWithoutRef, type MouseEvent } from "react"
 import { Loader2 } from "lucide-react";
 import type { ExtraProps } from "react-markdown";
 import { triggerAuthenticatedBrowserDownload } from "../../lib/authenticated-download";
+import { CitationLink, resolveCitationPath } from "./composer/CitationLink";
 import { resolveMarkdownDownloadFilename, resolveRuntimeFileDownloadPath, resolveTrustedMarkdownDownloadUrl } from "./markdownDownload";
 
 type MarkdownLinkProps = ComponentPropsWithoutRef<"a"> & ExtraProps;
 
 export function MarkdownLink({ href, children, node: _node, ...props }: MarkdownLinkProps) {
+  const citationPath = resolveCitationPath(href);
+  return citationPath
+    ? <CitationLink path={citationPath}>{children}</CitationLink>
+    : <StandardMarkdownLink href={href} node={_node} {...props}>{children}</StandardMarkdownLink>;
+}
+
+function StandardMarkdownLink({ href, children, node: _node, ...props }: MarkdownLinkProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const runtimeDownloadPath = resolveRuntimeFileDownloadPath(href);
   const downloadUrl = resolveTrustedMarkdownDownloadUrl(runtimeDownloadPath ?? href);

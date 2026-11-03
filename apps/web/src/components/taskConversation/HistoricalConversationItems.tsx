@@ -404,6 +404,13 @@ function HistoricalMessageItem(props: HistoricalConversationItemsProps & {
   if (message.role === "system" && isContextCheckpointMessage(message.content_json)) {
     return <ContextCheckpointMessageBubble message={message} renderBranchSwitcher={props.renderBranchSwitcher} />;
   }
+  if (message.role === "system" && message.content_json.kind === "force_include_issue") {
+    return (
+      <div className="error-banner force-include-issue" role="alert" data-message-id={message.id}>
+        {getMessageText(message)}
+      </div>
+    );
+  }
   return (
     <StandardMessageBubble
       {...props}

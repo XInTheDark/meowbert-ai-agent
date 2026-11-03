@@ -1,4 +1,5 @@
 import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
+import { reportForceIncludeIssues } from "@meowbert/run-executor/agent/force-include-issues";
 import { mapMessagesForResponsesInput } from "@meowbert/run-executor/agent/utils";
 import { query } from "../../lib/db.js";
 import { appendRunInboxMessages } from "../agent/run-inbox.js";
@@ -11,14 +12,18 @@ export async function appendQueuedUserMessages(execution: AgentExecutionContext)
   // Checked without the task lock first, since almost every turn has nothing queued.
   const pending = await query("SELECT 1 FROM task_queued_messages WHERE task_id = $1 LIMIT 1", [job.taskId]);
   if ((pending.rowCount ?? 0) === 0) return;
+  const forceIncludeIssues: string[] = [];
   const delivered = await appendRunInboxMessages(
     execution,
     (client) => claimQueuedUserMessages(client, job.taskId),
     (rows) => mapMessagesForResponsesInput(rows, execution.taskInputDir, prepared.snapshot.image_detail ?? "high", {
       quickMode: prepared.quickMode,
       sendMetadataToModel: prepared.snapshot.send_metadata_to_model,
+      projectRoot: prepared.envRoot,
+      onForceIncludeIssue: (issue) => forceIncludeIssues.push(issue),
       ...(prepared.settings.sandboxPdfPreparation ? { pdfRuntime: { sandbox: prepared.sandbox, scratchDir: prepared.taskScratchDir } } : {})
     })
   );
   if (delivered) await announceQueuedMessagesDelivered(job.taskId);
+  execution.state.currentLeafMessageId = await reportForceIncludeIssues(prepared.control, execution.state.currentLeafMessageId, forceIncludeIssues);
 }

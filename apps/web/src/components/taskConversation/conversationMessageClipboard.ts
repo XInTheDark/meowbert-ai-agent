@@ -1,3 +1,23 @@
+import { buildCitationToken } from "./composer/citationToken";
+
+// Pills copy as their citation token, so pasting into the composer gives the pill back. The rendered
+// href holds a short-lived file ticket, which must not reach the clipboard.
+function restoreCopiedCitations(container: HTMLElement, selectedText: string): string {
+  let text = selectedText;
+  let cursor = 0;
+  container.querySelectorAll<HTMLElement>("[data-citation-path]").forEach((pill) => {
+    const path = pill.dataset.citationPath ?? "";
+    const label = pill.textContent ?? "";
+    pill.setAttribute("href", path);
+    const index = text.indexOf(label, cursor);
+    if (index < 0) return;
+    const token = buildCitationToken({ label, path });
+    text = `${text.slice(0, index)}${token}${text.slice(index + label.length)}`;
+    cursor = index + token.length;
+  });
+  return text;
+}
+
 function isNodeInsideRoot(root: HTMLElement, node: Node | null): boolean {
   if (!node) {
     return false;
@@ -58,10 +78,11 @@ export function buildConversationSelectionClipboardPayload(
     container.append(range.cloneContents());
   }
 
+  const text = restoreCopiedCitations(container, selectedText);
   sanitizeClipboardContainer(container);
 
   return {
     html: container.innerHTML,
-    text: selectedText
+    text
   };
 }

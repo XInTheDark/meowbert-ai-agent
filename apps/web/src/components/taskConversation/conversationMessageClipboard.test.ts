@@ -4,6 +4,21 @@ import { describe, expect, it } from "vitest";
 import { buildConversationSelectionClipboardPayload } from "./conversationMessageClipboard";
 
 describe("buildConversationSelectionClipboardPayload", () => {
+  it("copies citation pills as tokens without their file ticket", () => {
+    document.body.innerHTML = `<div id="root"><p>See <a class="citation-pill" href="https://api/inline?ticket=secret" data-citation-path="inputs/my file.pdf">my file.pdf</a> now</p></div>`;
+    const root = document.getElementById("root");
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNode(root?.querySelector("p") as Node);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const payload = buildConversationSelectionClipboardPayload(root as HTMLElement, selection);
+
+    expect(payload?.text).toBe("See [my file.pdf](<inputs/my file.pdf>) now");
+    expect(payload?.html).not.toContain("secret");
+  });
+
   it("preserves semantic markup while stripping chat styling attributes", () => {
     document.body.innerHTML = `
       <div id="root">
