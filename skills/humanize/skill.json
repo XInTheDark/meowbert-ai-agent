@@ -1,0 +1,15 @@
+{
+  "id": "humanize",
+  "name": "Humanize",
+  "description": "Write or rewrite text so it reads as a specific person wrote it, when the user asks to humanize it or make it sound less like AI.",
+  "hidden": true,
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "server.mjs"
+    ],
+    "cwd": "{{SKILL_DIR}}"
+  },
+  "host": "supported"
+}

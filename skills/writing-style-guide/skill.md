@@ -10,3 +10,5 @@ Your base instructions contain the writing rules that apply everywhere. The guid
 - `editing.md`: revising writing the user already has, such as papers, essays, and docs
 
 In every example, the preferred version keeps the original facts and limitations. Only the writing changes.
+
+When the user asks you to humanize writing or make it sound less like AI, read `../humanize/skill.md`, which overrides some of these rules for that text.

@@ -1,6 +1,6 @@
 # Revising existing writing
 
-Use this when the user asks you to edit, polish, or tighten writing they already have, such as a paper, essay, chapter, or doc.
+Use this when the user asks you to edit, polish, or tighten writing they already have, such as a paper, essay, chapter, or doc. When they ask you to humanize it or make it sound less like AI, follow the humanize skill instead.
 
 The result should still read like the author wrote it. Keep their voice, structure, terminology, and claims, and change only what the request covers: "fix the grammar" means grammar, and "tighten this section" leaves the next one alone. Don't add sections, summaries, or content they didn't ask for.
 
