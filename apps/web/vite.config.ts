@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
@@ -36,6 +37,9 @@ const allowedHosts = getAllowedHosts();
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    maxWorkers: "50%"
+  },
   define: {
     "import.meta.env.VITE_DESKTOP_RELEASE_REPOSITORY": JSON.stringify(desktopReleaseEnv.env.VITE_DESKTOP_RELEASE_REPOSITORY),
     "import.meta.env.VITE_DESKTOP_RELEASES_PAGE_URL": JSON.stringify(desktopReleaseEnv.env.VITE_DESKTOP_RELEASES_PAGE_URL)

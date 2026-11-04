@@ -10,6 +10,7 @@ export default defineConfig({
     alias: [{ find: /^@meowbert\/run-executor\/(.*)$/, replacement: `${runExecutorSrc}/$1.ts` }]
   },
   test: {
+    maxWorkers: "50%",
     exclude: [...configDefaults.exclude, "dist/**"]
   }
 });

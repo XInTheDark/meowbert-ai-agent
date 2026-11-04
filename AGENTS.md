@@ -45,6 +45,7 @@
 ### Testing
 
 - Framework: Vitest (`*.test.ts` / `*.spec.ts`).
+- Tests may use at most 50% of all CPU cores. Every Vitest config sets `maxWorkers: "50%"`, so keep that setting on new configs, never override it with a higher value, and do not run several test commands at once.
 - Keep fast unit tests near changed code; add shared-schema tests in `packages/shared/src`.
 - For API/worker/web changes, run at minimum: `npm run test`, `npm run lint`, `npm run build`.
 - Add regression tests when fixing bugs (routing, task actions, shell session behavior).
