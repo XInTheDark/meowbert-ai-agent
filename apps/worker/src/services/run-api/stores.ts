@@ -21,7 +21,7 @@ export type OperationBegin =
 
 export type StoredOperationResponse =
   | { ok: true; result: unknown }
-  | { ok: false; status: number; error: { code: string; message: string; currentLeafId?: string | null } };
+  | { ok: false; status: number; error: { code: string; message: string; currentLeafId?: string | null; retryAfterMs?: number } };
 
 export interface RunOperationStore {
   begin(input: { runId: string; operationId: string; requestHash: string }): Promise<OperationBegin>;

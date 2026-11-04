@@ -86,6 +86,8 @@ export interface RunCompletionResult {
 
 export interface RunFailure {
   errorMessage: string;
+  // The provider's Retry-After, when the failure came with one.
+  retryAfterMs?: number;
   // Model output produced before the failure, kept on the branch.
   persistedItems: ResponseInputItem[];
   currentLeafMessageId: string | null;

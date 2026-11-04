@@ -29,7 +29,7 @@ export function abortModelOperation(session: RunApiSession): void {
 
 function restoreResult(response: StoredOperationResponse): RunApiModelResponse {
   if (response.ok) return response.result as RunApiModelResponse;
-  throw new RunApiFailure(response.error.code as RunApiErrorCode, response.error.message, response.error.currentLeafId ?? null);
+  throw new RunApiFailure(response.error.code as RunApiErrorCode, response.error.message, response.error.currentLeafId ?? null, response.error.retryAfterMs);
 }
 
 async function runOnce(

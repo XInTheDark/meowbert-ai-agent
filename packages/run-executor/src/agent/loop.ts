@@ -1,4 +1,4 @@
-import { normalizeWorkspaceFileHost, workspaceFileFeatures } from "@meowbert/shared";
+import { normalizeWorkspaceFileHost, parseRetryDeadlineMs, workspaceFileFeatures } from "@meowbert/shared";
 import { getVisiblePlatformAgentPresets, resolveCodeModeForModel } from "@meowbert/shared";
 import { getSandboxNetworkEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
 import { resolvePersistentRuntimeEnabled } from "./runtime.js";
@@ -407,6 +407,10 @@ async function requestModelTurn(input: {
       abortSignal: execution.runTiming.timedRunFinalizing
         ? execution.prepared.cancellationMonitor.signal
         : execution.runTiming.runAbortSignal,
+      ...(execution.state.hasModelResponse ? {} : {
+        retryDeadlineAtMs: parseRetryDeadlineMs(execution.job.retryDeadlineAt),
+        hardRetryDeadlineAtMs: parseRetryDeadlineMs(execution.job.idleCompactionDeadlineAt)
+      }),
       cacheUserId: execution.prepared.snapshot.task.initiator_user_id ?? execution.job.taskId,
       promptCacheKey: turnRequest.promptCacheKey,
       sessionAffinityKey: turnRequest.sessionAffinityKey,
@@ -456,6 +460,7 @@ async function requestModelTurn(input: {
         });
       }
   );
+  execution.state.hasModelResponse = true;
   await execution.prepared.control.emitEvent("thinking_end", { step });
   await recordModelResponseUsage({
     execution,

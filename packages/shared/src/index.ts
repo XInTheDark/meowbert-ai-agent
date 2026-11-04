@@ -69,6 +69,7 @@ export * from "./conversation-organization-store.js";
 
 export * from "./conversation-organization-archive.js";
 export * from "./run-api.js";
+export * from "./retry-policy.js";
 export * from "./task-execution-target.js";
 export * from "./workspace-file-host.js";
 export * from "./storage-marker.js";

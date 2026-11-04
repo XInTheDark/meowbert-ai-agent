@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
   buildTaskRunQueueJobId,
+  parseRetryDeadlineMs,
+  readRetryAfterMs,
+  TASK_RETRY_WINDOW_MS,
   type TaskExecutionJob,
   type TaskRunDispatchClass,
   type TaskStatus
@@ -54,6 +57,7 @@ interface RetryableRunRow {
   retry_series_started_at: string;
   retry_sequence_no: number;
   max_task_run_retries: number;
+  last_model_response_at?: string | null;
 }
 
 interface RetryableDispatchRow {
@@ -112,11 +116,26 @@ export function planTaskRunRetry(input: {
   retrySequenceNo: number;
   maxRetries: number;
   policy?: TaskRunRetryPolicy;
+  nowMs?: number;
+  // When the task started failing. Retries stop one retry window later, unless Retry-After says otherwise.
+  failingSinceMs?: number;
+  retryAfterMs?: number | null;
+  // Nothing retries past this one, Retry-After included.
+  hardDeadlineAtMs?: number | null;
 }): TaskRunRetryPlan {
   const policy = input.policy ?? DEFAULT_TASK_RUN_RETRY_POLICY;
   const cappedDelayMs = calculateTaskRunRetryDelayMs(input.retrySequenceNo, policy);
+  const retryAfterMs = input.retryAfterMs ?? null;
+  const delayMs = retryAfterMs ?? cappedDelayMs;
+  const nowMs = input.nowMs ?? Date.now();
+  const retryAtMs = nowMs + delayMs;
+  const retryWindowEndsAtMs = (input.failingSinceMs ?? nowMs) + TASK_RETRY_WINDOW_MS;
 
-  if (input.retrySequenceNo > input.maxRetries) {
+  if (
+    input.retrySequenceNo > input.maxRetries
+    || (input.hardDeadlineAtMs != null && retryAtMs >= input.hardDeadlineAtMs)
+    || (retryAfterMs === null && retryAtMs >= retryWindowEndsAtMs)
+  ) {
     return {
       retrying: false,
       delayMs: 0,
@@ -127,10 +146,18 @@ export function planTaskRunRetry(input: {
 
   return {
     retrying: true,
-    delayMs: cappedDelayMs,
+    delayMs,
     cappedDelayMs,
     policy
   };
+}
+
+// The first failure starts the clock, and a later model response means that outage ended.
+function resolveFailingSinceMs(run: RetryableRunRow, nowMs: number): number {
+  if (run.retry_sequence_no <= 1) return nowMs;
+  const seriesStartedAtMs = new Date(run.retry_series_started_at).getTime();
+  const lastResponseAtMs = run.last_model_response_at ? new Date(run.last_model_response_at).getTime() : 0;
+  return Math.max(seriesStartedAtMs, lastResponseAtMs);
 }
 
 function isRetryableTaskRunErrorMessage(message: string): boolean {
@@ -197,7 +224,16 @@ export async function scheduleTaskRunRetry(input: {
                 SELECT max_task_run_retries
                   FROM platform_settings
                  WHERE id = 1
-              ), 5) AS max_task_run_retries
+              ), 5) AS max_task_run_retries,
+              (
+                SELECT e.created_at
+                  FROM task_events e
+                 WHERE e.task_id = task_runs.task_id
+                   AND e.type = 'context_usage'
+                   AND e.payload_json->>'source' = 'actual'
+                 ORDER BY e.created_at DESC, e.id DESC
+                 LIMIT 1
+              ) AS last_model_response_at
          FROM task_runs
         WHERE id = $1
         FOR UPDATE`,
@@ -246,9 +282,15 @@ export async function scheduleTaskRunRetry(input: {
       return { status: "noop", errorMessage } as const;
     }
 
+    const nowMs = Date.now();
+    const failingSinceMs = resolveFailingSinceMs(run, nowMs);
     const retryPlan = planTaskRunRetry({
       retrySequenceNo: run.retry_sequence_no,
-      maxRetries: run.max_task_run_retries
+      maxRetries: run.max_task_run_retries,
+      nowMs,
+      failingSinceMs,
+      retryAfterMs: readRetryAfterMs(input.error),
+      hardDeadlineAtMs: parseRetryDeadlineMs(input.job.idleCompactionDeadlineAt)
     });
 
     if (!retryPlan.retrying) {
@@ -264,10 +306,12 @@ export async function scheduleTaskRunRetry(input: {
     const nextAttemptNo = nextAttemptRes.rows[0].attempt_no;
     const nextRunId = randomUUID();
     const runMode = run.run_kind ?? input.job.mode ?? "default";
+    const retrySeriesStartedAt = new Date(failingSinceMs).toISOString();
     const nextPayload: TaskExecutionJob = {
       ...input.job,
       runId: nextRunId,
-      mode: runMode
+      mode: runMode,
+      retryDeadlineAt: new Date(failingSinceMs + TASK_RETRY_WINDOW_MS).toISOString()
     };
     const dispatchRes = await client.query<RetryableDispatchRow>(
       `SELECT dispatch_class,
@@ -305,7 +349,7 @@ export async function scheduleTaskRunRetry(input: {
         input.job.taskId,
         nextAttemptNo,
         runMode,
-        run.retry_series_started_at,
+        retrySeriesStartedAt,
         run.retry_sequence_no + 1
       ]
     );
@@ -350,7 +394,7 @@ export async function scheduleTaskRunRetry(input: {
       nextRunId,
       nextAttemptNo,
       retrySequenceNo: run.retry_sequence_no + 1,
-      retrySeriesStartedAt: run.retry_series_started_at,
+      retrySeriesStartedAt,
       retryNotice: buildTaskRunRetryNotice({
         attemptNo: run.attempt_no,
         errorMessage,

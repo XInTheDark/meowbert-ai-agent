@@ -17,6 +17,8 @@ import { startTaskRunRecoveryLoop } from "./services/tasks/task-run-recovery.js"
 import { startTaskScheduleLoop } from "./services/task-schedules/service.js";
 import { startTaskCleanupLoop } from "./services/tasks/task-cleanup.js";
 import { finalizeUnhandledRunFailure } from "./services/tasks/run-failure-fallback.js";
+import { isIdleCompactionRun } from "@meowbert/run-executor/agent/idle-compaction";
+import { settleFailedIdleCompaction } from "./services/idle-compaction/idle-compaction-failure.js";
 import { processEmailDeliveryJob } from "./services/email/email-delivery.js";
 import { stopWorkspaceMemoryWatchers } from "./services/memory/index.js";
 import { scheduleTaskRunRetry } from "./services/tasks/task-run-retry.js";
@@ -170,6 +172,10 @@ async function start(): Promise<void> {
         error
       });
       if (retryResult.status === "scheduled" || retryResult.status === "noop") {
+        return;
+      }
+      if (isIdleCompactionRun(job.data)) {
+        await settleFailedIdleCompaction(job.data, retryResult.errorMessage);
         return;
       }
 

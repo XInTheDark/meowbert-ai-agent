@@ -7,7 +7,8 @@ export class RunApiFailure extends Error {
   constructor(
     readonly code: RunApiErrorCode,
     message: string,
-    readonly currentLeafId: string | null = null
+    readonly currentLeafId: string | null = null,
+    readonly retryAfterMs?: number
   ) {
     super(message);
     this.name = "RunApiFailure";

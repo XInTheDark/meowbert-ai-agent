@@ -16,7 +16,8 @@ export class RunApiError extends Error {
     readonly code: RunApiErrorCode,
     message: string,
     readonly status: number,
-    readonly currentLeafId: string | null = null
+    readonly currentLeafId: string | null = null,
+    readonly retryAfterMs?: number
   ) {
     super(message);
     this.name = "RunApiError";
@@ -54,7 +55,8 @@ async function readError(response: Response): Promise<RunApiError> {
     body?.error?.code ?? (response.status === 401 ? "unauthorized" : "internal"),
     body?.error?.message ?? `Run API request failed with status ${response.status}.`,
     response.status,
-    body?.error?.currentLeafId ?? null
+    body?.error?.currentLeafId ?? null,
+    body?.error?.retryAfterMs
   );
 }
 

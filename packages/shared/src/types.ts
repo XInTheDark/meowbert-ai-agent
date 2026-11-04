@@ -55,6 +55,10 @@ export interface TaskExecutionJob {
   quickMode?: boolean;
   // "idle" saves notes and starts a fresh context window while the prompt cache is still warm.
   contextAction?: "compact" | "clear" | "idle";
+  // Ordinary retries stop here; only a provider's Retry-After may wait past it.
+  retryDeadlineAt?: string;
+  // Idle compaction gives up here whatever the error, because the prompt cache is no longer worth reading.
+  idleCompactionDeadlineAt?: string;
   executionTarget?: TaskExecutionTarget;
 }
 

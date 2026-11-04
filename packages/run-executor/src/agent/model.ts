@@ -3,7 +3,7 @@ import type {
   ResponseInputItem,
   Tool
 } from "openai/resources/responses/responses";
-import type { PlatformModelCompatibilityMode, PlatformModelType, TaskSource } from "@meowbert/shared";
+import { readRetryAfterMs, TASK_RETRY_WINDOW_MS, type PlatformModelCompatibilityMode, type PlatformModelType, type TaskSource } from "@meowbert/shared";
 import { getAbortError, throwIfAborted } from "../lib/abort-signal.js";
 import {
   isRetryableCutOffResponse,
@@ -198,6 +198,21 @@ const MODEL_REQUEST_MAX_RETRIES = 5;
 const MODEL_REQUEST_BASE_DELAY_MS = 15_000;
 const MODEL_REQUEST_RECOVERY_ERROR_THRESHOLD = 3;
 const DEFAULT_MODEL_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+// A longer Retry-After ends the run so its wait is scheduled without holding a worker slot.
+const MODEL_REQUEST_MAX_RETRY_AFTER_SLEEP_MS = 5 * 60 * 1000;
+
+function canWaitForModelRetry(input: {
+  delayMs: number;
+  retryAfterMs: number | null;
+  retryDeadlineAtMs: number;
+  hardRetryDeadlineAtMs: number | null;
+}): boolean {
+  const retryAtMs = Date.now() + input.delayMs;
+  if (input.hardRetryDeadlineAtMs !== null && retryAtMs >= input.hardRetryDeadlineAtMs) return false;
+  return input.retryAfterMs === null
+    ? retryAtMs < input.retryDeadlineAtMs
+    : input.retryAfterMs <= MODEL_REQUEST_MAX_RETRY_AFTER_SLEEP_MS;
+}
 
 function resolveRequestTimeoutMs(requestTimeoutMs: number | undefined): number {
   if (typeof requestTimeoutMs !== "number" || !Number.isFinite(requestTimeoutMs)) {
@@ -235,9 +250,14 @@ export async function createModelResponseWithRetry(
   taskId: string,
   input: CreateModelResponseInput & {
     onConsecutiveErrorRecovery?: (errorMessage: string) => Promise<boolean>;
+    // Defaults to one retry window from this call's first failure. Retry-After may wait past it.
+    retryDeadlineAtMs?: number | null;
+    // Nothing waits past this one.
+    hardRetryDeadlineAtMs?: number | null;
   },
   onRetryMessage?: (message: string) => Promise<void>
 ): Promise<ModelGatewayResult> {
+  let retryDeadlineAtMs = input.retryDeadlineAtMs ?? null;
   let lastError: Error | null = null;
   let consecutiveErrorCount = 0;
   let cutOffCount = 0;
@@ -299,7 +319,13 @@ export async function createModelResponseWithRetry(
         break;
       }
 
-      const delayMs = MODEL_REQUEST_BASE_DELAY_MS * Math.pow(2, attempt);
+      retryDeadlineAtMs ??= Date.now() + TASK_RETRY_WINDOW_MS;
+      const retryAfterMs = readRetryAfterMs(err);
+      const delayMs = retryAfterMs ?? MODEL_REQUEST_BASE_DELAY_MS * Math.pow(2, attempt);
+      if (!canWaitForModelRetry({ delayMs, retryAfterMs, retryDeadlineAtMs, hardRetryDeadlineAtMs: input.hardRetryDeadlineAtMs ?? null })) {
+        throw lastError;
+      }
+
       const retryMsg = `Model request failed (attempt ${attempt + 1}/${MODEL_REQUEST_MAX_RETRIES + 1}): ${lastError.message}. Retrying in ${(delayMs / 1000).toFixed(0)}s...`;
 
       if (onRetryMessage) {

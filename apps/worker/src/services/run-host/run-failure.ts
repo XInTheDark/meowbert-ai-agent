@@ -5,6 +5,8 @@ import {
   setTaskStatusForRun
 } from "../agent-db/index.js";
 import { buildAssistantHistoryItem } from "@meowbert/run-executor/agent/utils";
+import { isIdleCompactionRun } from "@meowbert/run-executor/agent/idle-compaction";
+import { settleFailedIdleCompaction } from "../idle-compaction/idle-compaction-failure.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { scheduleTaskRunRetry } from "../tasks/task-run-retry.js";
 import { pauseInfiniteScheduleAfterCheckin } from "../task-schedules/service.js";
@@ -54,14 +56,22 @@ export async function failServerRun(job: TaskExecutionJob, failure: RunFailure):
 
   const retryResult = await scheduleTaskRunRetry({
     job,
-    error: new Error(failure.errorMessage)
+    error: Object.assign(new Error(failure.errorMessage), { retryAfterMs: failure.retryAfterMs })
   });
+  // Nothing from an idle compaction belongs in the conversation.
+  const idleCompaction = isIdleCompactionRun(job);
   if (retryResult.status === "scheduled") {
-    await appendPersistedAssistantItems(job, failure, leaf);
-    await appendBranchMessage(job, leaf, "system", { text: retryResult.retryNotice });
+    if (!idleCompaction) {
+      await appendPersistedAssistantItems(job, failure, leaf);
+      await appendBranchMessage(job, leaf, "system", { text: retryResult.retryNotice });
+    }
     return;
   }
   if (retryResult.status === "noop") {
+    return;
+  }
+  if (idleCompaction) {
+    await settleFailedIdleCompaction(job, failure.errorMessage);
     return;
   }
 

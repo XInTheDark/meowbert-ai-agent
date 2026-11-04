@@ -4,7 +4,7 @@ import { resetV2ContextWindow } from "./context-window.js";
 import { persistContextCheckpoint } from "../context-management/index.js";
 import { reconstructResponseInputItems } from "./utils.js";
 import { buildCompactionRunFields } from "./compaction-input.js";
-import { runIdleCompaction } from "./idle-compaction.js";
+import { assertIdleCompactionNotExpired, isIdleCompactionRun, runIdleCompaction } from "./idle-compaction.js";
 import { runAgentStepLoop } from "./loop.js";
 import type { AgentExecutionContext } from "./execution-types.js";
 
@@ -19,6 +19,9 @@ async function finishCompactOnlyRun(execution: AgentExecutionContext): Promise<v
 export async function maybeHandleCompactOnlyRun(execution: AgentExecutionContext): Promise<boolean> {
   if (execution.job.mode !== "compact_only") {
     return false;
+  }
+  if (isIdleCompactionRun(execution.job)) {
+    assertIdleCompactionNotExpired(execution.job);
   }
 
   if (execution.job.contextAction === "clear") {

@@ -76,3 +76,49 @@ it.each(["lease_lost", "outcome_unknown", "operation_conflict", "unauthorized", 
   expect(models.create).toHaveBeenCalledOnce();
   expect(input.onConsecutiveErrorRecovery).not.toHaveBeenCalled();
 });
+
+function rateLimited(retryAfterSeconds?: number): Error {
+  const error = new Error("502 Rate limit reached");
+  return retryAfterSeconds === undefined
+    ? error
+    : Object.assign(error, { headers: new Headers({ "retry-after": String(retryAfterSeconds) }) });
+}
+
+it("stops retrying when the next attempt would land past the retry deadline", async () => {
+  vi.useFakeTimers();
+  const { models, control, input } = fixture();
+  models.create.mockRejectedValue(rateLimited());
+  await expect(createModelResponseWithRetry(control, "task", { ...input, retryDeadlineAtMs: Date.now() + 10_000 }))
+    .rejects.toThrow("Rate limit reached");
+  expect(models.create).toHaveBeenCalledTimes(1);
+});
+
+it("waits for Retry-After instead of its own backoff, even past the retry deadline", async () => {
+  vi.useFakeTimers();
+  const { models, control, input } = fixture();
+  models.create.mockRejectedValueOnce(rateLimited(120));
+  const pending = createModelResponseWithRetry(control, "task", { ...input, retryDeadlineAtMs: Date.now() + 10_000 });
+  await vi.advanceTimersByTimeAsync(119_000);
+  expect(models.create).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1_000);
+  await expect(pending).resolves.toEqual(response);
+  expect(models.create).toHaveBeenCalledTimes(2);
+});
+
+it("does not let Retry-After pass a hard deadline", async () => {
+  vi.useFakeTimers();
+  const { models, control, input } = fixture();
+  models.create.mockRejectedValue(rateLimited(120));
+  await expect(createModelResponseWithRetry(control, "task", { ...input, hardRetryDeadlineAtMs: Date.now() + 60_000 }))
+    .rejects.toThrow("Rate limit reached");
+  expect(models.create).toHaveBeenCalledTimes(1);
+});
+
+it("hands a long Retry-After back to the run instead of sleeping on it", async () => {
+  vi.useFakeTimers();
+  const { models, control, input } = fixture();
+  const error = rateLimited(2 * 60 * 60);
+  models.create.mockRejectedValue(error);
+  await expect(createModelResponseWithRetry(control, "task", input)).rejects.toBe(error);
+  expect(models.create).toHaveBeenCalledTimes(1);
+});

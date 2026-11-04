@@ -7,6 +7,13 @@ import { lockIdleCompactableTask } from "./idle-task.js";
 
 // Compacts after most of the cache lifetime, leaving the rest for the compaction request to read it.
 const IDLE_COMPACTION_CACHE_FRACTION = 0.8;
+// Room for the request to run when an admin-set delay lands close to the end of the cache lifetime.
+const IDLE_COMPACTION_DEADLINE_MARGIN_MS = 5 * 60_000;
+
+// Past this, a compaction still waiting on retries gives up and leaves the next real run to carry it.
+export function resolveIdleCompactionDeadlineMs(input: { startedAtMs: number; ttlMs: number; delayMs: number }): number {
+  return input.startedAtMs + Math.max(input.ttlMs, input.delayMs + IDLE_COMPACTION_DEADLINE_MARGIN_MS);
+}
 
 export type IdleCompactionOutcome =
   | { kind: "compacting" }
@@ -65,7 +72,7 @@ async function loadPlatformIdleSettings(client: PoolClient): Promise<PlatformIdl
 }
 
 // Returns when the compaction is due, or null when this conversation should not be compacted.
-async function resolveIdleCompactionDueAt(client: PoolClient, taskId: string): Promise<{ dueAtMs: number; expiresAtMs: number } | null> {
+async function resolveIdleCompactionDueAt(client: PoolClient, taskId: string): Promise<{ dueAtMs: number; expiresAtMs: number; deadlineAtMs: number } | null> {
   if (await hasNewerWorkOrFreshContext(client, taskId)) return null;
   const last = await loadLastModelRequest(client, taskId);
   if (!last) return null;
@@ -77,7 +84,8 @@ async function resolveIdleCompactionDueAt(client: PoolClient, taskId: string): P
   const delayMs = platform.delaySeconds === null ? ttlMs * IDLE_COMPACTION_CACHE_FRACTION : platform.delaySeconds * 1000;
   return {
     dueAtMs: last.startedAtMs + delayMs,
-    expiresAtMs: last.startedAtMs + ttlMs
+    expiresAtMs: last.startedAtMs + ttlMs,
+    deadlineAtMs: resolveIdleCompactionDeadlineMs({ startedAtMs: last.startedAtMs, ttlMs, delayMs })
   };
 }
 
@@ -101,6 +109,7 @@ export async function compactIdleTaskIfDue(taskId: string): Promise<IdleCompacti
       triggerSource: "web",
       mode: "compact_only",
       contextAction: "idle",
+      idleCompactionDeadlineAt: new Date(due.deadlineAtMs).toISOString(),
       restoreStatus: task.status,
       selectionUserId: route.userId
     });

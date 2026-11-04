@@ -1,5 +1,5 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import type { TaskExecutionJob } from "@meowbert/shared";
+import { parseRetryDeadlineMs, type TaskExecutionJob } from "@meowbert/shared";
 import { selectRolloverSeedItems } from "../context-management-v2/rollover-seed.js";
 import { recordContextItems } from "../context-management-v2/window.js";
 import { resetV2ContextWindow } from "./context-window.js";
@@ -18,6 +18,14 @@ export function isIdleCompactionRun(job: Pick<TaskExecutionJob, "mode" | "contex
   return job.mode === "compact_only" && job.contextAction === "idle";
 }
 
+// A run can sit in the queue past its deadline, so it checks before spending a request.
+export function assertIdleCompactionNotExpired(job: Pick<TaskExecutionJob, "idleCompactionDeadlineAt">): void {
+  const deadlineAtMs = parseRetryDeadlineMs(job.idleCompactionDeadlineAt);
+  if (deadlineAtMs !== null && Date.now() >= deadlineAtMs) {
+    throw new Error("The prompt cache window ended before idle compaction could run.");
+  }
+}
+
 // The request is the next turn the conversation would send, with the note added at the end, so it
 // reads the prompt cache the last turn wrote. The window is cleared once the model stops writing notes.
 export async function runIdleCompaction(
@@ -30,11 +38,12 @@ export async function runIdleCompaction(
   const note: ResponseInputItem = { role: "developer", content: IDLE_COMPACTION_NOTE };
   dispatchState.conversationItems.push(note);
   dispatchState.runPersistedItems.push(note);
-  if (execution.state.contextManagement.version === "v2") {
-    await recordContextItems(execution.prepared.control.context, execution.state.contextManagement, [note]);
-  }
 
   execution.maxRunSteps = Math.min(execution.maxRunSteps, IDLE_COMPACTION_MAX_STEPS);
   await runStepLoop(execution);
+  // Recorded only now: a failed compaction must not leave this note in the conversation's next run.
+  if (execution.state.contextManagement.version === "v2") {
+    await recordContextItems(execution.prepared.control.context, execution.state.contextManagement, [note]);
+  }
   await resetV2ContextWindow(execution, "idle", seedItems);
 }

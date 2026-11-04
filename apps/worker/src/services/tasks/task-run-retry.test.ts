@@ -42,6 +42,30 @@ function buildRowsResult<Row extends Record<string, unknown>>(rows: Row[]): Mock
 }
 
 describe("planTaskRunRetry", () => {
+  const hour = 60 * 60_000;
+  const nowMs = Date.parse("2026-11-04T03:00:00Z");
+
+  it("stops once the task has been failing for an hour, even with retries left", () => {
+    expect(planTaskRunRetry({ retrySequenceNo: 2, maxRetries: 5, nowMs, failingSinceMs: nowMs - hour }).retrying).toBe(false);
+    expect(planTaskRunRetry({ retrySequenceNo: 2, maxRetries: 5, nowMs, failingSinceMs: nowMs - hour / 2 }).retrying).toBe(true);
+  });
+
+  it("lets only Retry-After wait past the hour", () => {
+    expect(planTaskRunRetry({
+      retrySequenceNo: 2, maxRetries: 5, nowMs, failingSinceMs: nowMs - 2 * hour, retryAfterMs: 3 * hour
+    })).toMatchObject({ retrying: true, delayMs: 3 * hour });
+  });
+
+  it("still counts Retry-After waits against the retry limit", () => {
+    expect(planTaskRunRetry({ retrySequenceNo: 6, maxRetries: 5, retryAfterMs: 1_000 }).retrying).toBe(false);
+  });
+
+  it("does not let Retry-After pass a hard deadline", () => {
+    expect(planTaskRunRetry({
+      retrySequenceNo: 1, maxRetries: 5, nowMs, retryAfterMs: 2 * hour, hardDeadlineAtMs: nowMs + hour
+    }).retrying).toBe(false);
+  });
+
   it("keeps exponential backoff for early retries and caps long delays", () => {
     const fourthRetry = planTaskRunRetry({
       retrySequenceNo: 4,
@@ -317,5 +341,60 @@ describe("scheduleTaskRunRetry", () => {
     });
     expect(mockedWithTransaction).not.toHaveBeenCalled();
     expect(mockedQueueAdd).not.toHaveBeenCalled();
+  });
+
+  describe("retry clock", () => {
+    const hour = 60 * 60_000;
+    const jobInput = {
+      taskId: "task-1", runId: "run-1", workspaceId: "workspace-1", environmentId: "environment-1",
+      triggerSource: "web" as const, mode: "default" as const
+    };
+
+    function mockRun(overrides: Record<string, unknown>) {
+      const queryMock = vi.fn().mockResolvedValue(buildRowsResult([]))
+        .mockResolvedValueOnce(buildRowsResult([{
+          task_id: "task-1", attempt_no: 1, run_kind: "default", ended_at: null,
+          retry_sequence_no: 1, max_task_run_retries: 5, ...overrides
+        }]))
+        .mockResolvedValueOnce(buildRowsResult([{ status: "running" as TaskStatus }]))
+        .mockResolvedValueOnce(buildRowsResult([{ attempt_no: 2 }]));
+      vi.mocked(withTransaction).mockImplementationOnce(async (callback) => callback({ query: queryMock } as never));
+    }
+
+    it("gives a task that ran for hours a full window from its first failure", async () => {
+      mockRun({ retry_series_started_at: new Date(Date.now() - 5 * hour).toISOString() });
+      const result = await scheduleTaskRunRetry({ job: jobInput, error: new Error("boom") });
+      expect(result.status).toBe("scheduled");
+      if (result.status !== "scheduled") return;
+      expect(Date.parse(result.payload.retryDeadlineAt!)).toBeGreaterThan(Date.now() + hour - 60_000);
+    });
+
+    it("stops a retried run that has been failing for over an hour", async () => {
+      mockRun({ retry_sequence_no: 3, retry_series_started_at: new Date(Date.now() - 2 * hour).toISOString() });
+      const result = await scheduleTaskRunRetry({ job: jobInput, error: new Error("boom") });
+      expect(result.status).toBe("exhausted");
+    });
+
+    it("restarts the window when a retried run got a model response", async () => {
+      mockRun({
+        retry_sequence_no: 3,
+        retry_series_started_at: new Date(Date.now() - 5 * hour).toISOString(),
+        last_model_response_at: new Date(Date.now() - 60_000).toISOString()
+      });
+      const result = await scheduleTaskRunRetry({ job: jobInput, error: new Error("boom") });
+      expect(result.status).toBe("scheduled");
+    });
+
+    it("schedules past the window for Retry-After, but not past an idle compaction deadline", async () => {
+      const startedAt = new Date(Date.now() - 2 * hour).toISOString();
+      const error = Object.assign(new Error("boom"), { retryAfterMs: hour });
+
+      mockRun({ retry_sequence_no: 3, retry_series_started_at: startedAt });
+      expect(await scheduleTaskRunRetry({ job: jobInput, error })).toMatchObject({ status: "scheduled", delayMs: hour });
+
+      mockRun({ retry_sequence_no: 3, retry_series_started_at: startedAt });
+      const idleJob = { ...jobInput, idleCompactionDeadlineAt: new Date(Date.now() + 60_000).toISOString() };
+      expect(await scheduleTaskRunRetry({ job: idleJob, error })).toMatchObject({ status: "exhausted" });
+    });
   });
 });

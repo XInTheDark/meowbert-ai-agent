@@ -142,6 +142,7 @@ export interface RunApiErrorBody {
     code: RunApiErrorCode;
     message: string;
     currentLeafId?: string | null;
+    retryAfterMs?: number;
   };
 }
 
