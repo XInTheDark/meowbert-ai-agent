@@ -159,6 +159,30 @@ If your admins have enabled **YouTube**, the attach menu also lets you paste a v
 
 File size limits apply per upload. For large datasets, consider uploading to the project first (via Files browser) and referencing the path in your prompt.
 
+## Mentioning files and skills with @
+
+Type `@` in the prompt to point at something directly. A menu opens above the cursor listing the task's attached files and the available skills, each labelled **Attached file** or **Skill**. Keep typing to filter the list, use the arrow keys and `Enter` to pick an item, or press `Esc` to close the menu and keep the `@` as plain text.
+
+The menu opens when `@` starts the prompt or follows a space, so email addresses don't trigger it. Your pick appears in the prompt as a pill, and what it does depends on its type:
+
+| You mention | What happens |
+|---|---|
+| An attached file | The agent sees exactly which file you mean at that point in the sentence. Clicking the pill in a sent message opens the file. |
+| A skill | The skill turns on in **Tools**, and the agent is told you called it directly. |
+
+For example: _"Use @Humanize to rewrite the introduction of @draft.docx."_
+
+A skill you mention stays on for later messages until you turn it off in **Tools**. It can't be turned off while its pill is still in the prompt, so delete the pill first. To remove a pill, select it and press `Backspace`.
+
+### Other ways to cite a file
+
+Attaching a file makes it available to the agent, while citing it also marks where it belongs in your prompt. You can cite a file without typing `@`:
+
+- **Right-click an attached file** above the prompt and choose **Cite** to insert a pill at the cursor.
+- **Paste a file** into the prompt to upload it and insert a pill at the cursor.
+
+Files you drag onto the composer are attached without a pill. Removing an attached file also removes its pills from the prompt.
+
 ## Tool toggles
 
 Click the **wrench icon** to expand the tool options panel. These toggles enable additional capabilities for the task:

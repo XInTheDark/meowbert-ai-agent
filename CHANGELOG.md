@@ -1,5 +1,12 @@
 # Changelog
 
+## Nov 4, 2026
+
+### Task composer
+
+- **Mention files and skills with @** — Type `@` in the prompt to choose from the task's attached files and available skills. Mentioning a skill turns it on in **Tools** and tells the agent you called it directly. Mentioning a file adds a pill at that point in your prompt, and clicking the pill in a sent message opens the file.
+- **Simpler citing** — Right-click an attached file and choose **Cite** to insert it at the cursor. This replaces dragging or clicking attachment chips. Files dragged onto the composer now only attach, while pasted files still leave a pill at the cursor.
+
 ## Nov 1, 2026
 
 ### Task history
