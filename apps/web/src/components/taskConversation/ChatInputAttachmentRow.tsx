@@ -1,7 +1,9 @@
-import { GripVertical, LoaderCircle, Pin, X } from "lucide-react";
+import { LoaderCircle, Pin, X } from "lucide-react";
+import { useCallback, useState } from "react";
 import type { TaskAttachment } from "../../lib/types";
 import { isGoogleWorkspaceReferenceFileName } from "../../sources/googleWorkspaceAttachments";
-import { isCitableAttachment, startAttachmentDrag } from "./composer/useComposerCitations";
+import { AttachmentCiteMenu } from "./composer/AttachmentCiteMenu";
+import { isCitableAttachment } from "./composer/useComposerCitations";
 
 interface ChatInputAttachmentRowProps {
   pendingUploads: Array<{ id: string; label: string }>;
@@ -22,6 +24,9 @@ export function ChatInputAttachmentRow({
   onResetInput,
   isSubmitting
 }: ChatInputAttachmentRowProps) {
+  const [citeMenu, setCiteMenu] = useState<{ x: number; y: number; attachment: TaskAttachment } | null>(null);
+  const closeCiteMenu = useCallback(() => setCiteMenu(null), []);
+
   return (
     <>
       {pendingUploads.length > 0 && (
@@ -44,24 +49,12 @@ export function ChatInputAttachmentRow({
               <div
                 key={att.id}
                 className={`chip attachment-chip${att.forceInclude === true ? " chip-force-include" : ""}`}
-                draggable={canCite}
-                onDragStart={canCite ? (event) => startAttachmentDrag(event, att.id) : undefined}
+                onContextMenu={canCite ? (event) => {
+                  event.preventDefault();
+                  setCiteMenu({ x: event.clientX, y: event.clientY, attachment: att });
+                } : undefined}
               >
-                {canCite ? (
-                  <>
-                    <GripVertical size={12} className="attachment-chip-grip" aria-hidden="true" />
-                    <button
-                      type="button"
-                      className="attachment-chip-label attachment-chip-cite-btn"
-                      title={`Cite ${att.label}`}
-                      onClick={() => onCiteAttachment(att)}
-                    >
-                      {att.label}
-                    </button>
-                  </>
-                ) : (
-                  <span className="attachment-chip-label" title={att.label}>{att.label}</span>
-                )}
+                <span className="attachment-chip-label" title={att.label}>{att.label}</span>
                 {onToggleAttachmentForceInclude && !isGoogleWorkspaceReferenceFileName(att.label) ? (
                   <button
                     type="button"
@@ -97,6 +90,15 @@ export function ChatInputAttachmentRow({
           </button>
         </div>
       )}
+
+      {citeMenu && onCiteAttachment ? (
+        <AttachmentCiteMenu
+          x={citeMenu.x}
+          y={citeMenu.y}
+          onCite={() => onCiteAttachment(citeMenu.attachment)}
+          onClose={closeCiteMenu}
+        />
+      ) : null}
     </>
   );
 }

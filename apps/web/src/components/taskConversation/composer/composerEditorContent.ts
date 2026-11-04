@@ -1,22 +1,15 @@
 import {
   $createLineBreakNode,
   $createParagraphNode,
-  $createRangeSelection,
   $createTextNode,
   $getRoot,
   $getSelection,
   $isElementNode,
   $isRangeSelection,
-  $setSelection,
   type LexicalNode
 } from "lexical";
 import { $createCitationNode, $isCitationNode, type CitationNode } from "./CitationNode";
 import { parseCitationSegments, type Citation } from "./citationToken";
-
-export interface DropPoint {
-  x: number;
-  y: number;
-}
 
 function buildTextNodes(text: string): LexicalNode[] {
   const nodes: LexicalNode[] = [];
@@ -54,34 +47,9 @@ export function $getCitationNodes(): CitationNode[] {
   return citations;
 }
 
-function caretRangeFromPoint(point: DropPoint): Range | null {
-  if (typeof document.caretRangeFromPoint === "function") {
-    return document.caretRangeFromPoint(point.x, point.y);
-  }
-  const position = document.caretPositionFromPoint?.(point.x, point.y);
-  if (!position) return null;
-  const range = document.createRange();
-  range.setStart(position.offsetNode, position.offset);
-  range.collapse(true);
-  return range;
-}
-
-function $selectInsertionPoint(rootElement: HTMLElement | null, point: DropPoint | undefined): void {
-  const range = point ? caretRangeFromPoint(point) : null;
-  if (range && rootElement?.contains(range.startContainer)) {
-    const selection = $createRangeSelection();
-    selection.applyDOMRange(range);
-    $setSelection(selection);
-    return;
-  }
-  if (!$isRangeSelection($getSelection())) {
-    $getRoot().selectEnd();
-  }
-}
-
 // Each pill is followed by a space so the caret has somewhere to land and typing carries on normally.
-export function $insertCitationNodes(citations: CitationNode[], rootElement: HTMLElement | null, point?: DropPoint): void {
-  $selectInsertionPoint(rootElement, point);
+export function $insertCitationNodes(citations: CitationNode[]): void {
+  if (!$isRangeSelection($getSelection())) $getRoot().selectEnd();
   const selection = $getSelection();
   if (!$isRangeSelection(selection)) return;
   selection.insertNodes(citations.flatMap((citation) => [citation, $createTextNode(" ")]));

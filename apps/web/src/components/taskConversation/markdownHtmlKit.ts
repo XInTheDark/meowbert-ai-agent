@@ -4,6 +4,10 @@ import type { PluggableList } from "unified";
 
 const COMMON_HTML_SCHEMA = {
   ...defaultSchema,
+  protocols: {
+    ...defaultSchema.protocols,
+    href: [...(defaultSchema.protocols?.href ?? []), "skill"]
+  },
   tagNames: [...(defaultSchema.tagNames ?? []), "details", "summary"],
   attributes: {
     ...defaultSchema.attributes,

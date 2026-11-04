@@ -2795,25 +2795,60 @@ a.citation-pill:hover {
   color: var(--text-muted);
 }
 
-.attachment-chip[draggable="true"] {
-  cursor: grab;
+.composer-mention-anchor {
+  z-index: 1000;
 }
 
-.attachment-chip-grip {
+/* The composer sits low on the page, so the menu always opens above the caret. */
+.composer-mention-menu {
+  position: absolute;
+  /* The anchor sits one caret height below the caret. */
+  bottom: calc(200% + 7px);
+  left: 0;
+  width: min(22rem, calc(100vw - 4.5rem));
+  max-height: 16rem;
+  margin: 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.composer-mention-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.875rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.composer-mention-option.selected {
+  background: var(--surface-muted);
+}
+
+.composer-mention-option svg {
   flex: 0 0 auto;
   color: var(--text-muted);
 }
 
-.attachment-chip-cite-btn {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
+.composer-mention-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.attachment-chip-cite-btn:hover {
-  color: var(--text);
+.composer-mention-type {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .force-include-issue {

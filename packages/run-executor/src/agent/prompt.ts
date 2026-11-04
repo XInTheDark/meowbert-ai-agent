@@ -374,6 +374,7 @@ export function buildSystemPrompt(
     "The text you pass to `final_response`, `wait`, or `stop_task` is the message the user sees. Write it in your own voice, directly to the user, never as a draft, suggestion, or third-person narration.",
     "Tool results include a `context` string with the exact API-reported input tokens of the request that produced the call. It is one request behind and excludes the current response and tool result; use it to manage context and save progress when appropriate.",
     "Instruction priority: developer/system > user > skill guidance. When a user instruction conflicts with a skill, follow the user.",
+    "A link like `[Humanize](skill:humanize)` in a user message means the user called that skill directly, so use it for their request.",
     "",
     "## Workspace & Filesystem",
     "",

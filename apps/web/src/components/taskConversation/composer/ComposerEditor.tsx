@@ -14,22 +14,25 @@ import {
   KEY_ENTER_COMMAND,
   PASTE_COMMAND
 } from "lexical";
+import type { TaskAttachment } from "../../../lib/types";
+import { isSkillPath } from "./skillMention";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import { $createCitationNode, $isCitationNode, CitationNode } from "./CitationNode";
+import { ComposerMentionMenu } from "./ComposerMentionMenu";
 import { citationTextToHtml, isTaskInputPath, parseCitationSegments, type Citation } from "./citationToken";
+import type { MentionSkill } from "./composerMentionOptions";
 import {
   $buildContentNodes,
   $createCitationNodes,
   $getCitationNodes,
   $insertCitationNodes,
-  $replaceContent,
-  type DropPoint
+  $replaceContent
 } from "./composerEditorContent";
 
 export interface ComposerEditorHandle {
   focus: () => void;
-  insertCitations: (citations: Citation[], point?: DropPoint) => void;
-  insertUploadingCitations: (labels: string[], point?: DropPoint) => string[];
+  insertCitations: (citations: Citation[]) => void;
+  insertUploadingCitations: (labels: string[]) => string[];
   resolveUploadingCitation: (nodeKey: string, citation: Citation | null) => void;
   removeCitations: (path: string) => void;
 }
@@ -40,6 +43,8 @@ interface ComposerEditorProps {
   placeholder: string;
   disabled: boolean;
   citablePaths: string[];
+  mentionAttachments: TaskAttachment[];
+  mentionSkills: MentionSkill[];
   onEnter: (event: KeyboardEvent) => boolean;
   onKeyDown: (event: KeyboardEvent) => boolean;
   onPasteFiles: (files: File[]) => void;
@@ -53,7 +58,7 @@ function useLatest<T>(value: T): { current: T } {
 
 function useCitablePathCheck(citablePaths: string[]): (path: string) => boolean {
   const pathsRef = useLatest(citablePaths);
-  return useCallback((path: string) => isTaskInputPath(path) || pathsRef.current.includes(path), [pathsRef]);
+  return useCallback((path: string) => isTaskInputPath(path) || isSkillPath(path) || pathsRef.current.includes(path), [pathsRef]);
 }
 
 function ValueSyncPlugin(props: Pick<ComposerEditorProps, "value" | "onChange" | "disabled"> & { isCitablePath: (path: string) => boolean }): null {
@@ -131,15 +136,15 @@ const EditorHandlePlugin = forwardRef<ComposerEditorHandle>(function EditorHandl
         if ($getSelection() === null) $getRoot().selectEnd();
       });
     },
-    insertCitations(citations, point) {
-      editor.update(() => $insertCitationNodes($createCitationNodes(citations), editor.getRootElement(), point));
+    insertCitations(citations) {
+      editor.update(() => $insertCitationNodes($createCitationNodes(citations)));
     },
-    insertUploadingCitations(labels, point) {
+    insertUploadingCitations(labels) {
       const keys: string[] = [];
       editor.update(() => {
         const nodes = labels.map((label) => $createCitationNode(label, null));
         keys.push(...nodes.map((node) => node.getKey()));
-        $insertCitationNodes(nodes, editor.getRootElement(), point);
+        $insertCitationNodes(nodes);
       }, { discrete: true });
       return keys;
     },
@@ -187,6 +192,7 @@ export const ComposerEditor = forwardRef<ComposerEditorHandle, ComposerEditorPro
       <HistoryPlugin />
       <ValueSyncPlugin value={props.value} onChange={props.onChange} disabled={props.disabled} isCitablePath={isCitablePath} />
       <ClipboardAndKeysPlugin onEnter={props.onEnter} onKeyDown={props.onKeyDown} onPasteFiles={props.onPasteFiles} isCitablePath={isCitablePath} />
+      <ComposerMentionMenu attachments={props.mentionAttachments} skills={props.mentionSkills} />
       <EditorHandlePlugin ref={ref} />
     </LexicalComposer>
   );

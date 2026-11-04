@@ -467,7 +467,7 @@ describe("chat input submit flow", () => {
 
     expect(chip).not.toBeNull();
     expect(label?.textContent).toBe("tetris-trainer-suite (1).zip");
-    expect(label?.getAttribute("title")).toBe("Cite tetris-trainer-suite (1).zip");
+    expect(label?.getAttribute("title")).toBe("tetris-trainer-suite (1).zip");
     expect(forceIncludeButton?.getAttribute("aria-label")).toBe("Force include tetris-trainer-suite (1).zip");
     expect(removeButton?.getAttribute("aria-label")).toBe("Remove tetris-trainer-suite (1).zip");
 
@@ -476,6 +476,95 @@ describe("chat input submit flow", () => {
     });
 
     expect(onRemoveAttachment).toHaveBeenCalledWith("attachment-1");
+  });
+
+  it("cites an attachment from its right-click menu, and only there", async () => {
+    // jsdom has no range geometry, which Lexical reads when it moves the caret.
+    Range.prototype.getBoundingClientRect = () => new DOMRect();
+    const onChange = vi.fn();
+    const attachment = { id: "attachment-1", kind: "file" as const, label: "notes.pdf", content: "inputs/notes.pdf", relativePath: "inputs/notes.pdf" };
+
+    await act(async () => {
+      root?.render(
+        <AppRuntimeContext.Provider value={createAppRuntimeValue() as any}>
+          <ChatInput value="" onChange={onChange} onSubmit={() => {}} isSubmitting={false} attachments={[attachment]} onRemoveAttachment={() => {}} onAttachFiles={() => {}} isUploading={false} />
+        </AppRuntimeContext.Provider>
+      );
+    });
+
+    const chip = container?.querySelector(".attachment-chip") as HTMLElement;
+    expect(chip.getAttribute("draggable")).toBeNull();
+
+    await act(async () => {
+      click(chip.querySelector(".attachment-chip-label"));
+    });
+    expect(document.querySelector(".context-menu")).toBeNull();
+
+    await act(async () => {
+      chip.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
+    });
+    const citeButton = document.querySelector(".context-menu-item") as HTMLButtonElement;
+    expect(citeButton.textContent).toBe("Cite");
+
+    await act(async () => {
+      click(citeButton);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(document.querySelector(".context-menu")).toBeNull();
+    expect(onChange.mock.calls.at(-1)?.[0]).toBe("[notes.pdf](inputs/notes.pdf) ");
+  });
+
+  it("attaches a dropped file without citing it", async () => {
+    const onChange = vi.fn();
+    const onAttachFiles = vi.fn();
+
+    await act(async () => {
+      root?.render(
+        <AppRuntimeContext.Provider value={createAppRuntimeValue() as any}>
+          <ChatInput value="" onChange={onChange} onSubmit={() => {}} isSubmitting={false} attachments={[]} onRemoveAttachment={() => {}} onAttachFiles={onAttachFiles} isUploading={false} />
+        </AppRuntimeContext.Provider>
+      );
+    });
+
+    const files = [new File(["hello"], "dropped.txt")];
+    const drop = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, "dataTransfer", { value: { files } });
+    await act(async () => {
+      container?.querySelector(".chat-textarea")?.dispatchEvent(drop);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onAttachFiles).toHaveBeenCalledWith(files);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("switches on a skill mentioned in the draft, once", async () => {
+    const onToolOptionsChange = vi.fn();
+    const toolOptions = { webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false, computerUse: false, enabledSkills: ["pptx-studio"], enabledSources: [] };
+
+    await act(async () => {
+      root?.render(
+        <AppRuntimeContext.Provider value={createAppRuntimeValue() as any}>
+          <ChatInput
+            value="[Humanize](skill:humanize) [Gone](skill:removed-skill) rewrite this"
+            onChange={() => {}}
+            onSubmit={() => {}}
+            isSubmitting={false}
+            attachments={[]}
+            onRemoveAttachment={() => {}}
+            onAttachFiles={() => {}}
+            isUploading={false}
+            toolOptions={toolOptions}
+            onToolOptionsChange={onToolOptionsChange}
+            availableSkills={[{ id: "humanize", name: "Humanize", description: "" }, { id: "pptx-studio", name: "Slides", description: "" }]}
+          />
+        </AppRuntimeContext.Provider>
+      );
+    });
+
+    expect(onToolOptionsChange).toHaveBeenCalledTimes(1);
+    expect(onToolOptionsChange.mock.calls[0][0].enabledSkills).toEqual(["pptx-studio", "humanize"]);
+    expect(container?.querySelector(".citation-pill")?.textContent).toBe("Humanize");
   });
 
   it("resets the text and every attachment from the attachment list", async () => {

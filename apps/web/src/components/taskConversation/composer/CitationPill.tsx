@@ -9,17 +9,18 @@ import {
   KEY_DELETE_COMMAND,
   type NodeKey
 } from "lexical";
-import { FileText, Image, LoaderCircle } from "lucide-react";
+import { FileText, Image, LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 const IMAGE_FILE_NAME = /\.(png|jpe?g|gif|webp|bmp|svg|heic)$/i;
 
-export function CitationIcon({ label, isUploading = false }: { label: string; isUploading?: boolean }): JSX.Element {
+export function CitationIcon({ label, isUploading = false, isSkill = false }: { label: string; isUploading?: boolean; isSkill?: boolean }): JSX.Element {
+  if (isSkill) return <Sparkles size={13} aria-hidden="true" />;
   if (isUploading) return <LoaderCircle size={13} className="spin-icon" aria-hidden="true" />;
   return IMAGE_FILE_NAME.test(label) ? <Image size={13} aria-hidden="true" /> : <FileText size={13} aria-hidden="true" />;
 }
 
-export function CitationPill(props: { nodeKey: NodeKey; label: string; isUploading: boolean }): JSX.Element {
+export function CitationPill(props: { nodeKey: NodeKey; label: string; isUploading: boolean; isSkill: boolean }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(props.nodeKey);
   const pillRef = useRef<HTMLSpanElement>(null);
@@ -51,7 +52,7 @@ export function CitationPill(props: { nodeKey: NodeKey; label: string; isUploadi
 
   return (
     <span ref={pillRef} className={className} title={props.label} aria-busy={props.isUploading || undefined}>
-      <CitationIcon label={props.label} isUploading={props.isUploading} />
+      <CitationIcon label={props.label} isUploading={props.isUploading} isSkill={props.isSkill} />
       <span className="citation-pill-label">{props.label}</span>
     </span>
   );

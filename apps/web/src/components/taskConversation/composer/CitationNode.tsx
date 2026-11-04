@@ -2,6 +2,7 @@ import { DecoratorNode, type LexicalNode, type NodeKey, type SerializedLexicalNo
 import type { JSX } from "react";
 import { CitationPill } from "./CitationPill";
 import { buildCitationToken, type Citation } from "./citationToken";
+import { isSkillPath } from "./skillMention";
 
 type SerializedCitationNode = Spread<{ label: string; path: string | null }, SerializedLexicalNode>;
 
@@ -62,7 +63,7 @@ export class CitationNode extends DecoratorNode<JSX.Element> {
   }
 
   decorate(): JSX.Element {
-    return <CitationPill nodeKey={this.getKey()} label={this.__label} isUploading={this.__path === null} />;
+    return <CitationPill nodeKey={this.getKey()} label={this.__label} isUploading={this.__path === null} isSkill={isSkillPath(this.__path ?? undefined)} />;
   }
 }
 

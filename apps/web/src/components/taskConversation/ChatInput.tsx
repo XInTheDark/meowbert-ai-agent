@@ -11,6 +11,7 @@ import { ChatInputAttachmentRow } from "./ChatInputAttachmentRow";
 import { ChatInputControls } from "./ChatInputControls";
 import { ComposerEditor, type ComposerEditorHandle } from "./composer/ComposerEditor";
 import { useComposerCitations, type AttachFiles } from "./composer/useComposerCitations";
+import { useSkillMentionSync } from "./composer/useSkillMentionSync";
 import type { MasterTaskAgentPicker } from "./masterTaskAgentPicker";
 import type { ChatToolsPopoverPlacement } from "../tasks/useChatToolsDropdownPlacement";
 
@@ -209,6 +210,16 @@ export function ChatInput({
     () => attachments.flatMap((attachment) => attachment.relativePath ? [attachment.relativePath] : []),
     [attachments]
   );
+  const mentionSkills = useMemo(
+    () => (toolOptions && onToolOptionsChange ? availableSkills ?? [] : []),
+    [availableSkills, onToolOptionsChange, toolOptions]
+  );
+  useSkillMentionSync({
+    value,
+    availableSkillIds: mentionSkills.map((skill) => skill.id),
+    toolOptions,
+    onToolOptionsChange
+  });
   const hasContent = hasExternalContent || canSubmitChatInput(value, attachments, pendingUploads.length);
   const submitBlockedByUploads = shouldQueueSubmit({
     hasContent,
@@ -340,7 +351,7 @@ export function ChatInput({
         e.preventDefault();
         e.stopPropagation();
         setIsDragOver(false);
-        citations.handleDrop(e);
+        if (e.dataTransfer.files.length > 0) void onAttachFiles(e.dataTransfer.files);
       }}
     >
       <ChatInputAttachmentRow
@@ -371,6 +382,8 @@ export function ChatInput({
         placeholder={placeholder}
         disabled={isSubmitting}
         citablePaths={citablePaths}
+        mentionAttachments={attachments}
+        mentionSkills={mentionSkills}
         onEnter={handleEditorEnter}
         onKeyDown={handleEditorKeyDown}
         onPasteFiles={(files) => void citations.attachAndCite(files)}

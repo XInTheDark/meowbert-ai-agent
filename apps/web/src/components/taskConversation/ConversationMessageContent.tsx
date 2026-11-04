@@ -1,5 +1,5 @@
 import { Children, lazy, Suspense, useCallback, useEffect, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import type { PluggableList } from "unified";
@@ -9,6 +9,7 @@ import { buildConversationSelectionClipboardPayload } from "./conversationMessag
 import { MarkdownCodeBlock } from "./MarkdownCodeBlock";
 import { MarkdownImage } from "./MarkdownImage";
 import { MarkdownLink } from "./MarkdownLink";
+import { isSkillPath } from "./composer/skillMention";
 import { normalizeLatexDelimiters } from "./normalizeLatexDelimiters";
 import { stripCitationMarkers } from "./stripCitationMarkers";
 import { useExpandOnBottomOverscroll } from "./useExpandOnBottomOverscroll";
@@ -61,6 +62,10 @@ const MARKDOWN_COMPONENTS: Components = {
   a: MarkdownLink
 };
 
+function transformMarkdownUrl(url: string): string {
+  return isSkillPath(url) ? url : defaultUrlTransform(url);
+}
+
 function shouldCollapseLongMessage(content: string): boolean {
   const trimmedContent = content.trim();
   if (trimmedContent.length === 0) {
@@ -94,7 +99,7 @@ function RenderedConversationMessageContent(props: {
       ? SINGLE_DOLLAR_LATEX_MARKDOWN_PLUGINS
       : DOUBLE_DOLLAR_LATEX_MARKDOWN_PLUGINS;
   return (
-    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={MARKDOWN_COMPONENTS}>
+    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={MARKDOWN_COMPONENTS} urlTransform={transformMarkdownUrl}>
       {content}
     </ReactMarkdown>
   );
