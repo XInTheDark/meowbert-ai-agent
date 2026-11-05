@@ -2737,6 +2737,10 @@
   min-width: 0;
 }
 
+.chat-textarea p {
+  margin: 0;
+}
+
 .chat-editor-placeholder {
   position: absolute;
   inset: 0 auto auto 0;
