@@ -39,7 +39,7 @@ interface TaskDetailConversationPaneProps {
   isTaskRunning: boolean;
   isThinking: boolean;
   chatFeedRef: RefObject<HTMLDivElement>;
-  onScroll: () => void;
+  onScroll?: () => void;
   onWheel?: (event: React.WheelEvent<HTMLDivElement>) => void;
   onConversationChanged: () => void;
   onEditRequested: (message: TaskMessage) => void;

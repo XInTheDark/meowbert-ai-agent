@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   TaskConversationBranchOption,
   TaskConversationPageResponse,
@@ -15,14 +15,9 @@ import {
   SCROLL_EDGE_THRESHOLD_PX
 } from "./taskDetailConstants";
 import { getNextTopbarCollapsedState } from "./taskDetailTopbarState";
-import {
-  findMessageElement,
-  isConversationMessageInView,
-  watchPendingConversationScroll,
-  type ConversationTextAnchor
-} from "./taskDetailConversationScroll";
+import { isConversationMessageInView, type ConversationTextAnchor } from "./taskDetailConversationScroll";
+import { createConversationScrollController } from "./conversationScrollController";
 import { distanceFromBottom } from "./taskDetailUtils";
-import { findFirstVisibleMessageAnchor, watchConversationFeedLayout } from "./conversationFeedLayout";
 import type {
   UseTaskDetailConversationOptions,
   UseTaskDetailConversationResult
@@ -247,21 +242,11 @@ export function useTaskDetailConversation(
   const [conversationPageLoadDirection, setConversationPageLoadDirection] = useState<"older" | "newer" | null>(null);
   const [topbarCollapsed, setTopbarCollapsed] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
-  const [pendingConversationScrollVersion, setPendingConversationScrollVersion] = useState(0);
-  const chatFeedRef = useRef<HTMLDivElement>(null);
-  const conversationNearBottomRef = useRef(true);
-  const pendingConversationBottomAlignRef = useRef(true);
-  const pendingConversationScrollMessageIdRef = useRef<string | null>(null);
-  const pendingConversationScrollTextAnchorRef = useRef<ConversationTextAnchor | null>(null);
-  const pendingConversationScrollBehaviorRef = useRef<ScrollBehavior>("auto");
-  const pendingConversationScrollAdjustmentRef = useRef<{
-    anchorMessageId: string | null;
-    anchorOffsetTop: number;
-    fallbackScrollTop: number;
-    fallbackScrollHeight: number;
-  } | null>(null);
+  const hasNewerRef = useRef(false);
+  hasNewerRef.current = messagePage.has_newer;
+  const [scroll] = useState(() => createConversationScrollController({ canFollow: () => !hasNewerRef.current }));
+  const chatFeedRef = scroll.feedRef;
   const lastScrollTopRef = useRef(0);
-  const suppressPaginationUntilRef = useRef(0);
   const requestKeyRef = useRef("");
   const pageLoadInFlightRef = useRef(false);
   const requestedToolMessageIdsRef = useRef<Set<string>>(new Set());
@@ -381,15 +366,9 @@ export function useTaskDetailConversation(
     messageId: string,
     textAnchor?: ConversationTextAnchor | null
   ) => {
-    pendingConversationScrollAdjustmentRef.current = null;
-    pendingConversationBottomAlignRef.current = false;
-    pendingConversationScrollMessageIdRef.current = messageId;
-    pendingConversationScrollTextAnchorRef.current = textAnchor ?? null;
-    pendingConversationScrollBehaviorRef.current = "auto";
-    conversationNearBottomRef.current = false;
-    setPendingConversationScrollVersion((current) => current + 1);
+    scroll.jumpTo(messageId, textAnchor);
     void ensureMessageContentLoaded([messageId]);
-  }, [ensureMessageContentLoaded]);
+  }, [ensureMessageContentLoaded, scroll]);
 
   const loadConversationPage = useCallback(async (input?: {
     direction?: "older" | "newer";
@@ -408,10 +387,6 @@ export function useTaskDetailConversation(
     const showBootstrap = isWindowReload && input?.showBootstrap !== false;
     if (!isWindowReload && pageLoadInFlightRef.current) {
       return;
-    }
-
-    if (input?.direction === "newer") {
-      pendingConversationScrollAdjustmentRef.current = null;
     }
 
     pageLoadInFlightRef.current = true;
@@ -466,21 +441,7 @@ export function useTaskDetailConversation(
       });
 
       if (input?.direction === "older") {
-        const currentMessages = messagesRef.current;
-        const seen = new Set(currentMessages.map((message) => message.id));
-        const prepended = response.messages.filter((message) => !seen.has(message.id));
-        const nextMessages = mergeOlderMessages(currentMessages, response.messages);
-        const feed = chatFeedRef.current;
-        if (feed && prepended.length > 0) {
-          const anchor = findFirstVisibleMessageAnchor(feed, currentMessages[0]?.id ?? null);
-          pendingConversationScrollAdjustmentRef.current = {
-            ...anchor,
-            fallbackScrollTop: feed.scrollTop,
-            fallbackScrollHeight: feed.scrollHeight
-          };
-        }
-        pendingConversationBottomAlignRef.current = false;
-        conversationNearBottomRef.current = false;
+        const nextMessages = mergeOlderMessages(messagesRef.current, response.messages);
         messagesRef.current = nextMessages;
         setMessages(nextMessages);
         setMessagePage(getVisibleMessagePage({
@@ -489,20 +450,7 @@ export function useTaskDetailConversation(
           direction: "older"
         }));
       } else if (input?.direction === "newer") {
-        const currentMessages = messagesRef.current;
-        const nextMessages = mergeNewerMessages(currentMessages, response.messages);
-        const feed = chatFeedRef.current;
-        const firstRemaining = nextMessages[0];
-        if (feed && firstRemaining) {
-          const anchorEl = findMessageElement(feed, firstRemaining.id);
-          const feedRect = feed.getBoundingClientRect();
-          pendingConversationScrollAdjustmentRef.current = {
-            anchorMessageId: firstRemaining.id,
-            anchorOffsetTop: anchorEl ? anchorEl.getBoundingClientRect().top - feedRect.top : 0,
-            fallbackScrollTop: feed.scrollTop,
-            fallbackScrollHeight: feed.scrollHeight
-          };
-        }
+        const nextMessages = mergeNewerMessages(messagesRef.current, response.messages);
         messagesRef.current = nextMessages;
         setMessages(nextMessages);
         setMessagePage(getVisibleMessagePage({
@@ -514,10 +462,6 @@ export function useTaskDetailConversation(
         messagesRef.current = response.messages;
         setMessages(response.messages);
         setMessagePage(response.message_page);
-        const lastMessageId = response.messages[response.messages.length - 1]?.id ?? null;
-        if (lastMessageId && (showBootstrap || conversationNearBottomRef.current)) {
-          requestJumpToLoadedMessage(lastMessageId);
-        }
         if (input?.resetContentCache !== false) {
           setMessageContentById({});
           messageContentByIdRef.current = {};
@@ -547,7 +491,7 @@ export function useTaskDetailConversation(
         setConversationPageLoadDirection(null);
       }
     }
-  }, [ensureMessageContentLoaded, options.api, options.taskId, requestJumpToLoadedMessage, storeHydratedMessageContent]);
+  }, [ensureMessageContentLoaded, options.api, options.taskId, storeHydratedMessageContent]);
 
   useEffect(() => {
     loadedTaskIdRef.current = options.taskId || null;
@@ -571,12 +515,8 @@ export function useTaskDetailConversation(
     conversationMessageCacheTotalItemsRef.current = 0;
     messageContentFetchInFlightRef.current.clear();
     requestedToolMessageIdsRef.current = new Set();
-    pendingConversationScrollAdjustmentRef.current = null;
-    pendingConversationBottomAlignRef.current = true;
-    pendingConversationScrollMessageIdRef.current = null;
-    pendingConversationScrollTextAnchorRef.current = null;
-    pendingConversationScrollBehaviorRef.current = "auto";
-    conversationNearBottomRef.current = true;
+    scroll.followBottom();
+    setIsNearBottom(true);
     lastScrollTopRef.current = 0;
     lastAutoFilledBeforeIndexRef.current = null;
     setTopbarCollapsed(false);
@@ -589,7 +529,7 @@ export function useTaskDetailConversation(
         resetLoadInFlightRef.current = false;
       }
     });
-  }, [loadConversationPage, options.taskId]);
+  }, [loadConversationPage, options.taskId, scroll]);
 
   useEffect(() => {
     if (!options.taskId || loadedTaskIdRef.current !== options.taskId || resetLoadInFlightRef.current) {
@@ -633,101 +573,6 @@ export function useTaskDetailConversation(
 
     setTopbarCollapsed(false);
   }, [options.isMobileViewport]);
-
-  useEffect(() => {
-    if (!options.isMobileViewport || !options.isMobileInputExpanded || options.activeTab !== "conversation") {
-      return;
-    }
-
-    const feed = chatFeedRef.current;
-    if (!feed) {
-      return;
-    }
-
-    if (distanceFromBottom(feed) < 180) {
-      feed.scrollTop = feed.scrollHeight;
-    }
-  }, [options.activeTab, options.isMobileInputExpanded, options.isMobileViewport]);
-
-  useEffect(() => {
-    return watchPendingConversationScroll({
-      activeTab: options.activeTab,
-      chatFeedRef,
-      conversationNearBottomRef,
-      pendingConversationScrollBehaviorRef,
-      pendingConversationScrollMessageIdRef,
-      pendingConversationScrollTextAnchorRef
-    });
-  }, [messages.length, options.activeTab, pendingConversationScrollVersion]);
-
-  useEffect(() => {
-    const feed = chatFeedRef.current;
-    if (options.activeTab !== "conversation" || isConversationBootstrapping || !feed) {
-      return;
-    }
-
-    return watchConversationFeedLayout({
-      feed,
-      shouldStickToBottom: ({ wasAtBottom, feedResized }) => wasAtBottom && feedResized,
-      isScrollPending: () => pendingConversationScrollMessageIdRef.current !== null
-    });
-  }, [isConversationBootstrapping, options.activeTab, options.taskId]);
-
-  useLayoutEffect(() => {
-    const pending = pendingConversationScrollAdjustmentRef.current;
-    if (!pending) {
-      return;
-    }
-    pendingConversationScrollAdjustmentRef.current = null;
-
-    const feed = chatFeedRef.current;
-    if (!feed) {
-      return;
-    }
-
-    if (pending.anchorMessageId) {
-      const anchorEl = findMessageElement(feed, pending.anchorMessageId);
-      if (anchorEl) {
-        const currentOffsetTop = anchorEl.getBoundingClientRect().top - feed.getBoundingClientRect().top;
-        const delta = currentOffsetTop - pending.anchorOffsetTop;
-        if (Math.abs(delta) > 0.5) {
-          suppressPaginationUntilRef.current = Date.now() + 200;
-          feed.scrollTop = Math.max(0, feed.scrollTop + delta);
-          lastScrollTopRef.current = feed.scrollTop;
-          return;
-        }
-      }
-    }
-
-    const heightDelta = feed.scrollHeight - pending.fallbackScrollHeight;
-    if (heightDelta > 0) {
-      suppressPaginationUntilRef.current = Date.now() + 200;
-      feed.scrollTop = Math.max(0, pending.fallbackScrollTop + heightDelta);
-      lastScrollTopRef.current = feed.scrollTop;
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    if (options.activeTab !== "conversation") {
-      return;
-    }
-
-    if (pendingConversationScrollMessageIdRef.current) {
-      return;
-    }
-
-    if (!pendingConversationBottomAlignRef.current) {
-      return;
-    }
-
-    const feed = chatFeedRef.current;
-    if (!feed) {
-      return;
-    }
-
-    feed.scrollTop = feed.scrollHeight;
-    pendingConversationBottomAlignRef.current = false;
-  }, [messages.length, options.activeTab]);
 
   useEffect(() => {
     if (
@@ -808,12 +653,12 @@ export function useTaskDetailConversation(
     lastScrollTopRef.current = currentScrollTop;
 
     const nearBottom = distanceFromBottom(feed) <= NEAR_BOTTOM_THRESHOLD_PX;
-    const isAtConversationBottom = nearBottom && !messagePage.has_newer;
-    conversationNearBottomRef.current = isAtConversationBottom;
-    if (!isAtConversationBottom) {
-      pendingConversationBottomAlignRef.current = false;
+    setIsNearBottom(nearBottom && !messagePage.has_newer);
+
+    // Following new output or restoring the reading position is not the reader scrolling.
+    if (scroll.isProgrammaticScroll()) {
+      return;
     }
-    setIsNearBottom(isAtConversationBottom);
 
     if (options.isMobileViewport && options.activeTab === "conversation") {
       setTopbarCollapsed((current) => getNextTopbarCollapsedState({
@@ -823,15 +668,7 @@ export function useTaskDetailConversation(
       }));
     }
 
-    if (pendingConversationScrollMessageIdRef.current) {
-      return;
-    }
-
-    if (isConversationBootstrapping || isConversationPageLoading) {
-      return;
-    }
-
-    if (Date.now() < suppressPaginationUntilRef.current) {
+    if (scroll.isJumpPending() || isConversationBootstrapping || isConversationPageLoading) {
       return;
     }
 
@@ -867,7 +704,8 @@ export function useTaskDetailConversation(
     messagePage.has_older,
     messagePage.start_index,
     options.activeTab,
-    options.isMobileViewport
+    options.isMobileViewport,
+    scroll
   ]);
 
   const handleConversationWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
@@ -877,10 +715,6 @@ export function useTaskDetailConversation(
     }
 
     if (isConversationBootstrapping || isConversationPageLoading) {
-      return;
-    }
-
-    if (Date.now() < suppressPaginationUntilRef.current) {
       return;
     }
 
@@ -923,7 +757,6 @@ export function useTaskDetailConversation(
       return;
     }
 
-    pendingConversationBottomAlignRef.current = false;
     void loadConversationPage({
       targetMessageId: messageId,
       showBootstrap: false,
@@ -959,7 +792,6 @@ export function useTaskDetailConversation(
       return;
     }
 
-    pendingConversationBottomAlignRef.current = false;
     await loadConversationPage({
       beforeIndex,
       showBootstrap: false,
@@ -968,6 +800,18 @@ export function useTaskDetailConversation(
 
     requestJumpToLoadedMessage(messageId);
   }, [jumpToMessage, loadConversationPage, messageLookup, requestJumpToLoadedMessage]);
+
+  const scrollToBottom = useCallback(() => {
+    scroll.followBottom();
+    setIsNearBottom(true);
+    if (messagePage.has_newer && !pageLoadInFlightRef.current) {
+      void loadConversationPage({
+        activeLeafMessageId: loadedActiveLeafMessageIdRef.current,
+        showBootstrap: false,
+        resetContentCache: false
+      });
+    }
+  }, [loadConversationPage, messagePage.has_newer, scroll]);
 
   const visibleMessages = useMemo(
     () => messages.map((message) => {
@@ -992,11 +836,8 @@ export function useTaskDetailConversation(
     topbarCollapsed,
     isNearBottom,
     expandTopbar: () => setTopbarCollapsed(false),
-    activateConversationTab: () => {
-      pendingConversationBottomAlignRef.current = true;
-      conversationNearBottomRef.current = true;
-      setIsNearBottom(true);
-    },
+    activateConversationTab: scrollToBottom,
+    scrollToBottom,
     handleConversationScroll,
     handleConversationWheel,
     handleToolGroupExpandRequested,

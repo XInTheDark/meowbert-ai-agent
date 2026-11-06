@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ExternalLink, MessageSquarePlus, X } from "lucide-react";
 import type { ApiClient } from "../../../lib/api";
 import { API_CACHE_TTLS } from "../../../lib/api-cache";
@@ -38,8 +38,7 @@ import type {
 } from "../../../lib/types";
 import { formatDateTime, formatRelative, getEffectiveTaskStatus, getMessageText, joinTaskMessage } from "../../../lib/utils";
 import { requestTaskInterrupt, sendTaskFollowUp, switchTaskBranch } from "./taskDetailMutations";
-import { distanceFromBottom } from "./taskDetailUtils";
-import { watchConversationFeedLayout } from "./conversationFeedLayout";
+import { createConversationScrollController } from "./conversationScrollController";
 import type { WorkspaceSourceSummary } from "../../../sources/sourceTypes";
 import { useSubscriptionUsageWarning } from "../../../subscription/usageLimits";
 
@@ -581,9 +580,7 @@ function ThreadConversationPanel(props: {
   const [isBusy, setIsBusy] = useState(false);
   const [activeLeafMessageId, setActiveLeafMessageId] = useState<string | null>(null);
   const [branchSwitchingTo, setBranchSwitchingTo] = useState<string | null>(null);
-  const threadConversationFeedRef = useRef<HTMLDivElement>(null);
-  const threadConversationNearBottomRef = useRef(true);
-  const pendingThreadConversationBottomAlignRef = useRef(true);
+  const [threadScroll] = useState(() => createConversationScrollController());
   const conversationDraftKey = useMemo(() => (
     buildTaskConversationDraftKey(props.panel.taskId)
   ), [props.panel.taskId]);
@@ -690,9 +687,8 @@ function ThreadConversationPanel(props: {
   }, [attachments, conversationDraftKey, editingMessageId, followUp, restoredConversationDraftKey]);
 
   useEffect(() => {
-    pendingThreadConversationBottomAlignRef.current = true;
-    threadConversationNearBottomRef.current = true;
-  }, [props.panel.taskId]);
+    threadScroll.followBottom();
+  }, [props.panel.taskId, threadScroll]);
 
   const loadTask = useCallback(async (options?: { silent?: boolean; forceFresh?: boolean }): Promise<void> => {
     if (!options?.silent) {
@@ -740,36 +736,6 @@ function ThreadConversationPanel(props: {
   useEffect(() => {
     void loadTask();
   }, [loadTask]);
-
-  useLayoutEffect(() => {
-    const feed = threadConversationFeedRef.current;
-    if (!feed) {
-      return;
-    }
-
-    if (!pendingThreadConversationBottomAlignRef.current && !threadConversationNearBottomRef.current) {
-      return;
-    }
-
-    feed.scrollTop = feed.scrollHeight;
-    pendingThreadConversationBottomAlignRef.current = false;
-    threadConversationNearBottomRef.current = true;
-  }, [messageTree.activeMessages.length, taskDetail?.active_leaf_message_id, taskDetail?.task.updated_at]);
-
-  // Messages keep growing after the first paint (markdown, hydrated tool output, streaming), so follow
-  // the bottom until the reader scrolls away instead of aligning once.
-  const hasThreadFeed = taskDetail !== null;
-  useEffect(() => {
-    const feed = threadConversationFeedRef.current;
-    if (!hasThreadFeed || !feed) {
-      return;
-    }
-
-    return watchConversationFeedLayout({
-      feed,
-      shouldStickToBottom: () => threadConversationNearBottomRef.current
-    });
-  }, [hasThreadFeed, props.panel.taskId]);
 
   function beginEditMessage(message: TaskMessage): void {
     setEditingAgentId(getTaskMessageAgentId(message));
@@ -867,7 +833,7 @@ function ThreadConversationPanel(props: {
 
     setIsBusy(true);
     setError(null);
-    threadConversationNearBottomRef.current = true;
+    threadScroll.followBottom();
     try {
       if (isThreadActive) {
         await requestInterruptAndMarkThread();
@@ -959,15 +925,7 @@ function ThreadConversationPanel(props: {
               conversationPageLoadDirection={null}
               isTaskRunning={isThreadActive}
               isThinking={isThinking}
-              chatFeedRef={threadConversationFeedRef}
-              onScroll={() => {
-                const feed = threadConversationFeedRef.current;
-                if (!feed) {
-                  return;
-                }
-
-                threadConversationNearBottomRef.current = distanceFromBottom(feed) <= 140;
-              }}
+              chatFeedRef={threadScroll.feedRef}
               onConversationChanged={() => {
                 void loadTask({ forceFresh: true });
                 props.onRootRefreshRequested();

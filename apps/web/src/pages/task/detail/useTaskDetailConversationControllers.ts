@@ -29,7 +29,7 @@ function useConversationNavigation(context: TaskDetailPageContext, view: TaskDet
     setMessageOutlineOpen: view.layout.setIsMessageOutlineOpen,
     jumpToMessage: conversation.jumpToMessage,
     jumpToMessageIndex: conversation.jumpToMessageIndex,
-    messages: conversation.messages
+    scrollToBottom: conversation.scrollToBottom
   });
   return { conversation, search };
 }

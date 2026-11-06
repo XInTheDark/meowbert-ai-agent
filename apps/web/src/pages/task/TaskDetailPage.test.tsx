@@ -62,6 +62,7 @@ const {
     isNearBottom: true,
     expandTopbar: vi.fn(),
     activateConversationTab: vi.fn(),
+    scrollToBottom: vi.fn(),
     handleConversationScroll: vi.fn(),
     handleConversationWheel: vi.fn(),
     handleToolGroupExpandRequested: vi.fn(),
@@ -322,6 +323,7 @@ function createConversationHookResult(
     isNearBottom: true,
     expandTopbar: vi.fn(),
     activateConversationTab: vi.fn(),
+    scrollToBottom: vi.fn(),
     handleConversationScroll: vi.fn(),
     handleConversationWheel: vi.fn(),
     handleToolGroupExpandRequested: vi.fn(),
@@ -718,9 +720,9 @@ describe("TaskDetailPage", () => {
     branchContainer.remove();
   });
 
-  it("wires the scroll-to-bottom action through the existing message jump path", async () => {
+  it("wires the scroll-to-bottom button to the conversation bottom", async () => {
     const workspaceContext = createWorkspaceContextValue();
-    const jumpToMessage = vi.fn();
+    const scrollToBottom = vi.fn();
     useTaskDetailConversationMock.mockReturnValue(createConversationHookResult({
       messages: [
         createConversationMessage("message-1"),
@@ -731,7 +733,7 @@ describe("TaskDetailPage", () => {
         createConversationMessage("message-2")
       ],
       isNearBottom: false,
-      jumpToMessage
+      scrollToBottom
     }));
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -756,7 +758,7 @@ describe("TaskDetailPage", () => {
 
     (lastConversationPaneProps?.onScrollToBottomRequested as () => void)();
 
-    expect(jumpToMessage).toHaveBeenCalledWith("message-2");
+    expect(scrollToBottom).toHaveBeenCalled();
   });
 
   it("debounces task reply draft persistence while typing", async () => {

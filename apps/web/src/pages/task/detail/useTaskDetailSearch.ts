@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import type { TaskConversationSearchMatch, TaskConversationSearchResult, TaskMessage } from "../../../lib/types";
+import type { TaskConversationSearchMatch, TaskConversationSearchResult } from "../../../lib/types";
 import type { TaskDetailTab } from "./taskDetailConstants";
 
 interface UseTaskDetailSearchInput {
@@ -9,7 +9,7 @@ interface UseTaskDetailSearchInput {
   setMessageOutlineOpen: Dispatch<SetStateAction<boolean>>;
   jumpToMessage: (messageId: string) => void;
   jumpToMessageIndex: (messageId: string, messageIndex: number) => Promise<void>;
-  messages: TaskMessage[];
+  scrollToBottom: () => void;
 }
 
 export function useTaskDetailSearch(input: UseTaskDetailSearchInput) {
@@ -51,8 +51,7 @@ export function useTaskDetailSearch(input: UseTaskDetailSearchInput) {
   }
 
   function handleScrollToBottomRequested(): void {
-    const lastMessage = input.messages[input.messages.length - 1];
-    if (lastMessage) input.jumpToMessage(lastMessage.id);
+    input.scrollToBottom();
   }
 
   return {

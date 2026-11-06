@@ -34,6 +34,7 @@ export interface UseTaskDetailConversationResult {
   isNearBottom: boolean;
   expandTopbar: () => void;
   activateConversationTab: () => void;
+  scrollToBottom: () => void;
   handleConversationScroll: () => void;
   handleConversationWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
   handleToolGroupExpandRequested: (messageIds: string[]) => void;

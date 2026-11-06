@@ -139,7 +139,7 @@ function ConversationHarness(props: {
 
   return (
     <div>
-      <div data-testid="feed" ref={conversation.chatFeedRef}>
+      <div data-testid="feed" ref={conversation.chatFeedRef} onScroll={conversation.handleConversationScroll}>
         {conversation.messages.map((message) => (
           <div key={message.id} data-message-id={message.id}>
             {message.id}:{JSON.stringify(message.content_json)}
@@ -224,22 +224,14 @@ describe("useTaskDetailConversation", () => {
     defineMutableNumberProperty(feed!, "scrollHeight", 1000);
     defineRect(feed!, 10, 300);
     defineRect(target!, 290, 48);
-    const scrollTo = vi.fn((options?: ScrollToOptions | number) => {
-      if (typeof options === "object" && typeof options.top === "number") {
-        feed!.scrollTop = options.top;
-      }
-    });
-    feed!.scrollTo = scrollTo as HTMLDivElement["scrollTo"];
 
     await act(async () => {
       jumpButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await flushPromises();
     });
 
-    expect(scrollTo).toHaveBeenCalledWith({
-      top: 356,
-      behavior: "auto"
-    });
+    // The target sits 280px below the feed's top edge; it lands 24px below it.
+    expect(feed!.scrollTop).toBe(356);
   });
 
   it("loads a window around an unloaded jump target", async () => {
@@ -298,45 +290,39 @@ describe("useTaskDetailConversation", () => {
     expect(api.get).toHaveBeenCalledWith("/api/tasks/task-1/conversation?limit=50&targetMessageId=message-10");
   });
 
-  it("anchors the initial conversation window to the final message", async () => {
-    vi.useFakeTimers();
-    const messages = [buildMessage("message-1"), buildMessage("message-2"), buildMessage("message-3")];
-    const api = buildApi(messages);
+  it("stays pinned to the bottom when the agent adds a step", async () => {
+    const initialMessages = [buildMessage("message-1"), buildMessage("message-2")];
+    const refreshedMessages = [...initialMessages, buildMessage("message-3")];
+    const get = vi.fn(async (): Promise<TaskConversationPageResponse> => (
+      get.mock.calls.length === 1
+        ? buildConversationPage(initialMessages)
+        : buildConversationPage(refreshedMessages)
+    ));
+    const api: ApiClient = { ...buildApi(initialMessages), get: get as ApiClient["get"] };
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
 
     await act(async () => {
-      root?.render(<ConversationHarness api={api} />);
+      root?.render(<ConversationHarness api={api} refreshVersion={0} />);
       await flushPromises();
     });
 
     const feed = container.querySelector<HTMLDivElement>('[data-testid="feed"]');
-    const target = container.querySelector<HTMLElement>('[data-message-id="message-3"]');
     expect(feed).toBeTruthy();
-    expect(target).toBeTruthy();
-
-    defineMutableNumberProperty(feed!, "scrollTop", 100);
+    defineMutableNumberProperty(feed!, "scrollTop", 700);
     defineMutableNumberProperty(feed!, "clientHeight", 300);
     defineMutableNumberProperty(feed!, "scrollHeight", 1000);
-    defineRect(feed!, 10, 300);
-    defineRect(target!, 590, 48);
-    const scrollTo = vi.fn((options?: ScrollToOptions | number) => {
-      if (typeof options === "object" && typeof options.top === "number") {
-        feed!.scrollTop = options.top;
-      }
-    });
-    feed!.scrollTo = scrollTo as HTMLDivElement["scrollTo"];
+    defineRect(feed!, 0, 300);
 
+    (feed as HTMLDivElement & { scrollHeight: number }).scrollHeight = 1600;
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(20);
+      root?.render(<ConversationHarness api={api} refreshVersion={1} />);
       await flushPromises();
     });
 
-    expect(scrollTo).toHaveBeenCalledWith({
-      top: 656,
-      behavior: "auto"
-    });
+    expect(container.textContent).toContain("message-3");
+    expect(feed!.scrollTop).toBe(1600);
   });
 
   it("keeps the current conversation visible while refreshing for a new active leaf", async () => {
@@ -459,10 +445,7 @@ describe("useTaskDetailConversation", () => {
     });
 
     const feed = container.querySelector<HTMLDivElement>('[data-testid="feed"]');
-    const scrollButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-      .find((button) => button.textContent === "Scroll");
     expect(feed).toBeTruthy();
-    expect(scrollButton).toBeTruthy();
 
     defineMutableNumberProperty(feed!, "scrollTop", 100);
     defineMutableNumberProperty(feed!, "clientHeight", 300);
@@ -476,10 +459,10 @@ describe("useTaskDetailConversation", () => {
 
     await act(async () => {
       vi.runAllTimers();
-      scrollButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      feed!.scrollTop = 100;
+      feed!.dispatchEvent(new Event("scroll"));
       await flushPromises();
     });
-    feed!.scrollTop = 100;
     scrollTo.mockClear();
 
     await act(async () => {
@@ -723,18 +706,23 @@ describe("useTaskDetailConversation", () => {
       .find((button) => button.textContent === "Scroll");
     expect(feed).toBeTruthy();
     expect(scrollButton).toBeTruthy();
+    // Every message row is 20px tall and laid out in order, so prepending rows pushes the rest down.
+    const rowHeight = 20;
     defineMutableNumberProperty(feed!, "scrollTop", 0);
     defineMutableNumberProperty(feed!, "clientHeight", 300);
-    let scrollHeightOverride: number | null = null;
     Object.defineProperty(feed!, "scrollHeight", {
       configurable: true,
-      get: () => scrollHeightOverride ?? (feed!.querySelectorAll("[data-message-id]").length > 50 ? 1600 : 1000),
-      set: (nextValue: number) => {
-        scrollHeightOverride = nextValue;
-      }
+      get: () => feed!.querySelectorAll("[data-message-id]").length * rowHeight
+    });
+    defineRect(feed!, 0, 300);
+    const rowRect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const rows = Array.from(feed!.querySelectorAll("[data-message-id]"));
+      const top = rows.indexOf(this) * rowHeight - feed!.scrollTop;
+      return { x: 0, y: top, top, bottom: top + rowHeight, left: 0, right: 400, width: 400, height: rowHeight, toJSON: () => undefined };
     });
 
     await act(async () => {
+      feed!.dispatchEvent(new Event("scroll"));
       scrollButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await flushPromises();
     });
@@ -745,17 +733,21 @@ describe("useTaskDetailConversation", () => {
       await flushPromises();
     });
 
-    expect(feed!.scrollTop).toBe(600);
+    // message-50 was at the top of the feed and stays there.
+    expect(feed!.scrollTop).toBe(1000);
 
-    feed!.scrollTop = 520;
-    scrollHeightOverride = 1900;
+    await act(async () => {
+      feed!.scrollTop = 920;
+      feed!.dispatchEvent(new Event("scroll"));
+    });
     await act(async () => {
       hydration.resolve({ items: [olderToolFull] });
       await flushPromises();
     });
 
-    expect(feed!.scrollTop).toBe(520);
+    expect(feed!.scrollTop).toBe(920);
     expect(container.textContent).toContain("hydrated content");
+    rowRect.mockRestore();
   });
 
   it("stops bottom alignment when the user scrolls away", async () => {
