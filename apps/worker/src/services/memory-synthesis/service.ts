@@ -20,9 +20,9 @@ import {
 import {
   buildMemoryDelta,
   MAX_DELTA_MESSAGE_CHARS,
-  MAX_DELTA_MESSAGES,
   type MemoryDeltaMessage
 } from "./delta.js";
+import { loadDelta, memoryExcludedTasksCte } from "./delta-source.js";
 
 const MEMORY_SYNTHESIS_EVENT_CHANNEL = "memory_synthesis_ready";
 const MEMORY_SYNTHESIS_MAX_STEPS = 40;
@@ -97,7 +97,7 @@ export async function syncFinishedMemorySynthesisRequests(): Promise<void> {
 
 async function loadMemorySynthesisMetrics(input: MemorySynthesisEvent): Promise<MemorySynthesisMetricsRow | null> {
   const result = await query<MemorySynthesisMetricsRow>(
-    `WITH latest_success AS (
+    `WITH RECURSIVE ${memoryExcludedTasksCte("$2")}, latest_success AS (
        SELECT source_through_at, completed_at
          FROM memory_synthesis_requests
         WHERE environment_id = $2
@@ -121,12 +121,11 @@ async function loadMemorySynthesisMetrics(input: MemorySynthesisEvent): Promise<
               t.completed_at
          FROM task_messages tm
          JOIN tasks t ON t.id = tm.task_id
-         LEFT JOIN memory_synthesis_requests synthesis_task ON synthesis_task.task_id = t.id
          LEFT JOIN latest_success success ON true
         WHERE t.environment_id = $2
           AND tm.role IN ('user', 'assistant')
           AND tm.created_at > COALESCE(success.source_through_at, to_timestamp(0))
-          AND synthesis_task.id IS NULL
+          AND NOT EXISTS (SELECT 1 FROM memory_excluded_tasks excluded WHERE excluded.id = t.id)
      ), active_user_tasks AS (
        SELECT DISTINCT task_id
          FROM delta_messages
@@ -256,29 +255,6 @@ async function claimNextRequest(input?: MemorySynthesisEvent): Promise<Synthesis
     );
     return request;
   });
-}
-
-async function loadDelta(input: {
-  environmentId: string;
-  sourceAfter: string | null;
-}): Promise<MemoryDeltaMessage[]> {
-  const result = await query<MemoryDeltaMessage>(
-    `SELECT tm.role,
-            COALESCE(tm.content_json->>'text', '') AS text,
-            tm.created_at,
-            t.title AS task_title
-       FROM task_messages tm
-       JOIN tasks t ON t.id = tm.task_id
-       LEFT JOIN memory_synthesis_requests synthesis_task ON synthesis_task.task_id = t.id
-      WHERE t.environment_id = $1
-        AND tm.role IN ('user', 'assistant')
-        AND tm.created_at > COALESCE($2::timestamptz, to_timestamp(0))
-        AND synthesis_task.id IS NULL
-      ORDER BY tm.created_at ASC, tm.id ASC
-      LIMIT $3`,
-    [input.environmentId, input.sourceAfter, MAX_DELTA_MESSAGES]
-  );
-  return result.rows;
 }
 
 async function loadLatestCompletedCursor(environmentId: string): Promise<string | null> {
