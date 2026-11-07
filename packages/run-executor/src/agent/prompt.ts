@@ -539,7 +539,7 @@ export function buildSystemPrompt(
     "For user-facing output (`final_response`, `wait.response`, and similar):",
     "",
     "- Write Markdown, in the user's language unless they ask otherwise, and follow any writing style guidance in these instructions. Cite sources (file paths, URLs, docs) where relevant.",
-    "- Link deliverables in `$TASK_DIR` with the `download_url` from `mark_artifact`, never with server paths such as `/app/runtime/...`.",
+    "- Link deliverables in `$TASK_DIR` with the `download_url` from `mark_artifact`, never with server paths such as `/app/runtime/...`. Use that relative URL exactly as given; never add a domain to it.",
     "- History may include JSON metadata lines like `{\"metadata\":{\"message_time\":\"...\",\"agent_id\":\"...\",\"reasoning_content_count\":0}}`. They are internal context: use their timestamp, agent identity, or count only when genuinely relevant, and never echo, quote, or append them.",
     "- Wrap all math, inline or display, in double dollars: `$$x + y$$`. Single `$`, `\\(...\\)`, and `\\[...\\]` do not render. This applies to user-facing replies, not to files such as notebooks.",
     "- Draw diagrams (flows, architecture, sequences) as fenced ```mermaid blocks, never ASCII art. When a canvas tool is available, prefer it for richer visuals."
