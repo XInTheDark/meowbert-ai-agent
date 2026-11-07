@@ -4,6 +4,7 @@ import { registerEnvironmentCanvasRoutes } from "./environments/canvas-routes.js
 import { registerEnvironmentFileRoutes } from "./environments/file-routes.js";
 import { registerEnvironmentLiveSyncRoutes } from "./environments/live-sync-routes.js";
 import { registerEnvironmentMasterRoutes } from "./environments/master-routes.js";
+import { registerEnvironmentProjectMapRoutes } from "./environments/project-map-routes.js";
 import { registerEnvironmentPersistentShellRoutes } from "./environments/persistent-shell-routes.js";
 import { registerEnvironmentTaskFolderRoutes } from "./environments/task-folder-routes.js";
 import { registerEnvironmentTaskRoutes } from "./environments/task-routes.js";
@@ -17,6 +18,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   await registerEnvironmentFileRoutes(fastify);
   await registerEnvironmentLiveSyncRoutes(fastify);
   await registerEnvironmentMasterRoutes(fastify);
+  await registerEnvironmentProjectMapRoutes(fastify);
 };
 
 export const environmentRoutes = projectRoutes;

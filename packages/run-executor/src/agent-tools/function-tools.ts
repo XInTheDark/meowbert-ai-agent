@@ -1,4 +1,5 @@
 import { PROJECT_MASTER_FUNCTION_TOOLS } from "./project-master.js";
+import { PROJECT_MAP_FUNCTION_TOOLS } from "./project-map.js";
 import { SUBAGENT_FUNCTION_TOOLS } from "./subagents.js";
 import type { CustomTool, FunctionTool, Tool } from "openai/resources/responses/responses";
 import {
@@ -258,6 +259,7 @@ export const CONTEXT_V2_FUNCTION_TOOLS: FunctionTool[] = [
 export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
   ...SUBAGENT_FUNCTION_TOOLS,
   ...PROJECT_MASTER_FUNCTION_TOOLS,
+  ...PROJECT_MAP_FUNCTION_TOOLS,
   buildRunShellFunctionTool(),
   SHELL_SESSION_TOOL,
   {

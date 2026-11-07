@@ -29,6 +29,7 @@ import {
   ProjectContextPage,
   ProjectCanvasPage,
   ProjectCanvasesPage,
+  ProjectMapPage,
   ProjectPersistentShellsPage,
   WorkspaceFilesPage,
   WorkspaceMemoryPage,
@@ -414,6 +415,7 @@ export function App() {
             <Route path="projects/:projectId/settings" element={<EnvironmentSettingsPage />} />
             <Route path="projects/:projectId/files" element={<EnvironmentFilesPage />} />
             <Route path="projects/:projectId/context" element={<ProjectContextPage />} />
+            <Route path="projects/:projectId/map" element={<ProjectMapPage />} />
             <Route path="projects/:projectId/canvases" element={<ProjectCanvasesPage />} />
             <Route path="projects/:projectId/canvases/:canvasId" element={<ProjectCanvasPage />} />
             <Route path="projects/:projectId/shells" element={<ProjectPersistentShellsPage />} />

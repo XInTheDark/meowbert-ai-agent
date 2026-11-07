@@ -6,7 +6,7 @@ import { TaskSearchInputBar } from "../../components/search/TaskSearchInputBar";
 import { useCompactViewport } from "../../hooks/useCompactViewport";
 import type { Project } from "../../lib/types";
 import { TaskDetailPage } from "../task/TaskDetailPage";
-import { ProjectTaskPane } from "./ProjectTaskPane";
+import { ProjectSidePane } from "./ProjectSidePane";
 import { useProjectTaskPaneWidth } from "./useProjectTaskPaneWidth";
 
 interface ProjectMasterLandingProps {
@@ -40,7 +40,7 @@ function ProjectMasterSplitLanding(props: ProjectMasterLandingProps & { project:
       className="project-master-landing is-split"
       style={{ "--project-task-pane-width": `${pane.width}px` } as CSSProperties}
     >
-      <ProjectTaskPane project={props.project} masterTaskId={props.masterTaskId} />
+      <ProjectSidePane workspaceId={props.workspaceId} project={props.project} masterTaskId={props.masterTaskId} />
       <div
         className="project-split-resizer"
         role="separator"
@@ -79,6 +79,9 @@ function ProjectMasterStackedLanding(props: ProjectMasterLandingProps) {
           />
           <button className="btn ghost project-master-all-tasks" onClick={() => navigate(`${base}/tasks`)}>
             All Tasks
+          </button>
+          <button className="btn ghost project-master-all-tasks" onClick={() => navigate(`${base}/map`)}>
+            Map
           </button>
           <button className="btn primary project-master-new-task" onClick={() => navigate(`${base}/tasks/new`)}>
             <Plus size={16} />

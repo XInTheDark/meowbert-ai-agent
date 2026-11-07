@@ -18,6 +18,8 @@ import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExe
 import type { ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
 import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { rethrowIfTaskCancelled } from "@meowbert/run-executor/agent-tool-dispatch/utils";
+import { assertFolderInProject, moveProjectMapItems } from "@meowbert/shared";
+import { pool } from "../../../lib/db.js";
 
 async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDispatchContext) {
   const args: unknown = JSON.parse(call.arguments);
@@ -30,6 +32,9 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
       const taskAgent = ctx.projectMasterTaskAgent ?? null;
       const agent = taskAgent?.agentId ? { id: taskAgent.agentId } : null;
       const modelRoute = buildChosenModelRoute(taskAgent?.router ?? null, input.model, input.reasoning_effort);
+      const folderId = input.folder_id ?? null;
+      // Check the folder first so a bad ID cannot leave a task created but unfiled.
+      await assertFolderInProject(pool, ctx.environmentId, folderId);
       if (input.repeat) {
         const scheduled = await createScheduledManagedTask(ctx, {
           taskId,
@@ -42,9 +47,11 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
           agent: taskAgent?.isSwarm ? null : agent,
           modelRoute
         });
+        if (folderId) await moveProjectMapItems(pool, ctx.environmentId, [scheduled.taskId], folderId);
         // The first run starts at creation; next_scheduled_run_at is the run after it.
         return {
           task_id: scheduled.taskId,
+          folder_id: folderId,
           listening,
           first_run: "started_now",
           repeat: scheduled.repeat,
@@ -61,7 +68,8 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
         modelRoute
       });
       if (listening) await listenToNewTask(listenerTarget, created.taskId);
-      return { task_id: created.taskId, listening };
+      if (folderId) await moveProjectMapItems(pool, ctx.environmentId, [created.taskId], folderId);
+      return { task_id: created.taskId, listening, folder_id: folderId };
     }
     case "message_task": {
       const input = messageTaskSchema.parse(args);

@@ -122,6 +122,47 @@ body.is-resizing-split iframe {
   pointer-events: none;
 }
 
+/* The pane beside the Master switches between the task list and the project map. */
+.project-side-pane {
+  flex: 0 0 var(--project-task-pane-width, 340px);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.project-side-pane > .project-task-pane {
+  flex: 1 1 auto;
+}
+
+.project-side-pane-tabs {
+  display: flex;
+  gap: 0.15rem;
+  flex: 0 0 auto;
+  padding: 0.15rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  align-self: flex-start;
+}
+
+.project-side-pane-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.22rem 0.75rem;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+}
+
+.project-side-pane-tabs button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+}
+
 /*
  * Task list pane. It reuses the full task list's components but is always narrow, so rows collapse to
  * status icon, title and a trailing meta slot where the updated time gives way to the row menu on hover.

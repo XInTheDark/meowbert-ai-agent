@@ -13,6 +13,8 @@ export interface ConversationOrganizationState {
 
 export async function prepareConversationOrganization(prepared: PreparedAgentRunContext, job: TaskExecutionJob): Promise<ConversationOrganizationState | undefined> {
   if (!getNewMessageOrganizationEnabled(prepared.snapshot.workspace_model_defaults)
+    // The Master keeps the project map instead of a conversation outline.
+    || prepared.isProjectMaster === true
     || (prepared.isSubtask && !prepared.snapshot.task.is_thread) || prepared.isQualityReviewSpecialist
     || (prepared.snapshot.task.workflow_internal_role && prepared.snapshot.task.workflow_internal_role !== "leader")
     || job.mode === "memory_synthesis") return undefined;

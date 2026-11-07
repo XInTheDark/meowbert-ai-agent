@@ -31,6 +31,7 @@ export const EnvironmentFilesPage = lazyPage(() => import("./pages/environment/E
 export const ProjectContextPage = lazyPage(() => import("./pages/environment/ProjectContextPage"), "ProjectContextPage");
 export const ProjectCanvasPage = lazyPage(() => import("./pages/environment/ProjectCanvasPage"), "ProjectCanvasPage");
 export const ProjectCanvasesPage = lazyPage(() => import("./pages/environment/ProjectCanvasesPage"), "ProjectCanvasesPage");
+export const ProjectMapPage = lazyPage(() => import("./pages/environment/ProjectMapPage"), "ProjectMapPage");
 export const ProjectPersistentShellsPage = lazyPage(() => import("./pages/environment/ProjectPersistentShellsPage"), "ProjectPersistentShellsPage");
 export const WorkspaceFilesPage = lazyPage(() => import("./pages/workspace/WorkspaceFilesPage"), "WorkspaceFilesPage");
 export const WorkspaceMemoryPage = lazyPage(() => import("./pages/workspace/WorkspaceMemoryPage"), "WorkspaceMemoryPage");

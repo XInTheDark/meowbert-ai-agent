@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/db.js", () => ({
   query: vi.fn(),
-  withTransaction: vi.fn()
+  withTransaction: vi.fn(),
+  pool: { query: vi.fn() }
 }));
 
-import { query, withTransaction } from "../../lib/db.js";
+import { pool, query, withTransaction } from "../../lib/db.js";
 import { registerEnvironmentTaskFolderRoutes } from "./task-folder-routes.js";
 
 function createQueryResult<T extends object>(rows: T[], rowCount = rows.length): QueryResult<T> {
@@ -24,9 +25,13 @@ describe("registerEnvironmentTaskFolderRoutes", () => {
   const mockedQuery = vi.mocked(query);
   const mockedWithTransaction = vi.mocked(withTransaction);
 
+  const mockedPoolQuery = vi.mocked(pool.query) as unknown as ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     mockedQuery.mockReset();
     mockedWithTransaction.mockReset();
+    mockedPoolQuery.mockReset();
+    mockedPoolQuery.mockResolvedValue(createQueryResult([]));
   });
 
   function createApp() {
@@ -106,8 +111,8 @@ describe("registerEnvironmentTaskFolderRoutes", () => {
     expect(mockedQuery.mock.calls[2]?.[0]).not.toContain("status =");
   });
 
-  it("deleting a folder reparents child folders and tasks inside a transaction", async () => {
-    const client = { query: vi.fn(async () => createQueryResult([])) };
+  it("deleting a folder reparents child folders, tasks and map cards inside a transaction", async () => {
+    const client = { query: vi.fn(async (sql: string) => createQueryResult(sql.includes("FOR UPDATE") ? [{ parent_folder_id: null }] : [])) };
     mockedQuery.mockResolvedValueOnce(createQueryResult([
       {
         id: "11111111-1111-4111-8111-111111111111",
@@ -130,9 +135,11 @@ describe("registerEnvironmentTaskFolderRoutes", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const calls = client.query.mock.calls as unknown as Array<[string, unknown[]]>;
-    expect(calls[0]?.[0]).toContain("UPDATE task_folders");
-    expect(calls[1]?.[0]).toContain("UPDATE tasks");
-    expect(calls[2]?.[0]).toContain("DELETE FROM task_folders");
+    const statements = (client.query.mock.calls as unknown as Array<[string, unknown[]]>).map(([sql]) => sql);
+    expect(statements.some((sql) => sql.includes("UPDATE task_folders SET parent_folder_id"))).toBe(true);
+    expect(statements.some((sql) => sql.includes("UPDATE tasks SET folder_id"))).toBe(true);
+    expect(statements.some((sql) => sql.includes("UPDATE project_map_cards SET folder_id"))).toBe(true);
+    expect(statements.some((sql) => sql.includes("DELETE FROM task_folders"))).toBe(true);
+    expect(statements.some((sql) => sql.includes("INSERT INTO project_map_changes"))).toBe(true);
   });
 });

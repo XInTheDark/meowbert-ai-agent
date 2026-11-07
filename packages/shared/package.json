@@ -37,6 +37,10 @@
       "types": "./dist/project-context.d.ts",
       "default": "./dist/project-context.js"
     },
+    "./project-map": {
+      "types": "./dist/project-map.d.ts",
+      "default": "./dist/project-map.js"
+    },
     "./context-usage": {
       "types": "./dist/context-usage.d.ts",
       "default": "./dist/context-usage.js"

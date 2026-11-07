@@ -404,7 +404,7 @@ describe("buildResponseTools", () => {
     };
     const functionNames = (tools: ReturnType<typeof buildResponseTools>) =>
       tools.flatMap((tool) => tool.type === "function" ? [tool.name] : []);
-    const masterToolNames = ["create_task", "message_task", "cancel_task", "listen_to_tasks"];
+    const masterToolNames = ["create_task", "message_task", "cancel_task", "listen_to_tasks", "view_project_map", "update_project_map"];
 
     const regular = functionNames(buildResponseTools(options, [], { allowTaskHistoryTools: false }));
     const master = functionNames(buildResponseTools(options, [], { allowTaskHistoryTools: false, allowProjectMasterTools: true }));

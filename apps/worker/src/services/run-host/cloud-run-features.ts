@@ -1,6 +1,7 @@
 import { isSwarmToolName } from "@meowbert/run-executor/agent-tools/swarm";
 import { SUBAGENT_TOOL_NAMES } from "@meowbert/run-executor/agent-tools/subagents";
 import { PROJECT_MASTER_TOOL_NAMES } from "@meowbert/run-executor/agent-tools/project-master";
+import { PROJECT_MAP_TOOL_NAMES } from "@meowbert/run-executor/agent-tools/project-map";
 import type { RunFeatures } from "@meowbert/run-executor/agent/ports/run-features";
 import type { AgentExecutionContext, WorkflowActions } from "@meowbert/run-executor/agent/execution-types";
 import type { BudgetTelemetry } from "@meowbert/run-executor/agent-tool-dispatch/types";
@@ -17,6 +18,7 @@ import { appendSubagentInbox } from "../subagents/inbox.js";
 import { assertSubagentsFinished } from "../subagents/mail.js";
 import { parkForSubagentMail } from "../subagents/wait.js";
 import { appendProjectMasterInbox } from "../project-master/inbox.js";
+import { handleProjectMapTool } from "../agent-tool-dispatch/handlers/project-map.js";
 import { appendQueuedUserMessages } from "../queued-messages/inbox.js";
 import {
   loadLongHorizonBudgetTelemetry,
@@ -98,6 +100,7 @@ export const cloudRunFeatures: RunFeatures = {
     if (isSwarmToolName(call.name)) return handleSwarmTool(call, ctx, state);
     if ((SUBAGENT_TOOL_NAMES as readonly string[]).includes(call.name)) return handleSubagentTool(call, ctx, state);
     if ((PROJECT_MASTER_TOOL_NAMES as readonly string[]).includes(call.name)) return handleProjectMasterTool(call, ctx, state);
+    if ((PROJECT_MAP_TOOL_NAMES as readonly string[]).includes(call.name)) return handleProjectMapTool(call, ctx, state);
     return null;
   },
   assertSubagentsFinished,

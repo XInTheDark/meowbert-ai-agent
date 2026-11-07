@@ -10,6 +10,7 @@ export const createTaskSchema = z.object({
   repeat: z.string().trim().min(1).nullable().optional(),
   timezone: z.string().trim().min(1).nullable().optional(),
   listen: z.boolean().nullable().optional(),
+  folder_id: z.string().uuid().nullable().optional(),
   model: z.string().trim().min(1).nullable().optional(),
   reasoning_effort: z.enum(CHOSEN_MODEL_ROUTE_EFFORTS).nullable().optional()
 });
@@ -42,7 +43,8 @@ const CREATE_TASK_PROPERTIES: Record<string, unknown> = {
   title: { type: ["string", "null"], description: "Short task title, or null to generate one." },
   repeat: { type: ["string", "null"], description: "5-field cron expression (minute hour day month weekday) for a recurring task, or null for a one-off task." },
   timezone: { type: ["string", "null"], description: "IANA timezone the cron is read in, or null for this project's default. Only used with repeat." },
-  listen
+  listen,
+  folder_id: { type: ["string", "null"], description: "Project map folder to file the task in, or null to leave it unfiled." }
 };
 
 // The user chose a model router for the Master's tasks, so the Master picks the target model itself,

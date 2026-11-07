@@ -1,6 +1,7 @@
 import { HOST_SHELL_TOOL } from "./host-shell.js";
-import { ORGANIZATION_TOOLS, ORGANIZATION_TOOL_NAMES, withOrganizationFinalResponse, withOrganizationHistory } from "./conversation-organization.js";
+import { ORGANIZATION_TOOLS, withOrganizationFinalResponse, withOrganizationHistory } from "./conversation-organization.js";
 import { buildCreateTaskFunctionTool, PROJECT_MASTER_TOOL_NAMES } from "./project-master.js";
+import { PROJECT_MAP_TOOL_NAMES } from "./project-map.js";
 import { UPDATE_PROGRESS_TOOL } from "./progress.js";
 import { SUBAGENT_TOOL_NAMES } from "./subagents.js";
 import { buildSwarmFunctionTools } from "./swarm.js";
@@ -161,7 +162,7 @@ function isToolEnabled(
     return availability.allowTaskHistoryTools !== false || availability.allowProjectMasterTools === true;
   }
 
-  if ((PROJECT_MASTER_TOOL_NAMES as readonly string[]).includes(tool.name)) {
+  if ((PROJECT_MASTER_TOOL_NAMES as readonly string[]).includes(tool.name) || (PROJECT_MAP_TOOL_NAMES as readonly string[]).includes(tool.name)) {
     return availability.allowProjectMasterTools === true;
   }
 
@@ -209,11 +210,11 @@ function isToolEnabled(
 // The Master only coordinates: it delegates work to tasks and never gets a shell, patching, web, or skills.
 const PROJECT_MASTER_ALLOWED_TOOL_NAMES = new Set<string>([
   ...PROJECT_MASTER_TOOL_NAMES,
+  ...PROJECT_MAP_TOOL_NAMES,
   QUERY_TASKS_TOOL_NAME,
   VIEW_TASK_HISTORY_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
-  MEMORY_SEARCH_TOOL_NAME,
-  ...ORGANIZATION_TOOL_NAMES
+  MEMORY_SEARCH_TOOL_NAME
 ]);
 
 function isProjectMasterTool(tool: Tool): boolean {

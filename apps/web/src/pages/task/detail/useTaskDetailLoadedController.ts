@@ -1,4 +1,5 @@
 import { getNewMessageOrganizationEnabled } from "@meowbert/shared/workspace-agent-settings";
+import { useMasterComposerAttachments } from "../../../task/masterComposerAttachments";
 import { useConversationNavigation } from "./navigation/useConversationNavigation";
 import { useCallback, useEffect, useMemo } from "react";
 import type { TaskMessage } from "../../../lib/types";
@@ -93,12 +94,15 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
     availableAgents: context.catalog.availableAgents,
     defaultAgentId: context.catalog.defaultAgentId
   });
+  useMasterComposerAttachments(context.data.taskDetail?.task.is_project_master ? context.taskId : null, composer.appendAttachments);
   const controllers = useTaskDetailConversationControllers(context, view, composer);
   const pendingFollowUp = usePendingFollowUp(context.taskId, controllers.conversation.messages);
   const actions = useLoadedTaskActions(context, view, composer, controllers, pendingFollowUp);
   const organization = useConversationNavigation({
     api: context.workspace.api, taskId: context.taskId,
-    enabled: Boolean(context.workspace.workspaceSettings) && getNewMessageOrganizationEnabled(context.workspace.workspaceSettings?.modelDefaults),
+    // The Master keeps the project map instead of a conversation outline.
+    enabled: Boolean(context.workspace.workspaceSettings) && getNewMessageOrganizationEnabled(context.workspace.workspaceSettings?.modelDefaults)
+      && context.data.taskDetail?.task.is_project_master !== true,
     leafId: context.data.activeLeafMessageId ?? context.data.taskDetail?.active_leaf_message_id ?? null,
     refreshKey: `${context.data.taskDetail?.task.updated_at}:${context.data.taskDetail?.task.status}`
   });

@@ -107,6 +107,10 @@ function buildWorkspaceRouteTitleParts(input: {
     return ["Background shells", projectName];
   }
 
+  if (projectSection === "map") {
+    return ["Map", projectName];
+  }
+
   if (projectSection === "tasks" && projectTaskSegment === "new") {
     return ["New Task", projectName];
   }

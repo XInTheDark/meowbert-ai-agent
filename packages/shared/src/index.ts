@@ -68,6 +68,13 @@ export * from "./conversation-organization.js";
 export * from "./conversation-organization-store.js";
 
 export * from "./conversation-organization-archive.js";
+export * from "./project-map.js";
+export * from "./project-map-db.js";
+export * from "./project-map-store.js";
+export * from "./project-map-folders.js";
+export * from "./project-map-cards.js";
+export * from "./project-map-placement.js";
+export * from "./project-map-changes.js";
 export * from "./run-api.js";
 export * from "./retry-policy.js";
 export * from "./task-execution-target.js";

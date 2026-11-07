@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { query, withTransaction } from "../../lib/db.js";
+import { deleteProjectFolder, recordProjectMapChange } from "@meowbert/shared";
+import { pool, query, withTransaction } from "../../lib/db.js";
+import { describeFolder, describeMapItems } from "../../services/project-map/map-change-summaries.js";
 import { environmentEntityPaths, environmentParams } from "./shared.js";
 
 const folderParams = z.object({
@@ -174,6 +176,15 @@ async function handlePatchTaskFolder(request: FastifyRequest, reply: FastifyRepl
     ]
   );
 
+  const summary = [
+    body.name !== undefined && body.name !== folder.name ? `renamed folder "${folder.name}" to "${body.name}" [${folder.id}]` : "",
+    body.parentFolderId !== undefined && body.parentFolderId !== folder.parent_folder_id
+      ? `moved folder "${folder.name}" [${folder.id}] into ${await describeFolder(pool, body.parentFolderId)}` : ""
+  ].filter(Boolean).join(" and ");
+  if (summary) {
+    await recordProjectMapChange(pool, { environmentId: folder.environment_id, actorUserId: request.user.id, summary });
+  }
+
   return {
     folder: serializeTaskFolder(updatedRes.rows[0])
   };
@@ -187,25 +198,12 @@ async function handleDeleteTaskFolder(request: FastifyRequest, reply: FastifyRep
   }
 
   await withTransaction(async (client) => {
-    await client.query(
-      `UPDATE task_folders
-          SET parent_folder_id = $2,
-              updated_at = now()
-        WHERE parent_folder_id = $1`,
-      [folder.id, folder.parent_folder_id]
-    );
-    await client.query(
-      `UPDATE tasks
-          SET folder_id = $2,
-              updated_at = now()
-        WHERE folder_id = $1`,
-      [folder.id, folder.parent_folder_id]
-    );
-    await client.query(
-      `DELETE FROM task_folders
-        WHERE id = $1`,
-      [folder.id]
-    );
+    await deleteProjectFolder(client, folder.environment_id, folder.id);
+    await recordProjectMapChange(client, {
+      environmentId: folder.environment_id,
+      actorUserId: request.user.id,
+      summary: `deleted folder "${folder.name}" [${folder.id}]; its contents moved up a level`
+    });
   });
 
   return { ok: true };
@@ -316,8 +314,15 @@ export async function registerEnvironmentTaskFolderRoutes(fastify: FastifyInstan
           ]
         );
 
+        const created = createdRes.rows[0];
+        await recordProjectMapChange(pool, {
+          environmentId: params.envId,
+          actorUserId: request.user.id,
+          summary: `created folder "${created.name}" [${created.id}] in ${await describeFolder(pool, created.parent_folder_id)}`
+        });
+
         return reply.status(201).send({
-          folder: serializeTaskFolder(createdRes.rows[0])
+          folder: serializeTaskFolder(created)
         });
       }
     );
@@ -357,6 +362,14 @@ export async function registerEnvironmentTaskFolderRoutes(fastify: FastifyInstan
           RETURNING t.id`,
           [params.envId, body.taskIds, body.folderId]
         );
+
+        if (movedRes.rowCount) {
+          await recordProjectMapChange(pool, {
+            environmentId: params.envId,
+            actorUserId: request.user.id,
+            summary: `moved ${await describeMapItems(pool, movedRes.rows.map((row) => row.id))} into ${await describeFolder(pool, body.folderId)}`
+          });
+        }
 
         return {
           movedCount: movedRes.rowCount ?? 0
