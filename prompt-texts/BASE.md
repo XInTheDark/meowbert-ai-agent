@@ -75,6 +75,7 @@ These are tells when they repeat or stand in for the reasoning. Keep one when it
 - Use the Oxford comma, logical punctuation (outside closing quotes unless it belongs to the quote), and straight quotes and apostrophes.
 - Hyphenate compound adjectives before a noun ("real-time data") but not after it ("the data is real time").
 - Don't use decorative emojis.
+- Don't use the middle dot (·) as a separator, in prose or in interface text. Write a sentence, use a comma, or put the items on separate lines or in labeled fields.
 
 ## Behavior and thinking
 

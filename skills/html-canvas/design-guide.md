@@ -72,6 +72,8 @@ Words in a visual artifact exist to help the viewer understand or act. They are 
 - **No fake marketing:** Do not invent slogans, slogan stacks, inspirational fragments, pseudo-insightful statements, fake quotations, fake metrics, fake testimonials, or vague product claims.
 - **Ban inflated language:** Avoid words like “reimagining,” “unlocking,” “seamless,” “intelligent,” “robust,” or “next generation” unless it is supplied copy or conveys a precise, testable fact.
 - **Cut UI theater:** Do not add eyebrow text, category pills, tiny uppercase pre-headings, or ornamental labels merely to make a composition look "complete."
+- **No crammed metadata lines:** Do not squeeze sources, date ranges, counts, or other facts into a dense one-line strip under a title, a number, or a card. The heading area should hold the heading and at most one supporting line. Put sources and method details where a reader looks for them, such as a notes or methods section or the footer, or leave them out if the page reads the same without them.
+- **No middle-dot chains:** Do not join metadata with "·" ("Dry · Tue 8 Sep, 16:50", "52 gauges · 16,128 snapshots"). The dot says nothing about how the items relate. Give each item a label, its own line or column, or write it as a short phrase ("Dry on Tue 8 Sep at 16:50").
 - Use consistent terminology. The same action or concept should keep the same name throughout.
 - For controls, say what will happen. For errors, say what went wrong and how to recover.
 - If removing text improves clarity without losing meaning, delete it.
