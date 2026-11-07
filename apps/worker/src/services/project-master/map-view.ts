@@ -2,6 +2,7 @@ import {
   buildProjectMapRollups,
   projectMapStatusGroup,
   type ProjectMap,
+  type ProjectMapCard,
   type ProjectMapFolder,
   type ProjectMapRollup
 } from "@meowbert/shared";
@@ -36,11 +37,18 @@ function indentNote(note: string, indent: string, full: boolean): string[] {
   return [`${indent}  Note:`, ...note.trim().split("\n").map((line) => `${indent}    ${line}`)];
 }
 
+function renderCard(card: ProjectMapCard, indent: string, full: boolean): string[] {
+  const heading = `${indent}- Card "${card.title}" [${card.id}] ${card.state}`;
+  if (!card.body.trim()) return [heading];
+  if (!full) return [`${heading}: ${shorten(card.body, SHORT_NOTE_CHARS)}`];
+  return [heading, ...card.body.split("\n").map((line) => `${indent}  ${line}`)];
+}
+
 function renderFolder(map: ProjectMap, folder: ProjectMapFolder, depth: number, fullNotes: boolean, rollups: Map<string, ProjectMapRollup>): string[] {
   const indent = "  ".repeat(depth);
   const lines = [`${indent}- Folder "${folder.name}" [${folder.id}]${formatRollup(rollups.get(folder.id))}`, ...indentNote(folder.note, indent, fullNotes)];
   for (const card of map.cards.filter((item) => item.folderId === folder.id)) {
-    lines.push(`${indent}  - Card "${card.title}" [${card.id}] ${card.state}${card.body.trim() ? `: ${shorten(card.body, SHORT_NOTE_CHARS)}` : ""}`);
+    lines.push(...renderCard(card, `${indent}  `, fullNotes));
   }
   for (const task of map.tasks.filter((item) => item.folderId === folder.id)) {
     lines.push(`${indent}  - Task "${task.title ?? "Untitled task"}" [${task.id}] ${STATUS_LABELS[task.status] ?? task.status}`);
@@ -57,7 +65,7 @@ function renderTopLevel(map: ProjectMap, rollups: Map<string, ProjectMapRollup>)
   const topCards = map.cards.filter((card) => !card.folderId);
   if (!topFolders.length && !topCards.length) lines.push("(no folders or cards yet)");
   for (const folder of topFolders) lines.push(...renderFolder(map, folder, 0, false, rollups));
-  for (const card of topCards) lines.push(`- Card "${card.title}" [${card.id}] ${card.state}`);
+  for (const card of topCards) lines.push(...renderCard(card, "", true));
   const unfiled = map.tasks.filter((task) => !task.folderId);
   if (unfiled.length) {
     const waiting = unfiled.filter((task) => projectMapStatusGroup(task.status) !== "done").length;

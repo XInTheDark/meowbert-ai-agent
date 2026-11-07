@@ -1,4 +1,4 @@
-import { assertFolderInProject, ProjectMapError, type ProjectMapDb } from "./project-map-db.js";
+import { assertFolderInProject, lockProjectMapHierarchy, ProjectMapError, type ProjectMapDb } from "./project-map-db.js";
 import { PROJECT_MAP_TASK_FILTER } from "./project-map-store.js";
 
 export interface ProjectMapMoveResult {
@@ -31,7 +31,7 @@ async function assertNoCycle(db: ProjectMapDb, folderIds: string[], targetFolder
   const ancestors = await db.query<{ id: string }>(
     `WITH RECURSIVE ancestors AS (
        SELECT id, parent_folder_id FROM task_folders WHERE id = $1
-       UNION ALL
+       UNION
        SELECT f.id, f.parent_folder_id FROM task_folders f JOIN ancestors a ON f.id = a.parent_folder_id
      )
      SELECT id FROM ancestors WHERE id = ANY($2::uuid[]) LIMIT 1`,
@@ -41,13 +41,15 @@ async function assertNoCycle(db: ProjectMapDb, folderIds: string[], targetFolder
 }
 
 // Moves folders, cards and tasks into one folder, or to the top of the map when targetFolderId is
-// null. Moved items go to the end of the target, in the order given.
+// null. Moved items go to the end of the target, in the order given. The caller runs
+// this in a transaction so the project lock covers validation and all updates.
 export async function moveProjectMapItems(
   db: ProjectMapDb,
   environmentId: string,
   ids: string[],
   targetFolderId: string | null
 ): Promise<ProjectMapMoveResult> {
+  await lockProjectMapHierarchy(db, environmentId);
   const unique = [...new Set(ids)];
   await assertFolderInProject(db, environmentId, targetFolderId);
   const moved = await classifyIds(db, environmentId, unique);

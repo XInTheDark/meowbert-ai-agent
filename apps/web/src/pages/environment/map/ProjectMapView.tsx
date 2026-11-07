@@ -39,6 +39,10 @@ export interface ProjectMapViewProps {
 }
 
 export function ProjectMapView(props: ProjectMapViewProps) {
+  return <ProjectMapSession key={`${props.workspaceId}:${props.projectId}`} {...props} />;
+}
+
+function ProjectMapSession(props: ProjectMapViewProps) {
   const controller = useProjectMap(props.projectId);
   const actions = useProjectMapActions(controller);
   const selection = useProjectMapSelection();
@@ -47,12 +51,16 @@ export function ProjectMapView(props: ProjectMapViewProps) {
   const [boardRoot, setBoardRoot] = useState<string | null>(null);
   const [dialog, setDialog] = useState<ProjectMapDialog | null>(null);
   const model = useMemo(() => controller.map ? buildProjectMapModel(controller.map) : null, [controller.map]);
+  const openDialog = (next: ProjectMapDialog | null) => {
+    controller.clearMutationError();
+    setDialog(next);
+  };
 
   if (!model) {
     return controller.error ? <div className="error-banner">{controller.error}</div> : <LoadingIndicator center size={22} label="Loading map…" />;
   }
   const ctx: ProjectMapViewContext = {
-    model, selection, drag, openDialog: setDialog,
+    model, selection, drag, openDialog,
     deleteFolder: actions.deleteFolder, deleteCard: actions.deleteCard,
     taskHref: (taskId) => buildTaskRoutePath({ workspaceId: props.workspaceId, projectId: props.projectId, taskId })
   };
@@ -68,16 +76,16 @@ export function ProjectMapView(props: ProjectMapViewProps) {
   return (
     <div className={`project-map is-${props.variant}`}>
       <ProjectMapToolbar layout={layout} onLayoutChange={setLayout}
-        onNewFolder={() => setDialog({ kind: "new-folder", parentFolderId: layout === "board" ? root : null })}
-        onNewCard={() => setDialog({ kind: "new-card", folderId: layout === "board" ? root : null })}
+        onNewFolder={() => openDialog({ kind: "new-folder", parentFolderId: layout === "board" ? root : null })}
+        onNewCard={() => openDialog({ kind: "new-card", folderId: layout === "board" ? root : null })}
         selectedCount={selection.selected.length} onAttach={attach} onClearSelection={selection.clear} onExpand={props.onExpand} />
       {controller.error ? <div className="error-banner" role="status">{controller.error}</div> : null}
       <div className="project-map-scroll">
-        <ProjectMapBrief markdown={model.map.brief} onEdit={() => setDialog({ kind: "brief", markdown: model.map.brief })} />
+        <ProjectMapBrief markdown={model.map.brief} onEdit={() => openDialog({ kind: "brief", markdown: model.map.brief })} />
         {layout === "tree" ? <ProjectMapTree ctx={ctx} /> : <ProjectMapBoard ctx={ctx} rootId={root} onOpen={setBoardRoot} />}
         {model.map.tasksTruncated ? <p className="project-map-empty-hint">Only the most recently updated tasks are shown.</p> : null}
       </div>
-      <ProjectMapDialogs dialog={dialog} onClose={() => setDialog(null)} actions={actions.dialogActions} />
+      <ProjectMapDialogs dialog={dialog} error={controller.mutationError} onClose={() => openDialog(null)} actions={actions.dialogActions} />
     </div>
   );
 }

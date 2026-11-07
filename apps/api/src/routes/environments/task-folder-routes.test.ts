@@ -142,4 +142,37 @@ describe("registerEnvironmentTaskFolderRoutes", () => {
     expect(statements.some((sql) => sql.includes("DELETE FROM task_folders"))).toBe(true);
     expect(statements.some((sql) => sql.includes("INSERT INTO project_map_changes"))).toBe(true);
   });
+
+  it("rejects a parent change that would form a cycle after a concurrent move commits", async () => {
+    const folderId = "11111111-1111-4111-8111-111111111111";
+    const parentId = "33333333-3333-4333-8333-333333333333";
+    let concurrentMoveCommitted = false;
+    const client = { query: vi.fn(async (sql: string) => {
+      if (sql.includes("FROM environments")) {
+        concurrentMoveCommitted = true;
+        return createQueryResult([{ id: "22222222-2222-4222-8222-222222222222" }]);
+      }
+      if (sql.includes("WITH RECURSIVE")) {
+        return createQueryResult(concurrentMoveCommitted ? [{ id: parentId }] : []);
+      }
+      if (sql.includes("FROM task_folders")) return createQueryResult([{ id: parentId }]);
+      return createQueryResult([]);
+    }) };
+    mockedQuery.mockResolvedValueOnce(createQueryResult([{
+      id: folderId, workspace_id: "ws-1", environment_id: "22222222-2222-4222-8222-222222222222",
+      parent_folder_id: null, name: "A", sort_order: 0,
+      created_at: "2026-05-22T00:00:00.000Z", updated_at: "2026-05-22T00:00:00.000Z"
+    }]));
+    mockedWithTransaction.mockImplementation(async (fn) => fn(client as never));
+    const app = createApp();
+    await registerEnvironmentTaskFolderRoutes(app);
+    const response = await app.inject({
+      method: "PATCH", url: `/api/task-folders/${folderId}`,
+      payload: { parentFolderId: parentId }
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toContain("own child");
+    expect(client.query.mock.calls.some(([sql]) => sql.includes("UPDATE task_folders"))).toBe(false);
+    expect(mockedWithTransaction).toHaveBeenCalledOnce();
+  });
 });

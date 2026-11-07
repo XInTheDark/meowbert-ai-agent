@@ -7,6 +7,7 @@ import {
   claimProjectMapChanges,
   deleteProjectFolder,
   loadProjectMap,
+  moveProjectMapItems,
   recordProjectMapChange,
   type ProjectMapDb
 } from "@meowbert/shared";
@@ -112,10 +113,55 @@ describe.skipIf(!databaseUrl)("Project map in PostgreSQL", () => {
   it("moves a deleted folder's subfolders, cards and tasks up to its parent", async () => {
     const map = await loadProjectMap(db, environmentId);
     const billing = map.folders.find((folder) => folder.name === "Billing v2")!;
+    await client.query("BEGIN");
     await deleteProjectFolder(db, environmentId, billing.id);
+    await client.query("COMMIT");
     const after = await loadProjectMap(db, environmentId);
     expect(after.folders.find((folder) => folder.name === "Backend")?.parentFolderId).toBeNull();
     expect(after.cards.map((card) => card.folderId)).toEqual([null]);
+  });
+
+  it("serializes opposing folder moves and rejects the second move after rechecking ancestry", async () => {
+    const created = await apply([
+      op({ op: "create_folder", name: "Concurrent A" }),
+      op({ op: "create_folder", name: "Concurrent B" })
+    ]);
+    const [a, b] = created.map((item) => item.id!);
+    const peer = new Client({ connectionString: databaseUrl });
+    const observer = new Client({ connectionString: databaseUrl });
+    await peer.connect();
+    await observer.connect();
+    try {
+      await peer.query(`SET search_path TO "${schema}"; SET statement_timeout TO '3s'`);
+      const { rows: [{ pid }] } = await peer.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      await client.query("BEGIN");
+      await moveProjectMapItems(db, environmentId, [a], b);
+      await peer.query("BEGIN");
+      let settled = false;
+      const second = moveProjectMapItems(peer, environmentId, [b], a)
+        .then(() => null, (error: unknown) => error)
+        .finally(() => { settled = true; });
+      let blocked = false;
+      for (let attempt = 0; attempt < 100 && !settled; attempt++) {
+        const result = await observer.query<{ blocked: boolean }>("SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked", [pid]);
+        if (result.rows[0].blocked) { blocked = true; break; }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      await client.query("COMMIT");
+      const failure = await second;
+      await peer.query("ROLLBACK");
+      expect(blocked).toBe(true);
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toMatch(/own subfolder/);
+      const map = await loadProjectMap(db, environmentId);
+      expect(map.folders.find((folder) => folder.id === a)?.parentFolderId).toBe(b);
+      expect(map.folders.find((folder) => folder.id === b)?.parentFolderId).toBeNull();
+    } finally {
+      await client.query("ROLLBACK");
+      await peer.query("ROLLBACK");
+      await peer.end();
+      await observer.end();
+    }
   });
 
   it("queues member edits only for projects with a Master, and delivers each once", async () => {

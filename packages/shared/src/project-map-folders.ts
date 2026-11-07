@@ -1,4 +1,4 @@
-import { assertFolderInProject, ProjectMapError, type ProjectMapDb } from "./project-map-db.js";
+import { assertFolderInProject, lockProjectMapHierarchy, ProjectMapError, type ProjectMapDb } from "./project-map-db.js";
 import { PROJECT_BRIEF_MAX_CHARS, PROJECT_FOLDER_NOTE_MAX_CHARS, PROJECT_MAP_NAME_MAX_CHARS } from "./project-map.js";
 
 function requireName(name: string): string {
@@ -58,6 +58,7 @@ export async function setProjectBrief(db: ProjectMapDb, environmentId: string, m
 // Nothing inside a deleted folder is lost: its subfolders, tasks and cards move up to its parent.
 // The caller runs this in a transaction.
 export async function deleteProjectFolder(db: ProjectMapDb, environmentId: string, folderId: string): Promise<void> {
+  await lockProjectMapHierarchy(db, environmentId);
   const folder = await db.query<{ parent_folder_id: string | null }>(
     "SELECT parent_folder_id FROM task_folders WHERE id = $1 AND environment_id = $2 FOR UPDATE",
     [folderId, environmentId]

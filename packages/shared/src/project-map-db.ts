@@ -19,3 +19,9 @@ export async function assertFolderInProject(db: ProjectMapDb, environmentId: str
   const result = await db.query("SELECT 1 FROM task_folders WHERE id = $1 AND environment_id = $2", [folderId, environmentId]);
   if (!result.rowCount) throw new ProjectMapError(`Folder not found in this project: ${folderId}`, 404);
 }
+
+// Call inside the mutation transaction, before reading ancestry. Every reparenting path
+// takes the same project lock so the next cycle check sees the previous committed move.
+export async function lockProjectMapHierarchy(db: ProjectMapDb, environmentId: string): Promise<void> {
+  await db.query("SELECT id FROM environments WHERE id = $1 FOR NO KEY UPDATE", [environmentId]);
+}

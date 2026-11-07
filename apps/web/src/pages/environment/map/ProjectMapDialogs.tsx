@@ -21,7 +21,7 @@ export interface ProjectMapDialogActions {
 
 interface CardFields { title: string; body: string; state: ProjectMapCardState }
 
-function DialogFrame(props: { title: string; onClose: () => void; onSubmit: () => Promise<boolean>; children: ReactNode; wide?: boolean }) {
+function DialogFrame(props: { title: string; error?: string | null; onClose: () => void; onSubmit: () => Promise<boolean>; children: ReactNode; wide?: boolean }) {
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !saving) props.onClose(); };
@@ -43,6 +43,7 @@ function DialogFrame(props: { title: string; onClose: () => void; onSubmit: () =
           <button className="legal-close" onClick={props.onClose} aria-label="Close" disabled={saving}><X size={18} /></button>
         </div>
         <form className="legal-modal-body" onSubmit={(event) => void submit(event)}>
+          {props.error ? <div className="error-banner" role="alert">{props.error}</div> : null}
           {props.children}
           <div className="computer-use-modal-footer">
             <button className="btn ghost" type="button" onClick={props.onClose} disabled={saving}>Cancel</button>
@@ -54,29 +55,29 @@ function DialogFrame(props: { title: string; onClose: () => void; onSubmit: () =
   );
 }
 
-function NoteDialog(props: { title: string; initial: string; placeholder: string; onClose: () => void; onSave: (markdown: string) => Promise<boolean> }) {
+function NoteDialog(props: { title: string; initial: string; placeholder: string; error?: string | null; onClose: () => void; onSave: (markdown: string) => Promise<boolean> }) {
   const [value, setValue] = useState(props.initial);
   return (
-    <DialogFrame title={props.title} onClose={props.onClose} onSubmit={() => props.onSave(value)} wide>
+    <DialogFrame error={props.error} title={props.title} onClose={props.onClose} onSubmit={() => props.onSave(value)} wide>
       <textarea className="project-map-note-input" value={value} onChange={(event) => setValue(event.target.value)}
         rows={16} autoFocus placeholder={props.placeholder} aria-label={props.title} />
     </DialogFrame>
   );
 }
 
-function NameDialog(props: { title: string; initial: string; onClose: () => void; onSave: (name: string) => Promise<boolean> }) {
+function NameDialog(props: { title: string; initial: string; error?: string | null; onClose: () => void; onSave: (name: string) => Promise<boolean> }) {
   const [value, setValue] = useState(props.initial);
   return (
-    <DialogFrame title={props.title} onClose={props.onClose} onSubmit={() => value.trim() ? props.onSave(value.trim()) : Promise.resolve(false)}>
+    <DialogFrame error={props.error} title={props.title} onClose={props.onClose} onSubmit={() => value.trim() ? props.onSave(value.trim()) : Promise.resolve(false)}>
       <input value={value} onChange={(event) => setValue(event.target.value)} autoFocus maxLength={120} aria-label="Folder name" />
     </DialogFrame>
   );
 }
 
-function CardDialog(props: { title: string; initial: CardFields; onClose: () => void; onSave: (card: CardFields) => Promise<boolean> }) {
+function CardDialog(props: { title: string; initial: CardFields; error?: string | null; onClose: () => void; onSave: (card: CardFields) => Promise<boolean> }) {
   const [card, setCard] = useState(props.initial);
   return (
-    <DialogFrame title={props.title} onClose={props.onClose} onSubmit={() => card.title.trim() ? props.onSave({ ...card, title: card.title.trim() }) : Promise.resolve(false)}>
+    <DialogFrame error={props.error} title={props.title} onClose={props.onClose} onSubmit={() => card.title.trim() ? props.onSave({ ...card, title: card.title.trim() }) : Promise.resolve(false)}>
       <input value={card.title} onChange={(event) => setCard({ ...card, title: event.target.value })} autoFocus maxLength={240}
         placeholder="What needs doing" aria-label="Card title" />
       <textarea value={card.body} onChange={(event) => setCard({ ...card, body: event.target.value })} rows={6}
@@ -93,24 +94,24 @@ function CardDialog(props: { title: string; initial: CardFields; onClose: () => 
   );
 }
 
-export function ProjectMapDialogs(props: { dialog: ProjectMapDialog | null; onClose: () => void; actions: ProjectMapDialogActions }) {
-  const { dialog, onClose, actions } = props;
+export function ProjectMapDialogs(props: { dialog: ProjectMapDialog | null; error?: string | null; onClose: () => void; actions: ProjectMapDialogActions }) {
+  const { dialog, onClose, actions, error } = props;
   if (!dialog) return null;
   switch (dialog.kind) {
     case "brief":
-      return <NoteDialog title="Project brief" initial={dialog.markdown} onClose={onClose} onSave={actions.saveBrief}
+      return <NoteDialog error={error} title="Project brief" initial={dialog.markdown} onClose={onClose} onSave={actions.saveBrief}
         placeholder="The goal, the main streams of work, and what is waiting on you." />;
     case "note":
-      return <NoteDialog title={`Note: ${dialog.folderName}`} initial={dialog.markdown} onClose={onClose}
+      return <NoteDialog error={error} title={`Note: ${dialog.folderName}`} initial={dialog.markdown} onClose={onClose}
         onSave={(markdown) => actions.saveNote(dialog.folderId, markdown)} placeholder="Decisions, open questions and context for this folder." />;
     case "new-folder":
-      return <NameDialog title="New folder" initial="" onClose={onClose} onSave={(name) => actions.createFolder(name, dialog.parentFolderId)} />;
+      return <NameDialog error={error} title="New folder" initial="" onClose={onClose} onSave={(name) => actions.createFolder(name, dialog.parentFolderId)} />;
     case "rename-folder":
-      return <NameDialog title="Rename folder" initial={dialog.name} onClose={onClose} onSave={(name) => actions.renameFolder(dialog.folderId, name)} />;
+      return <NameDialog error={error} title="Rename folder" initial={dialog.name} onClose={onClose} onSave={(name) => actions.renameFolder(dialog.folderId, name)} />;
     case "new-card":
-      return <CardDialog title="New card" initial={{ title: "", body: "", state: "idea" }} onClose={onClose}
+      return <CardDialog error={error} title="New card" initial={{ title: "", body: "", state: "idea" }} onClose={onClose}
         onSave={(card) => actions.createCard(dialog.folderId, card)} />;
     case "edit-card":
-      return <CardDialog title="Edit card" initial={dialog.card} onClose={onClose} onSave={(card) => actions.updateCard(dialog.card.id, card)} />;
+      return <CardDialog error={error} title="Edit card" initial={dialog.card} onClose={onClose} onSave={(card) => actions.updateCard(dialog.card.id, card)} />;
   }
 }

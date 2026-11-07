@@ -10,15 +10,17 @@ export function useProjectMap(projectId: string) {
   const { api } = useWorkspaceApp();
   const mapApi = useMemo(() => createProjectMapApi(api, projectId), [api, projectId]);
   const [map, setMap] = useState<ProjectMap | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const clearMutationError = useCallback(() => setMutationError(null), []);
   const [nonce, setNonce] = useState(0);
   const refresh = useCallback(() => setNonce((value) => value + 1), []);
 
   useEffect(() => {
     let cancelled = false;
     void mapApi.load()
-      .then((next) => { if (!cancelled) { setMap(next); setError(null); } })
-      .catch((failure) => { if (!cancelled) setError(failure instanceof Error ? failure.message : "Unable to load the map."); });
+      .then((next) => { if (!cancelled) { setMap(next); setLoadError(null); } })
+      .catch((failure) => { if (!cancelled) setLoadError(failure instanceof Error ? failure.message : "Unable to load the map."); });
     return () => { cancelled = true; };
   }, [mapApi, nonce]);
 
@@ -31,17 +33,17 @@ export function useProjectMap(projectId: string) {
   const run = useCallback(async (edit: (client: ProjectMapApi) => Promise<unknown>): Promise<boolean> => {
     try {
       await edit(mapApi);
-      setError(null);
+      setMutationError(null);
       return true;
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "The change could not be saved.");
+      setMutationError(failure instanceof Error ? failure.message : "The change could not be saved.");
       return false;
     } finally {
       refresh();
     }
   }, [mapApi, refresh]);
 
-  return { map, error, refresh, run };
+  return { map, error: mutationError ?? loadError, mutationError, clearMutationError, refresh, run };
 }
 
 export type ProjectMapController = ReturnType<typeof useProjectMap>;

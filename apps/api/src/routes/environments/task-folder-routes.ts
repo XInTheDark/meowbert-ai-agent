@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { deleteProjectFolder, recordProjectMapChange } from "@meowbert/shared";
+import { deleteProjectFolder, lockProjectMapHierarchy, recordProjectMapChange, type ProjectMapDb } from "@meowbert/shared";
 import { pool, query, withTransaction } from "../../lib/db.js";
 import { describeFolder, describeMapItems } from "../../services/project-map/map-change-summaries.js";
 import { environmentEntityPaths, environmentParams } from "./shared.js";
@@ -74,13 +74,14 @@ async function getProjectAccess(environmentId: string, userId: string): Promise<
 
 async function assertParentFolder(
   parentFolderId: string | null | undefined,
-  environmentId: string
+  environmentId: string,
+  db: ProjectMapDb = { query }
 ): Promise<void> {
   if (!parentFolderId) {
     return;
   }
 
-  const parentRes = await query<{ id: string }>(
+  const parentRes = await db.query<{ id: string }>(
     `SELECT id
        FROM task_folders
       WHERE id = $1
@@ -113,13 +114,13 @@ async function readFolderForUser(folderId: string, userId: string): Promise<Task
   return folderRes.rows[0] ?? null;
 }
 
-async function isDescendantFolder(folderId: string, candidateParentId: string): Promise<boolean> {
-  const descendantRes = await query<{ id: string }>(
+async function isDescendantFolder(db: ProjectMapDb, folderId: string, candidateParentId: string): Promise<boolean> {
+  const descendantRes = await db.query<{ id: string }>(
     `WITH RECURSIVE descendants AS (
        SELECT id
          FROM task_folders
         WHERE parent_folder_id = $1
-       UNION ALL
+       UNION
        SELECT child.id
          FROM task_folders child
          JOIN descendants d ON d.id = child.parent_folder_id
@@ -142,52 +143,55 @@ async function handlePatchTaskFolder(request: FastifyRequest, reply: FastifyRepl
     return reply.status(404).send({ error: "Folder not found" });
   }
 
-  if (body.parentFolderId !== undefined) {
-    if (body.parentFolderId === folder.id) {
-      return reply.status(409).send({ error: "A folder cannot be moved into itself." });
+  return withTransaction(async (client) => {
+    await lockProjectMapHierarchy(client, folder.environment_id);
+    if (body.parentFolderId !== undefined) {
+      if (body.parentFolderId === folder.id) {
+        return reply.status(409).send({ error: "A folder cannot be moved into itself." });
+      }
+      await assertParentFolder(body.parentFolderId, folder.environment_id, client);
+      if (body.parentFolderId && await isDescendantFolder(client, folder.id, body.parentFolderId)) {
+        return reply.status(409).send({ error: "A folder cannot be moved into its own child." });
+      }
     }
-    await assertParentFolder(body.parentFolderId, folder.environment_id);
-    if (body.parentFolderId && await isDescendantFolder(folder.id, body.parentFolderId)) {
-      return reply.status(409).send({ error: "A folder cannot be moved into its own child." });
+
+    const updatedRes = await client.query<TaskFolderRow>(
+      `UPDATE task_folders
+          SET name = COALESCE($2, name),
+              parent_folder_id = CASE WHEN $3 THEN $4::uuid ELSE parent_folder_id END,
+              sort_order = COALESCE($5, sort_order),
+              updated_at = now()
+        WHERE id = $1
+        RETURNING id,
+                  workspace_id,
+                  environment_id,
+                  parent_folder_id,
+                  name,
+                  sort_order,
+                  created_at,
+                  updated_at`,
+      [
+        folder.id,
+        body.name ?? null,
+        Object.hasOwn(body, "parentFolderId"),
+        body.parentFolderId ?? null,
+        body.sortOrder ?? null
+      ]
+    );
+
+    const summary = [
+      body.name !== undefined && body.name !== folder.name ? `renamed folder "${folder.name}" to "${body.name}" [${folder.id}]` : "",
+      body.parentFolderId !== undefined && body.parentFolderId !== folder.parent_folder_id
+        ? `moved folder "${folder.name}" [${folder.id}] into ${await describeFolder(client, body.parentFolderId)}` : ""
+    ].filter(Boolean).join(" and ");
+    if (summary) {
+      await recordProjectMapChange(client, { environmentId: folder.environment_id, actorUserId: request.user.id, summary });
     }
-  }
 
-  const updatedRes = await query<TaskFolderRow>(
-    `UPDATE task_folders
-        SET name = COALESCE($2, name),
-            parent_folder_id = CASE WHEN $3 THEN $4::uuid ELSE parent_folder_id END,
-            sort_order = COALESCE($5, sort_order),
-            updated_at = now()
-      WHERE id = $1
-      RETURNING id,
-                workspace_id,
-                environment_id,
-                parent_folder_id,
-                name,
-                sort_order,
-                created_at,
-                updated_at`,
-    [
-      folder.id,
-      body.name ?? null,
-      Object.hasOwn(body, "parentFolderId"),
-      body.parentFolderId ?? null,
-      body.sortOrder ?? null
-    ]
-  );
-
-  const summary = [
-    body.name !== undefined && body.name !== folder.name ? `renamed folder "${folder.name}" to "${body.name}" [${folder.id}]` : "",
-    body.parentFolderId !== undefined && body.parentFolderId !== folder.parent_folder_id
-      ? `moved folder "${folder.name}" [${folder.id}] into ${await describeFolder(pool, body.parentFolderId)}` : ""
-  ].filter(Boolean).join(" and ");
-  if (summary) {
-    await recordProjectMapChange(pool, { environmentId: folder.environment_id, actorUserId: request.user.id, summary });
-  }
-
-  return {
-    folder: serializeTaskFolder(updatedRes.rows[0])
-  };
+    return {
+      folder: serializeTaskFolder(updatedRes.rows[0])
+    };
+  });
 }
 
 async function handleDeleteTaskFolder(request: FastifyRequest, reply: FastifyReply) {
