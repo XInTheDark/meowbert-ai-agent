@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { Send, X } from "lucide-react";
 import type { TaskAssistantMessageDisplayPreferences, TaskThreadSummary } from "../../lib/types";
 import { ConversationMessageContent } from "./ConversationMessageContent";
 import { formatSelectedTextLocation, type SelectedTextLocation, type SelectedTextQuote } from "./selectedTextQuoteUtils";
 import { SelectionFloatingMenu } from "./SelectionFloatingMenu";
 import { SelectionAnnotationCard } from "./SelectionAnnotationCard";
+import { useSelectionAffordancePosition } from "./useSelectionAffordancePosition";
 
 interface SelectedTextThreadAnchor extends SelectedTextQuote {
   threads: TaskThreadSummary[];
@@ -15,12 +17,6 @@ interface ThreadAnchorRect {
   quote: SelectedTextQuote;
   threads: TaskThreadSummary[];
   style: CSSProperties;
-}
-
-interface AffordancePosition {
-  top: number;
-  left: number;
-  placement: "top" | "bottom";
 }
 
 const LOCATION_PATTERN = /^line (\d+):(\d+) to line (\d+):(\d+)$/;
@@ -222,7 +218,7 @@ export function AssistantSelectionContent(props: {
   const inlineInputRef = useRef<HTMLTextAreaElement>(null);
   const preserveSelectionForInlineComposerRef = useRef(false);
   const [selectedText, setSelectedText] = useState<SelectedTextQuote | null>(null);
-  const [affordancePosition, setAffordancePosition] = useState<AffordancePosition>({ top: 0, left: 0, placement: "top" });
+  const [selectedRange, setSelectedRange] = useState<Range | null>(null);
   const [inlineDraft, setInlineDraft] = useState("");
   const [isAnnotationOpen, setIsAnnotationOpen] = useState(false);
   const [isInlineComposerOpen, setIsInlineComposerOpen] = useState(false);
@@ -233,6 +229,7 @@ export function AssistantSelectionContent(props: {
   const clearSelection = useCallback((): void => {
     preserveSelectionForInlineComposerRef.current = false;
     setSelectedText(null);
+    setSelectedRange(null);
     setInlineDraft("");
     setIsAnnotationOpen(false);
     setIsInlineComposerOpen(false);
@@ -267,21 +264,7 @@ export function AssistantSelectionContent(props: {
       return;
     }
 
-    const containerRect = container.getBoundingClientRect();
-    const rangeRect = range.getBoundingClientRect();
-    const centerX = (rangeRect.left + rangeRect.right) / 2 - containerRect.left;
-    const clampedX = Math.max(10, Math.min(centerX, containerRect.width - 10));
-    const isCloseToTop = rangeRect.top - containerRect.top < 48;
-    const placement: "top" | "bottom" = isCloseToTop ? "bottom" : "top";
-    const targetY = placement === "top"
-      ? Math.max(0, rangeRect.top - containerRect.top - 8)
-      : Math.max(0, rangeRect.bottom - containerRect.top + 8);
-
-    setAffordancePosition({
-      top: targetY,
-      left: clampedX,
-      placement
-    });
+    setSelectedRange(range.cloneRange());
 
     const nextSelection = {
       text,
@@ -361,6 +344,14 @@ export function AssistantSelectionContent(props: {
       setIsInlineSubmitting(false);
     }
   }, [dismissNativeSelection, inlineDraft, isInlineSubmitting, props, selectedText]);
+
+  const affordanceMode = isAnnotationOpen ? "annotation" : isInlineComposerOpen ? "composer" : "menu";
+  const affordanceStyle = useSelectionAffordancePosition({
+    anchorRef: contentRef,
+    affordanceRef,
+    range: selectedRange,
+    layoutKey: `${affordanceMode}:${selectedText?.location ?? ""}:${selectedText?.text ?? ""}`
+  });
 
   useLayoutEffect(() => {
     const content = contentRef.current;
@@ -464,17 +455,11 @@ export function AssistantSelectionContent(props: {
           </div>
         ) : null}
       </div>
-      {props.enabled && selectedText ? (
+      {props.enabled && selectedText ? createPortal(
         <div
           ref={affordanceRef}
-          className={`selection-thread-affordance${isInlineComposerOpen ? " has-inline-composer" : ""}${isAnnotationOpen ? " has-annotation-card" : ""}`}
-          style={{
-            top: `${affordancePosition.top}px`,
-            left: `${affordancePosition.left}px`,
-            transform: affordancePosition.placement === "top"
-              ? "translate(-50%, -100%)"
-              : "translate(-50%, 0)"
-          }}
+          className={`selection-thread-affordance is-${affordanceMode}`}
+          style={affordanceStyle}
           onMouseDown={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -544,7 +529,8 @@ export function AssistantSelectionContent(props: {
               onAskInThread={handleAskSelectionInThread}
             />
           )}
-        </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   );

@@ -47,7 +47,7 @@ async function selectText(container: HTMLDivElement, start: number, end: number)
   const range = document.createRange();
   range.setStart(textNode!, start);
   range.setEnd(textNode!, end);
-  defineRect(range, { left: 10, right: 90, width: 80, top: 18, bottom: 38 });
+  defineRect(Range.prototype as unknown as Range, { left: 10, right: 90, width: 80, top: 18, bottom: 38 });
   const selection = window.getSelection();
   selection?.removeAllRanges();
   selection?.addRange(range);
@@ -71,6 +71,7 @@ describe("AssistantSelectionContent", () => {
     }
 
     vi.restoreAllMocks();
+    delete (Range.prototype as { getBoundingClientRect?: unknown }).getBoundingClientRect;
     container?.remove();
     container = null;
     root = null;
@@ -146,7 +147,7 @@ describe("AssistantSelectionContent", () => {
     const range = document.createRange();
     range.setStart(textNode!, 0);
     range.setEnd(textNode!, 10);
-    defineRect(range, { left: 10, right: 90, width: 80, bottom: 24 });
+    defineRect(Range.prototype as unknown as Range, { left: 10, right: 90, width: 80, bottom: 24 });
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -159,7 +160,7 @@ describe("AssistantSelectionContent", () => {
       text: "selectable",
       location: "line 1:1 to line 1:11"
     });
-    expect(container.querySelector(".selection-thread-affordance")).not.toBeNull();
+    expect(document.querySelector(".selection-thread-affordance")).not.toBeNull();
     expect(addDocumentListener.mock.calls.filter(([type]) => type === "selectionchange").length).toBeGreaterThan(initialSelectionListenerCount);
     expect(addDocumentListener.mock.calls.filter(([type]) => type === "mousedown").length).toBeGreaterThan(initialMouseDownListenerCount);
 
@@ -173,7 +174,7 @@ describe("AssistantSelectionContent", () => {
     expect(removeDocumentListener.mock.calls.filter(([type]) => type === "mousedown").length).toBeGreaterThan(0);
   });
 
-  it("renders text action buttons for Annotate, Quote, and Ask in thread", async () => {
+  it("renders icon action buttons for Annotate, Quote, and Ask in thread", async () => {
     const onQuoteSelection = vi.fn();
     const onAskSelectionInThread = vi.fn();
     container = document.createElement("div");
@@ -194,15 +195,15 @@ describe("AssistantSelectionContent", () => {
 
     await selectText(container, 0, 10);
 
-    const annotateButton = container.querySelector<HTMLButtonElement>("[aria-label='Annotate selected text']");
-    const quoteButton = container.querySelector<HTMLButtonElement>("[aria-label='Quote selected text']");
-    const threadButton = container.querySelector<HTMLButtonElement>("[aria-label='Ask in thread']");
+    const annotateButton = document.querySelector<HTMLButtonElement>("[aria-label='Annotate selected text']");
+    const quoteButton = document.querySelector<HTMLButtonElement>("[aria-label='Quote selected text']");
+    const threadButton = document.querySelector<HTMLButtonElement>("[aria-label='Ask in thread']");
     expect(annotateButton).toBeTruthy();
-    expect(annotateButton?.textContent).toBe("Annotate");
+    expect(annotateButton?.title).toBe("Annotate");
     expect(quoteButton).toBeTruthy();
-    expect(quoteButton?.textContent).toBe("Quote");
+    expect(quoteButton?.title).toBe("Quote");
     expect(threadButton).toBeTruthy();
-    expect(threadButton?.textContent).toBe("Ask in thread");
+    expect(threadButton?.title).toBe("Ask in thread");
 
     await act(async () => {
       quoteButton?.click();
@@ -214,7 +215,7 @@ describe("AssistantSelectionContent", () => {
 
     await selectText(container, 11, 20);
     await act(async () => {
-      container!.querySelector<HTMLButtonElement>("[aria-label='Ask in thread']")?.click();
+      document.querySelector<HTMLButtonElement>("[aria-label='Ask in thread']")?.click();
     });
     expect(onAskSelectionInThread).toHaveBeenCalledWith({
       text: "assistant",
@@ -242,16 +243,16 @@ describe("AssistantSelectionContent", () => {
 
     await selectText(container, 0, 10);
 
-    const annotateButton = container.querySelector<HTMLButtonElement>("[aria-label='Annotate selected text']");
+    const annotateButton = document.querySelector<HTMLButtonElement>("[aria-label='Annotate selected text']");
     expect(annotateButton).toBeTruthy();
 
     await act(async () => {
       annotateButton?.click();
     });
 
-    const textarea = container.querySelector<HTMLTextAreaElement>(".selection-annotation-card textarea");
-    const badge = container.querySelector<HTMLElement>(".selection-annotation-badge");
-    const saveButton = container.querySelector<HTMLButtonElement>(".selection-annotation-action-btn.save");
+    const textarea = document.querySelector<HTMLTextAreaElement>(".selection-annotation-card textarea");
+    const badge = document.querySelector<HTMLElement>(".selection-annotation-badge");
+    const saveButton = document.querySelector<HTMLButtonElement>(".selection-annotation-action-btn.save");
     expect(textarea).toBeTruthy();
     expect(badge).toBeTruthy();
     expect(badge?.textContent).toBe("3");
@@ -295,16 +296,16 @@ describe("AssistantSelectionContent", () => {
 
     await selectText(container, 0, 10);
     await act(async () => {
-      container!.querySelector<HTMLButtonElement>("[aria-label='Annotate selected text']")?.click();
+      document.querySelector<HTMLButtonElement>("[aria-label='Annotate selected text']")?.click();
     });
 
-    expect(container.querySelector(".selection-annotation-card")).toBeTruthy();
+    expect(document.querySelector(".selection-annotation-card")).toBeTruthy();
 
     await act(async () => {
-      container!.querySelector<HTMLButtonElement>(".selection-annotation-action-btn.cancel")?.click();
+      document.querySelector<HTMLButtonElement>(".selection-annotation-action-btn.cancel")?.click();
     });
 
-    expect(container.querySelector(".selection-annotation-card")).toBeNull();
+    expect(document.querySelector(".selection-annotation-card")).toBeNull();
     expect(onQuoteSelection).not.toHaveBeenCalled();
   });
 
@@ -327,10 +328,10 @@ describe("AssistantSelectionContent", () => {
 
     await selectText(container, 0, 10);
     await act(async () => {
-      container!.querySelector<HTMLButtonElement>("[aria-label='Annotate selected text']")?.click();
+      document.querySelector<HTMLButtonElement>("[aria-label='Annotate selected text']")?.click();
     });
 
-    const textarea = container.querySelector<HTMLTextAreaElement>(".selection-annotation-card textarea");
+    const textarea = document.querySelector<HTMLTextAreaElement>(".selection-annotation-card textarea");
     await act(async () => {
       const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
       nativeSetter?.call(textarea, "keyboard save note");
@@ -453,7 +454,7 @@ describe("AssistantSelectionContent", () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true }));
     });
 
-    const textarea = container.querySelector<HTMLTextAreaElement>(".selection-inline-thread-composer textarea");
+    const textarea = document.querySelector<HTMLTextAreaElement>(".selection-inline-thread-composer textarea");
     expect(textarea?.value).toBe("w");
 
     await act(async () => {
@@ -461,7 +462,7 @@ describe("AssistantSelectionContent", () => {
       document.dispatchEvent(new Event("selectionchange"));
     });
 
-    expect(container.querySelector<HTMLTextAreaElement>(".selection-inline-thread-composer textarea")?.value).toBe("w");
+    expect(document.querySelector<HTMLTextAreaElement>(".selection-inline-thread-composer textarea")?.value).toBe("w");
 
     await act(async () => {
       textarea?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
@@ -503,7 +504,7 @@ describe("AssistantSelectionContent", () => {
       externalInput.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true }));
     });
 
-    expect(container.querySelector<HTMLTextAreaElement>(".selection-inline-thread-composer textarea")?.value).toBe("w");
+    expect(document.querySelector<HTMLTextAreaElement>(".selection-inline-thread-composer textarea")?.value).toBe("w");
     externalInput.remove();
   });
 });

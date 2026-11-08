@@ -4779,11 +4779,13 @@ a.managed-task-card:hover {
 }
 
 .selection-thread-affordance {
-  position: absolute;
-  z-index: 20;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 900;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.45rem;
   opacity: 0;
   animation: selection-affordance-enter 0.16s ease-out forwards;
@@ -4792,9 +4794,10 @@ a.managed-task-card:hover {
 
 .selection-floating-menu {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
-  padding: 0.22rem 0.35rem;
+  gap: 0.1rem;
+  padding: 0.22rem;
   border: 1px solid color-mix(in srgb, var(--border) 78%, var(--text) 12%);
   border-radius: 9999px;
   background: color-mix(in srgb, var(--surface) 95%, black 5%);
@@ -4803,27 +4806,25 @@ a.managed-task-card:hover {
 }
 
 .selection-floating-button {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   border-radius: 9999px;
-  padding: 0.3rem 0.65rem;
-  color: var(--text);
-  font-size: 0.8rem;
-  font-weight: 500;
+  padding: 0;
+  color: var(--text-muted);
   cursor: pointer;
-  white-space: nowrap;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.selection-floating-button:hover {
+.selection-floating-button:hover,
+.selection-floating-button:focus-visible {
   background: color-mix(in srgb, var(--text) 12%, transparent);
-  color: var(--text-bright, #fff);
-}
-
-.selection-floating-divider {
-  width: 1px;
-  height: 0.85rem;
-  background: color-mix(in srgb, var(--border) 65%, transparent);
+  color: var(--text);
+  outline: none;
 }
 
 .selection-annotation-wrapper {
@@ -4835,7 +4836,7 @@ a.managed-task-card:hover {
 
 .selection-annotation-badge {
   position: absolute;
-  left: -0.75rem;
+  left: -0.55rem;
   top: -0.5rem;
   width: 1.35rem;
   height: 1.35rem;
@@ -5042,11 +5043,11 @@ a.managed-task-card:hover {
 @keyframes selection-affordance-enter {
   from {
     opacity: 0;
-    transform: translate(-50%, -90%) scale(0.96);
+    transform: translateX(-4px);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -100%) scale(1);
+    transform: none;
   }
 }
 
