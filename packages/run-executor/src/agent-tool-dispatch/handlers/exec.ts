@@ -7,6 +7,7 @@ import { parseToolArguments } from "../../agent/utils.js";
 import { EXEC_TOOL_NAME, execArgumentsSchema } from "../../code-mode/exec-tool.js";
 import { dispatchNestedToolCall, type NestedToolDispatcher } from "../../code-mode/nested-dispatch.js";
 import { runCodeModeScript } from "../../code-mode/script-runtime.js";
+import { buildShellEnvironment } from "../../runtime/shell.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
 import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
@@ -72,6 +73,7 @@ export async function handleExec(
   const script = await runCodeModeScript({
     code: parsed.value.code,
     toolNames: [...tools.keys()],
+    env: buildShellEnvironment(ctx.taskDir, ctx.envRoot, ctx.shellEnvOverrides),
     timeoutMs: resolveTimeoutMs(parsed.value.timeout_seconds, ctx),
     signal: ctx.cancellationSignal,
     callTool: async (name, args) => {

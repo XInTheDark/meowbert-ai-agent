@@ -18,7 +18,7 @@ const EXEC_DESCRIPTION = [
   "Run JavaScript that calls your other tools, so several steps happen in one go: chain calls, loop over results, and keep only what you need.",
   "Each tool is an async function on `tools` that takes one arguments object and resolves to the tool's result. Omitted nullable arguments are sent as null, and a failed tool usually resolves to an object with an `error` field.",
   `Independent calls can run in parallel with Promise.all; up to ${MAX_PARALLEL_TOOL_CALLS} run at once. Only what you console.log and return comes back to you, so trim large outputs in the script. Images and PDFs that tools load are shown to you after exec returns.`,
-  "The code runs as the body of an async function. There is no filesystem, network or Node API besides `tools`, and nothing carries over between exec calls."
+  "The code runs as the body of an async function. `process.env` holds the same variables run_shell sees, such as TASK_DIR and TASK_INPUT_DIR. There is no filesystem, network or other Node API besides `tools`, and nothing carries over between exec calls."
 ].join(" ");
 
 function renderGroupLine(group: ToolCatalogGroup): string {

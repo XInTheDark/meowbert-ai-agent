@@ -29,7 +29,7 @@ export interface ShellExecutionResult {
   sandboxCrash?: string | null;
 }
 
-function buildShellEnvironment(taskDir: string, envRoot: string, envOverrides?: Record<string, string>): Record<string, string> {
+export function buildShellEnvironment(taskDir: string, envRoot: string, envOverrides?: Record<string, string>): Record<string, string> {
   return {
     TASK_DIR: path.resolve(taskDir),
     ENV_ROOT: path.resolve(envRoot),

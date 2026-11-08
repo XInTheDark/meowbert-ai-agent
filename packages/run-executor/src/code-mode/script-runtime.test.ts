@@ -22,6 +22,7 @@ describe("runCodeModeScript", () => {
         return { paths: [first.args.path, second.args.path] };
       `,
       toolNames: ["read"],
+      env: {},
       callTool,
       timeoutMs: 5_000
     });
@@ -31,6 +32,22 @@ describe("runCodeModeScript", () => {
     expect(result.logs).toBe("checked a.txt.bak {\n  \"ok\": true\n}");
   });
 
+  it("exposes the shell environment as a read-only process.env", async () => {
+    const { callTool } = echoTools();
+    const result = await runCodeModeScript({
+      code: `
+        try { process.env.TASK_INPUT_DIR = "/elsewhere"; } catch {}
+        return { input: process.env.TASK_INPUT_DIR, missing: process.env.NOPE ?? null };
+      `,
+      toolNames: [],
+      env: { TASK_INPUT_DIR: "/task/input" },
+      callTool,
+      timeoutMs: 5_000
+    });
+
+    expect(result).toMatchObject({ error: null, result: { input: "/task/input", missing: null } });
+  });
+
   it("runs tool calls the script starts together in parallel, up to the limit", async () => {
     let running = 0;
     let maxRunning = 0;
@@ -38,6 +55,7 @@ describe("runCodeModeScript", () => {
     const result = await runCodeModeScript({
       code: `return (await Promise.all(Array.from({ length: ${count} }, (_, n) => tools.step({ n })))).map((out) => out.n);`,
       toolNames: ["step"],
+      env: {},
       callTool: async (_name, args) => {
         running += 1;
         maxRunning = Math.max(maxRunning, running);
@@ -58,6 +76,7 @@ describe("runCodeModeScript", () => {
     const result = await runCodeModeScript({
       code: `await Promise.all(Array.from({ length: ${MAX_PARALLEL_TOOL_CALLS + 2} }, () => tools.slow({})));`,
       toolNames: ["slow"],
+      env: {},
       callTool: async () => {
         started += 1;
         await new Promise((resolve) => setTimeout(resolve, 300));
@@ -77,6 +96,7 @@ describe("runCodeModeScript", () => {
     const result = await runCodeModeScript({
       code: "try { await tools.fail({}); } catch (error) { return error.message; }",
       toolNames: ["fail"],
+      env: {},
       callTool,
       timeoutMs: 5_000
     });
@@ -88,6 +108,7 @@ describe("runCodeModeScript", () => {
     const result = await runCodeModeScript({
       code: "console.log('before'); undefinedFunction();",
       toolNames: [],
+      env: {},
       callTool: async () => ({}),
       timeoutMs: 5_000
     });
@@ -96,21 +117,23 @@ describe("runCodeModeScript", () => {
     expect(result.error).toContain("ReferenceError");
   });
 
-  it("does not expose host functions beyond tools and console", async () => {
+  it("does not expose host functions beyond tools, console and process.env", async () => {
     const result = await runCodeModeScript({
-      code: "return [typeof require, typeof process, typeof fetch, Object.isFrozen(tools)];",
+      code: "return [typeof require, Object.keys(process).join(), typeof fetch, Object.isFrozen(tools)];",
       toolNames: ["read"],
+      env: {},
       callTool: async () => ({}),
       timeoutMs: 5_000
     });
 
-    expect(result.result).toEqual(["undefined", "undefined", "undefined", true]);
+    expect(result.result).toEqual(["undefined", "env", "undefined", true]);
   });
 
   it("points a script at the right tool when it uses a name that does not exist", async () => {
     const result = await runCodeModeScript({
       code: "await tools.upload_file({});",
       toolNames: ["google_workspace__upload_file", "run_shell"],
+      env: {},
       callTool: async () => ({}),
       timeoutMs: 5_000
     });
@@ -119,10 +142,10 @@ describe("runCodeModeScript", () => {
   });
 
   it("stops a busy loop at the deadline and keeps the runtime usable", async () => {
-    const stuck = await runCodeModeScript({ code: "while (true) {}", toolNames: [], callTool: async () => ({}), timeoutMs: 200 });
+    const stuck = await runCodeModeScript({ code: "while (true) {}", toolNames: [], env: {}, callTool: async () => ({}), timeoutMs: 200 });
     expect(stuck).toMatchObject({ timedOut: true, cancelled: false });
 
-    const next = await runCodeModeScript({ code: "return 1 + 1;", toolNames: [], callTool: async () => ({}), timeoutMs: 5_000 });
+    const next = await runCodeModeScript({ code: "return 1 + 1;", toolNames: [], env: {}, callTool: async () => ({}), timeoutMs: 5_000 });
     expect(next.result).toBe(2);
   });
 
@@ -131,6 +154,7 @@ describe("runCodeModeScript", () => {
     const result = await runCodeModeScript({
       code: "await new Promise(() => {}); await tools.read({});",
       toolNames: ["read"],
+      env: {},
       callTool,
       timeoutMs: 200
     });
@@ -138,7 +162,7 @@ describe("runCodeModeScript", () => {
     expect(result.timedOut).toBe(true);
     expect(calls).toEqual([]);
 
-    const next = await runCodeModeScript({ code: "return 'ok';", toolNames: [], callTool, timeoutMs: 5_000 });
+    const next = await runCodeModeScript({ code: "return 'ok';", toolNames: [], env: {}, callTool, timeoutMs: 5_000 });
     expect(next.result).toBe("ok");
   });
 
@@ -147,6 +171,7 @@ describe("runCodeModeScript", () => {
     const result = await runCodeModeScript({
       code: "await tools.slow({}); await tools.slow({});",
       toolNames: ["slow"],
+      env: {},
       callTool: async () => {
         await new Promise((resolve) => setTimeout(resolve, 300));
         finished = true;
@@ -165,6 +190,7 @@ describe("runCodeModeScript", () => {
     const result = await runCodeModeScript({
       code: "await new Promise(() => {});",
       toolNames: [],
+      env: {},
       callTool: async () => ({}),
       timeoutMs: 5_000,
       signal: controller.signal

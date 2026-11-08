@@ -15,6 +15,8 @@ export const MAX_PARALLEL_TOOL_CALLS = 8;
 export interface CodeModeScriptInput {
   code: string;
   toolNames: string[];
+  // Exposed to the script as a read-only `process.env`, matching what run_shell commands see.
+  env: Record<string, string>;
   // Runs one tool call and resolves to its JSON-serializable result. Up to
   // MAX_PARALLEL_TOOL_CALLS calls may run at once.
   callTool: (name: string, args: unknown) => Promise<unknown>;
@@ -37,11 +39,12 @@ function loadQuickJs(): Promise<QuickJSWASMModule> {
   return quickJsModule;
 }
 
-// The script sees `tools`, `console` and nothing else from the host. Values cross the boundary as
+// The script sees `tools`, `console`, `process.env` and nothing else from the host. Values cross the boundary as
 // JSON so no handle outlives a call, and the script body runs inside an async function so it can
 // use top-level `await` and `return`.
-function buildScriptSource(code: string, toolNames: string[]): string {
+function buildScriptSource(code: string, toolNames: string[], env: Record<string, string>): string {
   return `
+globalThis.process = Object.freeze({ env: Object.freeze(${JSON.stringify(env)}) });
 const __format = (value) => typeof value === "string" ? value : (() => {
   try { return JSON.stringify(value, null, 2) ?? String(value); } catch { return String(value); }
 })();
@@ -221,7 +224,7 @@ export async function runCodeModeScript(input: CodeModeScriptInput): Promise<Cod
   let outcome: { result: unknown; error: string | null } | "timeout" | "cancelled";
   try {
     host.install();
-    const evaluation = context.evalCode(buildScriptSource(input.code, input.toolNames), "exec.js");
+    const evaluation = context.evalCode(buildScriptSource(input.code, input.toolNames, input.env), "exec.js");
     if (evaluation.error) {
       outcome = { result: undefined, error: describeError(context, evaluation.error) };
       evaluation.error.dispose();
