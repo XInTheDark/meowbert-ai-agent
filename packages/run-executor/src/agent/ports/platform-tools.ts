@@ -15,6 +15,7 @@ export interface PlatformToolHost {
   hostShell?: (input: { command: string; timeoutMs: number }) => Promise<Record<string, unknown>>;
   queryTasks(filters: TaskHistorySearchInput): Promise<TaskHistorySearchResult>;
   viewTaskHistory(input: { taskId: string; maxMessages: number }): Promise<ViewedTaskHistory | null>;
+  readTaskEvidence(input: TaskEvidenceInput): Promise<TaskEvidenceOutput>;
   readOrganizedTaskHistory(input: {
     args: OrganizedHistoryArguments;
     branchLeafId: string | null;
@@ -86,6 +87,27 @@ export interface PlatformToolHost {
 }
 
 export type PlatformToolName = keyof PlatformToolHost;
+
+export interface TaskEvidenceInput {
+  task_id: string;
+  message_id: string | null;
+  before_message_id: string | null;
+  offset_chars: number | null;
+}
+
+export interface TaskEvidenceOutput {
+  task_id: string;
+  items: Array<{
+    message_id: string;
+    parent_message_id: string | null;
+    role: "user" | "assistant" | "tool";
+    created_at: string;
+    content: string;
+    offset_chars: number;
+    next_offset_chars: number | null;
+  }>;
+  next_before_message_id: string | null;
+}
 
 // Tool choices the agent passes on to a task it creates.
 export interface AgentEnabledTools {

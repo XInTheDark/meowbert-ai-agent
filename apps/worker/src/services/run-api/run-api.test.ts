@@ -103,6 +103,18 @@ afterEach(async () => {
 });
 
 describe("Run API retries", () => {
+  it("reads original Memory evidence through the remote executor transport", async () => {
+    const { control, token } = await claim();
+    const input = { task_id: "10000000-0000-4000-8000-000000000001", message_id: null, before_message_id: null, offset_chars: null };
+    const result = { task_id: input.task_id, items: [], next_before_message_id: null };
+    control.platform.readTaskEvidence.mockResolvedValue(result);
+    const remote = createHttpRunControl(client(token));
+    try {
+      await expect(remote.platform.readTaskEvidence(input)).resolves.toEqual(result);
+      expect(control.platform.readTaskEvidence).toHaveBeenCalledExactlyOnceWith(input);
+    } finally { remote.stop(); }
+  });
+
   it("replays a lost per-window request snapshot reply exactly once", async () => {
     const { control, token } = await claim();
     const window = { taskId: "task-1", windowId: "window-1", contextNodeId: "node-1" };

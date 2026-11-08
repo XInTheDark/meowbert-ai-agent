@@ -8,6 +8,8 @@ import {
 
 function message(index: number, text: string, createdAt?: string): MemoryDeltaMessage {
   return {
+    task_id: "task-1",
+    message_id: `message-${index}`,
     role: index % 2 === 0 ? "user" : "assistant",
     text,
     created_at: createdAt ?? new Date(Date.UTC(2026, 9, 16, 0, 0, index)).toISOString(),
@@ -22,6 +24,8 @@ describe("buildMemoryDelta", () => {
 
     expect(delta.markdown).toContain("hello");
     expect(delta.markdown).toContain("hi there");
+    expect(delta.markdown).toContain("Source: task_id=task-1, message_id=message-0");
+    expect(delta.markdown).toContain("Source: task_id=task-1, message_id=message-1");
     expect(delta.throughAt).toBe(messages[1].created_at);
   });
 

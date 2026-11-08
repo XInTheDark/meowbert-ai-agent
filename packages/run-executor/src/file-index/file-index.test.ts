@@ -96,4 +96,30 @@ describe("file index", () => {
     })).rejects.toThrow("must all be inside the project");
     await expect(lookupIndex(roots, os.tmpdir())).rejects.toThrow("inside the workspace");
   });
+
+  it("preserves every concurrent append to the same entry", async () => {
+    const input = { sources: ["context/specs/api.yaml"], summary: "Initial.", mode: "replace" as const, name: null };
+    await saveIndexEntry(roots, input);
+    await Promise.all(Array.from({ length: 10 }, (_, index) => saveIndexEntry(roots, {
+      ...input, mode: "append_update", summary: `Observation ${index}.`
+    })));
+    const result = await lookupIndex(roots, input.sources[0]);
+    for (let index = 0; index < 10; index += 1) expect(result.entries[0].content).toContain(`Observation ${index}.`);
+    expect(result.entries[0].status).toBe("fresh");
+  });
+
+  it("rejects a stale replacement without losing another task's changes", async () => {
+    const input = { sources: ["context/specs/api.yaml"], summary: "Initial.", mode: "replace" as const, name: null };
+    const original = await saveIndexEntry(roots, { ...input, expected_revision: null });
+    const read = await lookupIndex(roots, input.sources[0]);
+    expect(read.entries[0].revision).toBe(original.revision);
+    await saveIndexEntry(roots, { ...input, mode: "append_update", summary: "Another task's finding." });
+    await expect(saveIndexEntry(roots, { ...input, summary: "Old view.", expected_revision: original.revision }))
+      .rejects.toThrow("changed since you read it");
+    await expect(saveIndexEntry(roots, { ...input, expected_revision: null })).rejects.toThrow("changed since you read it");
+    const current = await lookupIndex(roots, input.sources[0]);
+    expect(current.entries[0].content).toContain("Another task's finding.");
+    await saveIndexEntry(roots, { ...input, summary: "Merged findings.", expected_revision: current.entries[0].revision });
+    expect((await lookupIndex(roots, input.sources[0])).entries[0].content).toBe("Merged findings.");
+  });
 });

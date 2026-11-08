@@ -1,4 +1,5 @@
 import { HOST_SHELL_TOOL } from "./host-shell.js";
+import { READ_TASK_EVIDENCE_TOOL_NAME } from "./memory-evidence.js";
 import { ORGANIZATION_TOOLS, withOrganizationFinalResponse, withOrganizationHistory } from "./conversation-organization.js";
 import { buildCreateTaskFunctionTool, PROJECT_MASTER_TOOL_NAMES } from "./project-master.js";
 import { PROJECT_MAP_TOOL_NAMES } from "./project-map.js";
@@ -146,6 +147,10 @@ function isToolEnabled(
 
   if (tool.name === MEMORY_SEARCH_TOOL_NAME) {
     return options.memorySearch === true;
+  }
+
+  if (tool.name === READ_TASK_EVIDENCE_TOOL_NAME) {
+    return availability.allowFileIndexTools === true && availability.allowTaskHistoryTools !== false;
   }
 
   if (tool.name === INDEX_LOOKUP_TOOL_NAME) {

@@ -1,4 +1,5 @@
 import { query } from "../../lib/db.js";
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import { MAX_DELTA_MESSAGES, type MemoryDeltaMessage } from "./delta.js";
 
 // Tasks whose conversations must never reach Memory: Memory refresh tasks themselves, and
@@ -26,9 +27,13 @@ export async function loadDelta(input: {
   environmentId: string;
   sourceAfter: string | null;
 }): Promise<MemoryDeltaMessage[]> {
-  const result = await query<MemoryDeltaMessage>(
+  const result = await query<MemoryDeltaMessage & { id: string; content_json: Record<string, unknown> }>(
     `WITH RECURSIVE ${memoryExcludedTasksCte("$1")}
-     SELECT tm.role,
+     SELECT tm.id,
+            tm.content_json,
+            tm.task_id,
+            tm.id AS message_id,
+            tm.role,
             COALESCE(tm.content_json->>'text', '') AS text,
             tm.created_at,
             t.title AS task_title
@@ -42,5 +47,17 @@ export async function loadDelta(input: {
       LIMIT $3`,
     [input.environmentId, input.sourceAfter, MAX_DELTA_MESSAGES]
   );
-  return result.rows;
+  const restored = new Map<string, Record<string, unknown>>();
+  for (const taskId of new Set(result.rows.map((row) => row.task_id))) {
+    const rows = await readTaskPayloads(taskId, "messages", result.rows.filter((row) => row.task_id === taskId));
+    for (const row of rows) restored.set(row.id, row.content_json);
+  }
+  return result.rows.map((row) => ({
+    task_id: row.task_id,
+    message_id: row.message_id,
+    role: row.role,
+    text: String(restored.get(row.id)?.text ?? ""),
+    created_at: row.created_at,
+    task_title: row.task_title
+  }));
 }

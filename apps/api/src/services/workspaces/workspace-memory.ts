@@ -36,7 +36,8 @@ export async function ensureWorkspaceMemoryFiles(workspaceRoot: string): Promise
 
   const existing = await fsPromises.readFile(mainFilePath, "utf8").catch(() => null);
   if (existing === null) {
-    await fsPromises.writeFile(mainFilePath, createDefaultWorkspaceMemoryMainFileContent(), "utf8");
+    await fsPromises.writeFile(mainFilePath, createDefaultWorkspaceMemoryMainFileContent(), { encoding: "utf8", flag: "wx" })
+      .catch((error: NodeJS.ErrnoException) => { if (error.code !== "EEXIST") throw error; });
   }
 
   return { memoryDir, mainFilePath };
@@ -59,7 +60,8 @@ export async function ensureProjectMemoryFiles(input: {
 
   const existing = await fsPromises.readFile(mainFilePath, "utf8").catch(() => null);
   if (existing === null) {
-    await fsPromises.writeFile(mainFilePath, createDefaultProjectMemoryMainFileContent(input.projectName), "utf8");
+    await fsPromises.writeFile(mainFilePath, createDefaultProjectMemoryMainFileContent(input.projectName), { encoding: "utf8", flag: "wx" })
+      .catch((error: NodeJS.ErrnoException) => { if (error.code !== "EEXIST") throw error; });
   }
 
   const existingActions = await fsPromises.readFile(actionsFilePath, "utf8").catch(() => null);
@@ -67,8 +69,8 @@ export async function ensureProjectMemoryFiles(input: {
     await fsPromises.writeFile(
       actionsFilePath,
       JSON.stringify(createDefaultProjectSuggestedActions(), null, 2),
-      "utf8"
-    );
+      { encoding: "utf8", flag: "wx" }
+    ).catch((error: NodeJS.ErrnoException) => { if (error.code !== "EEXIST") throw error; });
   }
 
   return { projectMemoryDir, mainFilePath, actionsFilePath };

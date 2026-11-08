@@ -11,7 +11,7 @@ const CONTEXT_METHODS = [
 ] as const satisfies readonly (keyof RunContextStore)[];
 
 const PLATFORM_METHODS = [
-  "queryTasks", "viewTaskHistory", "readOrganizedTaskHistory", "searchMemory", "createRecurringTask",
+  "queryTasks", "viewTaskHistory", "readTaskEvidence", "readOrganizedTaskHistory", "searchMemory", "createRecurringTask",
   "editCurrentTaskSchedule", "pauseRecurringSchedule", "applyInfiniteWait", "createSubtask", "startSubtasks",
   "liveSyncStatus", "liveSyncTransfer", "liveSyncFolderSearch", "createProjectCanvas", "recordProjectCanvasEntry",
   "markArtifacts", "unmarkArtifacts", "refreshGitHubToken", "issueSourceAccess", "getDesktopComputerPresence",

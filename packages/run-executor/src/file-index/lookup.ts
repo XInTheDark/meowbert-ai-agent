@@ -1,6 +1,7 @@
 import type { Dirent } from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { toSandboxPath } from "@meowbert/shared/docker-sandbox";
 import { parseIndexEntry } from "./entry-file.js";
 import { checkSource, type SourceStatus } from "./freshness.js";
@@ -28,6 +29,7 @@ const CHILD_ENTRY_LIMIT = 200;
 type EntryCoverage = "this_path" | "group" | "parent_folder";
 
 export interface IndexLookupEntry {
+  revision: string;
   entry_path: string;
   covers: EntryCoverage;
   status: "fresh" | "stale" | "unreadable";
@@ -82,6 +84,7 @@ async function describeEntry(input: {
   })));
   const body = entry?.body ?? input.text;
   return {
+    revision: createHash("sha256").update(input.text).digest("hex"),
     entry_path: toSandboxPath(input.entryPath),
     covers: input.covers,
     status: !entry ? "unreadable" : sources.every((source) => source.status === "fresh") ? "fresh" : "stale",

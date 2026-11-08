@@ -53,6 +53,7 @@ export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartb
   "context.readNote": contextCall("readNote"),
   "platform.queryTasks": platformCall("queryTasks"),
   "platform.viewTaskHistory": platformCall("viewTaskHistory"),
+  "platform.readTaskEvidence": platformCall("readTaskEvidence"),
   "platform.readOrganizedTaskHistory": platformCall("readOrganizedTaskHistory"),
   "platform.searchMemory": platformCall("searchMemory"),
   "platform.createRecurringTask": platformCall("createRecurringTask"),

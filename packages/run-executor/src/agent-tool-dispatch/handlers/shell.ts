@@ -1,4 +1,5 @@
 import path from "node:path";
+import { withMemoryWriteLock } from "../../memory/write-lock.js";
 import { validateOrganizationFinalResponse } from "./conversation-organization.js";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import {
@@ -37,6 +38,7 @@ type RunShellArguments = {
   timeout_seconds?: number | null;
   session_id?: string | null;
   force?: boolean | null;
+  memory_write?: boolean | null;
   background?: boolean | null;
   background_id?: string | null;
   wait_seconds?: number | null;
@@ -376,6 +378,7 @@ export async function handleRunShell(
   }
 
   if (parsed.value.session_id) {
+    if (parsed.value.memory_write) return toolErrorResult("memory_write requires a foreground command without session_id.");
     if (typeof parsed.value.command !== "string") {
       return toolErrorResult("command is required when session_id is provided.");
     }
@@ -389,6 +392,17 @@ export async function handleRunShell(
     });
   }
 
+  if (parsed.value.memory_write) {
+    if (!ctx.memoryEnabled || ctx.readOnly) return toolErrorResult("Memory writing is unavailable for this run.");
+    try {
+      return await withMemoryWriteLock(ctx.workspaceRoot, (cancellationSignal) => handleForegroundShell(
+        outputItem, { ...ctx, cancellationSignal }, state, parsed.value
+      ), ctx.cancellationSignal);
+    } catch (error) {
+      rethrowIfTaskCancelled(error);
+      return toolErrorResult(`Memory write failed: ${getErrorMessage(error)}. Reread current Memory and retry the edit.`);
+    }
+  }
   return handleForegroundShell(outputItem, ctx, state, parsed.value);
 }
 

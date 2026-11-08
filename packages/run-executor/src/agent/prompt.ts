@@ -128,7 +128,8 @@ function buildFileIndexSection(options: SystemPromptRuntimeOptions): string {
       ? []
       : [
           "- After reading something a later run will likely need, save it with `index_save`: a detailed summary of what it contains and how it relates to this project, close enough to the source that a later run can work from it. One entry can cover a file, a folder, or a few related files. When a source has changed, read what's new and save it with `append_update`, and rewrite the entry with `replace` once updates pile up.",
-          "- Entries are ordinary Memory files, so you can edit or delete them directly. Use `index_save` whenever you've reread a source, since it records how the source looks now."
+          "- Entries are ordinary Memory files, so you can edit or delete them directly. Use `index_save` whenever you've reread a source, since it records how the source looks now. For a replacement, pass the entry's revision from `index_lookup`; append updates merge with the latest entry.",
+          "- When several sources together explain something useful, save a named group with `index_save` covering those sources. Explain their relationships and cite the relevant paths or sections; keep exact terms in the sources. Do this when it saves future work, rather than building a wiki for every file."
         ])
   ].join("\n");
 }
@@ -424,6 +425,8 @@ export function buildSystemPrompt(
           "- Put the detail in topic files, one subject per file (and a shallow folder or two when a subject grows), named so their content is obvious and starting with a one-line description. Be thorough there: decisions with their reasons, exact commands, how things work, and specifics a later run would otherwise have to rediscover.",
           "- Keep noise out. Progress logs, temporary investigation notes, unchecked guesses and conversation recaps usually don't belong here; use `.thinking` for short-lived working context. Some recaps are worth keeping, such as a running summary of what you've taught the user so far, so use your judgment.",
           "- When something changes, update the file that covers it instead of adding one that contradicts it, and remove notes that are stale or duplicated. Preserve anything still plausibly useful.",
+          "- Other tasks share Memory. For shell edits, use a foreground `run_shell` with `memory_write: true`, reading the latest files and merging your changes inside that same command. This shares a workspace lock with `index_save`. Keep edits short, never launch background writers inside it, and don't call `index_save` while holding the shell lock. Prefer separate topic files for independent contributions. Direct edits without the flag remain possible but do not coordinate with other writers.",
+          "- Keep important claims traceable: cite source paths or task/message IDs and when you last checked them. Distinguish user instructions, verified observations and unresolved hypotheses; an earlier agent saying a change worked is not verification. Use `read_task_evidence` to inspect the original messages and tool results when needed.",
           "- Prefix every new Memory entry with the current date and time.",
           "- If you pick up something important or notice either `MEMORY.md` has gone stale, take a moment to update it before wrapping up the task.",
           options.allowMemorySearch

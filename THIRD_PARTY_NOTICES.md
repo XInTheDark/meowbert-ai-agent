@@ -10,6 +10,10 @@ Meowbert is licensed under the GNU Affero General Public License v3.0 (see `LICE
 | `promo-website/assets/fonts/google-sans.woff2` | [Google Sans](https://github.com/googlefonts/googlesans) (Latin subset from Google Fonts) | SIL Open Font License 1.1, see `promo-website/assets/fonts/OFL-google-sans.txt` |
 | `promo-website/assets/fonts/google-sans-code.woff2` | [Google Sans Code](https://github.com/googlefonts/googlesans-code) (Latin subset from Google Fonts) | SIL Open Font License 1.1, see `promo-website/assets/fonts/OFL-google-sans-code.txt` |
 
+## proper-lockfile
+
+The run executor uses proper-lockfile 4.1.2 for cooperative Memory write coordination. It is licensed under MIT, copyright (c) 2018 Made With MOXY Lda. The complete license ships in the npm package.
+
 ## rclone
 
 Meowbert Desktop bundles rclone 1.75.2 for macOS live Google Drive folders.

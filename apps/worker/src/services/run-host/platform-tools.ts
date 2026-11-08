@@ -11,6 +11,7 @@ import { queryTasks, viewTaskHistory } from "../agent-db/index.js";
 import { readOrganizedTaskHistory } from "../agent-db/conversation-history.js";
 import { loadListenedTaskIds } from "../project-master/listeners.js";
 import { searchMemoryIndex } from "../memory/index.js";
+import { readTaskEvidence } from "../memory-synthesis/evidence.js";
 import {
   applyInfiniteWait,
   createRecurringTaskFromTool,
@@ -248,6 +249,11 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
       return { ...results, tasks: results.tasks.map((task) => ({ ...task, listening: listened.has(task.task_id) })) };
     },
     viewTaskHistory: ({ taskId, maxMessages }) => viewTaskHistory(taskId, scope().environmentId, maxMessages),
+    readTaskEvidence: async (input) => {
+      const { run, environmentId } = scope();
+      if (!run.bootstrap.memoryEnabled) throw new Error("Memory is disabled for this workspace.");
+      return readTaskEvidence(input, environmentId);
+    },
     readOrganizedTaskHistory: ({ args, branchLeafId, allowOtherTasks, staged }) => {
       const { taskId, environmentId } = scope();
       return readOrganizedTaskHistory(args, { taskId, environmentId, branchLeafId, allowOtherTasks, staged: staged ?? undefined });

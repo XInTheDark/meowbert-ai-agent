@@ -48,6 +48,14 @@ context/specs/           →  .memory/projects/<project-id>/index/context/specs/
 
 Entries are ordinary Memory files: Memory search finds them, and you can edit or delete them like any other note.
 
+When several sources explain a topic together, an agent can save a named group entry describing how they relate, with references to the relevant paths or sections. This uses the same freshness checks as individual file entries. Exact terms and quotations remain in the original sources.
+
+## Sources and verification
+
+Important Memory claims should retain their source and when they were last checked. Agents distinguish your instructions from verified observations and unresolved hypotheses, rather than treating an earlier agent's report of success as proof.
+
+Refreshes receive the source task and message IDs for each conversation entry. When evidence needs checking, agents can use `read_task_evidence` to read original messages and recorded tool results in the current Project, including archived results. Long results are read in bounded pages. Incognito tasks and their descendants, along with Memory refresh tasks and their descendants, are excluded.
+
 ## MEMORY.md — your always-on context
 
 Inside `.memory` there's a special file: `MEMORY.md`. Unlike other notes, this file is automatically injected into every run as background context, so the agent always has it available without needing to search for it.
@@ -86,6 +94,8 @@ Each Project can opt out from **Project Settings → Memory**. Projects are enab
 
 You can also select a Project and choose **Refresh memory** from the Memory page. A refresh creates a regular task with its own sandbox. It receives the new conversation evidence in `inputs/memory-delta.md`, can update the workspace and Project Memory files, and is limited to 40 agent steps. If Memory has become disorganized, the refresh also reorganizes it: merging overlapping notes, splitting long files, and fixing links. It uses the normal task execution and platform usage accounting path.
 
+Refreshes in the same workspace run one at a time, since they can update shared workspace notes. Other Projects' refreshes remain queued and continue after the active refresh finishes. Different workspaces can refresh independently.
+
 Set the Agent Preset for refresh tasks in **Admin → Models → Specialized runtime** with `memorySynthesisAgent`. Its full preset payload, including model and reasoning configuration, is applied and resolved through the normal model-routing path. If it is unset or unavailable, Meowbert uses the default available Agent Preset.
 
 ## Working with Memory from Files and Tasks
@@ -102,6 +112,14 @@ When Memory is enabled, task runs and agent shell sessions also receive these en
 - `MEOWBERT_MEMORY_DIR`
 
 Both point to the workspace `.memory` directory.
+
+### Coordinating concurrent edits
+
+Memory stays directly editable from the shell and Files browser. Agents coordinate shell changes with `run_shell` using `memory_write: true`: the command holds a workspace Memory lock while it rereads the latest affected files, merges changes, and writes them. Deletions and reorganizations use the same flag. The lock covers only the foreground command; background writers and persistent shell sessions must not be used for these edits.
+
+`index_save` takes the same lock automatically. Appended updates merge with the latest entry, and replacing an entry checks the revision returned by `index_lookup` so a stale replacement cannot silently discard a newer coordinated edit. Independent contributions should use separate topic files where practical.
+
+This coordination is cooperative. Shell commands without the flag and manual Files edits remain available and can race with other writers.
 
 ## Self-hosted embedding configuration
 

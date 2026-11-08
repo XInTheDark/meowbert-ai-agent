@@ -61,7 +61,8 @@ export async function handleIndexSave(
       sources: args.sources,
       summary: args.summary,
       mode: args.mode,
-      name: args.name ?? null
+      name: args.name ?? null,
+      expected_revision: args.expected_revision ?? null
     });
     return await finishBuiltinToolSuccess(ctx, execution, result);
   } catch (error) {

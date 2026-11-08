@@ -1,5 +1,13 @@
 # Changelog
 
+## Nov 8, 2026
+
+### Memory
+
+- **Check what a Memory note is based on** — Memory refreshes now receive source task and message IDs, and agents can read the original messages and recorded tool results, including archived history, to check important claims. Agents keep your instructions, verified observations, and unresolved hypotheses distinct.
+- **Coordinate shared Memory edits** — Refreshes run one at a time per workspace. Agents can coordinate shell edits with index saves, appended updates merge with the latest entry, and replacements check for newer edits before overwriting. Memory stays directly editable; manual Files edits and shell commands without coordination can still race.
+- **Connect related sources** — Agents can use existing grouped index entries to explain how several documents relate, with references back to the relevant files and sections.
+
 ## Nov 4, 2026
 
 ### Task composer

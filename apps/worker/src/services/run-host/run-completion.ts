@@ -3,7 +3,7 @@ import { completeTaskRun } from "../tasks/complete-task-run.js";
 import { wakeRunDeliveryLoop } from "../notifications/run-delivery-loop.js";
 import { pauseInfiniteScheduleAfterCheckin, pauseTimedScheduleAfterCompletion } from "../task-schedules/service.js";
 import {
-  syncFinishedMemorySynthesisRequests,
+  processPendingMemorySynthesisRequests,
   triggerAutomaticMemorySynthesis
 } from "../memory-synthesis/service.js";
 import type { RunCompletion, RunCompletionResult } from "@meowbert/run-executor/agent/ports/run-control";
@@ -37,7 +37,7 @@ async function completeSucceededRun(
   }
 
   if (job.mode === "memory_synthesis") {
-    void syncFinishedMemorySynthesisRequests().catch((error) => {
+    void processPendingMemorySynthesisRequests().catch((error) => {
       console.error("Unable to finalize memory synthesis request", error);
     });
     return { updatedStatus };

@@ -1,5 +1,7 @@
 import { handleHostShell } from "./handlers/host-shell.js";
 import { handleSearchWeb } from "./handlers/web-search.js";
+import { READ_TASK_EVIDENCE_TOOL_NAME } from "../agent-tools/memory-evidence.js";
+import { handleReadTaskEvidence } from "./handlers/memory-evidence.js";
 import { handleConversationOrganization } from "./handlers/conversation-organization.js";
 import { recordWebSearchCall } from "../agent-swarm/activity.js";
 import type {
@@ -240,6 +242,9 @@ async function dispatchFunctionToolCall(
 
     case MEMORY_SEARCH_TOOL_NAME:
       return handleMemorySearch(outputItem, ctx, state);
+
+    case READ_TASK_EVIDENCE_TOOL_NAME:
+      return handleReadTaskEvidence(outputItem, ctx, state);
 
     case INDEX_LOOKUP_TOOL_NAME:
       return handleIndexLookup(outputItem, ctx, state);

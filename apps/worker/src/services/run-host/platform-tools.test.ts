@@ -5,6 +5,7 @@ vi.mock("../agent-db/index.js", () => ({}));
 vi.mock("../agent-db/conversation-history.js", () => ({}));
 vi.mock("../project-master/listeners.js", () => ({}));
 vi.mock("../memory/index.js", () => ({ searchMemoryIndex: vi.fn() }));
+vi.mock("../memory-synthesis/evidence.js", () => ({ readTaskEvidence: vi.fn() }));
 vi.mock("../task-schedules/service.js", () => ({}));
 vi.mock("../tasks/subtasks.js", () => ({ createSubtaskFromTool: vi.fn(), startSubtasksFromTool: vi.fn() }));
 vi.mock("../agent/live-sync-client.js", () => ({ searchTaskLiveSyncFolder: vi.fn() }));
@@ -13,6 +14,7 @@ vi.mock("../computer/computer-use.js", () => ({ requestDesktopComputerAction: vi
 vi.mock("../runtime/persistent-shell-sessions.js", () => ({}));
 import { config } from "../../lib/config.js";
 import { searchMemoryIndex } from "../memory/index.js";
+import { readTaskEvidence } from "../memory-synthesis/evidence.js";
 import { createSubtaskFromTool, startSubtasksFromTool } from "../tasks/subtasks.js";
 import { searchTaskLiveSyncFolder } from "../agent/live-sync-client.js";
 import { requestDesktopComputerAction } from "../computer/computer-use.js";
@@ -26,6 +28,17 @@ function fixture() {
   return { run, platform: createDbPlatformToolHost(() => run) };
 }
 beforeEach(() => vi.clearAllMocks());
+
+it("binds Memory evidence to the run's project and rejects requests when Memory is disabled", async () => {
+  const { run, platform } = fixture();
+  const input = { task_id: "source", message_id: null, before_message_id: null, offset_chars: null, environmentId: "foreign" };
+  run.bootstrap.memoryEnabled = false;
+  await expect(platform.readTaskEvidence(input)).rejects.toThrow("Memory is disabled");
+  expect(readTaskEvidence).not.toHaveBeenCalled();
+  run.bootstrap.memoryEnabled = true;
+  await platform.readTaskEvidence(input);
+  expect(readTaskEvidence).toHaveBeenCalledExactlyOnceWith(input, "project");
+});
 
 it.each(["all", "workspace", "current_project"] as const)("keeps %s memory searches in the resolved workspace/project", async (scope) => {
   const { platform } = fixture();

@@ -33,6 +33,7 @@ export const RUN_API_READ_METHODS = [
   "context.readNote",
   "platform.queryTasks",
   "platform.viewTaskHistory",
+  "platform.readTaskEvidence",
   "platform.readOrganizedTaskHistory",
   "platform.searchMemory",
   "platform.liveSyncStatus",

@@ -3,6 +3,8 @@ export const MAX_DELTA_CHARS = 120_000;
 export const MAX_DELTA_MESSAGE_CHARS = 12_000;
 
 export interface MemoryDeltaMessage {
+  task_id: string;
+  message_id: string;
   role: "user" | "assistant";
   text: string;
   created_at: string | Date;
@@ -28,7 +30,7 @@ function formatEntry(message: MemoryDeltaMessage): string | null {
   const body = text.length > MAX_DELTA_MESSAGE_CHARS
     ? `${text.slice(0, MAX_DELTA_MESSAGE_CHARS)}\n\n[Truncated]`
     : text;
-  return `${heading}\n\n${body}\n`;
+  return `${heading}\n\nSource: task_id=${message.task_id}, message_id=${message.message_id}\n\n${body}\n`;
 }
 
 // Stops at the character budget and reports the last message actually included, so the

@@ -1,8 +1,10 @@
 import fsPromises from "node:fs/promises";
 import path from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 import { ensureSandboxWritablePath } from "@meowbert/shared";
 import { toSandboxPath } from "@meowbert/shared/docker-sandbox";
 import { getWorkspaceMemoryDir } from "../memory/main-files.js";
+import { withMemoryWriteLock } from "../memory/write-lock.js";
 import { parseIndexEntry, serializeIndexEntry, type IndexSourceStamp } from "./entry-file.js";
 import { stampSource } from "./freshness.js";
 import {
@@ -23,12 +25,15 @@ export interface IndexSaveInput {
   summary: string;
   mode: "replace" | "append_update";
   name: string | null;
+  // Missing only on older saved calls; explicit null means the entry must not exist.
+  expected_revision?: string | null;
 }
 
 export interface IndexSaveResult {
   entry_path: string;
   mode: IndexSaveInput["mode"];
   sources: IndexSourceStamp[];
+  revision: string;
 }
 
 function resolveSources(roots: FileIndexRoots, requested: string[]): IndexedPath[] {
@@ -61,15 +66,30 @@ export async function saveIndexEntry(roots: FileIndexRoots, input: IndexSaveInpu
   const stamps = await Promise.all(sources.map(stampSource));
   const entryPath = resolveEntryPath(sources[0], stamps, input.name);
   const indexedAt = now.toISOString();
-  const existingText = await fsPromises.readFile(entryPath, "utf8").catch(() => null);
-
-  await fsPromises.mkdir(path.dirname(entryPath), { recursive: true });
-  await fsPromises.writeFile(entryPath, serializeIndexEntry({
-    indexedAt,
-    sources: stamps,
-    body: buildBody(existingText, input, indexedAt)
-  }), "utf8");
-  // The agent edits entries from the sandbox, so set permissions on the file as it is written.
-  await ensureSandboxWritablePath({ rootPath: getWorkspaceMemoryDir(roots.workspaceRoot), targetPath: entryPath });
-  return { entry_path: toSandboxPath(entryPath), mode: input.mode, sources: stamps };
+  let revision = "";
+  await withMemoryWriteLock(roots.workspaceRoot, async (signal) => {
+    const existingText = await fsPromises.readFile(entryPath, "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+    const previousRevision = existingText === null ? null : createHash("sha256").update(existingText).digest("hex");
+    if (input.mode === "replace" && input.expected_revision !== undefined && previousRevision !== input.expected_revision) {
+      throw new Error("The index entry changed since you read it. Look it up again and merge the current content before replacing it.");
+    }
+    const temporaryPath = path.join(roots.workspaceRoot, `.memory-write-${randomUUID()}.tmp`);
+    try {
+      await fsPromises.mkdir(path.dirname(entryPath), { recursive: true });
+      const content = serializeIndexEntry({
+        indexedAt, sources: stamps, body: buildBody(existingText, input, indexedAt)
+      });
+      revision = createHash("sha256").update(content).digest("hex");
+      await fsPromises.writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx" });
+      signal.throwIfAborted();
+      await fsPromises.rename(temporaryPath, entryPath);
+      await ensureSandboxWritablePath({ rootPath: getWorkspaceMemoryDir(roots.workspaceRoot), targetPath: entryPath });
+    } finally {
+      await fsPromises.rm(temporaryPath, { force: true });
+    }
+  });
+  return { entry_path: toSandboxPath(entryPath), mode: input.mode, sources: stamps, revision };
 }

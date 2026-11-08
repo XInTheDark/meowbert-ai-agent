@@ -1,6 +1,7 @@
 import { PROJECT_MASTER_FUNCTION_TOOLS } from "./project-master.js";
 import { PROJECT_MAP_FUNCTION_TOOLS } from "./project-map.js";
 import { SUBAGENT_FUNCTION_TOOLS } from "./subagents.js";
+import { READ_TASK_EVIDENCE_TOOL } from "./memory-evidence.js";
 import type { CustomTool, FunctionTool, Tool } from "openai/resources/responses/responses";
 import {
   LIVE_SYNC_FOLDER_SEARCH_FILE_TYPES,
@@ -128,6 +129,10 @@ export function buildRunShellFunctionTool(maxTimeoutSeconds = RUN_SHELL_MAX_TIME
           type: ["boolean", "null"],
           description: "With session_id, interrupt the current command and wait up to five seconds for idle before submitting. Never recreates the shell; fails if it remains busy."
         },
+        memory_write: {
+          type: ["boolean", "null"],
+          description: "true cooperatively locks workspace Memory for this foreground command. Read the latest files and merge your edits inside the same command. Use for any .memory changes, including deletion or reorganization; do not start background writers. Incompatible with session_id."
+        },
         limit_start: {
           type: ["integer", "null"],
           minimum: 0,
@@ -146,6 +151,7 @@ export function buildRunShellFunctionTool(maxTimeoutSeconds = RUN_SHELL_MAX_TIME
         "timeout_seconds",
         "session_id",
         "force",
+        "memory_write",
         "limit_start",
         "limit_end"
       ],
@@ -257,6 +263,7 @@ export const CONTEXT_V2_FUNCTION_TOOLS: FunctionTool[] = [
 ];
 
 export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
+  READ_TASK_EVIDENCE_TOOL,
   ...SUBAGENT_FUNCTION_TOOLS,
   ...PROJECT_MASTER_FUNCTION_TOOLS,
   ...PROJECT_MAP_FUNCTION_TOOLS,
@@ -543,7 +550,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
     type: "function",
     name: INDEX_SAVE_TOOL_NAME,
     description:
-      "Save a Memory index entry for files or folders you have read, recording how each source looks now so later lookups can tell when it changes. Returns the entry file, which you can also edit directly.",
+      "Save a Memory index entry for files or folders you have read, recording how each source looks now so later lookups can tell when it changes. Coordinates writes across tasks. Replacing an entry requires its revision from index_lookup; append_update merges with the latest entry. Returns the entry file, which you can also edit directly.",
     strict: true,
     parameters: {
       type: "object",
@@ -552,6 +559,10 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
           type: "array",
           description: "The files and folders this entry covers, absolute or relative to the project root. One path for a file or folder entry, several for a group.",
           items: { type: "string" }
+        },
+        expected_revision: {
+          type: ["string", "null"],
+          description: "For replace, the revision returned by index_lookup, or null to create a new entry only. For append_update, use null; the update is appended to the latest entry under the Memory lock."
         },
         summary: {
           type: "string",
@@ -567,7 +578,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
           description: "Short name for an entry covering several paths; null for a single file or folder."
         }
       },
-      required: ["sources", "summary", "mode", "name"],
+      required: ["sources", "summary", "mode", "name", "expected_revision"],
       additionalProperties: false
     }
   },

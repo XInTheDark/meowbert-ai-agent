@@ -48,6 +48,7 @@ export function createRunShellArgumentsSchema(maxTimeoutSeconds = RUN_SHELL_MAX_
       .optional(),
     session_id: z.string().uuid().nullable().optional(),
     force: z.boolean().nullable().optional(),
+    memory_write: z.boolean().nullable().optional(),
     // Kept parseable only so old saved tool calls receive a clear replacement error.
     background: z.boolean().nullable().optional(),
     background_id: z.string().min(1).nullable().optional(),
@@ -222,6 +223,7 @@ export const indexLookupArgumentsSchema = z.object({
 }).strict();
 
 export const indexSaveArgumentsSchema = z.object({
+  expected_revision: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
   sources: z.array(z.string().min(1)).min(1).max(50),
   summary: z.string().min(1),
   mode: z.enum(["replace", "append_update"]),
