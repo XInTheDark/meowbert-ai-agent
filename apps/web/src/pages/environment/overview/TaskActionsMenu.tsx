@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ExplorerRowActionButton } from "../../../components/explorer/ExplorerTable";
 import { MobileSheet } from "../../../components/mobile/MobileSheet";
+import { useAnchoredMenuPosition } from "../../../hooks/useAnchoredMenuPosition";
 import { useCompactViewport } from "../../../hooks/useCompactViewport";
 
 interface TaskActionsMenuProps {
@@ -12,58 +13,16 @@ interface TaskActionsMenuProps {
   onToggle: () => void;
 }
 
-interface MenuPosition {
-  left: number;
-  top: number;
-}
-
 type PositionedMenuStyle = CSSProperties & {
   "--task-actions-dropdown-left": string;
   "--task-actions-dropdown-top": string;
 };
 
-const VIEWPORT_MARGIN = 8;
-const MENU_GAP = 4;
-
 export function TaskActionsMenu(props: TaskActionsMenuProps) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<MenuPosition | null>(null);
   const compact = useCompactViewport();
-
-  useLayoutEffect(() => {
-    if (!props.open) {
-      setPosition(null);
-      return;
-    }
-
-    function reposition(): void {
-      const anchorRect = anchorRef.current?.getBoundingClientRect();
-      const menu = menuRef.current;
-      if (!anchorRect || !menu) {
-        return;
-      }
-
-      const maxLeft = window.innerWidth - menu.offsetWidth - VIEWPORT_MARGIN;
-      const left = Math.max(VIEWPORT_MARGIN, Math.min(anchorRect.right - menu.offsetWidth, maxLeft));
-      const belowTop = anchorRect.bottom + MENU_GAP;
-      const aboveTop = anchorRect.top - MENU_GAP - menu.offsetHeight;
-      const fitsBelow = belowTop + menu.offsetHeight <= window.innerHeight - VIEWPORT_MARGIN;
-      const top = fitsBelow
-        ? belowTop
-        : Math.max(VIEWPORT_MARGIN, aboveTop);
-
-      setPosition({ left, top });
-    }
-
-    reposition();
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
-    return () => {
-      window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
-    };
-  }, [props.open]);
+  const position = useAnchoredMenuPosition(props.open && !compact, anchorRef, menuRef);
 
   const menuStyle: PositionedMenuStyle | CSSProperties = position
     ? {

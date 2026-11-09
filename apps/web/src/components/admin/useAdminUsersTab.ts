@@ -73,7 +73,9 @@ function useAdminUsersData() {
   }, [fetchPlans, fetchUsers]);
   useEffect(() => {
     const closeMenu = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setOpenMenuId(null);
+      const target = event.target as Node;
+      const insideMenu = target instanceof Element && target.closest("[data-admin-user-menu]");
+      if (menuRef.current && !menuRef.current.contains(target) && !insideMenu) setOpenMenuId(null);
     };
     document.addEventListener("mousedown", closeMenu);
     return () => document.removeEventListener("mousedown", closeMenu);

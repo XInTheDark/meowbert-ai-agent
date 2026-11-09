@@ -1,7 +1,10 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { LoadingIndicator } from "../LoadingIndicator";
 import { MenuSheet } from "../mobile/MenuSheet";
+import { useAnchoredMenuPosition } from "../../hooks/useAnchoredMenuPosition";
+import { useCompactViewport } from "../../hooks/useCompactViewport";
 import { AdminTable, AdminTableCell, AdminTableRow } from "./AdminTable";
 import { RuntimeResourceFields } from "./RuntimeResourceFields";
 import type { AdminUser, ResourceDraft } from "./adminUsersTypes";
@@ -120,15 +123,36 @@ function DropdownDivider() {
   return <div style={{ height: "1px", background: "var(--border, #e2e8f0)", margin: "4px 0" }} />;
 }
 
-function UserActionsMenu({ controller, user }: ControllerProps & { user: AdminUser }) {
+const USER_MENU_SURFACE_STYLE: CSSProperties = {
+  background: "var(--surface, #fff)", border: "1px solid var(--border, #e2e8f0)", borderRadius: "6px",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.12)", minWidth: "220px", padding: "4px 0"
+};
+
+/** Portals the menu to the body on desktop so the table's scroll container cannot clip it. */
+function UserActionsMenuSurface(props: { anchorRef: RefObject<HTMLElement | null>; onClose: () => void; children: ReactNode }) {
+  const compact = useCompactViewport();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const position = useAnchoredMenuPosition(!compact, props.anchorRef, menuRef);
+  if (compact) {
+    return (
+      <MenuSheet label="User actions" onClose={props.onClose}>
+        <div role="menu" data-admin-user-menu onClick={props.onClose}>{props.children}</div>
+      </MenuSheet>
+    );
+  }
+  return createPortal(
+    <div role="menu" ref={menuRef} data-admin-user-menu onClick={props.onClose} style={{
+      ...USER_MENU_SURFACE_STYLE, position: "fixed", zIndex: 1000,
+      left: position?.left ?? 0, top: position?.top ?? 0, visibility: position ? "visible" : "hidden"
+    }}>{props.children}</div>,
+    document.body
+  );
+}
+
+function UserActionsMenu({ controller, user, anchorRef }: ControllerProps & { user: AdminUser; anchorRef: RefObject<HTMLElement | null> }) {
   const isSelf = user.id === controller.data.currentUserId;
   return (
-    <MenuSheet label="User actions" onClose={() => controller.data.setOpenMenuId(null)}>
-    <div role="menu" onClick={() => controller.data.setOpenMenuId(null)} style={{
-      position: "absolute", right: 0, top: "100%", zIndex: 100, background: "var(--surface, #fff)",
-      border: "1px solid var(--border, #e2e8f0)", borderRadius: "6px", boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-      minWidth: "220px", padding: "4px 0"
-    }}>
+    <UserActionsMenuSurface anchorRef={anchorRef} onClose={() => controller.data.setOpenMenuId(null)}>
       <DropdownItem onClick={() => controller.resources.open(user)}>Edit resources</DropdownItem>
       <DropdownItem onClick={() => void controller.usageActions.updateFreeMessageLimit(user)}>Set free-message limit</DropdownItem>
       <DropdownItem onClick={() => void controller.usageActions.setUsage(user)}>Set usage</DropdownItem>
@@ -151,8 +175,7 @@ function UserActionsMenu({ controller, user }: ControllerProps & { user: AdminUs
       <DropdownDivider />
       <DropdownItem onClick={() => void controller.accountActions.impersonate(user)} disabled={isSelf} danger>Log in as user</DropdownItem>
       <DropdownItem onClick={() => void controller.accountActions.deleteUser(user)} disabled={isSelf} danger>Delete user</DropdownItem>
-    </div>
-    </MenuSheet>
+    </UserActionsMenuSurface>
   );
 }
 
@@ -197,6 +220,7 @@ function UserDetailsCells({ user }: { user: AdminUser }) {
 
 function AdminUserRow({ controller, user }: ControllerProps & { user: AdminUser }) {
   const menuOpen = controller.data.openMenuId === user.id;
+  const anchorRef = useRef<HTMLButtonElement>(null);
   return (
     <AdminTableRow>
       <AdminTableCell verticalAlign="top" width="36px">
@@ -206,9 +230,9 @@ function AdminUserRow({ controller, user }: ControllerProps & { user: AdminUser 
       <UserDetailsCells user={user} />
       <AdminTableCell align="right" verticalAlign="top">
         <div style={{ position: "relative", display: "inline-block" }} ref={menuOpen ? controller.data.menuRef : null}>
-          <button className="btn ghost admin-user-actions-trigger" style={{ padding: "0.25rem 0.6rem", fontSize: "0.9rem", minHeight: "unset" }}
+          <button ref={anchorRef} className="btn ghost admin-user-actions-trigger" style={{ padding: "0.25rem 0.6rem", fontSize: "0.9rem", minHeight: "unset" }}
             onClick={() => controller.data.setOpenMenuId(menuOpen ? null : user.id)} title="Actions">⋯</button>
-          {menuOpen ? <UserActionsMenu controller={controller} user={user} /> : null}
+          {menuOpen ? <UserActionsMenu controller={controller} user={user} anchorRef={anchorRef} /> : null}
         </div>
       </AdminTableCell>
     </AdminTableRow>
