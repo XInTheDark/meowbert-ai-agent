@@ -1,6 +1,6 @@
 {
   "name": "@meowbert/desktop",
-  "version": "2026.10.32",
+  "version": "2026.11.1",
   "private": true,
   "type": "module",
   "main": "dist/main/index.js",
