@@ -112,6 +112,8 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
         items: [{ role: "user", content: "Find the programs." }],
         capabilities: seedCapabilities
       },
+      crossModelSeed: null,
+      isCrossModel: () => false,
       lanes: titles.map((title, index) => ({ label: String.fromCharCode(65 + index), title, direction: null, weight: weights[index], modelRoute: null })),
       envRoot: "/env",
       buildForkOutput: (lane) => ({ brief: lane.title, item: { type: "function_call_output", call_id: "call_split", output: lane.title } })

@@ -89,6 +89,8 @@ type CreateModelResponseInput = {
   promptCacheKey?: string;
   // Defaults to the prompt cache key; swarm lanes send their own.
   sessionAffinityKey?: string;
+  // The session a forked swarm lane started from; see laneForkSourceSessionKey.
+  forkSourceSessionKey?: string;
   promptCacheTtl?: "30m";
   cacheKeepaliveSeconds?: number;
   prefixItems: ResponseInputItem[];
@@ -107,7 +109,7 @@ type CreateModelResponseInput = {
 // without it every tool round replays as a fresh session and loses the prompt cache.
 // Meridian also keeps that session's prompt cache warm for the requested window.
 function buildModelRequestHeaders(
-  input: Pick<CreateModelResponseInput, "promptCacheKey" | "sessionAffinityKey" | "cacheKeepaliveSeconds">
+  input: Pick<CreateModelResponseInput, "promptCacheKey" | "sessionAffinityKey" | "forkSourceSessionKey" | "cacheKeepaliveSeconds">
 ): Record<string, string> {
   const affinityKey = input.sessionAffinityKey || input.promptCacheKey;
   if (typeof affinityKey !== "string" || affinityKey.length === 0) {
@@ -115,6 +117,7 @@ function buildModelRequestHeaders(
   }
   return {
     "x-session-affinity": affinityKey,
+    ...(input.forkSourceSessionKey ? { "x-meridian-fork-from": input.forkSourceSessionKey } : {}),
     ...(input.cacheKeepaliveSeconds ? { "x-meridian-cache-keepalive": String(input.cacheKeepaliveSeconds) } : {})
   };
 }

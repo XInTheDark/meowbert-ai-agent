@@ -3,7 +3,9 @@ import type { FunctionTool } from "openai/resources/responses/responses";
 import type { PlatformModelRouter } from "@meowbert/shared";
 import { buildSwarmFunctionTools } from "@meowbert/run-executor/agent-tools/swarm";
 import { inheritedItems } from "./lane-setup.js";
-import { applyLaneModelRoute, buildLaneModelRoute, pickCheckModelRoute } from "./model-route.js";
+import { applyLaneModelRoute, buildLaneModelRoute, pickCheckModelRoute, routesToOtherModel } from "./model-route.js";
+import { laneForkSourceSessionKey } from "@meowbert/run-executor/agent-swarm/fork-source-session";
+import { buildPromptCacheKey } from "@meowbert/run-executor/agent/turn-request";
 import { SwarmToolError } from "./tool-error.js";
 
 const router: PlatformModelRouter = {
@@ -64,5 +66,26 @@ describe("lane model picks", () => {
     };
     expect(inheritedItems(seed, "gpt-strong")).toHaveLength(2);
     expect(inheritedItems(seed, "claude-other")).toEqual([{ role: "user", content: "Price it." }]);
+  });
+});
+
+describe("lanes on another model", () => {
+  const platform = { model: "gpt-strong", provider: { kind: "platform" as const, baseUrl: "https://api.example.com" } };
+  const pick = (modelId: string) => ({ routerId: "router", modelId, reasoningScore: null });
+
+  it("counts only a router pick of a different model on a platform provider", () => {
+    expect(routesToOtherModel(pick("other"), router, platform)).toBe(true);
+    expect(routesToOtherModel(pick("strong"), router, platform)).toBe(false);
+    expect(routesToOtherModel(null, router, platform)).toBe(false);
+    expect(routesToOtherModel(pick("other"), router, { ...platform, provider: { kind: "byo", baseUrl: "https://byo.example.com" } })).toBe(false);
+  });
+
+  it("names the parent's session only for a forked lane on its parent's model", () => {
+    const seed = { capabilities: { runtime: platform } } as Parameters<typeof laneForkSourceSessionKey>[0]["laneSeed"];
+    const swarm = { lane: { parent_task_id: "parent-task" } } as Parameters<typeof laneForkSourceSessionKey>[0]["swarm"];
+    const parentKey = buildPromptCacheKey("parent-task", "prefix");
+    expect(laneForkSourceSessionKey({ swarm, laneSeed: seed, runtimeModel: "gpt-strong", promptPrefixHash: "prefix" })).toBe(parentKey);
+    expect(laneForkSourceSessionKey({ swarm, laneSeed: seed, runtimeModel: "claude-other", promptPrefixHash: "prefix" })).toBeUndefined();
+    expect(laneForkSourceSessionKey({ swarm: { lane: null }, laneSeed: null, runtimeModel: "gpt-strong", promptPrefixHash: "prefix" })).toBeUndefined();
   });
 });

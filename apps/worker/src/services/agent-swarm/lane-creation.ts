@@ -89,6 +89,9 @@ export async function createForkedLanes(input: {
   parentTaskId: string;
   kind: Exclude<SwarmLaneKind, "check">;
   seed: Omit<ForkSeed, "id">;
+  // A compacted copy for lanes on another model, when the split made one.
+  crossModelSeed: Omit<ForkSeed, "id"> | null;
+  isCrossModel: (lane: NewLane) => boolean;
   lanes: NewLane[];
   envRoot: string;
   buildForkOutput: (lane: NewLane & { laneDir: string }) => { brief: string; item: ResponseInputItem };
@@ -97,7 +100,14 @@ export async function createForkedLanes(input: {
   return withTransaction(async (client) => {
     const root = await prepareLaneCreationInTx(client, swarm, input.parentTaskId, input.lanes.length);
     const shares = await allocateForkSharesInTx(client, swarm, input.parentTaskId, input.lanes.map((lane) => lane.weight));
-    const seedId = await insertForkSeedInTx(client, { ...input.seed, swarmTaskId: swarm.swarmTaskId, sourceTaskId: input.parentTaskId });
+    const seedIds = new Map<Omit<ForkSeed, "id">, string>();
+    const seedIdFor = async (seed: Omit<ForkSeed, "id">): Promise<string> => {
+      const existing = seedIds.get(seed);
+      if (existing) return existing;
+      const seedId = await insertForkSeedInTx(client, { ...seed, swarmTaskId: swarm.swarmTaskId, sourceTaskId: input.parentTaskId });
+      seedIds.set(seed, seedId);
+      return seedId;
+    };
     const depth = (swarm.lane?.depth ?? 0) + 1;
     const created: CreatedLane[] = [];
     for (const [index, lane] of input.lanes.entries()) {
@@ -118,7 +128,7 @@ export async function createForkedLanes(input: {
         kind: input.kind,
         title: lane.title,
         direction: lane.direction,
-        forkSeedId: seedId,
+        forkSeedId: await seedIdFor(input.crossModelSeed && input.isCrossModel(lane) ? input.crossModelSeed : input.seed),
         weight: lane.weight,
         modelRoute: lane.modelRoute,
         shareTokens: shares[index]

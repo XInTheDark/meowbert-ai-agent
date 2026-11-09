@@ -754,6 +754,27 @@ describe("createModelResponse", () => {
     expect(unkeyedOptions.headers).toBeUndefined();
   });
 
+  it("tells Meridian which session a forked lane started from", async () => {
+    const createMock = vi.fn().mockResolvedValue(createResponseStream({ error: null, output: [], output_text: "ok" }));
+    mockedGetOpenAiClient.mockReturnValue({ responses: { create: createMock } } as never);
+
+    await createModelResponse(viaGateway({
+      provider: { apiKey: "test", baseUrl: "https://example.com/v1" },
+      model: "claude-test",
+      prefixItems: [],
+      conversationItems: [],
+      modelPayload: {},
+      tools: [],
+      toolChoice: "auto" as const,
+      promptCacheKey: "swarm:abc",
+      sessionAffinityKey: "lane:abc",
+      forkSourceSessionKey: "parent:abc"
+    }));
+
+    const options = createMock.mock.calls[0]?.[1] as { headers?: Record<string, string> };
+    expect(options.headers).toEqual({ "x-session-affinity": "lane:abc", "x-meridian-fork-from": "parent:abc" });
+  });
+
   it("omits prompt cache options when no TTL is configured", async () => {
     const createMock = vi.fn().mockResolvedValue(createResponseStream({
       error: null,

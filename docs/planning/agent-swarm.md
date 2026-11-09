@@ -613,10 +613,11 @@ Check lanes are **not** forks: they use normal run setup with the Check prompt, 
 3. **Same conversation.** Seed items followed by the lane-specific output; later items are the lane's own and append-only.
 4. **Shared cache key, separate session affinity.** Today `buildPromptCacheKey(taskId, prefixHash)` keys on the task id, and `model.ts` sends the same value as `x-session-affinity`. Split them:
    - `prompt_cache_key` for a lane uses the **swarm root task id** with the inherited prefix hash, so all forks route to the same provider cache.
-   - `x-session-affinity` stays per task (root key plus lane id). Session-resuming proxies such as Meridian require append-only history per affinity key; lanes diverge from the leader, so they must not share it.
+   - `x-session-affinity` stays per task (root key plus lane id). Session-resuming proxies such as Meridian require append-only history per affinity key; lanes diverge from the leader, so they must not share it. Meridian's `/v1/responses` keys on this header ahead of `prompt_cache_key` (rynfar/meridian#1512).
+   - A lane on its parent's model also sends `x-meridian-fork-from` with the parent's affinity key, so Meridian starts the lane from the parent's session instead of replaying the history (`laneForkSourceSessionKey`).
 5. **Warm cache.** The parent's own request that produced the `split` call already wrote the prefix to the cache, so lanes started right after hit it. No extra warm-up request.
 6. **Compacted fork.** If the parent's context exceeds `forkCompactionThresholdTokens`, the handler runs one compaction (existing compaction service) on the seed items before storing them. Every lane in that call forks from that same compacted list, so lanes still share a cache with each other. The parent keeps its full context.
-7. **Cross-model lanes.** If a router pick changes the model, the lane receives the same seed minus provider-specific reasoning items, built with that model's request normalization. No cache sharing is expected.
+7. **Cross-model lanes.** If a router pick changes the model, the lane receives the same seed minus provider-specific reasoning items, built with that model's request normalization. No cache sharing is expected, so above 50k used tokens (and below the fork compaction threshold) every cross-model lane of the split forks from one shared compacted copy instead.
 8. **Verification.** In development builds, log the lane's first `promptPrefixHash` next to the parent's for the same seed; they must match for same-model lanes.
 
 ## 14. API

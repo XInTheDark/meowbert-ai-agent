@@ -37,6 +37,7 @@ import { buildForkCompactor } from "../agent-swarm/fork-compaction.js";
 import { isLaneFinalStep, resolveLaneToolChoice } from "../agent-swarm/forced-submit.js";
 import { buildForcedSubmitNote, LANE_PLAIN_TEXT_NOTE, LANE_STEP_LIMIT_NOTE } from "../agent-swarm/prompt.js";
 import type { SwarmDispatchContext } from "../agent-swarm/dispatch-context.js";
+import { laneForkSourceSessionKey } from "../agent-swarm/fork-source-session.js";
 
 const STEPS_REMAIN_THRESHOLD = 2;
 const MAX_MODEL_REQUEST_RECOVERY_ITEMS = 6;
@@ -414,6 +415,12 @@ async function requestModelTurn(input: {
       cacheUserId: execution.prepared.snapshot.task.initiator_user_id ?? execution.job.taskId,
       promptCacheKey: turnRequest.promptCacheKey,
       sessionAffinityKey: turnRequest.sessionAffinityKey,
+      forkSourceSessionKey: laneForkSourceSessionKey({
+        swarm: execution.swarm,
+        laneSeed: execution.laneSeed,
+        runtimeModel: execution.prepared.runtimeModel,
+        promptPrefixHash: turnRequest.promptPrefixHash
+      }),
       ...(execution.prepared.snapshot.enable_prompt_caching !== false ? { promptCacheTtl: "30m" as const } : {}),
       ...(execution.prepared.runtimeModelType === "claude" && execution.prepared.snapshot.claude_cache_keepalive
         ? { cacheKeepaliveSeconds: CLAUDE_CACHE_KEEPALIVE_SECONDS }

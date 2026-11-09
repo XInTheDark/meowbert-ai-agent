@@ -44,6 +44,18 @@ export async function loadLaneModelRoute(laneTaskId: string): Promise<ChosenMode
   return parseChosenModelRoute(result.rows[0]?.model_route_json);
 }
 
+// Whether a lane on this route runs on another model than the runtime it forks from. Router targets
+// are platform models, so a lane on a bring-your-own provider stays on its parent's model.
+export function routesToOtherModel(
+  route: ChosenModelRoute | null,
+  router: PlatformModelRouter | null,
+  runtime: Pick<SubagentRuntime, "model" | "provider">
+): boolean {
+  if (!route || !router || runtime.provider.kind !== "platform") return false;
+  const target = router.models.find((candidate) => candidate.id === route.modelId);
+  return Boolean(target && target.model !== runtime.model);
+}
+
 // A picked lane keeps the provider it was forked on and swaps in the target's model and payload.
 // Router targets are platform models, so a lane on a bring-your-own provider keeps its own model.
 export function applyLaneModelRoute(
