@@ -346,11 +346,11 @@ describe("TaskDetailTopbar", () => {
       "Events",
       "Artifacts",
       "Notifications",
-      "(2) shells created"
+      "Shells2"
     ]);
 
     const shellTab = tabButtons.at(-1);
-    expect(shellTab?.getAttribute("title")).toBe("(2) shells created");
+    expect(shellTab?.getAttribute("title")).toBe("2 shells created");
     click(shellTab ?? null);
     expect(onTabChange).toHaveBeenCalledWith("shells");
   });

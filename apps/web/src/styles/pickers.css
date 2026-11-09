@@ -1,0 +1,301 @@
+/* Pickers: dropdown lists anchored to a button and centered pick-one dialogs, both searchable. */
+
+.searchable-popover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  z-index: 60;
+  width: 18rem;
+  max-height: 22rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  text-align: left;
+}
+
+.searchable-popover.align-end { right: 0; }
+.searchable-popover.align-start { left: 0; }
+
+.searchable-popover-search,
+.picker-dialog-search,
+.picker-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+}
+
+.searchable-popover-search {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+:is(.searchable-popover-search, .picker-dialog-search, .picker-filter) input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.searchable-popover-list {
+  margin: 0;
+  padding: 0.3rem;
+  overflow: auto;
+  list-style: none;
+}
+
+.searchable-popover-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchable-popover-list button:hover:not(:disabled),
+.searchable-popover-list button.active {
+  background: var(--surface-soft);
+}
+
+.searchable-popover-icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.searchable-popover-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+
+.searchable-popover-label,
+.searchable-popover-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchable-popover-label { font-size: 0.84rem; font-weight: 500; }
+.searchable-popover-detail { font-size: 0.74rem; color: var(--text-muted); }
+.searchable-popover-check { flex: none; color: var(--brand-strong); }
+
+.searchable-popover-empty {
+  padding: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.searchable-popover-footer {
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+}
+
+.searchable-popover-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.searchable-popover-error { color: var(--danger); }
+
+/* Pick-one dialog */
+
+.picker-dialog {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(72vh, 640px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.picker-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 0.8rem 0.55rem 1.1rem;
+}
+
+.picker-dialog-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.picker-dialog-search {
+  margin: 0 0.9rem 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface-muted);
+}
+
+.picker-dialog-search:focus-within,
+.picker-filter:focus-within {
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border));
+}
+
+.picker-dialog-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 0.1rem;
+  padding: 0.25rem 0.5rem 0.6rem;
+}
+
+.picker-dialog-row {
+  display: flex;
+  align-items: center;
+  border-radius: 0.6rem;
+}
+
+.picker-dialog-row:hover,
+.picker-dialog-row:focus-within {
+  background: var(--surface-soft);
+}
+
+.picker-dialog-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-dialog-row-icon {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  color: var(--brand-strong);
+}
+
+.picker-dialog-row-text {
+  min-width: 0;
+  display: grid;
+}
+
+.picker-dialog-row-text strong,
+.picker-dialog-row-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-dialog-row-text strong { font-size: 0.88rem; font-weight: 600; }
+.picker-dialog-row-text span { font-size: 0.76rem; color: var(--text-muted); }
+
+.picker-dialog-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-right: 0.4rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.picker-dialog-row:is(:hover, :focus-within) .picker-dialog-row-actions { opacity: 1; }
+
+@media (hover: none) {
+  .picker-dialog-row-actions { opacity: 1; }
+}
+
+.picker-dialog-open {
+  height: 1.9rem;
+  padding: 0 0.7rem;
+  font-size: 0.78rem;
+}
+
+.picker-dialog-empty {
+  padding: 1.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Older file and attachment dialogs share these frames; keep them in the same quieter style. */
+
+.environment-file-picker-overlay {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.environment-file-picker-modal {
+  border-radius: 0.9rem;
+}
+
+.environment-file-picker-header {
+  align-items: center;
+  padding: 0.8rem 0.8rem 0.8rem 1.1rem;
+  border-bottom-color: var(--border-subtle);
+}
+
+.environment-file-picker-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.environment-file-picker-subtitle {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+}
+
+.environment-file-picker-header .legal-close {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.environment-file-picker-header .legal-close:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.picker-filter {
+  height: 2rem;
+  min-width: 11rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--surface-muted);
+}

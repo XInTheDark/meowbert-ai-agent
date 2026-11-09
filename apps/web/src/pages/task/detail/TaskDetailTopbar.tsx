@@ -80,6 +80,7 @@ interface TaskDetailTopbarProps {
   subscriptionUsageWarning?: SubscriptionUsageWarning | null;
   debugMode?: boolean;
   persistentShellCount?: number;
+  canvasesMenu?: ReactNode;
 }
 
 interface UsageSummary {
@@ -632,10 +633,11 @@ function TaskDetailTabBar(props: {
             aria-selected={props.activeTab === "shells"}
             className={`tab-btn ${props.activeTab === "shells" ? "active" : ""}`}
             onClick={() => props.onTabChange("shells")}
-            title={`(${props.persistentShellCount}) shells created`}
+            title={`${props.persistentShellCount} shells created`}
           >
             <Terminal size={14} />
-            <span className="task-tab-btn-label">({props.persistentShellCount}) shells created</span>
+            <span className="task-tab-btn-label">Shells</span>
+            <span className="task-tab-count">{props.persistentShellCount}</span>
           </button>
         ) : null}
         {props.debugMode === true ? (
@@ -644,10 +646,10 @@ function TaskDetailTabBar(props: {
             aria-selected={props.activeTab === "debug"}
             className={`tab-btn debug-tab-btn ${props.activeTab === "debug" ? "active" : ""}`}
             onClick={() => props.onTabChange("debug")}
-            title="DEBUG"
+            title="Debug"
           >
             <Bug size={14} />
-            <span className="task-tab-btn-label">DEBUG</span>
+            <span className="task-tab-btn-label">Debug</span>
           </button>
         ) : null}
       </div>
@@ -681,6 +683,16 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
   const usage = getUsageSummary(props.latestContextUsage);
   const displayStatus = props.displayStatus ?? getDisplayStatus(props.task);
   const isCollapsed = props.isMobileViewport && props.topbarCollapsed;
+  const tabBar = (
+    <TaskDetailTabBar
+      activeTab={props.activeTab}
+      onTabChange={props.onTabChange}
+      isMessageOutlineOpen={props.isMessageOutlineOpen}
+      onMessageOutlineToggle={props.onMessageOutlineToggle}
+      debugMode={props.debugMode === true}
+      persistentShellCount={props.persistentShellCount ?? 0}
+    />
+  );
 
   return (
     <div className={`topbar chat-task-topbar${isCollapsed ? " collapsed" : ""}${props.workflowStrip || props.workflowPanel ? " has-workflow-panel" : ""}`}>
@@ -738,7 +750,9 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
               <SubscriptionUsageWarningLink warning={props.subscriptionUsageWarning ?? null} className="subscription-usage-warning-link task-topbar-usage-warning-link" />
             </div>
           </div>
+          {props.isMobileViewport ? null : tabBar}
           <div className="task-topbar-controls">
+            {props.canvasesMenu}
             <TaskDetailDisplaySettingsDropdown
               newMessageOrganizationEnabled={props.newMessageOrganizationEnabled}
               value={props.messageDisplayPreferences}
@@ -787,14 +801,7 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
         ) : props.workflowPanel ? (
           <div className="task-topbar-workflow-slot">{props.workflowPanel}</div>
         ) : null}
-        <TaskDetailTabBar
-          activeTab={props.activeTab}
-          onTabChange={props.onTabChange}
-          isMessageOutlineOpen={props.isMessageOutlineOpen}
-          onMessageOutlineToggle={props.onMessageOutlineToggle}
-          debugMode={props.debugMode === true}
-          persistentShellCount={props.persistentShellCount ?? 0}
-        />
+        {props.isMobileViewport ? tabBar : null}
       </div>
     </div>
   );

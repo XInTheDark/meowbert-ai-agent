@@ -5,7 +5,8 @@ import { getCanvasViewKey, type CanvasView } from "../../../components/canvas/ca
 import { useProjectCanvasTickets } from "../../../components/canvas/useProjectCanvasTickets";
 import { buildProjectCanvasPreviewUrl } from "../../../lib/projectCanvases";
 import { buildTaskInlineFileUrl } from "../../../lib/taskInlineFiles";
-import type { LiveEvent, ProjectCanvasSummary } from "../../../lib/types";
+import type { LiveEvent, ProjectCanvasSummary, TaskMessage } from "../../../lib/types";
+import { listTaskCanvasViews, projectCanvasView } from "../../../task/taskCanvasViews";
 
 interface CanvasUpdate {
   relativePath: string;
@@ -25,9 +26,7 @@ function readCanvasUpdate(event: LiveEvent): CanvasUpdate | null {
   };
 }
 
-export function projectCanvasView(canvas: ProjectCanvasSummary): CanvasView {
-  return { type: "html", relativePath: canvas.entryPath, canvasId: canvas.id, title: canvas.name, display: "panel", height: null };
-}
+export { projectCanvasView };
 
 function useCanvasPanelState(projectCanvases: ProjectCanvasSummary[]) {
   const [openedViews, setOpenedViews] = useState<CanvasView[]>([]);
@@ -82,6 +81,7 @@ export function useTaskCanvas(input: {
   inlineFileTicket: string | null;
   projectCanvases: ProjectCanvasSummary[];
   events: LiveEvent[];
+  messages: TaskMessage[];
   requestedCanvasId: string | null;
   sendPrompt: (prompt: string) => void;
 }) {
@@ -117,5 +117,6 @@ export function useTaskCanvas(input: {
     sendPrompt
   }), [comments, getProjectCanvasTicket, inlineFileTicket, panel.open, projectId, revisions, sendPrompt, taskId]);
 
-  return { host, panel };
+  const available = useMemo(() => listTaskCanvasViews(input.projectCanvases, input.messages), [input.messages, input.projectCanvases]);
+  return { host, panel, available };
 }

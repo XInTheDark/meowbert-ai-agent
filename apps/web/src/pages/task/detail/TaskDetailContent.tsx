@@ -6,6 +6,9 @@ import { ToolActivityInspectorPanel } from "../../../components/taskConversation
 import { CanvasPickerModal } from "../../../components/modals/CanvasPickerModal";
 import { CanvasHostContext } from "../../../components/canvas/CanvasHostContext";
 import { CanvasPanel } from "../../../components/canvas/CanvasPanel";
+import { CanvasAddToProjectButton } from "../../../components/canvas/CanvasAddToProjectButton";
+import { TaskCanvasesMenu } from "./TaskCanvasesMenu";
+import { getCanvasViewKey } from "../../../components/canvas/canvasViews";
 import type { ProjectCanvasSummary } from "../../../lib/types";
 import { ProjectFilePickerModal } from "../../../components/modals/ProjectFilePickerModal";
 import { SourceFilePickerModal } from "../../../components/modals/SourceFilePickerModal";
@@ -65,6 +68,16 @@ function TaskTopbar({ model }: ModelProps) {
       }}
       activeTab={model.view.tab}
       onTabChange={model.controllers.switchTab}
+      canvasesMenu={(
+        <TaskCanvasesMenu
+          views={model.canvas.available}
+          activeKey={model.canvas.panel.activeView ? getCanvasViewKey(model.canvas.panel.activeView) : null}
+          onOpen={(view) => {
+            model.controllers.switchTab("conversation");
+            model.canvas.panel.open(view);
+          }}
+        />
+      )}
       actionsMenuRef={model.view.actionsMenuRef}
       actionsMenuOpen={model.view.actionsMenuOpen}
       onActionsMenuToggle={() => model.view.setActionsMenuOpen((current) => !current)}
@@ -443,6 +456,32 @@ function TaskCanvasSidebar({ model }: ModelProps) {
       onOpenFiles={projectCanvas && model.context.taskWorkspaceId && model.context.taskProjectId ? () => {
         model.context.navigate(`/app/${model.context.taskWorkspaceId}/projects/${model.context.taskProjectId}/files?path=${encodeURIComponent(projectCanvas.rootPath)}`);
       } : undefined}
+      renderActions={(view) => view.canvasId ? null : <TaskCanvasAddToProject model={model} relativePath={view.relativePath} title={view.title} />}
+    />
+  );
+}
+
+function TaskCanvasAddToProject({ model, relativePath, title }: ModelProps & { relativePath: string; title: string | null }) {
+  const { workspace, taskId, taskWorkspaceId, taskProjectId } = model.context;
+  const projects = (workspace.projects ?? workspace.environments)
+    .filter((project) => project.workspace_id === taskWorkspaceId && project.status !== "archived");
+  return (
+    <CanvasAddToProjectButton
+      projects={projects}
+      currentProjectId={taskProjectId}
+      onAdd={async (projectId) => {
+        const { canvas } = await workspace.api.post<{ canvas: ProjectCanvasSummary }>(
+          `/api/tasks/${taskId}/canvases/copy-to-project`, { relativePath, projectId, name: title });
+        if (projectId === taskProjectId) await model.context.data.loadArtifacts();
+        return canvas;
+      }}
+      onOpenCanvas={(canvas) => {
+        if (canvas.projectId === taskProjectId) {
+          openProjectCanvas(model, canvas);
+          return;
+        }
+        model.context.navigate(`/app/${taskWorkspaceId}/projects/${canvas.projectId}/canvases/${canvas.id}`);
+      }}
     />
   );
 }

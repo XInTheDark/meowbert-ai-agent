@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ExternalLink, FolderOpen, MessageSquare, RotateCw, X } from "lucide-react";
 import type { CanvasDocumentKind } from "@meowbert/shared/canvas-frame";
 import { CanvasViewportControls, type PanelViewport } from "./CanvasViewportControls";
@@ -55,6 +55,8 @@ export function CanvasPanel(props: {
   onSelect: (view: CanvasView) => void;
   onClose: () => void;
   onOpenFiles?: (view: CanvasView) => void;
+  /** Extra controls for the shown page, placed before the close button. */
+  renderActions?: (view: CanvasView) => ReactNode;
 }) {
   const [viewport, setViewport] = useState<PanelViewport>("desktop");
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -107,6 +109,7 @@ export function CanvasPanel(props: {
               <ExternalLink size={14} aria-hidden="true" />
             </a>
           ) : null}
+          {props.renderActions?.(activeView)}
           <button type="button" className="icon-btn" onClick={props.onClose} title="Close" aria-label="Close canvas">
             <X size={15} aria-hidden="true" />
           </button>

@@ -146,6 +146,7 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
     inlineFileTicket: context.data.inlineFileTicket,
     projectCanvases: context.data.artifactCanvases,
     events: controllers.events.events,
+    messages: controllers.conversation.messages,
     requestedCanvasId: new URLSearchParams(context.location.search).get("canvas"),
     sendPrompt: sendCanvasPrompt
   });

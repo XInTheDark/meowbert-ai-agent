@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Palette, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AppWindow, Paperclip, Search, X } from "lucide-react";
 import type { ApiClient } from "../../lib/api";
 import { InlineProgressBar } from "../InlineProgressBar";
 import type { ProjectCanvasListResponse, ProjectCanvasSummary, TaskAttachment } from "../../lib/types";
@@ -28,6 +28,11 @@ export function CanvasPickerModal(props: CanvasPickerModalProps) {
   const [canvases, setCanvases] = useState<ProjectCanvasSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const visible = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    return needle ? canvases.filter((canvas) => canvas.name.toLowerCase().includes(needle)) : canvases;
+  }, [canvases, filter]);
 
   useEffect(() => {
     if (!props.isOpen || !props.projectId) {
@@ -35,6 +40,7 @@ export function CanvasPickerModal(props: CanvasPickerModalProps) {
     }
 
     setIsLoading(true);
+    setFilter("");
     setError(null);
     void props.api.get<ProjectCanvasListResponse>(`/api/projects/${props.projectId}/canvases`)
       .then((response) => setCanvases(response.items))
@@ -60,61 +66,50 @@ export function CanvasPickerModal(props: CanvasPickerModalProps) {
     return null;
   }
 
+  function attach(canvas: ProjectCanvasSummary): void {
+    props.onAttach(toCanvasAttachment(canvas));
+    props.onClose();
+  }
+
   return (
     <div className="environment-file-picker-overlay" onClick={props.onClose}>
-      <div
-        className="environment-file-picker-modal canvas-picker-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="canvas-picker-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="environment-file-picker-header">
-          <div>
-            <h2 id="canvas-picker-title">Canvases</h2>
-            <p className="environment-file-picker-subtitle">Attach a project canvas or continue the task in canvas mode.</p>
-          </div>
-          <button type="button" className="legal-close" onClick={props.onClose} aria-label="Close">
-            <X size={18} />
+      <div className="picker-dialog" role="dialog" aria-modal="true" aria-labelledby="canvas-picker-title"
+        onClick={(event) => event.stopPropagation()}>
+        <header className="picker-dialog-header">
+          <h2 id="canvas-picker-title">Canvases</h2>
+          <button type="button" className="icon-btn" onClick={props.onClose} aria-label="Close" title="Close">
+            <X size={16} />
           </button>
-        </div>
-
-        <div className="canvas-picker-list">
-          {isLoading ? (
-            <InlineProgressBar pin="top" />
-          ) : error ? (
-            <div className="error-banner">{error}</div>
-          ) : canvases.length === 0 ? (
-            <div className="task-list-empty">No canvases yet.</div>
-          ) : canvases.map((canvas) => (
-            <div key={canvas.id} className="canvas-picker-row">
-              <div className="canvas-picker-icon" aria-hidden="true">
-                <Palette size={16} />
-              </div>
-              <div className="canvas-picker-main">
-                <strong>{canvas.name}</strong>
-                <span className="muted-text">Updated {formatRelative(canvas.updatedAt)}</span>
-              </div>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => {
-                    props.onAttach(toCanvasAttachment(canvas));
-                    props.onClose();
-                  }}
-                >
-                  Attach
+        </header>
+        <label className="picker-dialog-search">
+          <Search size={15} aria-hidden="true" />
+          <input autoFocus value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search canvases"
+            aria-label="Search canvases" onKeyDown={(event) => { if (event.key === "Enter" && visible[0]) attach(visible[0]); }} />
+        </label>
+        <div className="picker-dialog-list">
+          {isLoading ? <InlineProgressBar pin="top" /> : null}
+          {error ? <div className="error-banner">{error}</div> : null}
+          {!isLoading && !error && visible.length === 0 ? (
+            <div className="picker-dialog-empty">{canvases.length === 0 ? "No canvases in this project yet." : "No matching canvases."}</div>
+          ) : null}
+          {visible.map((canvas) => (
+            <div key={canvas.id} className="picker-dialog-row">
+              <button type="button" className="picker-dialog-row-main" onClick={() => attach(canvas)} title="Attach to message">
+                <span className="picker-dialog-row-icon" aria-hidden="true"><AppWindow size={16} /></span>
+                <span className="picker-dialog-row-text">
+                  <strong>{canvas.name}</strong>
+                  <span>Updated {formatRelative(canvas.updatedAt)}</span>
+                </span>
+              </button>
+              <div className="picker-dialog-row-actions">
+                <button type="button" className="icon-btn" onClick={() => attach(canvas)} title="Attach" aria-label={`Attach ${canvas.name}`}>
+                  <Paperclip size={15} />
                 </button>
                 {props.onOpenInCanvasMode ? (
-                  <button
-                    type="button"
-                    className="btn primary"
-                    onClick={() => {
-                      props.onOpenInCanvasMode?.(canvas);
-                      props.onClose();
-                    }}
-                  >
+                  <button type="button" className="btn ghost picker-dialog-open" onClick={() => {
+                    props.onOpenInCanvasMode?.(canvas);
+                    props.onClose();
+                  }}>
                     Canvas mode
                   </button>
                 ) : null}

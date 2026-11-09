@@ -14,6 +14,8 @@ import "./styles/secondary.css";
 import "./styles/conversation.css";
 import "./styles/canvas.css";
 import "./styles.css";
+import "./styles/task-topbar.css";
+import "./styles/pickers.css";
 import "./styles/mobile/shell.css";
 import "./styles/mobile/conversation.css";
 import "./styles/mobile/lists.css";

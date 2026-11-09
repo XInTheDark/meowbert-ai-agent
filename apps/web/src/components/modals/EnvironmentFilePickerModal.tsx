@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
-import { ArrowUp, Home, Upload, X } from "lucide-react";
+import { ArrowUp, Home, Search, Upload, X } from "lucide-react";
 import type { ApiClient } from "../../lib/api";
 import { useAppRuntime } from "../../contexts/AppRuntimeContext";
 import { buildDownloadUrl } from "../../lib/utils";
@@ -62,11 +62,13 @@ export function EnvironmentFilePickerModal(props: EnvironmentFilePickerModalProp
   const [error, setError] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [nameFilter, setNameFilter] = useState("");
 
-  const sortedEntries = useMemo(
-    () => sortEnvironmentFileEntries(entries, sortColumn, sortDirection),
-    [entries, sortColumn, sortDirection]
-  );
+  const sortedEntries = useMemo(() => {
+    const needle = nameFilter.trim().toLowerCase();
+    const sorted = sortEnvironmentFileEntries(entries, sortColumn, sortDirection);
+    return needle ? sorted.filter((entry) => entry.name.toLowerCase().includes(needle)) : sorted;
+  }, [entries, nameFilter, sortColumn, sortDirection]);
   const selectedAttachableEntries = useMemo(
     () => sortedEntries.filter(
       (entry) => selectedPaths.has(entry.relativePath) && (entry.kind === "file" || entry.kind === "directory")
@@ -84,6 +86,7 @@ export function EnvironmentFilePickerModal(props: EnvironmentFilePickerModalProp
     }
 
     setIsLoadingList(true);
+    setNameFilter("");
     setError(null);
     setStatusText(null);
     setSelectedPaths(new Set());
@@ -407,6 +410,10 @@ export function EnvironmentFilePickerModal(props: EnvironmentFilePickerModalProp
                 </form>
               </div>
               <div className="files-toolbar-actions row-actions">
+                <label className="picker-filter">
+                  <Search size={14} aria-hidden="true" />
+                  <input value={nameFilter} onChange={(event) => setNameFilter(event.target.value)} placeholder="Filter this folder" aria-label="Filter this folder" />
+                </label>
                 <button
                   className="btn ghost"
                   type="button"
