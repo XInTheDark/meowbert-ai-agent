@@ -10,6 +10,7 @@
 - **Any model.** Connect OpenAI, a gateway, or a local model server. Offer several models and set reasoning effort per model.
 - **A real computer for the agent.** Each task gets a fresh container with a shell, git, Python, Node, a browser, and Office and PDF tools. It's locked down by default, with optional [gVisor](https://gvisor.dev) isolation.
 - **Work that lasts.** Projects keep their files, memory, and task history. Come back to any task weeks later and pick up where you left off, or branch it to try something else.
+- **A well-designed harness.** Every part of the harness is designed with care, combining the best ideas from frontier products with our own innovations.
 - **Runs while you're away.** Schedule tasks, let them loop for hours, and get results in Telegram, Discord, email, or a push notification. A **Project Master** keeps track of what's running and follows up.
 - **Made for teams.** Multiple users and workspaces, shared projects, per-user limits, and an admin panel.
 
