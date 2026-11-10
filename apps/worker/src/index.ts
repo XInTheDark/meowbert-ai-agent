@@ -23,6 +23,7 @@ import { processEmailDeliveryJob } from "./services/email/email-delivery.js";
 import { stopWorkspaceMemoryWatchers } from "./services/memory/index.js";
 import { scheduleTaskRunRetry } from "./services/tasks/task-run-retry.js";
 import { startTaskTimeLimitLoop } from "./services/tasks/task-time-limit.js";
+import { startClarifyTimeoutLoop } from "./services/task-workflows/clarify-timeout.js";
 import { startAdminRuntimeMigrationLoop } from "./services/admin-migrations/runtime-migrations.js";
 import { startWorkspaceStorageMigrationLoop } from "./services/storage/workspace-storage-migrations.js";
 import { storageBackendRegistry } from "./services/storage/backend-registry.js";
@@ -141,6 +142,7 @@ async function start(): Promise<void> {
   const taskScheduleLoop = startTaskScheduleLoop();
   const taskCleanupLoop = startTaskCleanupLoop();
   const taskTimeLimitLoop = startTaskTimeLimitLoop();
+  const clarifyTimeoutLoop = startClarifyTimeoutLoop();
   const taskRunDispatchLoop = startTaskRunDispatchLoop();
   const taskHistoryArchiveLoop = startTaskHistoryArchiveLoop();
   const taskHistoryArchiveRequestLoop = startTaskHistoryArchiveRequestLoop();
@@ -212,6 +214,7 @@ async function start(): Promise<void> {
     await idleCompactionLoop.stop();
     await taskRunRecoveryLoop.stop();
     await taskTimeLimitLoop.stop();
+    await clarifyTimeoutLoop.stop();
     await taskRunDispatchLoop.stop();
     await taskHistoryArchiveLoop.stop();
     await taskHistoryArchiveRequestLoop.stop();
