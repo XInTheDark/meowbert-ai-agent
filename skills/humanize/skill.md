@@ -89,6 +89,8 @@ Once the piece has the right shape, go through it one sentence at a time and ask
 
 Fix each one by asking how this writer would have said it, not by swapping in a synonym. Fixing only the sentences that are clearly off isn't enough, since the problem is usually that all of them are slightly off.
 
+Then search the whole text for the mannerisms in your base instructions, since they survive rewrites easily and a single one can give the piece away. Look for "It is not X. It is Y." reveals, sentences that announce which part matters, tables or numbers that "show" or "hide" things, a point held back for the next sentence ("The sixth is not."), teasing or thesis-shaped headings, paragraphs that close on an aphorism, wrong readings set up to be knocked down, runs of fragments, dressed-up metaphors ("X wearing the costume of Y"), and labels in front of the point ("The catch:"). Check every paragraph and heading, not only the ones that seemed off on the first read, and rewrite each hit as a plain statement in the writer's words.
+
 ## AI voices to avoid
 
 Inflated AI is the familiar one: "underscores", "sheds light on", "fosters", "truly", stacked abstract nouns, and tails that restate the point (", ensuring high accessibility"). Your base instructions already cover it, and those bans still apply.
