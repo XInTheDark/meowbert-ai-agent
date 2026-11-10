@@ -255,16 +255,16 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     expect(running.rows).toHaveLength(1);
   });
 
-  it("refuses to restore a dormant share already allocated to another lane", async () => {
+  it.each(["done", "failed"] as const)("refuses to restore a %s lane's share already allocated to another lane", async (status) => {
     const swarm = await createSwarm({ budgetReservePercent: 15, dormantLaneTurns: 3 }, { tokenBudget: 1_000_000 });
     const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
     const [a] = await split(swarm, swarm.swarmTaskId, ["A"]);
-    await submit(a.taskId);
+    await submit(a.taskId, status);
     await appendSwarmMergeMessage(executionFor(leaderJob), swarm);
     const [b] = await split(swarm, swarm.swarmTaskId, ["B"]);
     await expect(resumeLane({ swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: a.taskId, message: "Continue" }))
       .rejects.toThrow(/0 tokens left to give/);
-    expect((await loadLane(pool, a.taskId))?.status).toBe("done");
+    expect((await loadLane(pool, a.taskId))?.status).toBe(status);
     expect(await pendingRuns(a.taskId)).toBe(0);
     expect((await pool.query("SELECT 1 FROM task_swarm_lane_inbox WHERE lane_task_id = $1 AND kind = 'resume'", [a.taskId])).rowCount).toBe(0);
 
@@ -416,11 +416,11 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     expect(await loadAutoCheckFiles(swarm.swarmTaskId)).toBeNull();
   });
 
-  it("keeps a merged lane resumable for the configured user turns, then expires it", async () => {
+  it.each(["done", "failed"] as const)("keeps a merged %s lane resumable for the configured user turns, then expires it", async (status) => {
     const swarm = await createSwarm({ dormantLaneTurns: 1 });
     const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
     const [lane] = await split(swarm, swarm.swarmTaskId, ["EIC"]);
-    await submit(lane.taskId);
+    await submit(lane.taskId, status);
     await appendSwarmMergeMessage(executionFor(leaderJob), swarm);
     const dormant = () => withClient((client) => listDormantLanesInTx(client, {
       parentTaskId: swarm.swarmTaskId, swarmTaskId: swarm.swarmTaskId, dormantLaneTurns: 1
@@ -435,7 +435,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     await appendLaneInbox(laneExecution, await laneContext(lane.taskId));
     expect(laneExecution.state.dispatchState.conversationItems[0].content).toContain("Go deeper on the EIC.");
 
-    await submit(lane.taskId);
+    await submit(lane.taskId, status);
     await appendSwarmMergeMessage(executionFor(leaderJob), swarm);
     await userMessage(swarm.swarmTaskId, "Another question.");
     await userMessage(swarm.swarmTaskId, "And another.");
@@ -443,6 +443,33 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["expired"]);
     await expect(resumeLane({ swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: lane.taskId, message: "Again." }))
       .rejects.toThrow(/can no longer be resumed/);
+  });
+
+  it("queues a failed lane's resume until capacity is free and delivers its new result once", async () => {
+    const swarm = await createSwarm({ maxRunningLanes: 1 });
+    const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    const [a, b] = await split(swarm, swarm.swarmTaskId, ["A", "B"]);
+    const originalSeed = (await loadLane(pool, a.taskId))?.fork_seed_id;
+    await submit(a.taskId, "failed", "Rate limited", 1);
+    await appendSwarmMergeMessage(executionFor(leaderJob), swarm);
+    await resumeLane({ swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: a.taskId, message: "The limit reset. Continue." });
+    expect((await loadLane(pool, a.taskId))?.status).toBe("queued");
+    expect(await pendingRuns(a.taskId)).toBe(0);
+    await submit(b.taskId, "done", "B finished", 1);
+    expect((await loadLane(pool, a.taskId))?.status).toBe("running");
+    expect((await loadLane(pool, a.taskId))?.fork_seed_id).toBe(originalSeed);
+    const run = (await pool.query("SELECT id, retry_sequence_no FROM task_runs WHERE task_id = $1 AND ended_at IS NULL", [a.taskId])).rows[0];
+    expect(run.retry_sequence_no).toBe(1);
+    const execution = executionFor({ ...leaderJob, taskId: a.taskId, runId: run.id, mode: "agent_swarm_lane" });
+    await appendLaneInbox(execution, await laneContext(a.taskId));
+    expect(execution.state.dispatchState.conversationItems[0].content).toContain("The limit reset. Continue.");
+    await submit(a.taskId, "done", "Recovered result", 1);
+    const leaderExecution = executionFor(leaderJob);
+    await appendSwarmMergeMessage(leaderExecution, swarm);
+    await appendSwarmMergeMessage(leaderExecution, swarm);
+    const items = leaderExecution.state.dispatchState.conversationItems;
+    expect(items).toHaveLength(1);
+    expect(items[0].content).toContain("Recovered result");
   });
 
   it("stops a lane and its sub-lanes: queued ones end at once, working ones are told to submit", async () => {

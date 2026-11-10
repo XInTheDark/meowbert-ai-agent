@@ -49,13 +49,15 @@ async function forward(request: FastifyRequest, reply: FastifyReply, runId: stri
 // each call to the worker that holds the run's lease.
 export const runApiRoutes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(runLiveFolderRoutes);
-  fastify.post("/api/runs/:runId/call/:method", { bodyLimit: RUN_API_BODY_LIMIT_BYTES }, async (request, reply) => {
+  // Lease-authenticated executor traffic includes heartbeats and durable writes. The ordinary
+  // HTTP request bucket must not interrupt it; the worker enforces the run's model/resource limits.
+  fastify.post("/api/runs/:runId/call/:method", { bodyLimit: RUN_API_BODY_LIMIT_BYTES, config: { rateLimit: false } }, async (request, reply) => {
     const params = callParams.parse(request.params);
     return forward(request, reply, params.runId, `/runs/${params.runId}/call/${params.method}`);
   });
 
   for (const suffix of ["", "/replay"]) {
-    fastify.post("/api/runs/:runId/model/responses" + suffix, { bodyLimit: RUN_API_BODY_LIMIT_BYTES }, async (request, reply) => {
+    fastify.post("/api/runs/:runId/model/responses" + suffix, { bodyLimit: RUN_API_BODY_LIMIT_BYTES, config: { rateLimit: false } }, async (request, reply) => {
       const params = modelParams.parse(request.params);
       return forward(request, reply, params.runId, `/runs/${params.runId}/model/responses${suffix}`,
         request.headers.accept === RUN_API_MODEL_STREAM_CONTENT_TYPE);

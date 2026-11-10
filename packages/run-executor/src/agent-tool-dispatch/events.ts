@@ -33,6 +33,10 @@ export async function appendToolMessage(
       parentMessageId: ctx.getCurrentLeafMessageId()
     });
     ctx.setCurrentLeafMessageId(messageId);
+    // A reconnect may resume from this tool message before a final assistant message is saved.
+    if (ctx.contextManagementV2) {
+      await ctx.control.context.linkVisibleMessage(ctx.contextManagementV2, messageId);
+    }
     await ctx.control.selectBranch(messageId);
   };
   const queued = (toolMessageQueues.get(ctx.control) ?? Promise.resolve()).then(append);

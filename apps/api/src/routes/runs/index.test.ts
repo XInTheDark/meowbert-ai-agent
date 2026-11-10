@@ -1,6 +1,7 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import Fastify from "fastify";
+import rateLimit from "@fastify/rate-limit";
 import { expect, it, vi } from "vitest";
 import { RUN_API_MODEL_STREAM_CONTENT_TYPE } from "@meowbert/shared";
 import { signRunLeaseToken } from "@meowbert/shared/run-lease-token";
@@ -9,6 +10,37 @@ vi.mock("../../lib/db.js", () => ({ query: vi.fn() }));
 vi.mock("../../lib/config.js", () => ({ config: { localExecution: { enabled: true }, security: { jwtSecret: "secret" } } }));
 import { query } from "../../lib/db.js";
 import { runApiRoutes } from "./index.js";
+
+it("keeps executor heartbeats, persistence and model calls working after the HTTP bucket is full", async () => {
+  const worker = http.createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ result: { ok: true } }));
+  });
+  await new Promise<void>((resolve) => worker.listen(0, "127.0.0.1", resolve));
+  vi.mocked(query).mockResolvedValue({ rows: [{ lease_api_url: `http://127.0.0.1:${(worker.address() as AddressInfo).port}`, lease_epoch: 1 }] } as never);
+  const app = Fastify();
+  await app.register(rateLimit, { max: 2, timeWindow: "1 minute" });
+  app.get("/ordinary", async () => ({ ok: true }));
+  await app.register(runApiRoutes);
+  const runId = "11111111-1111-4111-8111-111111111111";
+  const token = signRunLeaseToken({ runId, taskId: "task", epoch: 1, holder: "device:desktop" }, "secret");
+  try {
+    expect((await app.inject("/ordinary")).statusCode).toBe(200);
+    expect((await app.inject("/ordinary")).statusCode).toBe(200);
+    expect((await app.inject("/ordinary")).statusCode).toBe(429);
+    for (const path of ["call/control.heartbeat", "call/context.recordItems", "call/control.fail", "model/responses", "model/responses/replay"]) {
+      const response = await app.inject({ method: "POST", url: `/api/runs/${runId}/${path}`,
+        headers: { authorization: `Bearer ${token}` }, payload: { operationId: "operation", args: [] } });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ result: { ok: true } });
+    }
+    expect((await app.inject({ method: "POST", url: `/api/runs/${runId}/call/control.heartbeat`, payload: {} })).statusCode).toBe(401);
+  } finally {
+    await app.close();
+    worker.closeAllConnections();
+    await new Promise<void>((resolve) => worker.close(() => resolve()));
+  }
+});
 
 it.each(["", "/replay"])("passes model keepalives through the public API%s before the worker returns a result", async (suffix) => {
   let workerResponse!: http.ServerResponse;

@@ -183,7 +183,7 @@ const STOP_LANE_TOOL = tool(STOP_LANE_TOOL_NAME, "Stop one of your lanes and its
   discard: { type: "boolean" }
 });
 
-const RESUME_TOOL = tool(RESUME_TOOL_NAME, "Continue one of your dormant lanes with its full context, for a follow-up on its part. Your turn ends; you resume with its new result.", {
+const RESUME_TOOL = tool(RESUME_TOOL_NAME, "Continue one of your dormant lanes with its full context, including a failed lane after its error is resolved. Your turn ends; you resume with its new result.", {
   lane_id: laneIdProperty,
   message: { type: "string", description: "What the lane should do next." },
   extra_tokens: { type: ["integer", "null"], description: "Budget to add to the lane's share when budgets are on; otherwise null." }

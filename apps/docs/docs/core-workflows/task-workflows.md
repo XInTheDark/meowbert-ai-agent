@@ -132,6 +132,8 @@ The leader stays available while lanes work. Send a message at any time: the lea
 
 After a reply, lanes stay **dormant** for a few turns with everything they found. When you ask a follow-up such as "go deeper on the EIC programs", the leader picks up the lane that already did that part instead of starting over.
 
+If a lane fails, for example because its model hits a rate limit, ask the leader to resume it after the problem is resolved. Failed lanes keep their context and can be resumed within the same dormant period. Stopped lanes and Check reviewers cannot be resumed.
+
 ### Why use it
 
 Agent Swarm is useful when:

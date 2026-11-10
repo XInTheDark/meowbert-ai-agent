@@ -20,7 +20,7 @@ export interface AgentSwarmLaneView {
   checkFindings: number;
   summary: string | null;
   latestNote: string | null;
-  // Submitted, merged and still within the swarm's dormant turns, so its parent can resume it.
+  // Submitted or failed, merged and still within the dormant turns, so its parent can resume it.
   resumable: boolean;
   createdAt: string;
   startedAt: string | null;

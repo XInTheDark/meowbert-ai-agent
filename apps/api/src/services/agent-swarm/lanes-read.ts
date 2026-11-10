@@ -32,7 +32,7 @@ interface LaneRow {
 
 // Mirrors the runtime's dormancy rule, which is counted from the conversation rather than stored.
 function isResumable(row: LaneRow, dormantLaneTurns: number): boolean {
-  return row.status === "done" && row.kind !== "check" && row.merged_at !== null && dormantLaneTurns > 0
+  return ["done", "failed"].includes(row.status) && row.kind !== "check" && row.merged_at !== null && dormantLaneTurns > 0
     && (row.user_turns_since_merge ?? 0) <= dormantLaneTurns;
 }
 
