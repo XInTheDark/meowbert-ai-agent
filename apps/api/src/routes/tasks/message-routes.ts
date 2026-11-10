@@ -72,7 +72,7 @@ async function handlePostTaskMessage(request: FastifyRequest, reply: FastifyRepl
   const params = taskParams.parse(request.params);
   const body = postTaskMessageBody.parse(request.body);
   const access = await assertTaskMember(params.taskId, request.user.id);
-  const localError = await localTaskMutationError(params.taskId, request.user.id, { tools: body.tools, agent: body.agent });
+  const localError = await localTaskMutationError(params.taskId, request.user.id, { tools: body.tools });
   if (localError) return reply.status(400).send({ error: localError });
   await ensureTaskHistoryWarm(params.taskId);
   const entitlement = await getPromptEntitlementStatus(request.user.id);
@@ -288,7 +288,7 @@ async function handleEditTaskMessage(request: FastifyRequest, reply: FastifyRepl
   const params = taskMessageParams.parse(request.params);
   const body = editTaskMessageBody.parse(request.body);
   const access = await assertTaskMember(params.taskId, request.user.id);
-  const localError = await localTaskMutationError(params.taskId, request.user.id, { tools: body.tools, agent: body.agent });
+  const localError = await localTaskMutationError(params.taskId, request.user.id, { tools: body.tools });
   if (localError) return reply.status(400).send({ error: localError });
   await ensureTaskHistoryWarm(params.taskId);
   const entitlement = await getPromptEntitlementStatus(request.user.id);

@@ -1,12 +1,12 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
-import { divergeArgumentsSchema } from "@meowbert/run-executor/agent-tools/swarm";
-import type { NewLane } from "../../../agent-swarm/lane-creation.js";
-import { buildLaneModelRoute } from "../../../agent-swarm/model-route.js";
-import { buildDivergeBrief } from "@meowbert/run-executor/agent-swarm/prompt";
-import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
-import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
-import { checkForkCallPosition, forkLanesFromCall, laneLabel } from "./fork-call.js";
+import { divergeArgumentsSchema } from "../../agent-tools/swarm.js";
+import { buildLaneModelRoute } from "../model-route.js";
+import type { SwarmBackend } from "../backend.js";
+import { buildDivergeBrief } from "../prompt.js";
+import { toolErrorResult, type ToolCallResult } from "../../agent-tool-dispatch/tool-call-result.js";
+import type { ToolDispatchContext, ToolDispatchState } from "../../agent-tool-dispatch/types.js";
+import { checkForkCallPosition, forkLanesFromCall, laneLabel, type NewLane } from "./fork-call.js";
 import { runSwarmToolCall } from "./swarm-tool-call.js";
 
 // The spread must not be limited to the angles the parent can name, so one lane always answers with no
@@ -15,7 +15,7 @@ export function withUndirectedLane<T extends { title: string; direction: string 
   return lanes.some((lane) => lane.direction === null) ? lanes : [...lanes, undirected];
 }
 
-export async function handleDiverge(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
+export async function handleDiverge(backend: SwarmBackend, call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
   return runSwarmToolCall(call, ctx, divergeArgumentsSchema, async (args) => {
     const positionError = checkForkCallPosition(call, ctx, state);
     if (positionError) return toolErrorResult(positionError);
@@ -33,7 +33,7 @@ export async function handleDiverge(call: ResponseFunctionToolCall, ctx: ToolDis
       modelRoute: buildLaneModelRoute(ctx.swarm!.run.router, lane.model, lane.effort)
     }));
     const question = args.question;
-    return forkLanesFromCall({
+    return forkLanesFromCall(backend, {
       call,
       ctx,
       state,

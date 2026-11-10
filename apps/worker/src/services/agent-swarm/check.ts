@@ -1,8 +1,4 @@
-import type { ChosenModelRoute } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
-import type { SwarmDispatchContext } from "@meowbert/run-executor/agent-swarm/dispatch-context";
-import { createCheckLane, type CreatedLane } from "./lane-creation.js";
-import { buildCheckBrief } from "@meowbert/run-executor/agent-swarm/prompt";
 import { readTaskPayloads } from "../tasks/task-history-reader.js";
 
 // Every message the user wrote on the current branch of the swarm's conversation, oldest first. The
@@ -26,7 +22,7 @@ export async function loadBranchUserMessages(swarmTaskId: string, leafMessageId:
 }
 
 // The spine of the parent's latest split, if it wrote one.
-async function loadLatestSpinePath(parentTaskId: string): Promise<string | null> {
+export async function loadLatestSpinePath(parentTaskId: string): Promise<string | null> {
   const result = await query<{ spine_path: string | null }>(
     `SELECT capabilities_json ->> 'spinePath' AS spine_path
        FROM task_swarm_fork_seeds
@@ -53,45 +49,4 @@ export async function loadAutoCheckFiles(leaderTaskId: string): Promise<string[]
   return [...new Set(result.rows.flatMap((row) => (row.files ?? [])
     .map((file) => file.path)
     .filter((filePath): filePath is string => typeof filePath === "string")))];
-}
-
-export async function startCheckLane(input: {
-  swarm: SwarmDispatchContext;
-  parentTaskId: string;
-  leafMessageId: string | null;
-  draft: string;
-  files: string[];
-  focus: string | null;
-  modelRoute: ChosenModelRoute | null;
-  envRoot: string;
-}): Promise<CreatedLane> {
-  const { swarm } = input;
-  const leafMessageId = swarm.run.lane ? null : input.leafMessageId;
-  const [userMessages, spinePath] = await Promise.all([
-    loadBranchUserMessages(swarm.run.swarmTaskId, leafMessageId),
-    loadLatestSpinePath(input.parentTaskId)
-  ]);
-  return createCheckLane({
-    swarm: swarm.run,
-    parentTaskId: input.parentTaskId,
-    seed: {
-      capabilities: {
-        runtime: structuredClone(swarm.runtime),
-        runToolOptions: structuredClone(swarm.runToolOptions),
-        loadedToolGroups: [],
-        spinePath
-      }
-    },
-    focus: input.focus,
-    modelRoute: input.modelRoute,
-    envRoot: input.envRoot,
-    buildBrief: (laneDir) => buildCheckBrief({
-      userMessages,
-      draft: input.draft,
-      files: input.files,
-      spinePath,
-      focus: input.focus,
-      laneDir
-    })
-  });
 }

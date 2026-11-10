@@ -7,9 +7,9 @@ import {
   STEER_TOOL_NAME,
   STOP_LANE_TOOL_NAME,
   SUBMIT_TOOL_NAME
-} from "@meowbert/run-executor/agent-tools/swarm";
+} from "../../agent-tools/swarm.js";
 import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
-import { swarmDepth, type SwarmRunContext } from "../../../agent-swarm/config.js";
+import { swarmDepth, type SwarmRunContext } from "../run-context.js";
 
 // Roles are enforced here, never by removing tools: a fork's tools array must match its parent's.
 // Returns the error the model sees, or null when the caller may use the tool. Whether the caller owns

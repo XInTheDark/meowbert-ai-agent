@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import {
   createTaskMessageMetadata,
+  type TaskExecutionTarget,
   type TaskWorkflowType
 } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
@@ -41,6 +42,8 @@ export interface BaseCreateWorkflowInput {
   timeLimitSeconds?: number | null;
   interactiveCanvasId?: string | null;
   interactiveCanvasIntent?: ProjectCanvasIntent | null;
+  // Where the task runs; only Agent Swarm tasks can run on a device.
+  executionTarget?: TaskExecutionTarget;
 }
 
 type LongHorizonWorkflowInput = BaseCreateWorkflowInput & {
@@ -183,6 +186,7 @@ export async function insertTaskWithInitialUserMessage(
     workflowInternalRole?: "reviewer" | null;
     interactiveCanvasId?: string | null;
     interactiveCanvasIntent?: ProjectCanvasIntent | null;
+    executionTarget?: TaskExecutionTarget;
   }
 ): Promise<{ userMessageId: string; userMessageCreatedAt: string }> {
   const createdAt = new Date().toISOString();
@@ -204,8 +208,9 @@ export async function insertTaskWithInitialUserMessage(
       workflow_parent_task_id,
       workflow_internal_role,
       interactive_canvas_id,
-      interactive_canvas_intent
-    ) VALUES ($1, $2, $3, $4, 'queued', 'web', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      interactive_canvas_intent,
+      execution_target
+    ) VALUES ($1, $2, $3, $4, 'queued', 'web', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)`,
     [
       input.taskId,
       input.workspaceId,
@@ -221,7 +226,8 @@ export async function insertTaskWithInitialUserMessage(
       input.workflowParentTaskId ?? null,
       input.workflowInternalRole ?? null,
       input.interactiveCanvasId ?? null,
-      input.interactiveCanvasIntent ?? null
+      input.interactiveCanvasIntent ?? null,
+      JSON.stringify(input.executionTarget ?? { kind: "cloud" })
     ]
   );
 

@@ -25,7 +25,7 @@ export interface RunFeatures {
   prepareLaneRun(input: {
     contextStore: RunContextStore;
     taskId: string;
-    lane: NonNullable<SwarmRunContext["lane"]>;
+    swarm: SwarmRunContext;
     messages: TaskMessageRow[];
     branchLeafMessageId: string | null;
     runtimeModel: string;

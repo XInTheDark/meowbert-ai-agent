@@ -12,6 +12,8 @@ import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
 import { SwarmToolError } from "./tool-error.js";
 
 export interface NewLane {
+  // Chosen by the run that forks, so it can tell each lane where its files live.
+  taskId?: string;
   label: string;
   title: string;
   direction: string | null;
@@ -32,6 +34,7 @@ interface SwarmRootRow {
   task_root_path: string;
   default_timezone: string;
   max_steps_override: number | null;
+  execution_target: unknown;
 }
 
 // Takes the swarm lock and checks the parent may start `count` more lanes. Caller is in a transaction.
@@ -47,7 +50,7 @@ async function prepareLaneCreationInTx(client: PoolClient, swarm: SwarmRunContex
     throw new SwarmToolError(`A parent can run at most ${maxLanes} lanes at once; ${active} are still active.`);
   }
   return (await client.query<SwarmRootRow>(
-    `SELECT workspace_id, environment_id, initiator_user_id, task_root_path, default_timezone, max_steps_override
+    `SELECT workspace_id, environment_id, initiator_user_id, task_root_path, default_timezone, max_steps_override, execution_target
        FROM tasks WHERE id = $1`,
     [swarm.swarmTaskId]
   )).rows[0];
@@ -58,7 +61,7 @@ export function laneRootPath(root: Pick<SwarmRootRow, "task_root_path">, laneTas
 }
 
 // Lanes are tasks of the swarm: hidden workflow children of the root, never subtasks of their parent.
-// Their task root is <swarm root>/lanes/<lane id>.
+// Their task root is <swarm root>/lanes/<lane id>, and they run where the swarm runs (cloud or device).
 async function insertLaneTaskInTx(client: PoolClient, input: {
   root: SwarmRootRow;
   swarm: SwarmRunContext;
@@ -69,10 +72,11 @@ async function insertLaneTaskInTx(client: PoolClient, input: {
   const { root } = input;
   await client.query(
     `INSERT INTO tasks (id, workspace_id, environment_id, title, status, source, initiator_user_id, task_root_path,
-       default_timezone, max_steps_override, workflow_type, workflow_internal_role, workflow_parent_task_id)
-     VALUES ($1, $2, $3, $4, 'queued', 'web', $5, $6, $7, $8, 'agent_swarm', 'lane', $9)`,
+       default_timezone, max_steps_override, workflow_type, workflow_internal_role, workflow_parent_task_id, execution_target)
+     VALUES ($1, $2, $3, $4, 'queued', 'web', $5, $6, $7, $8, 'agent_swarm', 'lane', $9, COALESCE($10::jsonb, '{"kind":"cloud"}'::jsonb))`,
     [input.taskId, root.workspace_id, root.environment_id, input.title, root.initiator_user_id, laneRootPath(root, input.taskId),
-      root.default_timezone, root.max_steps_override, input.swarm.swarmTaskId]
+      root.default_timezone, root.max_steps_override, input.swarm.swarmTaskId,
+      root.execution_target ? JSON.stringify(root.execution_target) : null]
   );
   await client.query(
     `INSERT INTO task_messages (task_id, role, content_json, message_metadata_json, author_user_id)
@@ -111,7 +115,7 @@ export async function createForkedLanes(input: {
     const depth = (swarm.lane?.depth ?? 0) + 1;
     const created: CreatedLane[] = [];
     for (const [index, lane] of input.lanes.entries()) {
-      const taskId = randomUUID();
+      const taskId = lane.taskId ?? randomUUID();
       const forkOutput = input.buildForkOutput({ ...lane, laneDir: path.resolve(input.envRoot, laneRootPath(root, taskId)) });
       await insertLaneTaskInTx(client, {
         root,
@@ -150,6 +154,7 @@ export async function createCheckLane(input: {
   modelRoute: ChosenModelRoute | null;
   envRoot: string;
   buildBrief: (laneDir: string) => string;
+  laneTaskId?: string;
 }): Promise<CreatedLane> {
   const { swarm } = input;
   return withTransaction(async (client) => {
@@ -162,7 +167,7 @@ export async function createCheckLane(input: {
       swarmTaskId: swarm.swarmTaskId,
       sourceTaskId: input.parentTaskId
     });
-    const taskId = randomUUID();
+    const taskId = input.laneTaskId ?? randomUUID();
     const title = "Check";
     await insertLaneTaskInTx(client, {
       root,

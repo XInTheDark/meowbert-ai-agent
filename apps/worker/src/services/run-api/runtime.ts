@@ -11,6 +11,7 @@ import { RunApiSessions } from "./sessions.js";
 import { pruneRunApiRecords, sqlRunApiStores } from "./sql-stores.js";
 import type { RunApiStores } from "./stores.js";
 import { query } from "../../lib/db.js";
+import { chargeSwarmStep } from "../agent-swarm/budget.js";
 
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -41,6 +42,11 @@ export async function startRunApi(
       chargeAbandoned: async (policy, model, counts) => {
         if (!policy.billing) return;
         await platformUsageRecorder.recordEvent(policy.billing, counts, await platformUsageRecorder.computeCost(model, counts));
+      },
+      // Cloud executors charge their own turns in process; a device's are charged here, as measured.
+      chargeSwarmTurn: async (session, weightedTokens) => {
+        if (!session.swarm || !session.holder.startsWith("device:")) return;
+        await chargeSwarmStep(session.swarm.context, session.taskId, weightedTokens);
       }
     }
   });

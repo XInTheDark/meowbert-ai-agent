@@ -1,6 +1,7 @@
 import type { RunApiMethod } from "@meowbert/shared";
 import type { RunControl } from "@meowbert/run-executor/agent/ports/run-control";
 import type { RunApiSession } from "./sessions.js";
+import { SWARM_CALL_HANDLERS } from "./swarm-calls.js";
 
 type Handler = (session: RunApiSession, args: unknown[]) => Promise<unknown>;
 
@@ -75,5 +76,6 @@ export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartb
   "platform.requestDesktopComputerAction": platformCall("requestDesktopComputerAction"),
   "platform.persistentShell": platformCall("persistentShell"),
   "platform.readShellSessionWaitState": platformCall("readShellSessionWaitState"),
-  "model.isQuotaExceeded": (session) => session.models.isQuotaExceeded()
+  "model.isQuotaExceeded": (session) => session.models.isQuotaExceeded(),
+  ...SWARM_CALL_HANDLERS
 };

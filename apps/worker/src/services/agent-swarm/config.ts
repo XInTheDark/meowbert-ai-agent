@@ -18,7 +18,10 @@ export async function loadSwarmRunContext(
 ): Promise<SwarmRunContext | null> {
   if (task.workflow_type !== "agent_swarm") return null;
   const swarmTaskId = task.workflow_parent_task_id ?? task.id;
-  const swarm = await query<{ config_json: unknown }>("SELECT config_json FROM task_swarms WHERE task_id = $1", [swarmTaskId]);
+  const swarm = await query<{ config_json: unknown; task_root_path: string }>(
+    "SELECT swarm.config_json, task.task_root_path FROM task_swarms swarm JOIN tasks task ON task.id = swarm.task_id WHERE swarm.task_id = $1",
+    [swarmTaskId]
+  );
   if (!swarm.rows[0]) return null;
   const isLane = task.workflow_internal_role === "lane";
   const lane = isLane ? await loadLane(pool, task.id) : null;
@@ -27,6 +30,7 @@ export async function loadSwarmRunContext(
   const settings = normalizeAgentSwarmSettings(swarm.rows[0].config_json);
   return {
     swarmTaskId,
+    rootTaskPath: swarm.rows[0].task_root_path,
     settings,
     router: findPlatformModelRouterById(routers, settings.routerId),
     lane,

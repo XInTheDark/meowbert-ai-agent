@@ -6,6 +6,7 @@ import { RunApiFailure } from "./failure.js";
 import { abortModelOperation } from "./model-operations.js";
 import { errorReply, storedReply, type RunApiReply } from "./replies.js";
 import type { RunApiSession } from "./sessions.js";
+import { SWARM_RUN_ENDING_METHODS } from "./swarm-calls.js";
 import type { RunApiStores, StoredOperationResponse } from "./stores.js";
 
 function hashRequest(method: string, request: RunApiCallRequest): string {
@@ -50,7 +51,9 @@ async function applyWrite(stores: RunApiStores, session: RunApiSession, method: 
   const result = await RUN_API_CALL_HANDLERS[method as Exclude<RunApiMethod, "control.heartbeat" | "control.releaseForStorage">](session, request.args);
   if (method === "control.appendMessage") session.leafMessageId = result as string;
   if (method === "control.selectBranch") session.leafMessageId = request.args[0] as string;
-  if (method === "control.complete" || method === "control.fail") {
+  const swarmRunEnded = (SWARM_RUN_ENDING_METHODS as readonly string[]).includes(method)
+    && (result as { refused?: string } | null)?.refused === undefined;
+  if (method === "control.complete" || method === "control.fail" || swarmRunEnded) {
     session.finishedAt = Date.now();
     abortModelOperation(session);
     await stores.leases.release({ runId: session.runId, epoch: session.epoch });

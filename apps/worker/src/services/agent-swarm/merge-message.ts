@@ -1,3 +1,5 @@
+import type { PoolClient } from "pg";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { AgentSwarmSettings } from "@meowbert/shared";
 import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { appendRunInboxItems } from "../agent/run-inbox.js";
@@ -102,19 +104,25 @@ export function buildMergeMessage(
 // The merge message is never stored on the lanes: it is built from the parent's finished direct
 // lanes that were not merged yet, and claiming them sets merged_at in the transaction that appends
 // the message, so each result is delivered exactly once even if the parent's run is retried.
+export async function claimMergeItemsInTx(
+  client: PoolClient,
+  parentTaskId: string,
+  settings: Pick<AgentSwarmSettings, "advanced" | "budgetsEnabled">
+): Promise<ResponseInputItem[]> {
+  const merged = await client.query<MergedLane>(
+    `UPDATE task_swarm_lanes
+        SET merged_at = now(), updated_at = now()
+      WHERE parent_task_id = $1 AND merged_at IS NULL AND status = ANY($2::text[])
+      RETURNING task_id, title, kind, status, result_json, created_at, spent_tokens::text AS spent_tokens`,
+    [parentTaskId, TERMINAL_LANE_STATUSES]
+  );
+  if (merged.rows.length === 0) return [];
+  const lanes = [...merged.rows].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
+    || left.task_id.localeCompare(right.task_id));
+  return [{ role: "user", content: buildMergeMessage(lanes, settings) }];
+}
+
 export async function appendSwarmMergeMessage(execution: AgentExecutionContext, swarm: SwarmRunContext | null): Promise<void> {
   if (!swarm) return;
-  await appendRunInboxItems(execution, async (client) => {
-    const merged = await client.query<MergedLane>(
-      `UPDATE task_swarm_lanes
-          SET merged_at = now(), updated_at = now()
-        WHERE parent_task_id = $1 AND merged_at IS NULL AND status = ANY($2::text[])
-        RETURNING task_id, title, kind, status, result_json, created_at, spent_tokens::text AS spent_tokens`,
-      [execution.job.taskId, TERMINAL_LANE_STATUSES]
-    );
-    if (merged.rows.length === 0) return [];
-    const lanes = [...merged.rows].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
-      || left.task_id.localeCompare(right.task_id));
-    return [{ role: "user", content: buildMergeMessage(lanes, swarm.settings) }];
-  });
+  await appendRunInboxItems(execution, (client) => claimMergeItemsInTx(client, execution.job.taskId, swarm.settings));
 }

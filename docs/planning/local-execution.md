@@ -48,7 +48,7 @@ Non-goals:
 - Setting up mounts for the user. Meowbert verifies them; the user or operator creates them.
 - Restricting host mode. A host-mode task can do anything the user can.
 - Moving a running task between Cloud and Local, or failing over to the cloud when the device is offline.
-- Agent Swarm, subagents and Project Master in local runs, and read-only thread tasks in host mode (section 19).
+- Subagents and Project Master in local runs, and read-only thread tasks in host mode (section 19). Agent Swarm runs locally (section 13.1).
 - Moving a workspace between a server and a device, or sharing a device-hosted workspace.
 - Bring-your-own model keys in the desktop app.
 
@@ -392,9 +392,21 @@ The milestone 0 phase 2 table. "Platform host" means the call goes through `RunC
 | `stop_task` | Mixed | `platform.pauseRecurringSchedule` pauses the schedule; the delta is the run's stop request (`stopRequest`). |
 | `wait` | Mixed | `platform.applyInfiniteWait` moves a timed run's next run; the delta is the run's wait request (`waitRequest`). Shell-session conditions are read through `platform.readShellSessionWaitState`. |
 | Long Horizon workflow tools | Cloud-only | Server-side hooks (`workflowActions`); excluded for device targets (section 14.3). |
-| Subagent tools, Project Master tools, Agent Swarm tools | Cloud-only | Database-backed on the server; excluded for device targets. |
+| Subagent tools, Project Master tools | Cloud-only | Database-backed on the server; excluded for device targets. |
+| Agent Swarm tools | Platform | Run by the executor against a `SwarmBackend`: in process for cloud workers, `swarm.*` Run API calls for devices (section 13.1). |
 
 Every tool call, whatever its class, is recorded as started before it runs and cleared when its outcome is known (`RunControl.recordToolCallStart` / `recordToolCallResult`, table `task_run_tool_calls`). The next run of the task reports unfinished calls as "outcome unknown" instead of replaying them (section 10.1).
+
+### 13.1 Agent Swarm on a device
+
+The swarm's executor code (`packages/run-executor/src/agent-swarm`: step hooks, tool handlers, finalization, lane setup) is the same everywhere. Swarm state is reached through a `SwarmBackend`: `dbSwarmBackend` in process for cloud workers, and `createHttpSwarmBackend` for devices, whose `swarm.*` Run API calls the worker answers with the same `dbSwarmBackend`.
+
+- The server acts for the run that holds the lease, with the swarm context it loaded at claim time. Role checks, ownership, fan-out and budget shares are enforced there.
+- Forked and Check lanes always get the runtime the parent was admitted on, and a lane model must come from the swarm's router.
+- A device's model turns are charged to the swarm budget by the model proxy, from the usage it measured.
+- `swarm.park` and `swarm.finishLane` end the run on the server and release its lease, like `control.complete`.
+- Lane tasks copy the swarm root's `execution_target`, and `enqueueSubagentRun` dispatches each run to its task's target, so lanes run on the same device.
+- Devices report `agentSwarm: true` in their capabilities. Swarm runs wait with `executor_outdated` for a desktop that does not.
 
 ## 14. Bootstrap and device state
 
@@ -408,7 +420,7 @@ Every tool call, whatever its class, is recorded as started before it runs and c
 
 ### 14.3 Server enforcement of v1 exclusions
 
-Hiding things in the composer isn't enough: presets, schedules, follow-ups and direct API calls can request them. For device targets, the server rejects Agent Swarm, subagents and Project Master, and thread tasks in host mode, at task creation, follow-up, schedule creation and preset resolution; admission refuses them, and `availability.ts` drops their tools.
+Hiding things in the composer isn't enough: presets, schedules, follow-ups and direct API calls can request them. For device targets, the server rejects subagents, Project Master and Long Horizon workflows, and thread tasks in host mode, at task creation, follow-up, schedule creation and preset resolution; admission refuses them, and `availability.ts` drops their tools.
 
 ### 14.4 Tombstones
 
@@ -474,7 +486,7 @@ Synced linked sources need no work in server-hosted workspaces: they're plain fi
 
 ## 19. Scope and accepted limitations
 
-Out of scope for every milestone here: Agent Swarm, subagents and Project Master in local runs, and read-only thread tasks in host mode (enforced on the server, section 14.3); GitHub App workspace tokens on the device; sandbox-only skills; persistent shells that outlive the app; sharing or moving device-hosted workspaces.
+Out of scope for every milestone here: subagents and Project Master in local runs, and read-only thread tasks in host mode (enforced on the server, section 14.3); GitHub App workspace tokens on the device; sandbox-only skills; persistent shells that outlive the app; sharing or moving device-hosted workspaces.
 
 Accepted limitations:
 
@@ -568,7 +580,7 @@ Failure-injection tests, run against the HTTP implementations from milestone 0 a
 10. **Disconnect mid-stream.** Drop the device during a model stream; usage is settled once, from provider usage.
 11. **Budget race.** Concurrent model requests from a modified client against a small remaining allowance; total spend stays within the bound in section 12.
 12. **Disallowed request fields.** A model request with a different model, hosted tools or unknown fields is rejected.
-13. **Excluded features.** Creating, following up or scheduling a device-target task with Swarm, subagents, Project Master or thread mode is rejected by the API.
+13. **Excluded features.** Creating, following up or scheduling a device-target task with subagents, Project Master, Long Horizon or thread mode is rejected by the API.
 14. **Sandbox not ready.** With Docker stopped, or the image missing, or a newer digest on the server, a local run stays pending with the right reason, and runs once the download finishes. Declining the download offers host mode and starts nothing.
 15. **Device-hosted workflows** (milestone 4). Creating tasks, uploading, browsing and archiving in a device-hosted workspace never hits a root guard.
 
@@ -592,7 +604,7 @@ Decided:
 14. Cloud sandboxes stay `linux/amd64`. The `linux/arm64` build is published for devices only.
 
 15. The Run API is served by the worker that claims the run, and the API forwards to it. The claim records that worker's listener URL (`task_run_dispatches.lease_api_url`) with the lease, so any number of workers can serve runs. If that worker goes away, the run's lease lapses and the run is claimed again.
-16. Agent Swarm, subagents, Project Master and Long Horizon workflows stay database-backed on the server. The executor reaches them through the `RunFeatures` hooks (`packages/run-executor/src/agent/ports/run-features.ts`); executors outside the control plane get `noRunFeatures`, and the server refuses those features for device runs (section 14.3). A cloud worker running through the Run API still runs these hooks in process.
+16. Agent Swarm, subagents, Project Master and Long Horizon workflows stay database-backed on the server. The executor reaches them through the `RunFeatures` hooks (`packages/run-executor/src/agent/ports/run-features.ts`). Devices get the Agent Swarm hooks over the Run API (section 13.1) and `noRunFeatures` for the rest, which the server refuses for device runs (section 14.3). A cloud worker running through the Run API still runs these hooks in process.
 17. Operation dedup records the operation before running it and stores the response after, rather than committing both in one transaction: that would mean threading one database client through every write on the run path. A write that crashes in between is reported as "outcome unknown" on retry and is never applied twice.
 18. Events are deduplicated by operation id and by a per-session sequence number that drops late duplicates; `task_events` gets no `seq` column.
 19. An append must extend the run's branch: its parent is the run's last message or a descendant of it. Descendants are allowed because the server's own hooks (subagent mail, swarm notes, Project Master reports) append between the executor's messages.

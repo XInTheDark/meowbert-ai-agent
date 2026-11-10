@@ -206,7 +206,7 @@ async function handleCreateTask(request: FastifyRequest, reply: FastifyReply) {
     if (!config.localExecution.enabled || config.runApi === undefined) {
       return reply.status(400).send({ error: "Local execution is disabled on this server." });
     }
-    const featureError = localTaskFeatureError({ workflow: body.workflow, schedule: body.schedule, swarm: !!swarmSettings, tools: body.tools });
+    const featureError = localTaskFeatureError({ workflow: body.workflow, schedule: body.schedule, tools: body.tools });
     if (featureError) return reply.status(400).send({ error: featureError });
     const device = await query<{ id: string }>(
       `SELECT id FROM devices WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND ((platform = 'darwin' AND architecture = 'arm64') OR (platform = 'win32' AND architecture IN ('x64', 'arm64'))) AND ($3 <> 'host' OR consent_json->>'hostMode' = 'true')`,

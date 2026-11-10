@@ -27,7 +27,7 @@ export class LocalExecutionReadiness {
     private readonly signal: AbortSignal, private readonly runs: Map<string, ReturnType<typeof startLocalRun>>) {
     this.consent = options.downloadConsent;
     this.capabilities = { dockerReady: false, sandboxImageReady: false, executorSupported: true,
-      protocolVersion: RUN_API_PROTOCOL_VERSION, hostReady: false };
+      protocolVersion: RUN_API_PROTOCOL_VERSION, agentSwarm: true, hostReady: false };
   }
   report() { return this.api.request("/api/devices/" + this.options.deviceId, "PATCH", { capabilities: this.capabilities }); }
   status(state: DesktopLocalExecutionStatus["state"], message: string | null): void {
@@ -117,7 +117,7 @@ export class LocalExecutionReadiness {
       lastUpdatedAt: downloaded ? new Date().toISOString() : this.history.image === image && this.history.digest === config.sandboxImage.digest ? this.history.lastUpdatedAt : null };
     await saveSandboxHistory(this.options.resourcesRoot, this.history);
     this.capabilities = { dockerReady: true, sandboxImageReady: true, sandboxImageDigest: config.sandboxImage.digest,
-      executorSupported: true, protocolVersion: RUN_API_PROTOCOL_VERSION, hostReady: this.options.hostConsent === true };
+      executorSupported: true, protocolVersion: RUN_API_PROTOCOL_VERSION, agentSwarm: true, hostReady: this.options.hostConsent === true };
     this.ready = { image, skillsRoot, settings: config.executorSettings, installId };
   }
   private async probeRoots(image: string, skillsRootDir: string, config: LocalExecutionConfig, verifiedRoots: Record<string, string>, installId: string, storageOk: boolean) {

@@ -1,64 +1,10 @@
 import { normalizeAgentSwarmSettings, type TaskExecutionJob } from "@meowbert/shared";
 import { pool, withTransaction } from "../../lib/db.js";
-import { emitTaskEvent } from "../runtime/events.js";
-import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { buildUnsubmittedLaneResult } from "@meowbert/run-executor/agent-swarm/forced-submit";
 import { finishLaneRun } from "./lane-completion.js";
-import { countActiveChildrenInTx, dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
-import { parkSwarmRun } from "./park.js";
-import type { SwarmParkReason } from "@meowbert/run-executor/agent-swarm/lane-types";
+import { dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
-
-type AppendAssistantMessage = (text: string) => Promise<void>;
-
-async function park(execution: AgentExecutionContext, reason: SwarmParkReason): Promise<void> {
-  const swarm = execution.swarm!;
-  await parkSwarmRun({
-    job: { ...execution.job, branchMessageId: execution.state.currentLeafMessageId ?? undefined },
-    swarmTaskId: swarm.swarmTaskId,
-    maxRunningLanes: swarm.settings.advanced.maxRunningLanes,
-    reason
-  });
-  await emitTaskEvent(execution.job.taskId, "status", { status: "queued", waitingForLanes: true });
-}
-
-// Handles how a swarm run ends, when it ends differently from an ordinary run. Returns false when the
-// ordinary finalization should go on (a leader with no lanes left to wait for).
-export async function finalizeSwarmRun(execution: AgentExecutionContext, appendAssistantMessage: AppendAssistantMessage): Promise<boolean> {
-  const swarm = execution.swarm;
-  if (!swarm) return false;
-  const dispatch = execution.state.dispatchState;
-  if (dispatch.swarmPark) {
-    await appendAssistantMessage("");
-    await park(execution, dispatch.swarmPark.reason);
-    return true;
-  }
-  if (swarm.lane) {
-    const submitted = dispatch.swarmSubmit;
-    await appendAssistantMessage(submitted?.summary ?? "");
-    await finishLaneRun({
-      lane: swarm.lane,
-      runId: execution.job.runId,
-      status: submitted ? "done" : "failed",
-      result: submitted ?? buildUnsubmittedLaneResult(execution.runTiming.reachedMaxRunSteps
-        ? "The lane reached its step limit without submitting."
-        : "The lane stopped before submitting."),
-      maxRunningLanes: swarm.settings.advanced.maxRunningLanes
-    });
-    return true;
-  }
-  return false;
-}
-
-// A leader reply while lanes still run (the user wrote in the meantime) is delivered as a normal
-// message, then the leader parks again instead of finishing.
-export async function parkLeaderIfLanesActive(execution: AgentExecutionContext): Promise<boolean> {
-  if (!execution.swarm || execution.swarm.lane) return false;
-  if (await countActiveChildrenInTx(pool, execution.job.taskId) === 0) return false;
-  await park(execution, "lanes");
-  return true;
-}
 
 // A lane run that fails for good still ends the lane, so its parent's barrier completes.
 export async function finishFailedLaneRun(job: TaskExecutionJob, errorMessage: string, cancelled: boolean): Promise<void> {

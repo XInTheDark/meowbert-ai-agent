@@ -1,43 +1,60 @@
+import { randomUUID } from "node:crypto";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import type { ChosenModelRoute } from "@meowbert/shared";
-import { checkArgumentsSchema } from "@meowbert/run-executor/agent-tools/swarm";
-import { buildLaneModelRoute, pickCheckModelRoute } from "../../../agent-swarm/model-route.js";
-import { SwarmToolError } from "../../../agent-swarm/tool-error.js";
-import { emitSwarmEvent } from "../../../agent-swarm/events.js";
-import { loadAutoCheckFiles, startCheckLane } from "../../../agent-swarm/check.js";
-import { hasOwnLanes } from "../../../agent-swarm/lane-store.js";
-import { buildCheckStartedMessage } from "@meowbert/run-executor/agent-swarm/prompt";
-import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
-import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
-import { runSwarmToolCall } from "./swarm-tool-call.js";
-import { pool } from "../../../../lib/db.js";
+import { checkArgumentsSchema } from "../../agent-tools/swarm.js";
+import { toolErrorResult, type ToolCallResult } from "../../agent-tool-dispatch/tool-call-result.js";
+import type { ToolDispatchContext, ToolDispatchState } from "../../agent-tool-dispatch/types.js";
+import type { SwarmBackend } from "../backend.js";
+import { buildLaneModelRoute, pickCheckModelRoute } from "../model-route.js";
+import { buildCheckBrief, buildCheckStartedMessage } from "../prompt.js";
+import { SwarmToolError } from "../tool-error.js";
+import { laneDirectory } from "./fork-call.js";
+import { runSwarmToolCall, swarmRunRef } from "./swarm-tool-call.js";
 
-async function startCheck(ctx: ToolDispatchContext, state: ToolDispatchState, input: {
+// A Check lane is a fresh task, never a fork: it gets every message the user wrote on the swarm's
+// branch and the deliverable, never the author's reasoning.
+async function startCheck(backend: SwarmBackend, ctx: ToolDispatchContext, state: ToolDispatchState, input: {
   draft: string;
   files: string[];
   focus: string | null;
   modelRoute: ChosenModelRoute | null;
 }): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
-  const lane = await startCheckLane({
-    swarm: ctx.swarm!,
-    parentTaskId: ctx.taskId,
-    leafMessageId: ctx.getCurrentLeafMessageId(),
-    envRoot: ctx.envRoot,
-    ...input
+  const swarm = ctx.swarm!;
+  const run = swarmRunRef(ctx);
+  const { userMessages, spinePath } = await backend.loadCheckInputs(run, swarm.run.lane ? null : ctx.getCurrentLeafMessageId());
+  const laneTaskId = randomUUID();
+  const lane = await backend.startCheckLane(run, {
+    laneTaskId,
+    brief: buildCheckBrief({
+      userMessages,
+      draft: input.draft,
+      files: input.files,
+      spinePath,
+      focus: input.focus,
+      laneDir: laneDirectory(ctx, laneTaskId)
+    }),
+    capabilities: {
+      runtime: structuredClone(swarm.runtime),
+      runToolOptions: structuredClone(swarm.runToolOptions),
+      loadedToolGroups: [],
+      spinePath
+    },
+    focus: input.focus,
+    modelRoute: input.modelRoute
   });
   state.swarmPark = { reason: "check" };
-  await emitSwarmEvent(ctx.swarm!.run.swarmTaskId, "Started a Check lane.");
+  await backend.emitEvent(run, "Started a Check lane.");
   return { output: { lane_id: lane.taskId, message: buildCheckStartedMessage() } };
 }
 
-export async function handleCheck(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
+export async function handleCheck(backend: SwarmBackend, call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
   if (ctx.codeModeParentCallId) return toolErrorResult("Call check directly, not from exec.");
   return runSwarmToolCall(call, ctx, checkArgumentsSchema, async (args) => {
-    if (ctx.swarm!.run.lane && !await hasOwnLanes(pool, ctx.taskId)) {
+    if (ctx.swarm!.run.lane && !await backend.hasOwnLanes(swarmRunRef(ctx))) {
       return toolErrorResult("Only the leader and lanes that have lanes of their own can start a check. Submit your part instead.");
     }
-    return startCheck(ctx, state, {
+    return startCheck(backend, ctx, state, {
       draft: args.draft,
       files: args.files,
       focus: args.focus,
@@ -50,6 +67,7 @@ export async function handleCheck(call: ResponseFunctionToolCall, ctx: ToolDispa
 // draft is not delivered; the leader resumes with the findings and replies again. Returns null when
 // the reply should be delivered as usual.
 export async function interceptFinalResponseForCheck(
+  backend: SwarmBackend,
   call: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
   state: ToolDispatchState
@@ -66,10 +84,10 @@ export async function interceptFinalResponseForCheck(
   // Partial replies are progress updates, not the deliverable; malformed calls get the usual error.
   const draft = typeof args?.response === "string" ? args.response.trim() : "";
   if (!draft || args?.partial === true) return null;
-  const files = await loadAutoCheckFiles(ctx.taskId);
+  const files = await backend.loadAutoCheckFiles(swarmRunRef(ctx));
   if (!files) return null;
   try {
-    return await startCheck(ctx, state, {
+    return await startCheck(backend, ctx, state, {
       draft,
       files,
       focus: null,

@@ -15,7 +15,7 @@ async function deviceSession() {
   const devices = await api.request<{ devices: Array<{ id: string }> }>("/api/devices");
   if (!devices.devices.some((device) => device.id === settings.deviceId)) {
     await api.request("/api/devices", "POST", { id: settings.deviceId, name: os.hostname(), platform: process.platform, architecture: process.arch,
-      executorVersion: app.getVersion(), capabilities: { protocolVersion: RUN_API_PROTOCOL_VERSION, executorSupported: true } });
+      executorVersion: app.getVersion(), capabilities: { protocolVersion: RUN_API_PROTOCOL_VERSION, executorSupported: true, agentSwarm: true } });
   }
   return { settings, api };
 }

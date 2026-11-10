@@ -1,6 +1,5 @@
 import type { PoolClient } from "pg";
-import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
-import { appendRunInboxItems } from "../agent/run-inbox.js";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { SwarmRunContext } from "./config.js";
 import { listDormantLanesInTx, type DormantLane } from "./dormancy.js";
 import type { SwarmLaneRow } from "./lane-store.js";
@@ -11,13 +10,6 @@ type ActiveLane = Pick<SwarmLaneRow, "task_id" | "parent_task_id" | "depth" | "k
 
 const LATEST_NOTES_PER_LANE = 2;
 const SUMMARY_LINE_CHARS = 160;
-
-// A leader run that answers a user message, rather than one woken by its lanes.
-export function isUserTurnRun(execution: Pick<AgentExecutionContext, "prepared">): boolean {
-  const snapshot = execution.prepared.snapshot;
-  const leaf = snapshot.messages.find((message) => message.id === snapshot.branch_leaf_message_id);
-  return leaf?.role === "user";
-}
 
 async function listActiveLanesInTx(client: PoolClient, swarmTaskId: string): Promise<ActiveLane[]> {
   const result = await client.query<ActiveLane>(
@@ -66,16 +58,13 @@ export function buildTurnNotes(input: { active: string[]; dormant: string[] }): 
 
 // At the start of each user turn the leader sees its lanes: those still working, with their latest
 // notes, and those it can resume. Appended after the user's message, never into the prefix.
-export async function appendSwarmTurnNotes(execution: AgentExecutionContext, swarm: SwarmRunContext | null): Promise<void> {
-  if (!swarm || swarm.lane || execution.state.stepCount > 0 || !isUserTurnRun(execution)) return;
-  await appendRunInboxItems(execution, async (client) => {
-    const active = await listActiveLanesInTx(client, swarm.swarmTaskId);
-    const dormant = await listDormantLanesInTx(client, {
-      parentTaskId: execution.job.taskId,
-      swarmTaskId: swarm.swarmTaskId,
-      dormantLaneTurns: swarm.settings.advanced.dormantLaneTurns
-    });
-    const notes = buildTurnNotes({ active: formatLaneStatus(active, execution.job.taskId), dormant: formatDormantLanes(dormant) });
-    return notes ? [{ role: "user", content: notes }] : [];
+export async function claimTurnNoteItemsInTx(client: PoolClient, leaderTaskId: string, swarm: SwarmRunContext): Promise<ResponseInputItem[]> {
+  const active = await listActiveLanesInTx(client, swarm.swarmTaskId);
+  const dormant = await listDormantLanesInTx(client, {
+    parentTaskId: leaderTaskId,
+    swarmTaskId: swarm.swarmTaskId,
+    dormantLaneTurns: swarm.settings.advanced.dormantLaneTurns
   });
+  const notes = buildTurnNotes({ active: formatLaneStatus(active, leaderTaskId), dormant: formatDormantLanes(dormant) });
+  return notes ? [{ role: "user", content: notes }] : [];
 }

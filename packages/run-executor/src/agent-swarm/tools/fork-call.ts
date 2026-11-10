@@ -1,17 +1,29 @@
+import { randomUUID } from "node:crypto";
+import path from "node:path";
 import type { ResponseFunctionToolCall, ResponseInputItem } from "openai/resources/responses/responses";
-import { createForkedLanes, type CreatedLane, type NewLane } from "../../../agent-swarm/lane-creation.js";
-import { snapshotForkEnvelope, type ForkSeed } from "../../../agent-swarm/fork-seed.js";
-import { buildSplitStartedMessage } from "@meowbert/run-executor/agent-swarm/prompt";
-import { SwarmToolError } from "../../../agent-swarm/tool-error.js";
-import { routesToOtherModel } from "../../../agent-swarm/model-route.js";
-import { emitSwarmEvent } from "../../../agent-swarm/events.js";
-import type { SwarmDispatchContext } from "@meowbert/run-executor/agent-swarm/dispatch-context";
-import { computePromptPrefixHash } from "@meowbert/run-executor/agent/prompt-envelope";
-import { serializeToolOutput } from "@meowbert/run-executor/agent-tool-dispatch/state";
-import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
-import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
+import type { ChosenModelRoute } from "@meowbert/shared";
+import { computePromptPrefixHash } from "../../agent/prompt-envelope.js";
+import { serializeToolOutput } from "../../agent-tool-dispatch/state.js";
+import { toolErrorResult, type ToolCallResult } from "../../agent-tool-dispatch/tool-call-result.js";
+import type { ToolDispatchContext, ToolDispatchState } from "../../agent-tool-dispatch/types.js";
+import type { CreatedLane, PreparedForkLane, SwarmBackend } from "../backend.js";
+import type { SwarmDispatchContext } from "../dispatch-context.js";
+import { snapshotForkEnvelope, type ForkSeed } from "../fork-types.js";
+import { routesToOtherModel } from "../model-route.js";
+import { buildSplitStartedMessage } from "../prompt.js";
+import { laneTaskRootPath } from "../run-context.js";
+import { SwarmToolError } from "../tool-error.js";
+import { swarmRunRef } from "./swarm-tool-call.js";
 
 const TOOL_CALL_ITEM_TYPES = new Set(["function_call", "custom_tool_call", "apply_patch_call", "computer_call", "local_shell_call"]);
+
+export interface NewLane {
+  label: string;
+  title: string;
+  direction: string | null;
+  weight: number;
+  modelRoute: ChosenModelRoute | null;
+}
 
 // Every call of the response is recorded before any runs, so a later call would follow this one.
 export function isLastToolCallOfResponse(items: ResponseInputItem[], callId: string): boolean {
@@ -23,6 +35,11 @@ export function isLastToolCallOfResponse(items: ResponseInputItem[], callId: str
 
 export function laneLabel(index: number): string {
   return String.fromCharCode("A".charCodeAt(0) + index);
+}
+
+// Where a new lane's files live, as this run sees the project.
+export function laneDirectory(ctx: ToolDispatchContext, laneTaskId: string): string {
+  return path.resolve(ctx.envRoot, laneTaskRootPath(ctx.swarm!.run.rootTaskPath, laneTaskId));
 }
 
 // A fork call must be made directly and be the response's last call: its seed is everything up to it.
@@ -84,7 +101,7 @@ function logForkPrefix(ctx: ToolDispatchContext, swarm: SwarmDispatchContext, cr
 
 // Forks the lanes of a split or diverge call and parks the caller. Each lane's own result for this call
 // is its brief; the caller's result lists the lanes it started.
-export async function forkLanesFromCall(input: {
+export async function forkLanesFromCall(backend: SwarmBackend, input: {
   call: ResponseFunctionToolCall;
   ctx: ToolDispatchContext;
   state: ToolDispatchState;
@@ -99,32 +116,28 @@ export async function forkLanesFromCall(input: {
   const seed = await captureSeed(swarm, state, input.spinePath);
   const isCrossModel = (lane: NewLane) => routesToOtherModel(lane.modelRoute, swarm.run.router, swarm.runtime);
   const crossModelSeed = await captureCrossModelSeed(swarm, state, seed, input.lanes.filter(isCrossModel).length);
+  const lanes = input.lanes.map((lane): PreparedForkLane => {
+    const taskId = randomUUID();
+    const brief = input.buildBrief({ ...lane, laneDir: laneDirectory(ctx, taskId) });
+    return {
+      ...lane,
+      taskId,
+      brief,
+      forkOutput: { type: "function_call_output", call_id: call.call_id, output: serializeToolOutput({ assignment: brief }, state) },
+      crossModel: crossModelSeed !== null && isCrossModel(lane)
+    };
+  });
+  const run = swarmRunRef(ctx);
   let created: CreatedLane[];
   try {
-    created = await createForkedLanes({
-      swarm: swarm.run,
-      parentTaskId: ctx.taskId,
-      kind: input.kind,
-      seed,
-      crossModelSeed,
-      isCrossModel,
-      lanes: input.lanes,
-      envRoot: ctx.envRoot,
-      buildForkOutput: (lane) => {
-        const brief = input.buildBrief(lane);
-        return {
-          brief,
-          item: { type: "function_call_output", call_id: call.call_id, output: serializeToolOutput({ assignment: brief }, state) }
-        };
-      }
-    });
+    created = await backend.forkLanes(run, { kind: input.kind, seed, crossModelSeed, lanes });
   } catch (error) {
     if (error instanceof SwarmToolError) return toolErrorResult(error.message);
     throw error;
   }
   state.swarmPark = { reason: "lanes" };
   logForkPrefix(ctx, swarm, created);
-  await emitSwarmEvent(swarm.run.swarmTaskId, `Started ${created.length} ${input.kind} lane${created.length === 1 ? "" : "s"}.`);
+  await backend.emitEvent(run, `Started ${created.length} ${input.kind} lane${created.length === 1 ? "" : "s"}.`);
   return {
     output: {
       lanes: created.map((lane) => ({ lane_id: lane.taskId, label: lane.label, title: lane.title })),

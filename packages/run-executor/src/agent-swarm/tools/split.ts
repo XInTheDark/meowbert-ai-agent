@@ -1,15 +1,15 @@
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { resolveAgentSwarmSpawnLimits } from "@meowbert/shared";
-import { splitArgumentsSchema } from "@meowbert/run-executor/agent-tools/swarm";
-import type { NewLane } from "../../../agent-swarm/lane-creation.js";
-import { buildLaneModelRoute } from "../../../agent-swarm/model-route.js";
-import { buildLaneBrief } from "@meowbert/run-executor/agent-swarm/prompt";
-import { toolErrorResult, type ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/tool-call-result";
-import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
-import { checkForkCallPosition, forkLanesFromCall, laneLabel } from "./fork-call.js";
+import { splitArgumentsSchema } from "../../agent-tools/swarm.js";
+import { buildLaneModelRoute } from "../model-route.js";
+import type { SwarmBackend } from "../backend.js";
+import { buildLaneBrief } from "../prompt.js";
+import { toolErrorResult, type ToolCallResult } from "../../agent-tool-dispatch/tool-call-result.js";
+import type { ToolDispatchContext, ToolDispatchState } from "../../agent-tool-dispatch/types.js";
+import { checkForkCallPosition, forkLanesFromCall, laneLabel, type NewLane } from "./fork-call.js";
 import { runSwarmToolCall } from "./swarm-tool-call.js";
 
-export async function handleSplit(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
+export async function handleSplit(backend: SwarmBackend, call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
   return runSwarmToolCall(call, ctx, splitArgumentsSchema, async (args) => {
     const positionError = checkForkCallPosition(call, ctx, state);
     if (positionError) return toolErrorResult(positionError);
@@ -24,7 +24,7 @@ export async function handleSplit(call: ResponseFunctionToolCall, ctx: ToolDispa
       modelRoute: buildLaneModelRoute(ctx.swarm!.run.router, lane.model, lane.effort)
     }));
     const spinePath = args.spine_path;
-    return forkLanesFromCall({
+    return forkLanesFromCall(backend, {
       call,
       ctx,
       state,

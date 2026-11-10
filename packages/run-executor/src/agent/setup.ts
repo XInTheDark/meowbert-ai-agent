@@ -472,7 +472,7 @@ export async function initializeAgentExecution(
     ? await prepared.features.prepareLaneRun({
       contextStore: prepared.control.context,
       taskId: job.taskId,
-      lane: swarm.lane,
+      swarm,
       messages: prepared.snapshot.messages,
       branchLeafMessageId: prepared.snapshot.branch_leaf_message_id,
       runtimeModel: prepared.runtimeModel

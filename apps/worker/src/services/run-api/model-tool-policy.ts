@@ -3,7 +3,7 @@ import { canonicalizeModelPayload } from "@meowbert/run-executor/agent/model";
 import { normalizeProviderRequestTools } from "@meowbert/run-executor/agent/provider-request-tools";
 import type { RunControl } from "@meowbert/run-executor/agent/ports/run-control";
 import type { ServerRunState } from "../run-host/bootstrap.js";
-import { builtinRunTools, auxiliaryTools, type DeviceToolConsent } from "./builtin-tool-policy.js";
+import { builtinRunTools, auxiliaryTools, type DeviceToolConsent, type RunSwarmTools } from "./builtin-tool-policy.js";
 import { createSkillToolPolicy } from "./skill-tool-policy.js";
 import { RunApiFailure } from "./failure.js";
 
@@ -13,9 +13,9 @@ export function toolContract(tool: Tool): string {
   return JSON.stringify(canonicalizeModelPayload(contract));
 }
 
-export function createModelToolPolicy(state: ServerRunState, control: RunControl, consent: DeviceToolConsent) {
+export function createModelToolPolicy(state: ServerRunState, control: RunControl, consent: DeviceToolConsent, swarm: RunSwarmTools | null = null) {
   const normalize = (tools: Tool[]) => normalizeProviderRequestTools(tools, state.bootstrap.runtime.modelType);
-  const builtin = normalize(builtinRunTools(state, consent));
+  const builtin = normalize(builtinRunTools(state, consent, swarm));
   const skills = createSkillToolPolicy(state, control, consent);
   return async (tools: Tool[], purpose: string): Promise<void> => {
     const allowed = purpose === "turn" ? builtin : normalize(auxiliaryTools(purpose));

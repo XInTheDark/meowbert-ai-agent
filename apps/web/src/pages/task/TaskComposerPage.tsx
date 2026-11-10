@@ -321,8 +321,8 @@ export function TaskComposerPage() {
         networkDisabled: effectiveRestrictions.networkDisabled && !networkAlreadyOff
       });
       const executionTarget = capabilities.isDesktop ? currentDraft.executionTarget : { kind: "cloud" } as const;
-      if (isLocalTarget && (workflow.type !== "standard" || toolOptions.subtasks || availableAgents.find((agent) => agent.id === selectedAgentId)?.mode === "agent_swarm")) {
-        throw new Error("Local tasks require a standard agent without workflows or subtasks.");
+      if (isLocalTarget && ((workflow.type !== "standard" && workflow.type !== "agent_swarm") || toolOptions.subtasks)) {
+        throw new Error("Local tasks support standard and Agent Swarm runs without other workflows or subtasks.");
       }
 
       const canvasForTask = selectedInteractiveCanvas;
@@ -498,7 +498,7 @@ export function TaskComposerPage() {
             availableSkills={fileFeatures.canvases ? availableSkills : availableSkills.filter((skill) => skill.id !== "html-canvas")}
             availableSources={availableSources}
             attachableSources={attachableSources}
-            availableAgents={isLocalTarget ? availableAgents.filter((agent) => agent.mode !== "agent_swarm") : availableAgents}
+            availableAgents={availableAgents}
             selectedAgentId={selectedAgentId}
             defaultAgentId={defaultAgentId}
             modelSliderAgentIds={modelSliderAgentIds}

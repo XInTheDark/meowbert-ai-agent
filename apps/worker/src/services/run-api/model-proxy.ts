@@ -93,6 +93,8 @@ export interface ModelProxyDeps {
   weighUsage(model: string, counts: ModelUsageCounts): Promise<number>;
   // Bills a request the executor walked away from, at its reserved maximum.
   chargeAbandoned(policy: RunModelPolicy, model: string, counts: ModelUsageCounts): Promise<void>;
+  // Charges a model turn to the run's Agent Swarm budget, once per completed request.
+  chargeSwarmTurn?(session: RunApiSession, weightedTokens: number | null): Promise<void>;
 }
 
 async function forwardModelRequest(session: RunApiSession, request: RunApiModelRequest, policy: RunModelPolicy, deps: ModelProxyDeps, signal: AbortSignal, markStarted: () => void): Promise<RunApiModelResponse> {
@@ -111,10 +113,12 @@ async function forwardModelRequest(session: RunApiSession, request: RunApiModelR
     signal.throwIfAborted();
     markStarted();
     try {
-      return await session.models.create({ purpose: request.purpose, body: request.body, signal, timeoutMs: request.timeoutMs,
+      const result = await session.models.create({ purpose: request.purpose, body: request.body, signal, timeoutMs: request.timeoutMs,
         ...(request.headers ? { headers: request.headers } : {}),
         ...(request.sessionId ? { sessionId: request.sessionId } : {}),
         ...(request.attempt ? { attempt: request.attempt } : {}) });
+      if (request.purpose === "turn") await deps.chargeSwarmTurn?.(session, result.weightedTokens);
+      return result;
     } catch (error) {
       if (signal.aborted && policy.billing) await deps.chargeAbandoned(policy, model, maximum);
       throw error;

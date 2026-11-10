@@ -35,6 +35,15 @@ export interface RunApiSession {
   // Set once the run completed or failed; the session lingers so retried calls get their answers.
   finishedAt: number | null;
   storageWait?: boolean;
+  // The Agent Swarm this run belongs to, as the control plane admitted it; swarm calls act for it.
+  swarm?: RunApiSwarm | null;
+}
+
+export interface RunApiSwarm {
+  context: import("@meowbert/run-executor/agent-swarm/run-context").SwarmRunContext;
+  // The model and provider the run was admitted on; lanes it forks run on these.
+  runtime: import("@meowbert/run-executor/subagents/types").SubagentRuntime;
+  job: import("@meowbert/shared").TaskExecutionJob;
 }
 
 // How long a finished session answers retries of its last calls.

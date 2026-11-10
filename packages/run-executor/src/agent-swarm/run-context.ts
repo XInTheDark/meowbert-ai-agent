@@ -5,6 +5,8 @@ import type { SwarmLaneRow } from "./lane-types.js";
 // What a run needs to know about the swarm it belongs to. The leader has no lane row.
 export interface SwarmRunContext {
   swarmTaskId: string;
+  // The swarm root's task root, relative to the project root; lanes live under <it>/lanes/<lane id>.
+  rootTaskPath: string;
   settings: AgentSwarmSettings;
   // The swarm's model router, when its settings name one that exists.
   router: PlatformModelRouter | null;
@@ -23,4 +25,8 @@ export interface SwarmRunContext {
 
 export function swarmDepth(context: Pick<SwarmRunContext, "lane">): number {
   return context.lane?.depth ?? 0;
+}
+
+export function laneTaskRootPath(rootTaskPath: string, laneTaskId: string): string {
+  return `${rootTaskPath.replace(/\/+$/, "")}/lanes/${laneTaskId}`;
 }

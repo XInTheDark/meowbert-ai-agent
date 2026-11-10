@@ -5,15 +5,15 @@ import { config } from "../../lib/config.js";
 import { query } from "../../lib/db.js";
 import { listDevices } from "./device-service.js";
 
+// Agent Swarm runs locally like a standard task; other workflows and subagents are cloud-only.
 export function localTaskFeatureError(input: {
   workflow?: unknown;
   schedule?: unknown;
-  swarm?: boolean;
   tools?: { subtasks?: boolean; scheduleTask?: boolean; computerUse?: boolean };
 }): string | null {
   const workflow = input.workflow as { type?: string } | undefined;
-  return (workflow && workflow.type !== "standard") || input.swarm || input.tools?.subtasks
-    ? "Local tasks support standard runs without workflows or subtasks."
+  return (workflow && workflow.type !== "standard" && workflow.type !== "agent_swarm") || input.tools?.subtasks
+    ? "Local tasks support standard and Agent Swarm runs without other workflows or subtasks."
     : null;
 }
 
@@ -52,9 +52,9 @@ export async function loadTaskExecutionTarget(taskId: string): Promise<TaskExecu
   return result.rows[0]?.execution_target ?? null;
 }
 
-export async function localTaskMutationError(taskId: string, userId: string, input: {
+export async function localTaskMutationError(taskId: string, _userId: string, input: {
   tools?: { subtasks?: boolean; scheduleTask?: boolean; computerUse?: boolean };
-  agent?: { id: string } | null; workflow?: unknown; schedule?: unknown; thread?: boolean;
+  workflow?: unknown; schedule?: unknown; thread?: boolean;
 }): Promise<string | null> {
   const target = await loadTaskExecutionTarget(taskId);
   if (target?.kind !== "local") return null;
@@ -62,13 +62,5 @@ export async function localTaskMutationError(taskId: string, userId: string, inp
   if (input.thread && target.mode === "host") return "Read-only threads require sandbox mode.";
   const featureError = localTaskFeatureError(input);
   if (featureError) return featureError;
-  if (input.agent) {
-    const { getVisiblePlatformAgentsForUser } = await import("../platform/platform-agents.js");
-    const { findPlatformAgentPresetById, resolvePlatformAgentPresetMode } = await import("@meowbert/shared");
-    const context = await getVisiblePlatformAgentsForUser(userId);
-    if (resolvePlatformAgentPresetMode(findPlatformAgentPresetById(context.presets, input.agent.id)) === "agent_swarm") {
-      return "Agent Swarm is unavailable for local tasks.";
-    }
-  }
   return null;
 }

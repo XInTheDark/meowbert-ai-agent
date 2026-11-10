@@ -3,15 +3,19 @@ import { buildResponseTools, TASK_SCHEDULING_TOOL_GROUP_ID, TASK_TITLE_FUNCTION_
 import { buildCodeModeToolSet } from "@meowbert/run-executor/code-mode/code-mode-tools";
 import { resolveRunToolOptions } from "@meowbert/run-executor/agent/runtime";
 import { COMPACTION_TOOL_NAME, COMPACTION_OUTPUT_SCHEMA } from "@meowbert/run-executor/context-compaction/shared";
-import { workspaceFileFeatures, normalizeWorkspaceFileHost, getPersistentRuntimeEnabled } from "@meowbert/shared";
+import { workspaceFileFeatures, normalizeWorkspaceFileHost, getPersistentRuntimeEnabled, type PlatformModelRouter } from "@meowbert/shared";
+import type { SwarmToolSet } from "@meowbert/run-executor/agent-tools/swarm";
 import { shouldExposeStopTaskForRecurringRun } from "@meowbert/run-executor/tasks/recurring-run-utils";
 import type { ServerRunState } from "../run-host/bootstrap.js";
 
 export interface DeviceToolConsent { hostShell?: boolean; hostBrowser?: boolean; computerUse?: boolean }
 
+// The swarm tools a swarm run sends: Check lanes get their own set.
+export interface RunSwarmTools { set: SwarmToolSet; router: PlatformModelRouter | null }
+
 // Union of tools reachable during this run, including lazy tool groups and context recovery.
 // The executor may send a subset each turn; parameter schemas still come from these definitions.
-export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsent): Tool[] {
+export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsent, swarm: RunSwarmTools | null = null): Tool[] {
   const { bootstrap, snapshot, job } = state;
   const local = job.executionTarget?.kind === "local";
   const host = local && job.executionTarget?.kind === "local" && job.executionTarget.mode === "host";
@@ -41,7 +45,8 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
       allowHostShell: local && consent.hostShell === true, allowRefreshGitHubToken: bootstrap.github.hasAppConnection,
       allowStartLongHorizonTask: !local, allowRequestClarification: !local, allowSubmitResponse: !local, allowSubmitReview: !local,
       runShellMaxTimeoutSeconds: maximum, contextManagementVersion: version,
-      allowPersistentShellSessions: getPersistentRuntimeEnabled(bootstrap.runtime.environmentPayload), useClaudeWebSearch: bootstrap.runtime.modelType === "claude"
+      allowPersistentShellSessions: getPersistentRuntimeEnabled(bootstrap.runtime.environmentPayload), useClaudeWebSearch: bootstrap.runtime.modelType === "claude",
+      ...(swarm ? { swarmTools: swarm.set, swarmRouter: swarm.router } : {})
     });
     tools.push(...ordinary, ...buildResponseTools(options, [], { quickModeActive: true, newMessageOrganizationEnabled: organization }),
       ...buildCodeModeToolSet(ordinary, maximum).responseTools);

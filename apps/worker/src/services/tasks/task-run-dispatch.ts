@@ -49,6 +49,8 @@ interface PendingDispatchCandidateRow {
   workspace_id: string;
   environment_id: string;
   storage_backend_id: string | null;
+  // Agent Swarm runs on a device need a desktop app whose executor runs swarm runs.
+  agent_swarm: boolean;
   dispatch_class: TaskRunDispatchClass;
   payload_json: TaskExecutionJob;
   queued_at: string;
@@ -95,6 +97,7 @@ export function resolveLocalDevicePendingReason(input: {
   storageBackendId: string | null;
   localExecutionEnabled: boolean;
   mode?: "host" | "sandbox";
+  requiresAgentSwarm?: boolean;
   now?: Date;
 }): LocalPendingReason | null {
   if (!input.localExecutionEnabled) return "local_execution_disabled";
@@ -111,6 +114,7 @@ export function resolveLocalDevicePendingReason(input: {
     return input.device.capabilities.sandboxImageDigest ? "sandbox_updating" : "sandbox_missing";
   }
   if (input.device.capabilities.executorSupported !== true || input.device.capabilities.protocolVersion !== RUN_API_PROTOCOL_VERSION) return "executor_outdated";
+  if (input.requiresAgentSwarm && input.device.capabilities.agentSwarm !== true) return "executor_outdated";
   if (input.device.activeRuns >= input.device.maxConcurrentRuns) return "device_busy";
   return null;
 }
@@ -341,6 +345,7 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
                d.workspace_id,
                d.environment_id,
                CASE WHEN w.file_host->>'kind' = 'device' THEN 'workspace:' || w.id::text ELSE w.storage_backend_id END AS storage_backend_id,
+               COALESCE(t.workflow_type = 'agent_swarm', false) AS agent_swarm,
                d.dispatch_class,
                d.payload_json,
                d.queued_at::text,
@@ -392,6 +397,7 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
              workspace_id,
              environment_id,
              storage_backend_id,
+             agent_swarm,
              dispatch_class,
              payload_json,
              queued_at,
@@ -514,6 +520,7 @@ async function updateLocalPendingReasons(
       device: devices.get(target.deviceId) ?? null,
       storageBackendId: candidate.storage_backend_id,
       mode: target.mode,
+      requiresAgentSwarm: candidate.agent_swarm,
       localExecutionEnabled: config.localExecution.enabled
     });
     await query(
@@ -583,6 +590,7 @@ function selectWorkspaceCandidate(input: {
           device: input.deviceStates?.get(target.deviceId) ?? null,
           storageBackendId: candidate.storage_backend_id,
           mode: target.mode,
+          requiresAgentSwarm: candidate.agent_swarm,
           localExecutionEnabled: config.localExecution.enabled
         }) !== null) return false;
       }

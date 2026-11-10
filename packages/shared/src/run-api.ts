@@ -40,7 +40,13 @@ export const RUN_API_READ_METHODS = [
   "platform.liveSyncFolderSearch",
   "platform.getDesktopComputerPresence",
   "platform.readShellSessionWaitState",
-  "model.isQuotaExceeded"
+  "model.isQuotaExceeded",
+  "swarm.loadForkSeed",
+  "swarm.loadBudgetState",
+  "swarm.hasActiveLanes",
+  "swarm.hasOwnLanes",
+  "swarm.loadAutoCheckFiles",
+  "swarm.loadCheckInputs"
 ] as const;
 
 // Calls that change state. Each carries an operation id that a retry reuses, so a call whose
@@ -80,7 +86,20 @@ export const RUN_API_WRITE_METHODS = [
   "platform.refreshGitHubToken",
   "platform.issueSourceAccess",
   "platform.requestDesktopComputerAction",
-  "platform.persistentShell"
+  "platform.persistentShell",
+  "swarm.load",
+  "swarm.claimInbox",
+  "swarm.markWrapUpNotified",
+  "swarm.recordTurn",
+  "swarm.forkLanes",
+  "swarm.startCheckLane",
+  "swarm.steerLane",
+  "swarm.stopLane",
+  "swarm.resumeLane",
+  "swarm.shareNote",
+  "swarm.emitEvent",
+  "swarm.park",
+  "swarm.finishLane"
 ] as const;
 
 export type RunApiReadMethod = (typeof RUN_API_READ_METHODS)[number];

@@ -9,6 +9,8 @@ import type { RunApiClient } from "@meowbert/run-executor/run-api/client";
 import type { createHttpRunControl } from "@meowbert/run-executor/run-api/http-run-control";
 import { createProxyModelGateway } from "@meowbert/run-executor/run-api/proxy-model-gateway";
 import { noRunFeatures } from "@meowbert/run-executor/agent/ports/run-features";
+import { createSwarmRunFeatures } from "@meowbert/run-executor/agent-swarm/features";
+import { createHttpSwarmBackend } from "@meowbert/run-executor/run-api/http-swarm-backend";
 import { startMcpServer } from "@meowbert/run-executor/agent/mcp-client";
 import { getHostBrowser } from "../browser-use/runtime";
 import { createHostMachineProvider } from "./host-machine-host";
@@ -44,7 +46,8 @@ export function localRunEnvironment(input: {
       Object.assign(platform, host ? createHostPersistentShells({ machine, spec, signal }) : createLocalPersistentShells({ machine, spec, signal }));
       return machine;
     } },
-    features: noRunFeatures,
+    // Agent Swarm state stays on the server; subagents, Project Master and workflows are cloud-only.
+    features: { ...noRunFeatures, ...createSwarmRunFeatures(createHttpSwarmBackend(input.client)) },
     connectSkill: (manifest, dir, sandbox, timeout, env) => {
       signal.throwIfAborted();
       if (manifest.id === "host-browser") {

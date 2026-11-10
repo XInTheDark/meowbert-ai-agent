@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { withTransaction } from "../../lib/db.js";
-import { recordContextItems } from "@meowbert/run-executor/context-management-v2/window";
+import { applyRunInboxAppend } from "@meowbert/run-executor/agent-swarm/run-inbox";
 import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import type { TaskMessageRow } from "@meowbert/run-executor/agent/types";
 
@@ -40,9 +40,31 @@ async function insertInboxMessage(
   };
 }
 
+// Stores messages that arrived from outside the run on its branch, after the run's pending tool calls
+// so the order survives a restart and replay. Caller holds the task lock in a transaction.
+export async function insertRunInboxMessagesInTx(
+  client: PoolClient,
+  input: { taskId: string; leafMessageId: string | null; persistedItems: unknown[]; messages: RunInboxMessage[] }
+): Promise<{ leaf: string; rows: TaskMessageRow[] } | null> {
+  if (input.messages.length === 0) return null;
+  let leaf = input.leafMessageId;
+  if (input.persistedItems.length) {
+    leaf = (await insertInboxMessage(client, input.taskId, leaf, {
+      role: "assistant",
+      content: { text: "", response_items: [...input.persistedItems] }
+    })).id;
+  }
+  const rows: TaskMessageRow[] = [];
+  for (const message of input.messages) {
+    const row = await insertInboxMessage(client, input.taskId, leaf, message);
+    rows.push(row);
+    leaf = row.id;
+  }
+  return { leaf: leaf!, rows };
+}
+
 // Appends messages that arrived from outside the run (subagent mail, task reports, queued user
-// follow-ups) at a model-turn boundary. Pending tool calls are persisted first so the order
-// survives a restart and replay. `toItems` turns the stored messages into the model's input.
+// follow-ups) at a model-turn boundary. `toItems` turns the stored messages into the model's input.
 export async function appendRunInboxMessages(
   execution: AgentExecutionContext,
   claimMessages: (client: PoolClient) => Promise<RunInboxMessage[]>,
@@ -51,29 +73,15 @@ export async function appendRunInboxMessages(
   const state = execution.state;
   const result = await withTransaction(async (client) => {
     await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [execution.job.taskId]);
-    const messages = await claimMessages(client);
-    if (messages.length === 0) return null;
-    let leaf = state.currentLeafMessageId;
-    if (state.dispatchState.runPersistedItems.length) {
-      leaf = (await insertInboxMessage(client, execution.job.taskId, leaf, {
-        role: "assistant",
-        content: { text: "", response_items: [...state.dispatchState.runPersistedItems] }
-      })).id;
-    }
-    const rows: TaskMessageRow[] = [];
-    for (const message of messages) {
-      const row = await insertInboxMessage(client, execution.job.taskId, leaf, message);
-      rows.push(row);
-      leaf = row.id;
-    }
-    return { leaf, rows };
+    return insertRunInboxMessagesInTx(client, {
+      taskId: execution.job.taskId,
+      leafMessageId: state.currentLeafMessageId,
+      persistedItems: state.dispatchState.runPersistedItems,
+      messages: await claimMessages(client)
+    });
   });
   if (!result) return false;
-  state.currentLeafMessageId = result.leaf;
-  state.dispatchState.runPersistedItems.splice(0);
-  const items = await toItems(result.rows);
-  if (state.contextManagement.version === "v2") await recordContextItems(execution.prepared.control.context, state.contextManagement, items);
-  state.dispatchState.conversationItems.push(...items);
+  await applyRunInboxAppend(execution, { leafMessageId: result.leaf, items: await toItems(result.rows) });
   return true;
 }
 
@@ -86,8 +94,13 @@ export async function appendRunInboxItems(
     execution,
     async (client) => {
       claimed = await claimItems(client);
-      return claimed.length ? [{ role: "system", content: { text: "", response_items: claimed } }] : [];
+      return inboxItemsMessage(claimed);
     },
     async () => claimed
   );
+}
+
+// Items from outside the run, stored as one message the model reads as-is.
+export function inboxItemsMessage(items: ResponseInputItem[]): RunInboxMessage[] {
+  return items.length ? [{ role: "system", content: { text: "", response_items: items } }] : [];
 }

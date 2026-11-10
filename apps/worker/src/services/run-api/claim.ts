@@ -8,7 +8,8 @@ import { resolveRunToolOptions } from "@meowbert/run-executor/agent/runtime";
 import type { ServerRunState } from "../run-host/bootstrap.js";
 import { createDirectRunServices } from "../run-host/cloud-run-environment.js";
 import { resolvePurposeModel } from "../run-host/direct-model-gateway.js";
-import type { RunApiSessions, RunModelPolicy } from "./sessions.js";
+import type { RunApiSessions, RunApiSwarm, RunModelPolicy } from "./sessions.js";
+import { loadSwarmRunContext } from "../agent-swarm/config.js";
 import type { RunLeaseStore } from "./stores.js";
 
 export interface RunClaim {
@@ -26,6 +27,17 @@ function modelPolicy(state: ServerRunState): RunModelPolicy {
     maxContextTokens: runtime.maxContextTokens,
     modelPayload: runtime.modelPayload,
     allowHostedWebSearch: resolveRunToolOptions(state.snapshot, state.job, state.bootstrap.memoryEnabled).webSearch === true
+  };
+}
+
+async function loadRunSwarm(state: ServerRunState): Promise<RunApiSwarm | null> {
+  const context = await loadSwarmRunContext(state.snapshot.task, state.snapshot.platform_model_routers ?? []);
+  if (!context) return null;
+  const { runtime } = state.bootstrap;
+  return {
+    context,
+    runtime: { model: runtime.model, payload: runtime.modelPayload, provider: { kind: runtime.providerKind, baseUrl: runtime.providerBaseUrl } },
+    job: state.job
   };
 }
 
@@ -56,7 +68,9 @@ export async function claimRunForApi(input: {
   const device = job.executionTarget?.kind === "local" ? await query<{ consent_json: DeviceToolConsent }>(
     "SELECT consent_json FROM devices WHERE id = $1 AND revoked_at IS NULL", [job.executionTarget.deviceId]
   ) : null;
-  const validateTools = job.executionTarget?.kind === "local" ? createModelToolPolicy(state, control, device?.rows[0]?.consent_json ?? {}) : undefined;
+  const swarm = await loadRunSwarm(state);
+  const swarmTools = swarm ? { set: swarm.context.lane?.kind === "check" ? "check" as const : "all" as const, router: swarm.context.router } : null;
+  const validateTools = job.executionTarget?.kind === "local" ? createModelToolPolicy(state, control, device?.rows[0]?.consent_json ?? {}, swarmTools) : undefined;
   input.sessions.add({
     fileHost: bootstrap.fileHost,
     runId: job.runId,
@@ -69,7 +83,8 @@ export async function claimRunForApi(input: {
     leafMessageId: bootstrap.snapshot.branch_leaf_message_id,
     lastEventSeq: 0,
     modelRequestInFlight: false,
-    finishedAt: null
+    finishedAt: null,
+    swarm
   });
   return {
     epoch: lease.epoch,

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_AGENT_SWARM_ADVANCED_SETTINGS, normalizeAgentSwarmSettings } from "@meowbert/shared";
-import { createSwarmActivity } from "@meowbert/run-executor/agent-swarm/activity";
-import type { SwarmRunContext } from "../../../agent-swarm/config.js";
-import type { SwarmLaneRow } from "../../../agent-swarm/lane-store.js";
+import { createSwarmActivity } from "../activity.js";
+import type { SwarmRunContext } from "../run-context.js";
+import type { SwarmLaneRow } from "../lane-types.js";
 import { checkSwarmToolRole } from "./role-gate.js";
 import { isLastToolCallOfResponse } from "./fork-call.js";
 import { withUndirectedLane } from "./diverge.js";
@@ -14,6 +14,7 @@ function context(
 ): SwarmRunContext {
   return {
     swarmTaskId: "root",
+    rootTaskPath: "tasks/root",
     settings: normalizeAgentSwarmSettings({ leaderAgentId: "leader", advanced: { maxDepth } }),
     router: null,
     lane: lane ? { task_id: "lane", parent_task_id: "root", depth: 1, kind: "split", ...lane } as SwarmLaneRow : null,

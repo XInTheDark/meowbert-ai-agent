@@ -1,19 +1,13 @@
-import { isSwarmToolName } from "@meowbert/run-executor/agent-tools/swarm";
 import { SUBAGENT_TOOL_NAMES } from "@meowbert/run-executor/agent-tools/subagents";
 import { PROJECT_MASTER_TOOL_NAMES } from "@meowbert/run-executor/agent-tools/project-master";
 import { PROJECT_MAP_TOOL_NAMES } from "@meowbert/run-executor/agent-tools/project-map";
 import type { RunFeatures } from "@meowbert/run-executor/agent/ports/run-features";
 import type { AgentExecutionContext, WorkflowActions } from "@meowbert/run-executor/agent/execution-types";
 import type { BudgetTelemetry } from "@meowbert/run-executor/agent-tool-dispatch/types";
-import { handleSwarmTool } from "../agent-tool-dispatch/handlers/swarm/index.js";
-import { interceptFinalResponseForCheck } from "../agent-tool-dispatch/handlers/swarm/check.js";
+import { createSwarmRunFeatures } from "@meowbert/run-executor/agent-swarm/features";
 import { handleSubagentTool } from "../agent-tool-dispatch/handlers/subagents.js";
 import { handleProjectMasterTool } from "../agent-tool-dispatch/handlers/project-master.js";
-import { loadSwarmRunContext } from "../agent-swarm/config.js";
-import { clearSwarmPark } from "../agent-swarm/park.js";
-import { prepareLaneRun } from "../agent-swarm/lane-setup.js";
-import { afterSwarmModelTurn, prepareSwarmStep } from "../agent-swarm/loop-hooks.js";
-import { finalizeSwarmRun, parkLeaderIfLanesActive } from "../agent-swarm/run-finalize.js";
+import { dbSwarmBackend } from "../agent-swarm/db-backend.js";
 import { appendSubagentInbox } from "../subagents/inbox.js";
 import { assertSubagentsFinished } from "../subagents/mail.js";
 import { parkForSubagentMail } from "../subagents/wait.js";
@@ -77,35 +71,34 @@ async function loadWorkflowBudget(execution: AgentExecutionContext): Promise<Bud
   };
 }
 
+const swarmFeatures = createSwarmRunFeatures(dbSwarmBackend);
+
 // The database-backed features, for runs whose executor sits inside the control plane.
 export const cloudRunFeatures: RunFeatures = {
   loadWorkflow: (input) => loadWorkflowRunContext(input),
   workflowActions: buildWorkflowActions,
   loadWorkflowBudget,
   completeWorkflow: (context, runId) => markWorkflowCompleted(context, { currentRunId: runId }),
-  async loadSwarm(task, routers) {
-    const swarm = await loadSwarmRunContext(task, routers);
-    if (swarm) await clearSwarmPark(task.id);
-    return swarm;
-  },
-  prepareLaneRun,
+  loadSwarm: swarmFeatures.loadSwarm,
+  prepareLaneRun: swarmFeatures.prepareLaneRun,
   async beforeStep(execution) {
     await appendQueuedUserMessages(execution);
     await appendSubagentInbox(execution);
     await appendProjectMasterInbox(execution);
-    await prepareSwarmStep(execution);
+    await swarmFeatures.beforeStep(execution);
   },
-  afterModelTurn: afterSwarmModelTurn,
+  afterModelTurn: swarmFeatures.afterModelTurn,
   handleToolCall(call, ctx, state) {
-    if (isSwarmToolName(call.name)) return handleSwarmTool(call, ctx, state);
+    const swarmResult = swarmFeatures.handleToolCall(call, ctx, state);
+    if (swarmResult) return swarmResult;
     if ((SUBAGENT_TOOL_NAMES as readonly string[]).includes(call.name)) return handleSubagentTool(call, ctx, state);
     if ((PROJECT_MASTER_TOOL_NAMES as readonly string[]).includes(call.name)) return handleProjectMasterTool(call, ctx, state);
     if ((PROJECT_MAP_TOOL_NAMES as readonly string[]).includes(call.name)) return handleProjectMapTool(call, ctx, state);
     return null;
   },
   assertSubagentsFinished,
-  interceptFinalResponse: interceptFinalResponseForCheck,
-  finalizeSwarmRun,
-  parkLeaderIfLanesActive,
+  interceptFinalResponse: swarmFeatures.interceptFinalResponse,
+  finalizeSwarmRun: swarmFeatures.finalizeSwarmRun,
+  parkLeaderIfLanesActive: swarmFeatures.parkLeaderIfLanesActive,
   parkForSubagentMail
 };

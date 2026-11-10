@@ -21,3 +21,9 @@ it.each([
 it("admits a device only when all readiness checks pass", () => {
   expect(resolveLocalDevicePendingReason({device:device(),storageBackendId:"backend",localExecutionEnabled:true})).toBeNull();
 });
+
+it("keeps Agent Swarm runs for a desktop that runs them", () => {
+  expect(resolveLocalDevicePendingReason({device:device(),storageBackendId:"backend",localExecutionEnabled:true,requiresAgentSwarm:true})).toBe("executor_outdated");
+  const d = device(); Object.assign(d.capabilities, { agentSwarm: true });
+  expect(resolveLocalDevicePendingReason({device:d,storageBackendId:"backend",localExecutionEnabled:true,requiresAgentSwarm:true})).toBeNull();
+});
