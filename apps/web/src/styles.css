@@ -7036,12 +7036,18 @@ a.managed-task-card:hover {
   list-style: none;
   margin: 0 0 0.5rem;
   padding: 0;
+  /* The unwrapped message text must not feed into the composer's intrinsic width, or a long
+     follow-up widens the whole pane and pushes the buttons and the transcript out of view. */
+  min-width: 0;
+  max-width: 100%;
+  contain: inline-size;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
 
 .queued-follow-up {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.45rem;
