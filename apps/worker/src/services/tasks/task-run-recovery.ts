@@ -5,8 +5,7 @@ import {
   type TaskSource,
   isLocalTaskExecutionTarget,
   normalizeTaskExecutionTarget,
-  type TaskExecutionTarget,
-  LOCAL_RUN_MAX_PENDING_MS
+  type TaskExecutionTarget
 } from "@meowbert/shared";
 import type { JobType } from "bullmq";
 import { query, withTransaction } from "../../lib/db.js";
@@ -15,6 +14,9 @@ import { emitTaskEvent } from "../runtime/events.js";
 import { resolveContinuationBranchMessageId, resolveLatestBranchSelectionUserId } from "../agent-db/index.js";
 import { markTaskRunDispatchPending } from "./task-run-dispatch.js";
 import { shouldResolveContinuationBranch } from "./task-run-utils.js";
+import { expireUnavailableLocalRunsOnce, reclaimExpiredLocalRunLeasesOnce } from "./local-run-recovery.js";
+
+export { expireUnavailableLocalRunsOnce, reclaimExpiredLocalRunLeasesOnce };
 
 const RECOVERY_INTERVAL_MS = 12_000;
 const RECOVERY_BATCH_SIZE = 100;
@@ -27,8 +29,6 @@ const LIVE_QUEUE_STATE_LIST: JobType[] = [
   "waiting-children"
 ];
 const LIVE_QUEUE_STATES = new Set<JobType>(LIVE_QUEUE_STATE_LIST);
-const LOCAL_CLAIM_WINDOW_MS = 60_000;
-const LOCAL_LEASE_RECLAIM_GRACE_MS = 30_000;
 
 interface RecoverableTaskRunRow {
   task_id: string;
@@ -329,59 +329,6 @@ export async function recoverRunningTaskRunsOnce(knownLiveJobs?: Set<string>): P
   }
 
   return recoveredCount;
-}
-
-/** Releases a local admission after the device has missed its claim window or lease grace. */
-export async function reclaimExpiredLocalRunLeasesOnce(): Promise<number> {
-  const result = await query<{ run_id: string }>(
-    `WITH expired AS (
-       SELECT d.run_id, d.task_id, t.cancellation_requested, t.trashed_at
-         FROM task_run_dispatches d JOIN tasks t ON t.id = d.task_id
-         JOIN task_runs tr ON tr.id = d.run_id AND tr.ended_at IS NULL
-        WHERE d.payload_json->'executionTarget'->>'kind' = 'local'
-          AND NOT EXISTS (SELECT 1 FROM task_runs newer WHERE newer.task_id = t.id AND newer.attempt_no > tr.attempt_no)
-          AND ((d.queue_state = 'admitted' AND d.admitted_at < now() - ($1::double precision * interval '1 millisecond'))
-            OR (d.queue_state = 'running' AND COALESCE(d.lease_expires_at, d.started_at) < now() - ($2::double precision * interval '1 millisecond')))
-        FOR UPDATE OF d, t SKIP LOCKED
-     ), released AS (
-       UPDATE task_run_dispatches d SET
-         queue_state = CASE WHEN e.cancellation_requested OR e.trashed_at IS NOT NULL THEN 'cancelled' ELSE 'pending' END,
-         lease_epoch = lease_epoch + 1, lease_device_id = NULL, lease_holder = NULL,
-         lease_api_url = NULL, lease_expires_at = NULL, pending_reason = 'device_offline',
-         admitted_at = NULL, started_at = NULL, eligible_at = now(), updated_at = now()
-       FROM expired e WHERE d.run_id = e.run_id RETURNING d.run_id, d.task_id, d.queue_state
-     ), ended AS (
-       UPDATE task_runs tr SET ended_at = now(), exit_reason = 'cancelled'
-       FROM released r WHERE tr.id = r.run_id AND r.queue_state = 'cancelled' RETURNING tr.id
-     )
-     UPDATE tasks t SET status = CASE WHEN r.queue_state = 'cancelled' THEN 'cancelled' ELSE 'queued' END, updated_at = now()
-       FROM released r WHERE t.id = r.task_id RETURNING r.run_id`,
-    [LOCAL_CLAIM_WINDOW_MS, LOCAL_LEASE_RECLAIM_GRACE_MS]
-  );
-  return result.rowCount ?? 0;
-}
-
-export async function expireUnavailableLocalRunsOnce(): Promise<number> {
-  const result = await query(
-    `WITH expired AS (
-       SELECT d.run_id, d.task_id, t.cancellation_requested
-         FROM task_run_dispatches d JOIN tasks t ON t.id = d.task_id
-         JOIN task_runs tr ON tr.id = d.run_id AND tr.ended_at IS NULL
-        WHERE d.payload_json->'executionTarget'->>'kind' = 'local' AND d.queue_state = 'pending'
-          AND t.status = 'queued' AND d.eligible_at < now() - ($1::double precision * interval '1 millisecond')
-        FOR UPDATE OF d, t SKIP LOCKED
-     ), finished AS (
-       UPDATE task_run_dispatches d SET queue_state = 'finished', finished_at = now(), pending_reason = NULL
-       FROM expired e WHERE d.run_id = e.run_id RETURNING d.run_id
-     ), ended AS (
-       UPDATE task_runs tr SET ended_at = now(), exit_reason = 'device_unavailable',
-         error_summary = 'The local device was unavailable for 24 hours.'
-       FROM expired e WHERE tr.id = e.run_id RETURNING tr.id
-     ) UPDATE tasks t SET status = CASE WHEN e.cancellation_requested THEN 'cancelled' ELSE 'failed' END,
-       completed_at = now(), updated_at = now() FROM expired e WHERE t.id = e.task_id RETURNING t.id`,
-    [LOCAL_RUN_MAX_PENDING_MS]
-  );
-  return result.rowCount ?? 0;
 }
 
 export function startTaskRunRecoveryLoop(): { stop: () => Promise<void> } {

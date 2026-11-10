@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fromSandboxPath } from "@meowbert/shared/docker-sandbox";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { SUBMIT_TOOL_NAME, submitArgumentsSchema } from "../../agent-tools/swarm.js";
 import type { SwarmLaneFile } from "../lane-types.js";
@@ -18,7 +19,7 @@ export function truncateLaneSummary(summary: string, maxTokens: number): string 
 // Sizes come from the files the lane names, one stat each, for the merge's assembly hint; no walk.
 async function describeFiles(paths: string[], taskDir: string): Promise<SwarmLaneFile[]> {
   return Promise.all([...new Set(paths)].map(async (filePath) => {
-    const absolutePath = path.resolve(taskDir, filePath);
+    const absolutePath = path.resolve(taskDir, fromSandboxPath(filePath));
     const stats = await fs.stat(absolutePath).catch(() => null);
     return { path: absolutePath, bytes: stats?.isFile() ? stats.size : null };
   }));

@@ -107,7 +107,8 @@ function refusable(handler: Handler): Handler {
 export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
   // A run that starts while its task is parked takes over from the park.
   "swarm.load": refusable(async (session) => {
-    const swarm = requireSwarm(session);
+    const swarm = session.swarm;
+    if (!swarm) return null;
     await clearSwarmPark(session.taskId);
     return structuredClone(swarm.context);
   }),

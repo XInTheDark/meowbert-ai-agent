@@ -38,7 +38,8 @@ export async function claimLocalRun(input: { userId: string; deviceId: string; r
              AND NOT EXISTS (SELECT 1 FROM workspace_device_relinks relink WHERE relink.workspace_id = w.id)
          )
          AND EXISTS (SELECT 1 FROM task_runs tr JOIN tasks t ON t.id = tr.task_id
-           WHERE tr.id = d.run_id AND tr.ended_at IS NULL AND NOT t.cancellation_requested AND t.trashed_at IS NULL)
+           WHERE tr.id = d.run_id AND tr.ended_at IS NULL AND NOT t.cancellation_requested AND t.trashed_at IS NULL
+             AND (t.workflow_type IS DISTINCT FROM 'agent_swarm' OR dv.capabilities_json->>'agentSwarm' = 'true'))
          AND d.queue_state = 'admitted'
          AND d.lease_device_id IS NULL
          AND (d.payload_json->'executionTarget'->>'kind') = 'local'
