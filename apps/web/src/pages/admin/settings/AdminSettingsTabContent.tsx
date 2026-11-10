@@ -144,6 +144,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
       enablePromptCaching={platform.enablePromptCaching}
       idleCompactionForTasks={platform.idleCompactionForTasks}
       idleCompactionDelaySeconds={platform.idleCompactionDelaySeconds}
+      cachebeat={platform.cachebeat}
       debugMode={platform.debugMode}
       defaultFreeMessageLimit={platform.defaultFreeMessageLimit}
       maxTaskRunRetries={platform.maxTaskRunRetries}
@@ -161,6 +162,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
       onEnablePromptCachingChange={platform.setEnablePromptCaching}
       onIdleCompactionForTasksChange={platform.setIdleCompactionForTasks}
       onIdleCompactionDelaySecondsChange={platform.setIdleCompactionDelaySeconds}
+      onCachebeatChange={platform.setCachebeat}
       onDebugModeChange={platform.setDebugMode}
       onDefaultFreeMessageLimitChange={platform.setDefaultFreeMessageLimit}
       onMaxTaskRunRetriesChange={platform.setMaxTaskRunRetries}

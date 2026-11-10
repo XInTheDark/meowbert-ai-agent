@@ -117,7 +117,6 @@ export interface TaskSnapshot {
   compaction_backend: WorkspaceCompactionBackend;
   context_management_tools_enabled: boolean;
   enable_prompt_caching: boolean;
-  claude_cache_keepalive: boolean;
   code_mode_enabled: boolean;
   platform_agent_presets: PlatformAgentPreset[];
   platform_model_metadata: PlatformModelMetadata;

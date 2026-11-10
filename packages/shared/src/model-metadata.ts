@@ -18,7 +18,7 @@ export type PlatformContextManagementVersion = "v1" | "v2";
 export const DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 256_000;
 export const DEFAULT_MODEL_TYPE: PlatformModelType = "openai";
 export const DEFAULT_PROMPT_CACHE_TTL_SECONDS = 3600;
-export const DEFAULT_IDLE_COMPACTION_MIN_TOKENS = 50_000;
+export const DEFAULT_IDLE_COMPACTION_MIN_TOKENS = 40_000;
 
 export const DEFAULT_PLATFORM_MODEL_METADATA: PlatformModelMetadata = {
   default: {

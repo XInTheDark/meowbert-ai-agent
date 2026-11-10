@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { DraftNumberInput } from "../../../components/forms/DraftNumberInput";
+import type { CachebeatSettings } from "@meowbert/shared/cachebeat-settings";
+import { CachebeatDurationField } from "./CachebeatDurationField";
 import { IdleCompactionDelayField } from "./IdleCompactionDelayField";
 
 interface PlatformSettingsTabProps {
@@ -10,6 +12,7 @@ interface PlatformSettingsTabProps {
   enablePromptCaching: boolean;
   idleCompactionForTasks: boolean;
   idleCompactionDelaySeconds: number | null;
+  cachebeat: CachebeatSettings;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;
@@ -27,6 +30,7 @@ interface PlatformSettingsTabProps {
   onEnablePromptCachingChange: (value: boolean) => void;
   onIdleCompactionForTasksChange: (value: boolean) => void;
   onIdleCompactionDelaySecondsChange: (value: number | null) => void;
+  onCachebeatChange: (value: CachebeatSettings) => void;
   onDebugModeChange: (value: boolean) => void;
   onDefaultFreeMessageLimitChange: (value: number | null) => void;
   onMaxTaskRunRetriesChange: (value: number) => void;
@@ -249,6 +253,8 @@ function AdvancedSettingsSection(props: Pick<
   | "onIdleCompactionForTasksChange"
   | "idleCompactionDelaySeconds"
   | "onIdleCompactionDelaySecondsChange"
+  | "cachebeat"
+  | "onCachebeatChange"
   | "debugMode"
   | "onDebugModeChange"
 >) {
@@ -266,6 +272,7 @@ function AdvancedSettingsSection(props: Pick<
         description="Compact idle top-level tasks while their prompt cache is still warm, like the Project Master. Models with idle_compaction set to false in Model metadata are skipped."
         onChange={props.onIdleCompactionForTasksChange}
       />
+      <CachebeatDurationField value={props.cachebeat} onChange={props.onCachebeatChange} />
       <IdleCompactionDelayField
         delaySeconds={props.idleCompactionDelaySeconds}
         onChange={props.onIdleCompactionDelaySecondsChange}

@@ -41,8 +41,6 @@ import { laneForkSourceSessionKey } from "../agent-swarm/fork-source-session.js"
 
 const STEPS_REMAIN_THRESHOLD = 2;
 const MAX_MODEL_REQUEST_RECOVERY_ITEMS = 6;
-// How long Meridian keeps a Claude task's prompt cache warm after its latest request.
-const CLAUDE_CACHE_KEEPALIVE_SECONDS = 30 * 60;
 
 type ModelTurnResponse = Awaited<ReturnType<typeof createModelResponseWithRetry>>["response"];
 
@@ -422,9 +420,6 @@ async function requestModelTurn(input: {
         promptPrefixHash: turnRequest.promptPrefixHash
       }),
       ...(execution.prepared.snapshot.enable_prompt_caching !== false ? { promptCacheTtl: "30m" as const } : {}),
-      ...(execution.prepared.runtimeModelType === "claude" && execution.prepared.snapshot.claude_cache_keepalive
-        ? { cacheKeepaliveSeconds: CLAUDE_CACHE_KEEPALIVE_SECONDS }
-        : {}),
       prefixItems: turnRequest.promptPrefixItems,
       conversationItems: execution.state.dispatchState.conversationItems,
       modelPayload: execution.prepared.runtimeModelPayload,

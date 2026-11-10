@@ -12,8 +12,10 @@ import {
   resolvePlatformModelRouterDefaultRuntimeModel,
   resolveContextWindowForModel,
   normalizeUsageRateMultiplier,
+  normalizeCachebeatSettings,
   resolveInternalModel,
   type TaskSchedulerSettings,
+  type CachebeatSettings,
   type PlatformAgentPreset,
   type PlatformModelMetadata,
   type PlatformModelRouter
@@ -36,6 +38,7 @@ interface AdminSettingsRow {
   enable_prompt_caching: boolean;
   idle_compaction_for_tasks: boolean;
   idle_compaction_delay_seconds: number | null;
+  cachebeat_json: unknown;
   debug_mode: boolean;
   default_free_message_limit: number | null;
   max_task_run_retries: number;
@@ -56,6 +59,7 @@ export interface AdminSettings {
   enablePromptCaching: boolean;
   idleCompactionForTasks: boolean;
   idleCompactionDelaySeconds: number | null;
+  cachebeat: CachebeatSettings;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;
@@ -118,6 +122,7 @@ function mapAdminSettings(row: AdminSettingsRow | undefined): AdminSettings {
     enablePromptCaching: row?.enable_prompt_caching ?? true,
     idleCompactionForTasks: row?.idle_compaction_for_tasks ?? false,
     idleCompactionDelaySeconds: row?.idle_compaction_delay_seconds ?? null,
+    cachebeat: normalizeCachebeatSettings(row?.cachebeat_json ?? null),
     debugMode: row?.debug_mode ?? false,
     defaultFreeMessageLimit: row?.default_free_message_limit ?? null,
     maxTaskRunRetries: row?.max_task_run_retries ?? 5,
@@ -154,7 +159,8 @@ export async function getAdminSettings(client?: PoolClient): Promise<AdminSettin
        specialized_models_json,
        model_slider_agent_ids_json,
        idle_compaction_for_tasks,
-       idle_compaction_delay_seconds
+       idle_compaction_delay_seconds,
+       cachebeat_json
      FROM platform_settings
      WHERE id = 1`,
     [],
@@ -228,7 +234,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
     JSON.stringify(normalizedSpecializedModels),
     JSON.stringify(normalizedModelSliderAgentIds),
     input.idleCompactionForTasks,
-    input.idleCompactionDelaySeconds
+    input.idleCompactionDelaySeconds,
+    JSON.stringify(normalizeCachebeatSettings(input.cachebeat))
   ];
 
   const updated = await query<AdminSettingsRow>(
@@ -250,6 +257,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
             model_slider_agent_ids_json = $15::jsonb,
             idle_compaction_for_tasks = $16,
             idle_compaction_delay_seconds = $17,
+            cachebeat_json = $18::jsonb,
             updated_at = now()
       WHERE id = 1
     RETURNING
@@ -269,7 +277,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       specialized_models_json,
       model_slider_agent_ids_json,
       idle_compaction_for_tasks,
-      idle_compaction_delay_seconds`,
+      idle_compaction_delay_seconds,
+      cachebeat_json`,
     params
   );
 
@@ -296,9 +305,10 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       specialized_models_json,
       model_slider_agent_ids_json,
       idle_compaction_for_tasks,
-      idle_compaction_delay_seconds
+      idle_compaction_delay_seconds,
+      cachebeat_json
     )
-    VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17)
+    VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17, $18::jsonb)
     ON CONFLICT (id)
     DO UPDATE
       SET allow_user_signup = EXCLUDED.allow_user_signup,
@@ -318,6 +328,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
           model_slider_agent_ids_json = EXCLUDED.model_slider_agent_ids_json,
           idle_compaction_for_tasks = EXCLUDED.idle_compaction_for_tasks,
           idle_compaction_delay_seconds = EXCLUDED.idle_compaction_delay_seconds,
+          cachebeat_json = EXCLUDED.cachebeat_json,
           updated_at = now()
     RETURNING
       allow_user_signup,
@@ -336,7 +347,8 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       specialized_models_json,
       model_slider_agent_ids_json,
       idle_compaction_for_tasks,
-      idle_compaction_delay_seconds`,
+      idle_compaction_delay_seconds,
+      cachebeat_json`,
     params
   );
 

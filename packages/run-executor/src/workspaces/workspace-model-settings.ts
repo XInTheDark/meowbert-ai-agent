@@ -106,12 +106,6 @@ export function resolveWorkspaceContextManagementToolsEnabled(
   return modelDefaults?.contextManagementToolsEnabled !== false;
 }
 
-export function resolveWorkspaceClaudeCacheKeepalive(
-  modelDefaults: Record<string, unknown> | null | undefined
-): boolean {
-  return modelDefaults?.claudeCacheKeepalive !== false;
-}
-
 export function resolveWorkspaceCodeModeEnabled(
   modelDefaults: Record<string, unknown> | null | undefined
 ): boolean {

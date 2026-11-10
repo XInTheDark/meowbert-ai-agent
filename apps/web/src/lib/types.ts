@@ -1,5 +1,6 @@
 import { THEME_MODE_VALUES, type ThemeMode } from "@meowbert/shared/themes";
 import type { AgentSwarmAdvancedSettings } from "@meowbert/shared/agent-swarm-config";
+import type { CachebeatSettings } from "@meowbert/shared/cachebeat-settings";
 import type { TaskSearchPreview } from "@meowbert/shared/task-history-search";
 import type { TaskMessageDisplay } from "@meowbert/shared/task-message-display";
 import type { WorkspaceIconKey } from "@meowbert/shared/workspace-icons";
@@ -671,7 +672,6 @@ export interface WorkspaceSettings {
   defaultAgentId?: string | null;
   nativeCompactionEnabled: boolean;
   sendMetadataToModel: boolean;
-  claudeCacheKeepalive?: boolean;
   codeModeEnabled?: boolean;
   systemPrompt: string;
   personalityId: string | null;
@@ -805,6 +805,7 @@ export interface AdminSettings {
   enablePromptCaching: boolean;
   idleCompactionForTasks: boolean;
   idleCompactionDelaySeconds: number | null;
+  cachebeat: CachebeatSettings;
   debugMode: boolean;
   defaultFreeMessageLimit: number | null;
   maxTaskRunRetries: number;

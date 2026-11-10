@@ -717,7 +717,7 @@ describe("createModelResponse", () => {
     expect(unkeyedOptions.headers).toBeUndefined();
   });
 
-  it("asks Meridian to keep a keyed session's cache warm", async () => {
+  it("names the session only for a keyed request", async () => {
     const createMock = vi.fn().mockResolvedValue(createResponseStream({
       error: null,
       output: [],
@@ -738,8 +738,7 @@ describe("createModelResponse", () => {
       conversationItems: [],
       modelPayload: {},
       tools: [],
-      toolChoice: "auto" as const,
-      cacheKeepaliveSeconds: 1800
+      toolChoice: "auto" as const
     };
 
     await createModelResponse(viaGateway({ ...baseInput, promptCacheKey: "task:abc" }));
@@ -747,10 +746,7 @@ describe("createModelResponse", () => {
 
     const keyedOptions = createMock.mock.calls[0]?.[1] as { headers?: Record<string, string> };
     const unkeyedOptions = createMock.mock.calls[1]?.[1] as { headers?: Record<string, string> };
-    expect(keyedOptions.headers).toEqual({
-      "x-session-affinity": "task:abc",
-      "x-meridian-cache-keepalive": "1800"
-    });
+    expect(keyedOptions.headers).toEqual({ "x-session-affinity": "task:abc" });
     expect(unkeyedOptions.headers).toBeUndefined();
   });
 

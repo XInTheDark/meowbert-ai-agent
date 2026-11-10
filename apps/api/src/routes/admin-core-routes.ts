@@ -7,7 +7,11 @@ import {
   AGENT_SWARM_SPAWN_EFFORT_MIN,
   AGENT_SWARM_ADVANCED_RANGES,
   AGENT_SWARM_MAX_TIME_BUDGET_MINUTES,
-  AGENT_SWARM_MAX_TOKEN_BUDGET
+  AGENT_SWARM_MAX_TOKEN_BUDGET,
+  CACHEBEAT_MAX_DURATION_SECONDS,
+  CACHEBEAT_MIN_DURATION_SECONDS,
+  CACHEBEAT_MODES,
+  DEFAULT_CACHEBEAT_SETTINGS
 } from "@meowbert/shared";
 import { listAdminProcesses } from "../services/admin/admin-processes.js";
 import { listRecentMemoryRefreshes } from "../services/admin/admin-memory-refreshes.js";
@@ -93,6 +97,10 @@ const updateAdminSettingsSchema = z.object({
   enablePromptCaching: z.boolean(),
   idleCompactionForTasks: z.boolean().default(false),
   idleCompactionDelaySeconds: z.number().int().min(1).max(86_400).nullable().default(null),
+  cachebeat: z.object({
+    mode: z.enum(CACHEBEAT_MODES),
+    durationSeconds: z.number().int().min(CACHEBEAT_MIN_DURATION_SECONDS).max(CACHEBEAT_MAX_DURATION_SECONDS)
+  }).default(DEFAULT_CACHEBEAT_SETTINGS),
   debugMode: z.boolean(),
   defaultFreeMessageLimit: z.number().int().min(0).nullable(),
   maxTaskRunRetries: z.number().int().min(0).max(100),

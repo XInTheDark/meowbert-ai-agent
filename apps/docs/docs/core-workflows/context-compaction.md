@@ -181,7 +181,7 @@ Three Model metadata keys control idle compaction, for the Project Master and, w
 |---|---|---|
 | `prompt_cache_ttl_seconds` | How long the provider keeps a prompt cache, counted from the start of the request that wrote it | `3600` |
 | `idle_compaction` | Set to `false` to turn idle compaction off for this model, even when it's on for all tasks | `true` |
-| `idle_compaction_min_tokens` | Skip idle compaction when the last request used fewer input tokens than this | `50000` |
+| `idle_compaction_min_tokens` | Skip idle compaction when the last request used fewer input tokens than this | `40000` |
 
 ```json
 {

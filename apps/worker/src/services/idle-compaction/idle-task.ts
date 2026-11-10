@@ -46,7 +46,19 @@ export async function lockIdleCompactableTask(client: PoolClient, taskId: string
   return result.rows[0] ?? null;
 }
 
-// Eligible tasks that ran recently, most recent first, for catching up after a restart or a missed notification.
+// Cachebeat looks after every idle top-level task while it is on; the check itself decides
+// whether the task's model and settings let it beat.
+const CACHEBEAT_ELIGIBLE = `
+  t.trashed_at IS NULL
+  AND t.status NOT IN ('queued', 'starting', 'running')
+  AND EXISTS (SELECT 1 FROM platform_settings ps WHERE ps.id = 1 AND COALESCE(ps.cachebeat_json->>'mode', 'off') <> 'off')
+  AND t.parent_task_id IS NULL
+  AND t.workflow_parent_task_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM task_threads tt WHERE tt.task_id = t.id)
+  AND NOT EXISTS (SELECT 1 FROM task_swarm_lanes sl WHERE sl.task_id = t.id)`;
+
+// Tasks that ran recently and are due an idle check, most recent first, for catching up after a
+// restart or a missed notification.
 export async function listRecentlyIdleTasks(limit: number): Promise<string[]> {
   const result = await query<{ task_id: string }>(
     `SELECT t.id AS task_id
@@ -58,10 +70,24 @@ export async function listRecentlyIdleTasks(limit: number): Promise<string[]> {
             ) recent
        JOIN tasks t ON t.id = recent.task_id
        LEFT JOIN workspace_settings ws ON ws.workspace_id = t.workspace_id
-      WHERE ${IDLE_COMPACTION_ELIGIBLE}
+      WHERE (${IDLE_COMPACTION_ELIGIBLE}) OR (${CACHEBEAT_ELIGIBLE})
       ORDER BY recent.last_ended_at DESC
       LIMIT $1`,
     [limit, IDLE_SWEEP_LOOKBACK_HOURS]
   );
   return result.rows.map((row) => row.task_id);
+}
+
+// A Master's pending reports start a real run soon, and a compaction run means the context was just cleared.
+export async function hasNewerWorkOrFreshContext(client: PoolClient | null, taskId: string): Promise<boolean> {
+  const sql = `SELECT EXISTS (
+                        SELECT 1 FROM project_master_reports WHERE master_task_id = $1 AND delivered_at IS NULL
+                      )
+                      OR COALESCE((
+                        SELECT run_kind FROM task_runs WHERE task_id = $1 ORDER BY attempt_no DESC LIMIT 1
+                      ), '') = 'compact_only' AS blocked`;
+  const result = client
+    ? await client.query<{ blocked: boolean }>(sql, [taskId])
+    : await query<{ blocked: boolean }>(sql, [taskId]);
+  return result.rows[0]?.blocked === true;
 }

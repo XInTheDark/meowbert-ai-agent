@@ -77,6 +77,10 @@
       "types": "./dist/responses-settings.d.ts",
       "default": "./dist/responses-settings.js"
     },
+    "./cachebeat-settings": {
+      "types": "./dist/cachebeat-settings.d.ts",
+      "default": "./dist/cachebeat-settings.js"
+    },
     "./agent-swarm-config": {
       "types": "./dist/agent-swarm-config.d.ts",
       "default": "./dist/agent-swarm-config.js"

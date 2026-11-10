@@ -285,7 +285,7 @@ describe("resolveIdleCompactionForModel", () => {
     expect(resolveIdleCompactionForModel("unknown-model", {})).toEqual({
       enabled: true,
       promptCacheTtlSeconds: 3600,
-      minTokens: 50_000
+      minTokens: 40_000
     });
   });
 

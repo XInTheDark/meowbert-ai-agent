@@ -8,6 +8,7 @@ import { getAdminSettings } from "../../services/admin/admin-settings.js";
 import { issueScopedAccessTicket, verifyScopedAccessTicket } from "../../services/auth/scoped-access-tickets.js";
 import { sanitizeTaskEventPayloadForDebugMode } from "../../services/tasks/task-debug-visibility.js";
 import { readTaskPayloads } from "../../services/tasks/task-history-reader.js";
+import { trackTaskViewer } from "../../services/tasks/task-viewers.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { taskEventsPageQuery, taskEventsStreamQuery, taskParams } from "./shared.js";
 
@@ -163,7 +164,9 @@ async function handleStreamTaskEvents(request: FastifyRequest, reply: FastifyRep
     stream.write(`data: ${sanitizeStreamPayload(message, debugMode)}\n\n`);
   };
 
+  const stopViewing = trackTaskViewer(params.taskId);
   const teardown = (): void => {
+    stopViewing();
     subscriber.off("message", messageHandler);
     void subscriber.unsubscribe(channel).catch(() => undefined);
     void subscriber.quit().catch(() => undefined);

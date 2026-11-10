@@ -25,7 +25,7 @@ const CLIENT_FIELDS = new Set([
   "max_output_tokens"
 ]);
 
-const CLIENT_HEADERS = new Set(["x-session-affinity", "x-meridian-cache-keepalive", "x-meridian-agent", "x-meridian-fork-from"]);
+const CLIENT_HEADERS = new Set(["x-session-affinity", "x-meridian-agent", "x-meridian-fork-from"]);
 const CLIENT_TOOL_TYPES = new Set(["function", "custom"]);
 
 function sameValue(left: unknown, right: unknown): boolean {

@@ -1,5 +1,6 @@
 import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { ApiClient } from "../../../lib/api";
+import { DEFAULT_CACHEBEAT_SETTINGS, type CachebeatSettings } from "@meowbert/shared/cachebeat-settings";
 import type { AdminSettings, FlashMessage } from "../../../lib/types";
 import {
   parseAgentPresetsDraft,
@@ -26,6 +27,7 @@ function useAdminPlatformDraftState() {
   const [enablePromptCaching, setEnablePromptCaching] = useState(true);
   const [idleCompactionForTasks, setIdleCompactionForTasks] = useState(false);
   const [idleCompactionDelaySeconds, setIdleCompactionDelaySeconds] = useState<number | null>(null);
+  const [cachebeat, setCachebeat] = useState<CachebeatSettings>(DEFAULT_CACHEBEAT_SETTINGS);
   const [debugMode, setDebugMode] = useState(false);
   const [defaultFreeMessageLimit, setDefaultFreeMessageLimit] = useState<number | null>(null);
   const [maxTaskRunRetries, setMaxTaskRunRetries] = useState(5);
@@ -49,6 +51,7 @@ function useAdminPlatformDraftState() {
     setEnablePromptCaching(nextSettings.enablePromptCaching);
     setIdleCompactionForTasks(nextSettings.idleCompactionForTasks);
     setIdleCompactionDelaySeconds(nextSettings.idleCompactionDelaySeconds);
+    setCachebeat(nextSettings.cachebeat);
     setDebugMode(nextSettings.debugMode);
     setDefaultFreeMessageLimit(nextSettings.defaultFreeMessageLimit);
     setMaxTaskRunRetries(nextSettings.maxTaskRunRetries);
@@ -80,6 +83,8 @@ function useAdminPlatformDraftState() {
     setIdleCompactionForTasks,
     idleCompactionDelaySeconds,
     setIdleCompactionDelaySeconds,
+    cachebeat,
+    setCachebeat,
     debugMode,
     setDebugMode,
     defaultFreeMessageLimit,
@@ -126,6 +131,7 @@ export function useAdminPlatformSettings(input: UseAdminPlatformSettingsInput) {
         enablePromptCaching: state.enablePromptCaching,
         idleCompactionForTasks: state.idleCompactionForTasks,
         idleCompactionDelaySeconds: state.idleCompactionDelaySeconds,
+        cachebeat: state.cachebeat,
         debugMode: state.debugMode,
         defaultFreeMessageLimit: state.defaultFreeMessageLimit,
         maxTaskRunRetries: state.maxTaskRunRetries,
