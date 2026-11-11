@@ -1,6 +1,6 @@
 import type { TaskExecutionJob } from "@meowbert/shared";
 import type { LoadedWorkflowRunContext, WorkflowPromptContext } from "./context-types.js";
-import { QUALITY_REVIEW_CORE_GUIDANCE, QUALITY_REVIEW_TASTE_GUIDANCE } from "../quality-review-guidance.js";
+import { QUALITY_REVIEW_CORE_GUIDANCE, QUALITY_REVIEW_TASTE_GUIDANCE, WRITING_REVIEW_GUIDANCE } from "../quality-review-guidance.js";
 
 function buildQualityReviewPrompt(context: LoadedWorkflowRunContext): string {
   const mainTaskDir = context.workflowTaskDir ?? context.taskDir;
@@ -35,24 +35,11 @@ function buildQualityReviewPrompt(context: LoadedWorkflowRunContext): string {
     "- When the change is substantial, may change the meaning, or the original must remain intact, create a clearly named revised file with the changes applied instead. Choose the safer option based on the artifact's importance and the risk of changing it in place.",
     "- In `### Required corrections`, record every file you edited or created and why. Do not broaden the task, overwrite material unnecessarily, or approve an artifact you have not inspected after your own change.",
     "",
-    "### Explicit BASE style-guide audit",
-    "Make the audit visible in the review. Under `### Style-guide audit`, include one numbered line for every section below. Mark it `Pass`, `Needs revision`, or `Not applicable`, then give concrete evidence and the required fix when relevant. Do not collapse items together or say only that the guide was followed.",
-    "1. Governing aim",
-    "2. Understand the job before writing",
-    "3. Begin with substance",
-    "4. Prefer specific and concrete language",
-    "5. Use direct grammar",
-    "6. Be concise without becoming thin",
-    "7. Build natural sentences and paragraphs",
-    "8. Match voice to material",
-    "9. Remove common model-writing patterns (e.g., \"delve,\" \"seamless,\" performative transitions)",
-    "10. Use punctuation and formatting with restraint",
-    "11. Handle facts, sources, and citations honestly",
-    "12. Adapt by genre",
-    "13. Preserve legitimate variation",
-    "14. Draft and revise",
-    "15. Short summary",
-    "Respect explicit user instructions, supplied house style, and deliberate genre choices when they override a default. Audit the real, holistic effect rather than mechanically banning individual words.",
+    WRITING_REVIEW_GUIDANCE,
+    "",
+    "### Style-guide audit",
+    "Make the writing review visible. Under `### Style-guide audit`, include one numbered line for each section of the Writing rules in your base instructions. Mark it `Pass`, `Needs revision`, or `Not applicable`, then give the quoted evidence and the required fix. Do not collapse sections together or say only that the guide was followed.",
+    "Respect explicit user instructions, supplied house style, and deliberate genre choices when they override a default.",
     "",
     "### Review record",
     "- After the requirement and style audits, add `### Artifact and visual audit` with evidence from each artifact, or state that no visual artifacts exist.",
@@ -147,6 +134,7 @@ function buildDeepResearchReviewerPrompt(
       "- Reject unsupported certainty, source laundering, unexplained conflicts between credible sources, irrelevant detail, and a methodology dump that obscures the answer.",
       "- Respect the user's requested deliverable and style. Approve only when the result is clear, concise, source-aware, and complete for the requested scope.",
       "- Finish your run by calling `submit_review` exactly once. Set `approved: false` with concrete corrections whenever a material issue remains.",
+      WRITING_REVIEW_GUIDANCE,
       buildDeepResearchSystemPrompt(),
       planBlock,
       context.longHorizon?.currentReviewSummary
@@ -241,6 +229,7 @@ export function buildWorkflowPromptContext(
         "- `approved: true` means the task is FULLY complete, aligned with the plan, and high quality.",
         "- If anything is missing, weak, or non-compliant, submit `approved: false` with concrete feedback.",
         "- Finish your run by calling `submit_review` exactly once.",
+        WRITING_REVIEW_GUIDANCE,
         planBlock,
         context.longHorizon?.currentReviewSummary
           ? ["### Current submission & review state", context.longHorizon.currentReviewSummary].join("\n\n")

@@ -4,6 +4,15 @@ export const QUALITY_REVIEW_CORE_GUIDANCE = [
   "Inspect the actual rendered or visual output when it matters; reviewing source code or text summaries alone is a failure condition. Re-render after any repair when practical to guarantee visual integrity. In your report, state exactly what you checked, what you explicitly changed, and any unresolved risk."
 ].join("\n");
 
+// Shared by every reviewer that judges prose, so they all check the same base writing rules.
+export const WRITING_REVIEW_GUIDANCE = [
+  "### Writing review",
+  "When the deliverable includes writing for a person to read, review it at 2 levels against the writing rules in your base instructions.",
+  "- First read it as the person it's for. Flag what that reader couldn't follow: terms they haven't been given, steps that assume knowledge they don't have, and questions the text raises but doesn't answer where they come up. Flag defensive writing too: caveats that rule out readings nobody would make, edge cases this reader won't hit, and qualifications on every claim. Writing for the wrong reader makes a deliverable unusable, so treat it as a defect, not a matter of taste.",
+  "- Then search the whole text for every pattern under Mannerisms to cut and Compressed writing. Check every paragraph and heading, not only the ones that seemed off on a first read, and quote each instance with its location. When a pattern recurs throughout, say so and require a full pass instead of listing a few examples.",
+  "- When a claim is wrong or imprecise, give the correct statement, so the author can fix the sentence instead of attaching a disclaimer to it."
+].join("\n");
+
 export const QUALITY_REVIEW_TASTE_GUIDANCE = [
   "### Taste and subjective quality",
   "When the work involves subjective judgment—such as slides, documents, PDFs, prose, creative writing, ideation, or other audience-facing deliverables—review it as a human recipient would. This is a holistic judgment layer, not another checklist that can be passed mechanically. Ask whether the result feels polished, intentional, natural, and appropriate for its audience, and whether a real person would be happy to read it, present it, share it with a client, or give it to a boss.",

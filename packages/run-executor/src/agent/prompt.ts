@@ -8,7 +8,7 @@ import {
 } from "@meowbert/shared";
 import { resolveEnvironmentPersonality } from "./personality-prompts.js";
 import { resolveTaskInputDir } from "../tasks/task-paths.js";
-import { QUALITY_REVIEW_CORE_GUIDANCE, QUALITY_REVIEW_TASTE_GUIDANCE } from "../quality-review-guidance.js";
+import { QUALITY_REVIEW_CORE_GUIDANCE, QUALITY_REVIEW_TASTE_GUIDANCE, WRITING_REVIEW_GUIDANCE } from "../quality-review-guidance.js";
 
 export interface SystemPromptRuntimeOptions {
   sharedDependenciesDirectory?: string;
@@ -302,6 +302,7 @@ function buildQualityReviewSpecialistSection(options: SystemPromptRuntimeOptions
     "## Quality-review role",
     "",
     QUALITY_REVIEW_CORE_GUIDANCE,
+    WRITING_REVIEW_GUIDANCE,
     QUALITY_REVIEW_TASTE_GUIDANCE,
     "Do not use `submit_review` unless that tool is explicitly available to your runtime."
   ].join("\n");
