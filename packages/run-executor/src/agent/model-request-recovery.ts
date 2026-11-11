@@ -162,10 +162,13 @@ function findPairedToolCallIndex(items: ResponseInputItem[], outputIndex: number
   return -1;
 }
 
+// Replaces the item the provider rejected with a notice, or the newest item when the error does not
+// say which one it was.
 export function replaceLastRecoverableRequestItem(input: {
   conversationItems: ResponseInputItem[];
   errorMessage: string;
   repairMissingOutput?: boolean;
+  rejectedItemIndex?: number | null;
 }): ResponseInputItem[] | null {
   const missingToolOutput = parseMissingToolOutput(input.errorMessage);
   if (missingToolOutput && input.repairMissingOutput !== false) {
@@ -178,7 +181,10 @@ export function replaceLastRecoverableRequestItem(input: {
     }
   }
 
-  const itemIndex = findLastRecoverableItemIndex(input.conversationItems);
+  const rejectedItem = typeof input.rejectedItemIndex === "number" ? input.conversationItems[input.rejectedItemIndex] : undefined;
+  const itemIndex = rejectedItem && !isRecoveryNotice(rejectedItem)
+    ? input.rejectedItemIndex as number
+    : findLastRecoverableItemIndex(input.conversationItems);
   if (itemIndex < 0) {
     return null;
   }
@@ -200,6 +206,7 @@ export async function persistModelRequestRecovery(input: {
   conversationItems: ResponseInputItem[];
   runPersistedItems: ResponseInputItem[];
   historicalMessages?: TaskMessageRow[];
+  rejectedItemIndex?: number | null;
   getCurrentLeafMessageId: () => string | null;
   setCurrentLeafMessageId: (messageId: string) => void;
 }): Promise<boolean> {

@@ -1,3 +1,4 @@
+import type { TaskExecutionJob } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { getNewestLeafMessageId, resolveNewestDescendantLeafMessageId } from "./messages.js";
 
@@ -52,4 +53,18 @@ export async function resolveLatestBranchSelectionUserId(taskId: string): Promis
   );
 
   return result.rows[0]?.user_id ?? null;
+}
+
+// Where a run starts on the branch. A retry picks up after what the failed attempt wrote under
+// its branch message, so it keeps that work in context instead of forking a sibling branch.
+export async function resolveRunBranchMessageId(
+  job: Pick<TaskExecutionJob, "taskId" | "branchMessageId" | "continueBranch">
+): Promise<string | null> {
+  if (!job.branchMessageId) {
+    return null;
+  }
+  if (!job.continueBranch) {
+    return job.branchMessageId;
+  }
+  return (await resolveNewestDescendantLeafMessageId(job.taskId, job.branchMessageId)) ?? job.branchMessageId;
 }

@@ -1307,7 +1307,7 @@ describe("createModelResponse", () => {
       output_text: "ok"
     });
     expect(onConsecutiveErrorRecovery).toHaveBeenCalledTimes(1);
-    expect(onConsecutiveErrorRecovery).toHaveBeenCalledWith("400 image data is invalid");
+    expect(onConsecutiveErrorRecovery).toHaveBeenCalledWith("400 image data is invalid", { rejectedItemIndex: null });
     expect(createMock).toHaveBeenCalledTimes(4);
     expect(createMock.mock.calls[3][0].input).toEqual([
       { role: "system", content: "image omitted after provider error" }
@@ -1360,7 +1360,7 @@ describe("createModelResponse", () => {
       output_text: "ok"
     });
     expect(onConsecutiveErrorRecovery).toHaveBeenCalledTimes(1);
-    expect(onConsecutiveErrorRecovery).toHaveBeenCalledWith("400 No tool output found for function call call_abc.");
+    expect(onConsecutiveErrorRecovery).toHaveBeenCalledWith("400 No tool output found for function call call_abc.", { rejectedItemIndex: null });
     expect(createMock).toHaveBeenCalledTimes(2);
   });
 

@@ -77,6 +77,23 @@ describe("model request recovery", () => {
     ]);
   });
 
+  it("replaces the item the provider rejected instead of the newest one", () => {
+    const rejected = { role: "user", content: [{ type: "input_file", file_data: "data:application/pdf;base64,AA==" }] };
+    const items = [{ role: "user", content: "Earlier" }, rejected, { role: "user", content: "Newest" }] as never[];
+
+    const recovered = replaceLastRecoverableRequestItem({
+      conversationItems: items,
+      errorMessage: "400 unsupported content (path=input[3].content[0])",
+      rejectedItemIndex: 1
+    });
+
+    expect(recovered).toEqual([
+      items[0],
+      expect.objectContaining({ role: "system", content: expect.stringContaining("unsupported content") }),
+      items[2]
+    ]);
+  });
+
   it("persists the repaired conversation and clears transient run items", async () => {
     mockedAppendMessage.mockResolvedValue("recovery-message-1");
     const conversationItems = [

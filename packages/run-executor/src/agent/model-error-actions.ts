@@ -64,11 +64,36 @@ export function isModelSessionConflictError(error: unknown): boolean {
   return /this session advanced while the request was waiting/i.test(collectErrorText(error).join("\n"));
 }
 
+// Statuses a provider returns when it refuses the request body itself. Transport failures,
+// overload, rate limits and auth errors never mean the history is at fault.
+const REJECTED_REQUEST_STATUSES = new Set([400, 413, 415, 422]);
+
+function isRejectedRequestError(error: unknown): boolean {
+  if (error && typeof error === "object" && "status" in error && REJECTED_REQUEST_STATUSES.has(Number(error.status))) {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const status = /^\s*(\d{3})\b/.exec(message)?.[1];
+  return status !== undefined && REJECTED_REQUEST_STATUSES.has(Number(status));
+}
+
+// The provider rejected something in the request history, so trimming it can let the run continue.
 export function isRecoverableModelInputError(error: unknown): boolean {
   if (parseMissingToolOutput(error)) return true;
+  if (isModelSessionConflictError(error) || isContextWindowExceededError(error)) return false;
   const text = collectErrorText(error).join("\n");
-  return /\b(?:invalid|malformed|corrupted?)\s+(?:image|base64|input|message|conversation|item)\b/i.test(text)
+  return isRejectedRequestError(error)
+    || /\b(?:invalid|malformed|corrupted?)\s+(?:image|base64|input|message|conversation|item)\b/i.test(text)
     || /\b(?:image|base64|input|message|conversation|item)(?:\s+data)?\s+is\s+(?:invalid|malformed|corrupted?)\b/i.test(text);
+}
+
+// Providers usually name the request item they rejected, as in "input[173].content[0]".
+export function parseRejectedInputIndex(error: unknown): number | null {
+  for (const text of collectErrorText(error)) {
+    const match = /\binput\[(\d+)\]/.exec(text);
+    if (match) return Number(match[1]);
+  }
+  return null;
 }
 
 export function isTerminalModelError(error: unknown): boolean {

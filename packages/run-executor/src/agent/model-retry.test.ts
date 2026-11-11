@@ -69,6 +69,33 @@ it.each(["400 invalid image", "400 No tool output found for function call call_m
   expect(models.create).toHaveBeenCalledTimes(6);
 });
 
+it("trims the item a provider names in its rejection right away", async () => {
+  const { models, control, input } = fixture();
+  const prefixItems = [{ role: "system" as const, content: "prompt" }];
+  const conversationItems = [
+    { role: "user" as const, content: "Keep this request" },
+    { role: "user" as const, content: [{ type: "input_file" as const, file_data: "data:application/pdf;base64,AA==", filename: "paper.pdf" }] },
+    { role: "user" as const, content: "Newest item" }
+  ];
+  models.create.mockRejectedValueOnce(new Error("400 provider supports text content only (path=input[2].content[0]; type=input_file)"));
+  await createModelResponseWithRetry(control, "task", { ...input, prefixItems, conversationItems });
+  expect(models.create).toHaveBeenCalledTimes(2);
+  expect(input.onConsecutiveErrorRecovery).toHaveBeenCalledWith(expect.stringContaining("input[2]"), { rejectedItemIndex: 1 });
+});
+
+it("trims from the tail after repeated rejections that name no item", async () => {
+  vi.useFakeTimers();
+  const { models, control, input } = fixture();
+  const message = "400 This request is not supported by the upstream model";
+  models.create.mockRejectedValueOnce(new Error(message)).mockRejectedValueOnce(new Error(message))
+    .mockRejectedValueOnce(new Error(message));
+  const pending = createModelResponseWithRetry(control, "task", input);
+  await vi.runAllTimersAsync();
+  await pending;
+  expect(input.onConsecutiveErrorRecovery).toHaveBeenCalledOnce();
+  expect(input.onConsecutiveErrorRecovery).toHaveBeenCalledWith(message, { rejectedItemIndex: null });
+});
+
 it.each(["lease_lost", "outcome_unknown", "operation_conflict", "unauthorized", "quota_exceeded"])("does not issue fresh provider work after %s", async (code) => {
   const { models, control, input } = fixture();
   models.create.mockRejectedValue(Object.assign(new Error("Request cannot safely continue"), { code }));

@@ -311,6 +311,7 @@ export async function scheduleTaskRunRetry(input: {
       ...input.job,
       runId: nextRunId,
       mode: runMode,
+      continueBranch: true,
       retryDeadlineAt: new Date(failingSinceMs + TASK_RETRY_WINDOW_MS).toISOString()
     };
     const dispatchRes = await client.query<RetryableDispatchRow>(

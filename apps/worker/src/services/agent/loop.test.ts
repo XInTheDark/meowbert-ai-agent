@@ -723,7 +723,7 @@ describe("runAgentStepLoop", () => {
       return true;
     });
     mockedCreateModelResponseWithRetry.mockImplementationOnce(async (_taskId, input) => {
-      expect(await input.onConsecutiveErrorRecovery?.("No tool output found for function call call-1")).toBe(true);
+      expect(await input.onConsecutiveErrorRecovery?.("No tool output found for function call call-1", { rejectedItemIndex: null })).toBe(true);
       return { output: [], output_text: "" } as never;
     });
     mockedDispatchResponseOutput.mockResolvedValueOnce({

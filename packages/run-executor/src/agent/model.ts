@@ -25,7 +25,7 @@ import {
   normalizeTitleCandidate,
   parseToolArguments
 } from "./utils.js";
-import { isModelSessionConflictError, isRecoverableModelInputError, isTerminalModelError, parseMissingToolOutputCallId, resolveModelErrorAction } from "./model-error-actions.js";
+import { isModelSessionConflictError, isRecoverableModelInputError, isTerminalModelError, parseMissingToolOutputCallId, parseRejectedInputIndex, resolveModelErrorAction } from "./model-error-actions.js";
 import { resolveModelRequestSession } from "./model-request-session.js";
 import { normalizeProviderRequestInput } from "./provider-request-input.js";
 import { normalizeProviderRequestTools } from "./provider-request-tools.js";
@@ -214,6 +214,18 @@ function canWaitForModelRetry(input: {
     : input.retryAfterMs <= MODEL_REQUEST_MAX_RETRY_AFTER_SLEEP_MS;
 }
 
+// Maps the provider's input[N] back onto the conversation. Google requests merge items, so their
+// indexes do not line up and the caller falls back to trimming from the tail.
+function resolveRejectedConversationItemIndex(
+  error: unknown,
+  input: Pick<CreateModelResponseInput, "modelType" | "chatGptCodex" | "prefixItems" | "conversationItems">
+): number | null {
+  const inputIndex = parseRejectedInputIndex(error);
+  if (inputIndex === null || (input.modelType ?? "openai") === "google") return null;
+  const index = inputIndex - (input.chatGptCodex ? 0 : input.prefixItems.length);
+  return index >= 0 && index < input.conversationItems.length ? index : null;
+}
+
 function resolveRequestTimeoutMs(requestTimeoutMs: number | undefined): number {
   if (typeof requestTimeoutMs !== "number" || !Number.isFinite(requestTimeoutMs)) {
     return DEFAULT_MODEL_REQUEST_TIMEOUT_MS;
@@ -249,7 +261,8 @@ export async function createModelResponseWithRetry(
   control: RunControl,
   taskId: string,
   input: CreateModelResponseInput & {
-    onConsecutiveErrorRecovery?: (errorMessage: string) => Promise<boolean>;
+    // rejectedItemIndex is the conversation item the provider named in its error, when it named one.
+    onConsecutiveErrorRecovery?: (errorMessage: string, details: { rejectedItemIndex: number | null }) => Promise<boolean>;
     // Defaults to one retry window from this call's first failure. Retry-After may wait past it.
     retryDeadlineAtMs?: number | null;
     // Nothing waits past this one.
@@ -304,11 +317,12 @@ export async function createModelResponseWithRetry(
       }
 
       const isMissingToolOutput = parseMissingToolOutputCallId(lastError.message) !== null;
+      const rejectedItemIndex = consecutiveErrorCount > 0 ? resolveRejectedConversationItemIndex(err, input) : null;
       if (
         attempt < MODEL_REQUEST_MAX_RETRIES
-        && (consecutiveErrorCount >= MODEL_REQUEST_RECOVERY_ERROR_THRESHOLD || isMissingToolOutput)
+        && (consecutiveErrorCount >= MODEL_REQUEST_RECOVERY_ERROR_THRESHOLD || isMissingToolOutput || rejectedItemIndex !== null)
         && input.onConsecutiveErrorRecovery
-        && await input.onConsecutiveErrorRecovery(lastError.message)
+        && await input.onConsecutiveErrorRecovery(lastError.message, { rejectedItemIndex })
       ) {
         consecutiveErrorCount = 0;
         attempt += 1;

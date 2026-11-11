@@ -425,7 +425,7 @@ async function requestModelTurn(input: {
       modelPayload: execution.prepared.runtimeModelPayload,
       tools: turnRequest.responseTools,
       toolChoice,
-      onConsecutiveErrorRecovery: async (errorMessage) => {
+      onConsecutiveErrorRecovery: async (errorMessage, { rejectedItemIndex }) => {
         if (recoveredItemCount >= MAX_MODEL_REQUEST_RECOVERY_ITEMS) {
           return false;
         }
@@ -436,6 +436,7 @@ async function requestModelTurn(input: {
           conversationItems: execution.state.dispatchState.conversationItems,
           runPersistedItems: execution.state.dispatchState.runPersistedItems,
           historicalMessages: execution.prepared.snapshot.messages,
+          rejectedItemIndex,
           getCurrentLeafMessageId: () => execution.state.currentLeafMessageId,
           setCurrentLeafMessageId: (messageId: string) => {
             execution.state.currentLeafMessageId = messageId;

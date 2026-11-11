@@ -11,7 +11,7 @@ vi.mock("./messages.js", () => ({
 
 import { query } from "../../lib/db.js";
 import { getNewestLeafMessageId, resolveNewestDescendantLeafMessageId } from "./messages.js";
-import { resolveContinuationBranchMessageId } from "./branches.js";
+import { resolveContinuationBranchMessageId, resolveRunBranchMessageId } from "./branches.js";
 
 describe("resolveContinuationBranchMessageId", () => {
   const mockedQuery = vi.mocked(query);
@@ -40,5 +40,23 @@ describe("resolveContinuationBranchMessageId", () => {
     mockedGetNewestLeafMessageId.mockResolvedValueOnce("newest-task-leaf");
 
     await expect(resolveContinuationBranchMessageId("task-1", "user-1")).resolves.toBe("newest-task-leaf");
+  });
+});
+
+describe("resolveRunBranchMessageId", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("continues a retry after what the failed attempt left on its branch", async () => {
+    vi.mocked(resolveNewestDescendantLeafMessageId).mockResolvedValueOnce("failed-attempt-leaf");
+    await expect(resolveRunBranchMessageId({ taskId: "task", branchMessageId: "user-message", continueBranch: true }))
+      .resolves.toBe("failed-attempt-leaf");
+  });
+
+  it("starts other runs at the branch message they were given", async () => {
+    await expect(resolveRunBranchMessageId({ taskId: "task", branchMessageId: "user-message" }))
+      .resolves.toBe("user-message");
+    expect(resolveNewestDescendantLeafMessageId).not.toHaveBeenCalled();
   });
 });

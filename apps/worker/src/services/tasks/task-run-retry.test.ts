@@ -242,7 +242,8 @@ describe("scheduleTaskRunRetry", () => {
         dispatchClass: "interactive_followup",
         payload: expect.objectContaining({
           taskId: "task-1",
-          runId: result.nextRunId
+          runId: result.nextRunId,
+          continueBranch: true
         })
       })
     );

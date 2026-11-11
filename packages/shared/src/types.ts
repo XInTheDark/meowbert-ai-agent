@@ -50,6 +50,9 @@ export interface TaskExecutionJob {
     | "memory_synthesis";
   restoreStatus?: TaskStatus;
   branchMessageId?: string;
+  // A retry continues after whatever the failed attempt left under branchMessageId,
+  // instead of starting a sibling branch at branchMessageId itself.
+  continueBranch?: boolean;
   selectionUserId?: string;
   toolOptionsOverride?: TaskRunToolOptions;
   quickMode?: boolean;

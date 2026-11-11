@@ -41,6 +41,7 @@ import {
   getTaskSnapshot,
   isUserSuperAdmin,
   listTaskLiveSyncFilesForWorker,
+  resolveRunBranchMessageId,
   resolveUserSandboxContainerResources,
   setTaskStatusForRun
 } from "../agent-db/index.js";
@@ -566,7 +567,7 @@ async function loadRunSnapshotAndActor(job: TaskExecutionJob, debugLogger: TaskD
     stage: "startup.snapshot",
     startMessage: "Loading task snapshot.",
     successMessage: "Loaded task snapshot.",
-    run: () => getTaskSnapshot(job.taskId, job.branchMessageId ?? null),
+    run: async () => getTaskSnapshot(job.taskId, await resolveRunBranchMessageId(job)),
     successPayload: (resolvedSnapshot) => ({
       messageCount: resolvedSnapshot.messages.length,
       workflowType: resolvedSnapshot.task.workflow_type ?? null,
