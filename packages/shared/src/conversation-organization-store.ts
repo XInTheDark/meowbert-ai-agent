@@ -2,11 +2,15 @@ import type { TaskHistoryArchiveQueryable } from "./task-history-archive.js";
 import { buildConversationTurns, conversationMapSchema, remapConversationMap, remapConversationOutline,
   type ConversationNavigation, type ConversationPublicMessage } from "./conversation-organization.js";
 
+// OFFSET 0 keeps each step an index lookup instead of a rescan of the whole task per step.
 export const CONVERSATION_ANCESTRY_SQL = `WITH RECURSIVE lineage AS (
   SELECT id, parent_message_id, 0 AS depth FROM task_messages WHERE task_id = $1 AND id = $2
   UNION ALL
-  SELECT m.id, m.parent_message_id, l.depth + 1 FROM task_messages m
-  JOIN lineage l ON m.id = l.parent_message_id WHERE m.task_id = $1
+  SELECT m.id, m.parent_message_id, l.depth + 1 FROM lineage l
+  CROSS JOIN LATERAL (
+    SELECT tm.id, tm.parent_message_id FROM task_messages tm
+     WHERE tm.task_id = $1 AND tm.id = l.parent_message_id OFFSET 0
+  ) m
 )`;
 
 export interface ConversationSnapshot {

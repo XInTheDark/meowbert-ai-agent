@@ -33,10 +33,11 @@ async function resolveNewestDescendantLeafMessageId(
            AND tm.id = $2
         UNION ALL
         SELECT child.id, child.created_at
-          FROM task_messages child
-          JOIN branch_messages bm
-            ON child.parent_message_id = bm.id
-         WHERE child.task_id = $1
+          FROM branch_messages bm
+          CROSS JOIN LATERAL (
+            SELECT tm.id, tm.created_at FROM task_messages tm
+             WHERE tm.task_id = $1 AND tm.parent_message_id = bm.id OFFSET 0
+          ) child
       )
       SELECT bm.id
         FROM branch_messages bm

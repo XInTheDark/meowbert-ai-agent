@@ -144,9 +144,12 @@ const messages: RunApiStores["messages"] = {
          SELECT id, parent_message_id, 0 FROM task_messages WHERE id = $2 AND task_id = $1
          UNION ALL
          SELECT m.id, m.parent_message_id, b.depth + 1
-           FROM task_messages m
-           JOIN branch b ON m.id = b.parent_message_id
-          WHERE m.task_id = $1 AND b.depth < $4
+           FROM branch b
+           CROSS JOIN LATERAL (
+             SELECT tm.id, tm.parent_message_id FROM task_messages tm
+              WHERE tm.task_id = $1 AND tm.id = b.parent_message_id OFFSET 0
+           ) m
+          WHERE b.depth < $4
        )
        SELECT EXISTS (
          SELECT 1 FROM branch WHERE ($3::uuid IS NULL AND parent_message_id IS NULL) OR id = $3::uuid

@@ -11,6 +11,7 @@ import {
   MESSAGE_MAX_WINDOW_ITEMS,
   MESSAGE_CACHE_MAX_ITEMS,
   MESSAGE_CHUNK_SIZE,
+  MESSAGE_OLDER_CHUNK_SIZE,
   NEAR_BOTTOM_THRESHOLD_PX
 } from "./taskDetailConstants";
 import { isWithinOlderPrefetchDistance } from "./conversationOlderPrefetch";
@@ -123,7 +124,7 @@ function getCachedConversationPage(input: {
   afterIndex?: number;
 }): TaskConversationPageResponse | null {
   const startIndex = input.direction === "older"
-    ? Math.max(0, (input.beforeIndex ?? 0) - MESSAGE_CHUNK_SIZE)
+    ? Math.max(0, (input.beforeIndex ?? 0) - MESSAGE_OLDER_CHUNK_SIZE)
     : Math.max(0, (input.afterIndex ?? -1) + 1);
   const endIndex = input.direction === "older"
     ? Math.max(0, input.beforeIndex ?? 0)
@@ -185,13 +186,14 @@ function getVisibleMessagePage(input: {
 }
 
 function buildConversationSearchParams(input?: {
+  direction?: "older" | "newer";
   beforeIndex?: number;
   afterIndex?: number;
   targetMessageId?: string;
   activeLeafMessageId?: string | null;
 }): URLSearchParams {
   const searchParams = new URLSearchParams();
-  searchParams.set("limit", String(MESSAGE_CHUNK_SIZE));
+  searchParams.set("limit", String(input?.direction === "older" ? MESSAGE_OLDER_CHUNK_SIZE : MESSAGE_CHUNK_SIZE));
   if (typeof input?.beforeIndex === "number") {
     searchParams.set("beforeIndex", String(input.beforeIndex));
   }

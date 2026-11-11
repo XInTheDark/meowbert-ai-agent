@@ -314,6 +314,8 @@ async function resolveConversationLeafMessageId(input: {
 }
 
 // Walks the branch by id only, so a long conversation costs one light row per message.
+// Each step is an index lookup behind OFFSET 0: as a plain join Postgres rescans the whole task per
+// step, which takes seconds on a task with thousands of messages. Other message walks follow this shape.
 async function loadConversationLineageIds(taskId: string, activeLeafMessageId: string): Promise<string[]> {
   const lineageRes = await query<{ id: string }>(
     `WITH RECURSIVE lineage AS (
@@ -322,9 +324,11 @@ async function loadConversationLineageIds(taskId: string, activeLeafMessageId: s
          WHERE tm.task_id = $1 AND tm.id = $2
         UNION ALL
         SELECT parent.id, parent.parent_message_id, lineage.depth + 1
-          FROM task_messages parent
-          JOIN lineage ON lineage.parent_message_id = parent.id
-         WHERE parent.task_id = $1
+          FROM lineage
+          CROSS JOIN LATERAL (
+            SELECT tm.id, tm.parent_message_id FROM task_messages tm
+             WHERE tm.task_id = $1 AND tm.id = lineage.parent_message_id OFFSET 0
+          ) parent
       )
       SELECT id FROM lineage ORDER BY depth DESC`,
     [taskId, activeLeafMessageId]
@@ -430,9 +434,11 @@ async function loadConversationBranchOptions(
            WHERE tm.task_id = $1 AND tm.id = branched.sibling_id AND branched.sibling_id <> branched.message_id
           UNION ALL
           SELECT child.id, child.created_at
-            FROM task_messages child
-            JOIN descendants ON child.parent_message_id = descendants.id
-           WHERE child.task_id = $1
+            FROM descendants
+            CROSS JOIN LATERAL (
+              SELECT tm.id, tm.created_at FROM task_messages tm
+               WHERE tm.task_id = $1 AND tm.parent_message_id = descendants.id OFFSET 0
+            ) child
         )
         SELECT descendants.id
           FROM descendants

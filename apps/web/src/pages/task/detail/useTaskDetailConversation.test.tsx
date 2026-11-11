@@ -667,7 +667,7 @@ describe("useTaskDetailConversation", () => {
         });
       }
 
-      expect(path).toBe("/api/tasks/task-1/conversation?limit=50&beforeIndex=50");
+      expect(path).toBe("/api/tasks/task-1/conversation?limit=200&beforeIndex=50");
       return olderPage.promise;
     });
     const olderPageResponse: TaskConversationPageResponse = {
@@ -889,7 +889,7 @@ describe("useTaskDetailConversation", () => {
         };
       }
 
-      expect(path).toBe("/api/tasks/task-1/conversation?limit=50&beforeIndex=50");
+      expect(path).toBe("/api/tasks/task-1/conversation?limit=200&beforeIndex=50");
       return {
         ...buildConversationPage(olderMessages),
         message_page: {

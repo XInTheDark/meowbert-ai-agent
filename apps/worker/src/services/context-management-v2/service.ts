@@ -67,9 +67,11 @@ async function resolveVisibleContextNode(taskId: string, visibleMessageId: strin
           WHERE task_id = $1 AND id = $2
          UNION ALL
          SELECT message.id, message.parent_message_id, message_lineage.depth + 1
-           FROM task_messages message
-           JOIN message_lineage ON message_lineage.parent_message_id = message.id
-          WHERE message.task_id = $1
+           FROM message_lineage
+           CROSS JOIN LATERAL (
+             SELECT tm.id, tm.parent_message_id FROM task_messages tm
+              WHERE tm.task_id = $1 AND tm.id = message_lineage.parent_message_id OFFSET 0
+           ) message
        )
        SELECT node.id
          FROM message_lineage

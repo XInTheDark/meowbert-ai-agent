@@ -12,7 +12,10 @@ export async function loadBranchUserMessages(swarmTaskId: string, leafMessageId:
           (SELECT id FROM task_messages WHERE task_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1))
        UNION ALL
        SELECT message.id, message.parent_message_id, message.role, message.content_json, message.created_at, branch.level + 1
-         FROM task_messages message JOIN branch ON message.id = branch.parent_message_id
+         FROM branch CROSS JOIN LATERAL (
+           SELECT tm.id, tm.parent_message_id, tm.role, tm.content_json, tm.created_at FROM task_messages tm
+            WHERE tm.task_id = $1 AND tm.id = branch.parent_message_id OFFSET 0
+         ) message
      )
      SELECT id, content_json FROM branch WHERE role = 'user' ORDER BY level DESC`,
     [swarmTaskId, leafMessageId]

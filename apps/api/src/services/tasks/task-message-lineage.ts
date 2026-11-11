@@ -19,10 +19,11 @@ export async function listTaskMessageLineageIds(
          AND id = $2
       UNION ALL
       SELECT tm.id, tm.parent_message_id, lineage.depth + 1 AS depth
-        FROM task_messages tm
-        JOIN lineage
-          ON lineage.parent_message_id = tm.id
-       WHERE tm.task_id = $1
+        FROM lineage
+        CROSS JOIN LATERAL (
+          SELECT parent.id, parent.parent_message_id FROM task_messages parent
+           WHERE parent.task_id = $1 AND parent.id = lineage.parent_message_id OFFSET 0
+        ) tm
     )
     SELECT id
       FROM lineage
@@ -45,10 +46,11 @@ export async function findNearestUserAncestorMessage(
          AND id = $2
       UNION ALL
       SELECT tm.id, tm.role, tm.content_json, tm.parent_message_id, lineage.depth + 1 AS depth
-        FROM task_messages tm
-        JOIN lineage
-          ON lineage.parent_message_id = tm.id
-       WHERE tm.task_id = $1
+        FROM lineage
+        CROSS JOIN LATERAL (
+          SELECT parent.id, parent.role, parent.content_json, parent.parent_message_id FROM task_messages parent
+           WHERE parent.task_id = $1 AND parent.id = lineage.parent_message_id OFFSET 0
+        ) tm
     )
     SELECT id, content_json, parent_message_id
       FROM lineage
