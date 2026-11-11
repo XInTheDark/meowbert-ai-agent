@@ -66,6 +66,7 @@ const {
     handleConversationScroll: vi.fn(),
     handleConversationWheel: vi.fn(),
     handleToolGroupExpandRequested: vi.fn(),
+    loadOlderMessages: vi.fn(),
     jumpToMessage: vi.fn(),
     jumpToMessageIndex: vi.fn(async () => undefined),
     revealMessage: vi.fn()
@@ -327,6 +328,7 @@ function createConversationHookResult(
     handleConversationScroll: vi.fn(),
     handleConversationWheel: vi.fn(),
     handleToolGroupExpandRequested: vi.fn(),
+    loadOlderMessages: vi.fn(),
     jumpToMessage: vi.fn(),
     jumpToMessageIndex: vi.fn(async () => undefined),
     revealMessage: vi.fn(),
