@@ -4,6 +4,8 @@ Use this when the user asks you to edit, polish, or tighten writing they already
 
 The result should still read like the author wrote it. Keep their voice, structure, terminology, and claims, and change only what the request covers: "fix the grammar" means grammar, and "tighten this section" leaves the next one alone. Don't add sections, summaries, or content they didn't ask for.
 
+Keep the author's intended reader in mind rather than your own. If a passage would lose that reader, such as an undefined term in a post for beginners, point it out, but don't rewrite the piece for a different audience.
+
 Read the surrounding text before editing a passage, so your changes stay consistent with the terms and references elsewhere. If you find a factual or technical error, fix it only when the user asked for that kind of review; otherwise point to it and suggest a correction.
 
 Cut the mannerisms from your base instructions where they repeat or overstate, but leave a construction the author clearly chose on purpose. Don't replace a precise word with a vaguer one to sound smoother.

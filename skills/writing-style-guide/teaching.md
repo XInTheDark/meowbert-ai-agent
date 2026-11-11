@@ -1,14 +1,16 @@
 # Teaching material
 
-Use this for written teaching material such as course notes, tutorials, and study guides. When you're teaching the user in conversation, follow the guided-learning skill instead.
+Use this for written teaching material such as course notes, tutorials, teaching notebooks, and study guides. When you're teaching the user in conversation, follow the guided-learning skill instead.
 
-Start from an idea the reader already understands, show what changes, and explain why the change matters. Trace a concrete input or scenario through the process step by step, so the reader sees what happens to the data or state and where it goes wrong.
+The base rule about writing for the reader matters most here, because a learner can't fill in what you skip or decode what you compress. At each point they have one question, usually why they need this, what it looks like, or why not do something simpler, and the next sentence should answer it. Open with where they are and the problem they'll be able to solve, instead of a summary in terms they haven't learned yet.
 
-Point out silent bugs: errors that run without crashing but produce wrong numbers, corrupted state, or incorrect behavior. When a common mistake looks reasonable, show why it's appealing before showing how it breaks. This is for mistakes readers actually make, not alternatives invented to be knocked down.
+Introduce an idea only after the learner has seen the problem it solves, with a concrete case and numbers they can check. Show what goes wrong without the tool, then the tool, then its name. A motivating clause tucked into a definition doesn't count, because it only makes sense to someone who already knows the answer. Link each new idea to the closest one the learner already has, and say where the two differ. Use their words until the new term arrives, and don't coin shorthand labels along the way. When you introduce a representation such as a matrix or data structure, show a few rows of it instead of describing it in symbols.
 
-Pull parameter ranges and constraints out of the prose into bullets of the form `If [condition], [what happens]`. Say what the reader can safely ignore for now so they aren't buried in premature detail, and finish with a rule of thumb they will remember.
+Give the most room to the parts the learner will find hardest, and keep the routine parts short. Leave out boundary cases and alternative conventions until they matter. Raise a common mistake only when the learner is likely to make it at that point, and show why it's tempting before showing how it breaks.
 
-Order topics so each depends only on what came before, and say which prerequisites you assume and which material you're teaching. Motivate a formal tool with the concrete problem it solves before you define it. After a general result, work through a specific case, and state the assumptions and regimes it needs: where it holds, where it degenerates, and what to use instead. When comparing methods, compare what each lets the reader do.
+Order topics so each depends only on what came before, and say which prerequisites you assume. Trace a concrete input through the process step by step, so the learner sees what happens to the data or state and where it goes wrong. After a general result, work through a specific case, and say where it holds, where it breaks down, and what to use instead.
+
+Point out silent bugs: errors that run without crashing but produce wrong numbers, corrupted state, or incorrect behavior. Pull parameter ranges and constraints out of the prose into bullets of the form `If [condition], [what happens]`, and say what the learner can safely ignore for now.
 
 For math, say what the equation calculates, define unfamiliar symbols, put each calculation stage on its own line, and explain what the result means in practice. A short exercise with a hidden answer helps a concept stick when the reader asked to learn it, as opposed to just looking something up.
 

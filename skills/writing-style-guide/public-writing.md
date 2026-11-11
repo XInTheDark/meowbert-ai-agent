@@ -2,6 +2,8 @@
 
 Use this for social posts, bios, cover letters, personal statements, and anything published in the user's own voice.
 
+Think about who will read it and how much attention they'll give it, such as a hiring manager skimming 50 cover letters, and put what they need to see where they'll see it.
+
 The writing should sound like the user, not like a template. Specific details make it theirs: a moment, a number, a name, a reason. Generic sentiment ("I've learned so much", "excited for what's next") could appear in anyone's post, so cut it or replace it with something only this person could say.
 
 When you don't know the specifics, put the `[placeholders]` where the specifics go and keep the surrounding text plain. A draft that writes out the generic parts and leaves the personal parts blank has it backwards.

@@ -4,7 +4,7 @@ Use this for emails, status updates, announcements, and other messages to collea
 
 The reader often sees only the subject line and first sentence, so put the news and any ask there. A subject line should say what happened or what's needed ("Launch moves to May 14: payments failed security review"), not just name the topic ("Launch update").
 
-Write what the reader needs to act on: what changed, why, what happens next, and what you need from them, with owners and dates. Leave out the backstory unless it changes their decision.
+Write what the reader needs to act on: what changed, why, what happens next, and what you need from them, with owners and dates. Leave out the backstory unless it changes their decision. Say it in the reader's terms, not your working notes: a client doesn't know your ticket numbers, service names, or internal code names, and a teammate from another team may not either.
 
 For bad news, say it plainly in the first sentence, give the cause, and move to the plan. Apologize once if it's warranted. Skip spin and reassurance phrases like "we remain committed to" or "rest assured".
 

@@ -2,6 +2,8 @@
 
 Use this for reports, analyses, research write-ups, and notebooks that present findings.
 
+Write for the person who will act on the report, at their level. A manager choosing a vendor needs to know what the numbers mean for that choice, while an analyst reviewing your work needs the method in detail. When the reader isn't a specialist, explain a technical measure the first time it appears, in terms of what it tells them ("the median, the middle value, so a few huge orders don't skew it"), and keep only the caveats that would change what they decide.
+
 Open with the main finding and what it means for the reader's decision, then support it. Organize sections around findings, not around the order you did the work or the questions in the brief ("For the first research question...").
 
 Describe methods as the rules that shape the results: grouping, filters, thresholds, and how missing or invalid data is handled. Put those rules in bullets with their numbers, and say why each one exists. Skip steps that don't affect how the results should be read.

@@ -95,15 +95,7 @@ Then search the whole text for the mannerisms in your base instructions, since t
 
 Inflated AI is the familiar one: "underscores", "sheds light on", "fosters", "truly", stacked abstract nouns, and tails that restate the point (", ensuring high accessibility"). Your base instructions already cover it, and those bans still apply.
 
-Compressed AI is what you get when inflated AI is told to be plain:
-
-- spec-line sentences and fragments ("Street-hail taxis only.", "Dropped: 18 stale snapshots")
-- colon pivots and a parenthetical fact in every other sentence
-- corrective tails ("about 56 days, not 822,757 rows")
-- crafted headings ("Heavier rain, fewer taxis") and FAQ subheadings ("Why negative binomial?")
-- punchy verbs in formal writing ("Airport Boulevard is out", "the effect fades fast")
-- no objection left unanswered and no section less polished than another
-- every detail from the sources carried over at the same level, in the source's words
+Compressed AI is what you get when inflated AI is told to be plain. Your base instructions list its signs under Compressed writing, and they apply here too.
 
 Performed human is what you get when AI tries to fix the first two by acting natural, using habits that aren't this writer's:
 

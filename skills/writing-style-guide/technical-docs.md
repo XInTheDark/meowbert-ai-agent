@@ -2,6 +2,8 @@
 
 Use this for READMEs, setup guides, configuration references, PR descriptions, and changelogs.
 
+The reader arrives with a goal and none of your context. They haven't read the code, don't know its internal names, and want to get something working. Use the names they'll see in the interface, the terminal, or the config file, and explain an internal concept only when they have to act on it. A PR reviewer is the exception: they know the codebase, but they don't know what you learned while making the change, and that's what the description should give them.
+
 ## Guides and READMEs
 
 Open with what the thing is and when someone would use it, before any setup steps. Readers arrive with a goal, so organize around tasks ("Connect a database") instead of around the code's structure.

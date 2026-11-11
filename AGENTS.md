@@ -40,6 +40,8 @@
 - When requesting structured model output, do not use JSON schema response format; use tool calling (function tools) with strict parameters instead. We have helpers for that already.
 - For strict OpenAI function-tool schemas, every key in `parameters.properties` must appear in `parameters.required` (even nullable fields). Model optional semantics with `type: ["<kind>", "null"]`, not by omitting keys from `required`.
 - Keep agent prompts short, natural, and direct. Do not turn them into AI-sounding checklists or rubrics: use only the detail needed to guide the behavior.
+- Write prompts for the general case, and don't overfit them to the incident that prompted the change. When fixing a prompt after one bad output, describe the underlying pattern instead of that output: no quotes, topics, or terms lifted from it. Use a specific example only when it makes a rule clearer than the description alone, and don't give several examples of the same thing.
+- Shared prompts such as `BASE.md` apply to every kind of task, so phrase their rules for all of them. Don't write a general rule in the vocabulary of one domain (thresholds, parameters, estimators) when a plain description covers every case; keep domain detail in the guide for that kind of work.
 
 ## Development Guidelines
 ### Testing
