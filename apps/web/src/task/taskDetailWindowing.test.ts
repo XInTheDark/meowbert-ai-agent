@@ -128,4 +128,22 @@ describe("taskDetailWindowing", () => {
       )
     ).toEqual(["u-1", "t-1", "a-1", "t-2", "t-3"]);
   });
+
+  it("leaves an older page's trailing tool calls unloaded until opened", () => {
+    const messages = [
+      createMessage({ id: "a-1", role: "assistant", createdAt: "2026-03-10T00:00:01.000Z" }),
+      createMessage({ id: "t-1", role: "tool", createdAt: "2026-03-10T00:00:02.000Z" }),
+      createMessage({ id: "t-2", role: "tool", createdAt: "2026-03-10T00:00:03.000Z" })
+    ];
+    const byId = new Map(messages.map((message) => [message.id, message]));
+
+    expect(
+      collectConversationHydrationIds(
+        messages.map((message) => message.id),
+        byId,
+        new Set<string>(["t-2"]),
+        { includeTrailingTools: false }
+      )
+    ).toEqual(["a-1", "t-2"]);
+  });
 });

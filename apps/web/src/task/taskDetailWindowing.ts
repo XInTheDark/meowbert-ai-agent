@@ -95,10 +95,13 @@ export function expandRangeToToolBoundaries(
 export function collectConversationHydrationIds(
   messageIds: string[],
   messagesById: Map<string, Pick<TaskMessage, "role">>,
-  requestedToolMessageIds: Set<string>
+  requestedToolMessageIds: Set<string>,
+  // Only the newest page's trailing calls may still be live; an older page's last calls stay unloaded until opened.
+  options: { includeTrailingTools?: boolean } = {}
 ): string[] {
   const tailToolMessageIds = new Set<string>();
-  for (let index = messageIds.length - 1; index >= 0; index -= 1) {
+  const includeTrailingTools = options.includeTrailingTools ?? true;
+  for (let index = messageIds.length - 1; includeTrailingTools && index >= 0; index -= 1) {
     const messageId = messageIds[index];
     const message = messagesById.get(messageId);
     if (message?.role !== "tool") {

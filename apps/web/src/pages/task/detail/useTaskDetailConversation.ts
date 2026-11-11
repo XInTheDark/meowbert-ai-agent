@@ -11,9 +11,9 @@ import {
   MESSAGE_MAX_WINDOW_ITEMS,
   MESSAGE_CACHE_MAX_ITEMS,
   MESSAGE_CHUNK_SIZE,
-  NEAR_BOTTOM_THRESHOLD_PX,
-  SCROLL_EDGE_THRESHOLD_PX
+  NEAR_BOTTOM_THRESHOLD_PX
 } from "./taskDetailConstants";
+import { isWithinOlderPrefetchDistance } from "./conversationOlderPrefetch";
 import { getNextTopbarCollapsedState } from "./taskDetailTopbarState";
 import { isConversationMessageInView, type ConversationTextAnchor } from "./taskDetailConversationScroll";
 import { createConversationScrollController } from "./conversationScrollController";
@@ -263,6 +263,8 @@ export function useTaskDetailConversation(
   const resetLoadInFlightRef = useRef(false);
   const refreshVersionRef = useRef(options.refreshVersion ?? 0);
   const lastAutoFilledBeforeIndexRef = useRef<number | null>(null);
+  // Set while the reader is heading up, so each older page that lands near the top fetches the next one.
+  const olderChainActiveRef = useRef(false);
 
   const messageLookup = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages]);
   const messageIds = useMemo(() => messages.map((message) => message.id), [messages]);
@@ -476,7 +478,8 @@ export function useTaskDetailConversation(
       const hydrationIds = collectConversationHydrationIds(
         response.messages.map((message) => message.id),
         new Map(response.messages.map((message) => [message.id, message])),
-        requestedToolMessageIdsRef.current
+        requestedToolMessageIdsRef.current,
+        { includeTrailingTools: !response.message_page.has_newer }
       ).filter((messageId) => !includedContentIds.has(messageId));
       void ensureMessageContentLoaded(hydrationIds);
     } catch (err) {
@@ -519,6 +522,7 @@ export function useTaskDetailConversation(
     setIsNearBottom(true);
     lastScrollTopRef.current = 0;
     lastAutoFilledBeforeIndexRef.current = null;
+    olderChainActiveRef.current = false;
     setTopbarCollapsed(false);
     void loadConversationPage({
       activeLeafMessageId: options.activeLeafMessageId ?? null,
@@ -625,6 +629,46 @@ export function useTaskDetailConversation(
     options.activeTab
   ]);
 
+  const loadOlderMessages = useCallback(() => {
+    if (!messagePage.has_older || pageLoadInFlightRef.current) {
+      return;
+    }
+    olderChainActiveRef.current = true;
+    void loadConversationPage({
+      direction: "older",
+      beforeIndex: messagePage.start_index
+    });
+  }, [loadConversationPage, messagePage.has_older, messagePage.start_index]);
+
+  // A page of collapsed tool calls can add almost no height, so keep fetching while the reader is still near the top.
+  useEffect(() => {
+    if (
+      !olderChainActiveRef.current
+      || options.activeTab !== "conversation"
+      || isConversationBootstrapping
+      || isConversationPageLoading
+      || !messagePage.has_older
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const feed = chatFeedRef.current;
+      if (!feed || feed.clientHeight === 0 || scroll.isJumpPending() || !isWithinOlderPrefetchDistance(feed)) {
+        return;
+      }
+      loadOlderMessages();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    isConversationBootstrapping,
+    isConversationPageLoading,
+    loadOlderMessages,
+    messagePage.has_older,
+    options.activeTab,
+    scroll
+  ]);
+
   const handleToolGroupExpandRequested = useCallback((toolMessageIds: string[]) => {
     const nextIds: string[] = [];
     for (const messageId of toolMessageIds) {
@@ -674,9 +718,10 @@ export function useTaskDetailConversation(
 
     const isScrollingDown = currentScrollTop > previousScrollTop;
     const isScrollingUp = currentScrollTop < previousScrollTop;
-    const nearTop = feed.scrollTop <= SCROLL_EDGE_THRESHOLD_PX;
+    const nearTop = isWithinOlderPrefetchDistance(feed);
 
     if (isScrollingDown) {
+      olderChainActiveRef.current = false;
       if (nearBottom && messagePage.has_newer) {
         void loadConversationPage({
           direction: "newer",
@@ -687,11 +732,8 @@ export function useTaskDetailConversation(
     }
 
     if (isScrollingUp || (nearTop && !nearBottom)) {
-      if (nearTop && messagePage.has_older) {
-        void loadConversationPage({
-          direction: "older",
-          beforeIndex: messagePage.start_index
-        });
+      if (nearTop) {
+        loadOlderMessages();
       }
       return;
     }
@@ -699,10 +741,9 @@ export function useTaskDetailConversation(
     isConversationBootstrapping,
     isConversationPageLoading,
     loadConversationPage,
+    loadOlderMessages,
     messagePage.end_index,
     messagePage.has_newer,
-    messagePage.has_older,
-    messagePage.start_index,
     options.activeTab,
     options.isMobileViewport,
     scroll
@@ -719,16 +760,14 @@ export function useTaskDetailConversation(
     }
 
     if (event.deltaY < 0) {
-      if ((feed.scrollTop <= SCROLL_EDGE_THRESHOLD_PX || feed.scrollHeight <= feed.clientHeight + 1) && messagePage.has_older) {
-        void loadConversationPage({
-          direction: "older",
-          beforeIndex: messagePage.start_index
-        });
+      if (isWithinOlderPrefetchDistance(feed) || feed.scrollHeight <= feed.clientHeight + 1) {
+        loadOlderMessages();
       }
       return;
     }
 
     if (event.deltaY > 0) {
+      olderChainActiveRef.current = false;
       const nearBottom = distanceFromBottom(feed) <= NEAR_BOTTOM_THRESHOLD_PX;
       if ((nearBottom || feed.scrollHeight <= feed.clientHeight + 1) && messagePage.has_newer) {
         void loadConversationPage({
@@ -741,10 +780,9 @@ export function useTaskDetailConversation(
     isConversationBootstrapping,
     isConversationPageLoading,
     loadConversationPage,
+    loadOlderMessages,
     messagePage.end_index,
-    messagePage.has_newer,
-    messagePage.has_older,
-    messagePage.start_index
+    messagePage.has_newer
   ]);
 
   const jumpToMessage = useCallback((messageId: string, textAnchor?: ConversationTextAnchor | null) => {
@@ -802,6 +840,7 @@ export function useTaskDetailConversation(
   }, [jumpToMessage, loadConversationPage, messageLookup, requestJumpToLoadedMessage]);
 
   const scrollToBottom = useCallback(() => {
+    olderChainActiveRef.current = false;
     scroll.followBottom();
     setIsNearBottom(true);
     if (messagePage.has_newer && !pageLoadInFlightRef.current) {
@@ -841,6 +880,7 @@ export function useTaskDetailConversation(
     handleConversationScroll,
     handleConversationWheel,
     handleToolGroupExpandRequested,
+    loadOlderMessages,
     jumpToMessage,
     jumpToMessageIndex,
     revealMessage

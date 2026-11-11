@@ -1019,6 +1019,62 @@ describe("useTaskDetailConversation", () => {
     expect(container.textContent).toContain("message-0");
   });
 
+  it("keeps loading older pages while the reader stays near the top", async () => {
+    vi.useFakeTimers();
+    const pageAt = (startIndex: number): TaskConversationPageResponse => ({
+      ...buildConversationPage(Array.from({ length: 50 }, (_, index) => buildMessage(`message-${startIndex + index}`))),
+      message_page: {
+        start_index: startIndex,
+        end_index: startIndex + 50,
+        total_items: 150,
+        has_older: startIndex > 0,
+        has_newer: startIndex + 50 < 150
+      }
+    });
+    const get = vi.fn(async (path: string): Promise<TaskConversationPageResponse> => {
+      const beforeIndex = new URLSearchParams(path.split("?")[1]).get("beforeIndex");
+      return pageAt(beforeIndex === null ? 100 : Number(beforeIndex) - 50);
+    });
+    const api: ApiClient = {
+      get: get as ApiClient["get"],
+      post: vi.fn(async (): Promise<TaskMessageContentBatchResponse> => ({ items: [] })) as ApiClient["post"],
+      postForm: vi.fn(),
+      patch: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn()
+    };
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(<ConversationHarness api={api} />);
+      await flushPromises();
+    });
+
+    const feed = container.querySelector<HTMLDivElement>('[data-testid="feed"]');
+    const wheelButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent === "Wheel up");
+    defineMutableNumberProperty(feed!, "scrollTop", 0);
+    defineMutableNumberProperty(feed!, "clientHeight", 400);
+    defineMutableNumberProperty(feed!, "scrollHeight", 2000);
+
+    await act(async () => {
+      // The reader's own wheel stops the feed following the bottom.
+      feed!.dispatchEvent(new WheelEvent("wheel", { deltaY: -100 }));
+      wheelButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await flushPromises();
+      await vi.runAllTimersAsync();
+    });
+    await act(async () => {
+      await vi.runAllTimersAsync();
+      await flushPromises();
+    });
+
+    expect(get).toHaveBeenCalledTimes(3);
+    expect(container.textContent).toContain("message-0");
+  });
+
   it("does not load older messages when scrolling down in a short feed with older messages", async () => {
     vi.useFakeTimers();
     const initialMessages = Array.from({ length: 50 }, (_, index) => buildMessage(`message-${50 + index}`));

@@ -240,6 +240,8 @@ function TaskConversationMain({ model }: ModelProps) {
         isConversationBootstrapping={conversation.isConversationBootstrapping}
         isConversationPageLoading={conversation.isConversationPageLoading}
         conversationPageLoadDirection={conversation.conversationPageLoadDirection}
+        hasOlderMessages={conversation.messagePage.has_older}
+        onLoadOlderMessages={conversation.loadOlderMessages}
         isTaskRunning={["running", "starting", "queued"].includes(task.status)}
         isThinking={events.isThinking}
         chatFeedRef={conversation.chatFeedRef}

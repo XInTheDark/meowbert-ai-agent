@@ -38,6 +38,7 @@ export interface UseTaskDetailConversationResult {
   handleConversationScroll: () => void;
   handleConversationWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
   handleToolGroupExpandRequested: (messageIds: string[]) => void;
+  loadOlderMessages: () => void;
   jumpToMessage: (messageId: string, textAnchor?: ConversationTextAnchor | null) => void;
   jumpToMessageIndex: (messageId: string, messageIndex: number) => Promise<void>;
   revealMessage: (messageId: string, textAnchor?: ConversationTextAnchor | null) => void;
