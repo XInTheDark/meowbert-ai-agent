@@ -36,6 +36,8 @@ interface TaskDetailConversationPaneProps {
   isConversationBootstrapping: boolean;
   isConversationPageLoading: boolean;
   conversationPageLoadDirection: "older" | "newer" | null;
+  hasOlderMessages?: boolean;
+  onLoadOlderMessages?: () => void;
   isTaskRunning: boolean;
   isThinking: boolean;
   chatFeedRef: RefObject<HTMLDivElement>;
@@ -151,6 +153,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
   const collapsedInputLabel = getCollapsedInputLabel(props.editingMessageId, props.followUp);
   const collapsedInputHint = getCollapsedInputHint(props.attachments.length + props.pendingUploads.length);
   const composerRef = useRef<HTMLDivElement>(null);
+  const isLoadingOlder = props.isConversationPageLoading && props.conversationPageLoadDirection === "older";
 
   // Focus inside the same tap so the phone raises its keyboard straight away instead of needing a second tap.
   function expandMobileComposer(): void {
@@ -172,8 +175,18 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
         onScroll={props.onScroll}
         onWheel={props.onWheel}
       >
-        {props.isConversationPageLoading && props.conversationPageLoadDirection === "older" ? (
+        {isLoadingOlder ? (
           <InlineProgressBar pin="top" label="Loading earlier messages" delayMs={200} />
+        ) : null}
+        {props.hasOlderMessages && props.onLoadOlderMessages && props.messages.length > 0 ? (
+          <button
+            type="button"
+            className="conversation-load-older"
+            onClick={props.onLoadOlderMessages}
+            disabled={isLoadingOlder}
+          >
+            {isLoadingOlder ? "Loading…" : "Load earlier messages"}
+          </button>
         ) : null}
         {props.isConversationBootstrapping && props.messages.length === 0 ? (
           <LoadingIndicator center label="Loading conversation" />
@@ -229,7 +242,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
           </>
         )}
         {props.isConversationPageLoading && props.conversationPageLoadDirection !== "older" ? (
-          <InlineProgressBar label="Loading newer messages" delayMs={0} />
+          <InlineProgressBar label="Loading newer messages" delayMs={200} />
         ) : null}
         {showScrollToBottomButton ? (
           <button

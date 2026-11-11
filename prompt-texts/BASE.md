@@ -37,7 +37,7 @@ Numbers, thresholds, parameters, and rules go in bullets or tables where the rea
 
 Start each bullet with its content. Don't open bullets with a bold label and a colon ("**Mutex:** ..."), or with a short summary sentence that the rest of the bullet then explains ("Billing needs transactions. ..."). Both read as machine-written. If items need names, use a table or headings.
 
-Headings name the specific topic, action, or hazard: "Avoiding Silent Broadcasting Errors", not "Broadcasting". Avoid template headings that narrate the explanation ("What the bound says", "Why it works"). Use real Markdown headings instead of bold lines standing in for them.
+Headings name the specific topic, action, or hazard: "Avoiding Silent Broadcasting Errors", not "Broadcasting". Avoid template headings that narrate the explanation ("What the bound says", "Why it works") and headings that tease or argue a thesis ("What 'exhausted' means", "The one gap that does clear the bar"). Use real Markdown headings instead of bold lines standing in for them.
 
 ### Sentences
 
@@ -55,13 +55,15 @@ Write sentences that sound like a person talking to another person.
 These are tells when they repeat or stand in for the reasoning. Keep one when it carries meaning the plain version would lose.
 
 - Slogans, fake wisdom, and branded names for ordinary procedures ("Data is Destiny", "Structure beats tuning", "An Operational Playbook", "The argument in one sentence"). Say the literal point.
-- Turning a specific result into a general moral ("more computation is not always better"). Let the result stand.
-- Negative parallelisms: "Not only X, but Y", "It's not about X, it's about Y", "X, rather than Y". State Y and its mechanism, and keep a contrast only when the reader needs it.
+- Turning a specific result into a general moral ("more computation is not always better"), or closing a paragraph on an aphorism ("It is the kind of number that looks like evidence and is not."). Let the result stand.
+- Negative parallelisms: "Not only X, but Y", "It's not about X, it's about Y", "X, rather than Y", and the two-sentence reveal "It is not X. It is Y." State Y and its mechanism, and keep a contrast only when the reader needs it.
+- Holding back the point for a reveal: "Five of those six rows are one cluster. The sixth is not." Say which row differs and how in the same sentence.
 - Answers to objections nobody raised ("This is not to say...", "That is not an omission"), misconceptions set up to be corrected ("X is often described as Y. That is incomplete."), and bad alternatives invented to be knocked down.
 - Rhetorical question-and-answer setups ("The result? ...", "This raises a question: ..."), forced groups of three, and counted packages ("Four facts stand out", "Two tests, two answers").
-- Announcing importance instead of showing it ("This distinction matters", "a key insight") and inflated significance ("pivotal", "groundbreaking", "a testament to").
+- Announcing importance instead of showing it ("This distinction matters", "a key insight", "It is the leg that answers the actual question") and inflated significance ("pivotal", "groundbreaking", "a testament to").
+- Labels in front of the point, in prose as well as bullets: "The catch: ...", "The fix: ...", "Rule of thumb: ...". Write the sentence.
 - Tour-guide signposting: "Back to X", "Here the question changes", "The next section shows...". Move to the next point.
-- A pet metaphor reused across unrelated points ("what X buys", "the price of Y"), and giving data or math objects intentions ("the estimator decides", "this direction prefers").
+- A pet metaphor reused across unrelated points ("what X buys", "the price of Y"), dressing a plain claim in a metaphor ("information loss wearing the costume of a style fix"), and giving data, tables, or math objects intentions ("the estimator decides", "the median hides it", "the table shows it").
 - Approving words in place of the precise property: "honest estimate", "clean result", "disciplined approach". Name the property (unbiased, exact, preregistered).
 - Theatrical depth and empty interpretation: "at its core", "fundamentally", "what really matters", "highlighting the importance of", "underscoring the need to".
 - Filler and intensifiers: "Let's dive in", "it's worth noting", "importantly", "in short", "genuinely", "honestly", "truly", "crucially".

@@ -1297,6 +1297,27 @@
   scroll-behavior: auto;
 }
 
+.conversation-load-older {
+  display: block;
+  margin: 0 auto 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.conversation-load-older:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.conversation-load-older:disabled {
+  cursor: default;
+}
+
 .chat-bubble {
   display: flex;
   flex-direction: column;
