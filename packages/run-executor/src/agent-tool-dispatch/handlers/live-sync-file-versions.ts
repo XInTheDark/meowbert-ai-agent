@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { isWithinPath } from "@meowbert/shared";
+import { isProjectContextPath } from "@meowbert/shared/project-context";
 import { fromSandboxPath } from "@meowbert/shared/docker-sandbox";
 import { LIVE_SYNC_FILE_VERSIONS_DEFAULT_LIMIT, type LiveSyncFileVersionContent } from "@meowbert/shared/live-sync-file-versions";
 import { LIVE_SYNC_FILE_VERSIONS_TOOL_NAME, liveSyncFileVersionsArgumentsSchema } from "../../agent-tools/index.js";
@@ -52,22 +53,43 @@ export function defaultVersionSavePath(version: Pick<LiveSyncFileVersionContent,
   return `${DEFAULT_SAVE_FOLDER}/${stem}@${stamp}${extension}`;
 }
 
+interface LinkMountRoots {
+  taskDir: string;
+  envRoot: string;
+}
+
+// Project Context links live under the project root, not the task folder; absolute paths are already mount paths.
+function linkMountPaths(file: TaskLiveSyncFileSummary, roots: LinkMountRoots): string[] {
+  if (path.isAbsolute(file.taskRelativePath)) return [file.taskRelativePath];
+  const taskPath = path.resolve(roots.taskDir, file.taskRelativePath);
+  const isProjectContextLink = file.localRelativePath === file.taskRelativePath && isProjectContextPath(file.localRelativePath);
+  return isProjectContextLink ? [taskPath, path.resolve(roots.envRoot, file.localRelativePath)] : [taskPath];
+}
+
 // Writing into a mounted Drive folder would upload the copy, and a linked file path would replace the working copy.
-export function findLinkedPathConflict(liveSyncFiles: TaskLiveSyncFileSummary[], taskDir: string, absolutePath: string): string | null {
-  const conflict = liveSyncFiles.find((file) => {
-    const linkPath = path.resolve(taskDir, file.taskRelativePath);
-    return file.linkKind === "folder" ? isWithinPath(linkPath, absolutePath) : linkPath === absolutePath;
-  });
+export function findLinkedPathConflict(liveSyncFiles: TaskLiveSyncFileSummary[], roots: LinkMountRoots, absolutePaths: string[]): string | null {
+  const conflict = liveSyncFiles.find((file) => linkMountPaths(file, roots).some((linkPath) => absolutePaths.some((absolutePath) => (
+    file.linkKind === "folder" ? isWithinPath(linkPath, absolutePath) : linkPath === absolutePath
+  ))));
   return conflict?.taskRelativePath ?? null;
+}
+
+function assertOutsideLinks(ctx: ToolDispatchContext, roots: LinkMountRoots, absolutePaths: string[]): void {
+  const conflict = findLinkedPathConflict(ctx.liveSyncFiles, roots, absolutePaths);
+  if (conflict) {
+    throw new Error(`Can't save inside the linked item ${conflict}. Choose a save_to path outside linked Drive folders.`);
+  }
+}
+
+async function realpathOrSelf(value: string): Promise<string> {
+  return fs.realpath(value).catch(() => path.resolve(value));
 }
 
 async function saveVersion(ctx: ToolDispatchContext, content: LiveSyncFileVersionContent, saveTo: string | null): Promise<string> {
   const requested = saveTo?.trim() ? fromSandboxPath(saveTo.trim()) : defaultVersionSavePath(content);
   const requestedAbsolute = path.resolve(ctx.taskDir, requested);
-  const conflict = findLinkedPathConflict(ctx.liveSyncFiles, ctx.taskDir, requestedAbsolute);
-  if (conflict) {
-    throw new Error(`Can't save inside the linked item ${conflict}. Choose a save_to path outside linked Drive folders.`);
-  }
+  const roots = { taskDir: ctx.taskDir, envRoot: ctx.envRoot };
+  assertOutsideLinks(ctx, roots, [requestedAbsolute]);
   const writableRoots = ctx.swarm?.run.lane
     ? [ctx.taskDir, ctx.taskScratchDir]
     : resolveApplyPatchWritableRoots({
@@ -78,6 +100,9 @@ async function saveVersion(ctx: ToolDispatchContext, content: LiveSyncFileVersio
       readOnly: ctx.readOnly
     });
   const absolutePath = await resolveWritableFilePathWithinRoots(writableRoots, requestedAbsolute);
+  // The write path is resolved through real roots, so compare it against the real link roots too.
+  const realRoots = { taskDir: await realpathOrSelf(ctx.taskDir), envRoot: await realpathOrSelf(ctx.envRoot) };
+  assertOutsideLinks(ctx, realRoots, [absolutePath]);
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
   try {
     await fs.writeFile(absolutePath, Buffer.from(content.contentBase64, "base64"), { flag: "wx" });

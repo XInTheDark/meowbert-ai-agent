@@ -16,7 +16,8 @@ import { isPlainObject, parseResponsePayload } from "./remote-http-utils.js";
 
 const GOOGLE_DRIVE_API_BASE_URL = "https://www.googleapis.com/drive/v3";
 const REVISION_LIST_PAGE_SIZE = 1000;
-const REVISION_LIST_MAX_PAGES = 5;
+// Drive lists oldest first, so the newest versions are only known after the last page.
+const REVISION_LIST_MAX_PAGES = 50;
 const DOWNLOAD_OPERATION_POLL_MS = 1_000;
 const DOWNLOAD_OPERATION_TIMEOUT_MS = 90_000;
 
@@ -64,7 +65,7 @@ function toVersion(revision: DriveRevision, current: boolean): LiveSyncFileVersi
   };
 }
 
-async function listAllRevisions(context: DriveRequestContext, fileId: string): Promise<{ revisions: DriveRevision[]; truncated: boolean }> {
+async function listAllRevisions(context: DriveRequestContext, fileId: string): Promise<DriveRevision[]> {
   const revisions: DriveRevision[] = [];
   let pageToken: string | null = null;
   for (let page = 0; page < REVISION_LIST_MAX_PAGES; page += 1) {
@@ -75,9 +76,9 @@ async function listAllRevisions(context: DriveRequestContext, fileId: string): P
     const payload = await getDriveJson(context, url, "Google Drive version history failed", "The file no longer exists in Google Drive.");
     revisions.push(...(Array.isArray(payload.revisions) ? payload.revisions as DriveRevision[] : []));
     pageToken = typeof payload.nextPageToken === "string" && payload.nextPageToken ? payload.nextPageToken : null;
-    if (!pageToken) return { revisions, truncated: false };
+    if (!pageToken) return revisions;
   }
-  return { revisions, truncated: true };
+  throw new SourceFileLinkActionError("This file has too many versions in Google Drive to list its latest ones here. Open its version history in Google Drive instead.");
 }
 
 // Drive lists revisions oldest first; the last one is the file's current content.
@@ -86,9 +87,9 @@ export async function listGoogleDriveFileRevisions(context: DriveRequestContext,
   limit: number;
   modifiedBefore: string | null;
 }): Promise<LiveSyncFileVersionList> {
-  const { revisions, truncated } = await listAllRevisions(context, input.file.fileId);
+  const revisions = await listAllRevisions(context, input.file.fileId);
   const all = revisions
-    .map((revision, index) => toVersion(revision, index === revisions.length - 1 && !truncated))
+    .map((revision, index) => toVersion(revision, index === revisions.length - 1))
     .filter((version): version is LiveSyncFileVersion => version !== null)
     .reverse();
   const before = input.modifiedBefore ? Date.parse(input.modifiedBefore) : null;
@@ -98,7 +99,7 @@ export async function listGoogleDriveFileRevisions(context: DriveRequestContext,
     mimeType: input.file.mimeType,
     versions: eligible.slice(0, input.limit),
     totalVersions: all.length,
-    hasOlder: eligible.length > input.limit || truncated,
+    hasOlder: eligible.length > input.limit,
     mayOmitOlderVersions: isGoogleWorkspaceMimeType(input.file.mimeType)
   };
 }

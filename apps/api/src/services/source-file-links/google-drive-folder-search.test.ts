@@ -38,10 +38,10 @@ function installFakeDrive(files: FakeDriveFile[], extraSearchHits: FakeDriveFile
     const parentIds = [...q.matchAll(/'([^']+)' in parents/g)].map((match) => match[1]);
     const inParents = files.filter((file) => file.parents.some((id) => parentIds.includes(id)));
     let result: FakeDriveFile[];
+    const name = q.includes(" name = '") ? /name = '([^']+)'/.exec(q)?.[1] : undefined;
     if (q.includes("mimeType = 'application/vnd.google-apps.shortcut'")) {
-      result = inParents.filter((file) => file.mimeType === FOLDER || file.shortcutDetails);
-    } else if (q.includes(" name = '")) {
-      const name = /name = '([^']+)'/.exec(q)?.[1];
+      result = inParents.filter((file) => (file.mimeType === FOLDER || file.shortcutDetails) && (name === undefined || file.name === name));
+    } else if (name !== undefined) {
       result = inParents.filter((file) => file.mimeType === FOLDER && file.name === name);
     } else {
       result = [...inParents.filter((file) => file.mimeType !== FOLDER && !file.shortcutDetails), ...extraSearchHits];
@@ -141,6 +141,20 @@ describe("searchGoogleDriveFolderSubtree", () => {
     expect(folderListCount()).toBe(afterFirst);
     await search("link-2");
     expect(folderListCount()).toBeGreaterThan(afterFirst);
+  });
+
+  it("starts from a subfolder reached through a folder shortcut", async () => {
+    installFakeDrive(tree);
+
+    const result = await searchGoogleDriveFolderSubtree({
+      accessToken: "token",
+      cacheScope: "link-shortcut",
+      depth: 0,
+      rootItemId: "root-folder",
+      subfolder: "Linked",
+      filters: filters()
+    });
+    expect(result.items.map((item) => item.name)).toEqual(["shared.pdf"]);
   });
 
   it("rejects a missing subfolder", async () => {

@@ -44,6 +44,30 @@ describe("listGoogleDriveFileRevisions", () => {
     expect(older.hasOlder).toBe(false);
   });
 
+  it("reads every page so the newest versions come back first", async () => {
+    installRoutes((url) => {
+      if (!url.pathname.endsWith("/revisions")) return undefined;
+      const page = Number(url.searchParams.get("pageToken") ?? "0");
+      return json({ revisions: [revisions[page]], ...(page < revisions.length - 1 ? { nextPageToken: String(page + 1) } : {}) });
+    });
+    const result = await listGoogleDriveFileRevisions(context, {
+      file: { fileId: "file-1", name: "notes.pdf", mimeType: "application/pdf" },
+      limit: 1,
+      modifiedBefore: null
+    });
+    expect(result.versions.map((version) => [version.id, version.current])).toEqual([["r3", true]]);
+    expect(result.totalVersions).toBe(3);
+  });
+
+  it("refuses rather than returning the oldest versions when the history never ends", async () => {
+    installRoutes((url) => url.pathname.endsWith("/revisions") ? json({ revisions, nextPageToken: "more" }) : undefined);
+    await expect(listGoogleDriveFileRevisions(context, {
+      file: { fileId: "file-1", name: "notes.pdf", mimeType: "application/pdf" },
+      limit: 2,
+      modifiedBefore: null
+    })).rejects.toThrow(/too many versions/);
+  });
+
   it("warns that Google may omit older versions of native files", async () => {
     installRoutes((url) => url.pathname.endsWith("/revisions") ? json({ revisions }) : undefined);
     const result = await listGoogleDriveFileRevisions(context, {

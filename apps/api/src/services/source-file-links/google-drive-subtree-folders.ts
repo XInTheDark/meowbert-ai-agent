@@ -30,19 +30,27 @@ export interface GoogleDriveSubtreeFolders {
 
 const subtreeCache = new Map<string, { expiresAt: number; value: Promise<GoogleDriveSubtreeFolders> }>();
 
+const SUBFOLDER_LOOKUP_PAGE_SIZE = 20;
+
+// The mount shows folder shortcuts as folders, so a path segment may be either; a shortcut resolves to its target.
+function toFolderId(item: DriveItem): string | null {
+  if (effectiveMimeType(item) !== FOLDER_MIME_TYPE) return null;
+  return (item.mimeType === SHORTCUT_MIME_TYPE ? item.shortcutDetails?.targetId : item.id) ?? null;
+}
+
 export async function resolveSubfolderId(context: DriveRequestContext, rootFolderId: string, subfolder: string | null): Promise<string> {
   const segments = (subfolder ?? "").split("/").map((segment) => segment.trim()).filter(Boolean);
   let folderId = rootFolderId;
   for (const segment of segments) {
     const name = segment.replace(/／/g, "/");
     const page = await listDriveFiles(context, {
-      q: `trashed = false and mimeType = '${FOLDER_MIME_TYPE}' and name = ${quoteDriveLiteral(name)} and ${quoteDriveLiteral(folderId)} in parents`,
-      fields: "id,name",
-      pageSize: 1,
+      q: `trashed = false and (mimeType = '${FOLDER_MIME_TYPE}' or mimeType = '${SHORTCUT_MIME_TYPE}') and name = ${quoteDriveLiteral(name)} and ${quoteDriveLiteral(folderId)} in parents`,
+      fields: "id,name,mimeType,shortcutDetails",
+      pageSize: SUBFOLDER_LOOKUP_PAGE_SIZE,
       orderBy: null,
       pageToken: null
     });
-    const match = page.files[0]?.id;
+    const match = page.files.map(toFolderId).find((id): id is string => id !== null);
     if (!match) {
       throw new SourceFileLinkActionError(`Folder not found in Google Drive: ${segments.join("/")}`);
     }

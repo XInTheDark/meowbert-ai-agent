@@ -47,11 +47,19 @@ describe("resolveLiveSyncVersionTarget", () => {
 });
 
 describe("findLinkedPathConflict", () => {
+  const roots = { taskDir: "/task", envRoot: "/project" };
+
   it("blocks saving into a mounted folder or over a linked file, and allows everything else", () => {
-    expect(findLinkedPathConflict(files, "/task", "/task/inputs/research/copy.pdf")).toBe("inputs/research");
-    expect(findLinkedPathConflict(files, "/task", "/task/inputs/spec.docx")).toBe("inputs/spec.docx");
-    expect(findLinkedPathConflict(files, "/task", "/task/drive-versions/spec@2026.docx")).toBeNull();
-    expect(findLinkedPathConflict(files, "/task", "/task/inputs/research-old/copy.pdf")).toBeNull();
+    expect(findLinkedPathConflict(files, roots, ["/task/inputs/research/copy.pdf"])).toBe("inputs/research");
+    expect(findLinkedPathConflict(files, roots, ["/task/inputs/spec.docx"])).toBe("inputs/spec.docx");
+    expect(findLinkedPathConflict(files, roots, ["/task/drive-versions/spec@2026.docx"])).toBeNull();
+    expect(findLinkedPathConflict(files, roots, ["/task/inputs/research-old/copy.pdf"])).toBeNull();
+  });
+
+  it("blocks saving into a Project Context folder at its project mount", () => {
+    const withContext = [...files, link("context/shared")];
+    expect(findLinkedPathConflict(withContext, roots, ["/project/context/shared/copy.pdf"])).toBe("context/shared");
+    expect(findLinkedPathConflict(withContext, roots, ["/project/context/other/copy.pdf"])).toBeNull();
   });
 });
 
