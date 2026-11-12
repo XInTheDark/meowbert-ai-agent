@@ -36,6 +36,9 @@ export function configureLocalRunPlatform(input: {
   const originalStatus = platform.liveSyncStatus, originalTransfer = platform.liveSyncTransfer;
   platform.liveSyncStatus = (request) => originalStatus({ ...request, taskRelativePath: originalPath(request.taskRelativePath) });
   platform.liveSyncTransfer = (request) => originalTransfer({ ...request, taskRelativePath: originalPath(request.taskRelativePath) });
+  const originalVersions = platform.liveSyncFileVersions, originalVersionContent = platform.liveSyncFileVersionContent;
+  platform.liveSyncFileVersions = (request) => originalVersions({ ...request, taskRelativePath: originalPath(request.taskRelativePath) });
+  platform.liveSyncFileVersionContent = (request) => originalVersionContent({ ...request, taskRelativePath: originalPath(request.taskRelativePath) });
   const originalSearch = platform.liveSyncFolderSearch;
   platform.liveSyncFolderSearch = async (request) => {
     const local = input.liveSyncFiles.find((file) => file.taskRelativePath === request.taskRelativePath);

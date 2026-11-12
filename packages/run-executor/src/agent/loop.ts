@@ -356,6 +356,7 @@ async function requestModelTurn(input: {
       allowLiveSyncTools: execution.prepared.liveSyncFiles.length > 0,
       allowLiveSyncFileTools: workspaceFileFeatures(normalizeWorkspaceFileHost(execution.prepared.fileHost)).linkedSources,
       allowLiveSyncFolderSearch: execution.prepared.liveSyncFiles.some((file) => file.provider === "google-drive" && file.linkKind === "folder"),
+      allowLiveSyncFileVersions: execution.prepared.liveSyncFiles.some((file) => file.provider === "google-drive"),
       allowCanvasTools: workspaceFileFeatures(normalizeWorkspaceFileHost(execution.prepared.fileHost)).canvases
         && execution.prepared.snapshot.task.read_only !== true
         && execution.prepared.runToolOptions.enabledSkills.includes(CANVAS_SKILL_ID),

@@ -44,6 +44,7 @@ import {
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
   SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
+  LIVE_SYNC_FILE_VERSIONS_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
   RUN_SHELL_TOOL_NAME,
@@ -183,6 +184,10 @@ function isToolEnabled(
 
   if (tool.name === SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME) {
     return availability.allowLiveSyncFolderSearch === true;
+  }
+
+  if (tool.name === LIVE_SYNC_FILE_VERSIONS_TOOL_NAME) {
+    return availability.allowLiveSyncFileVersions === true;
   }
 
   if (tool.name === CREATE_PROJECT_CANVAS_TOOL_NAME || tool.name === SHOW_CANVAS_TOOL_NAME) {

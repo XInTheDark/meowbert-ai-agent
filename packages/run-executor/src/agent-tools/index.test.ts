@@ -28,6 +28,7 @@ import {
   QUERY_TASKS_TOOL_NAME,
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
   SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
+  LIVE_SYNC_FILE_VERSIONS_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   START_LONG_HORIZON_TASK_TOOL_NAME,
   STOP_TASK_TOOL_NAME,
@@ -572,6 +573,16 @@ describe("buildResponseTools", () => {
 
     expect(hasSearch(buildResponseTools(options, [], { allowLiveSyncTools: true }))).toBe(false);
     expect(hasSearch(buildResponseTools(options, [], { allowLiveSyncTools: true, allowLiveSyncFolderSearch: true }))).toBe(true);
+  });
+
+  it("offers Drive version history only when a Google Drive item is linked", () => {
+    const options = { webSearch: false, memorySearch: false, scheduleTask: false, subtasks: false,
+      computerUse: false, enabledSkills: [], enabledSources: [] };
+    const hasVersions = (tools: ReturnType<typeof buildResponseTools>) =>
+      tools.some((tool) => tool.type === "function" && tool.name === LIVE_SYNC_FILE_VERSIONS_TOOL_NAME);
+
+    expect(hasVersions(buildResponseTools(options, [], { allowLiveSyncTools: true }))).toBe(false);
+    expect(hasVersions(buildResponseTools(options, [], { allowLiveSyncTools: true, allowLiveSyncFileVersions: true }))).toBe(true);
   });
 
   it("keeps device folder listing and search while disabling server-file sync operations", () => {

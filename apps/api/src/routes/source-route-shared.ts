@@ -7,6 +7,7 @@ import {
   LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
   LIVE_SYNC_FOLDER_SEARCH_ORDERS
 } from "@meowbert/shared/live-sync-folder-search";
+import { LIVE_SYNC_FILE_VERSIONS_DEFAULT_LIMIT, LIVE_SYNC_FILE_VERSIONS_MAX_LIMIT } from "@meowbert/shared/live-sync-file-versions";
 import {
   ScopedAccessTicketError,
   verifyScopedAccessTicket
@@ -66,6 +67,22 @@ export const internalLiveSyncSearchBody = z.object({
   extraQuery: z.string().trim().max(1000).nullable().default(null).transform((value) => value || null),
   orderBy: z.enum(LIVE_SYNC_FOLDER_SEARCH_ORDERS).default("relevance"),
   limit: z.number().int().min(1).max(LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT).default(25)
+}).strict();
+
+const liveSyncFileVersionTarget = {
+  path: z.string().trim().min(1).max(1200),
+  filePath: z.string().trim().max(1200).nullable().default(null).transform((value) => value || null)
+};
+
+export const internalLiveSyncVersionsBody = z.object({
+  ...liveSyncFileVersionTarget,
+  limit: z.number().int().min(1).max(LIVE_SYNC_FILE_VERSIONS_MAX_LIMIT).default(LIVE_SYNC_FILE_VERSIONS_DEFAULT_LIMIT),
+  modifiedBefore: isoTimestamp.nullable().default(null)
+}).strict();
+
+export const internalLiveSyncVersionContentBody = z.object({
+  ...liveSyncFileVersionTarget,
+  versionId: z.string().trim().min(1).max(400)
 }).strict();
 
 export function extractBearerToken(value: string | string[] | undefined): string {

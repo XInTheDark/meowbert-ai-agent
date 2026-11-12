@@ -38,6 +38,8 @@ export const RUN_API_READ_METHODS = [
   "platform.searchMemory",
   "platform.liveSyncStatus",
   "platform.liveSyncFolderSearch",
+  "platform.liveSyncFileVersions",
+  "platform.liveSyncFileVersionContent",
   "platform.getDesktopComputerPresence",
   "platform.readShellSessionWaitState",
   "model.isQuotaExceeded",

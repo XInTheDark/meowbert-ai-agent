@@ -30,7 +30,7 @@ export interface GoogleDriveSubtreeFolders {
 
 const subtreeCache = new Map<string, { expiresAt: number; value: Promise<GoogleDriveSubtreeFolders> }>();
 
-async function resolveSubfolderId(context: DriveRequestContext, rootFolderId: string, subfolder: string | null): Promise<string> {
+export async function resolveSubfolderId(context: DriveRequestContext, rootFolderId: string, subfolder: string | null): Promise<string> {
   const segments = (subfolder ?? "").split("/").map((segment) => segment.trim()).filter(Boolean);
   let folderId = rootFolderId;
   for (const segment of segments) {

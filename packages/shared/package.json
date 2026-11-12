@@ -109,6 +109,10 @@
       "types": "./dist/live-sync-folder-search.d.ts",
       "default": "./dist/live-sync-folder-search.js"
     },
+    "./live-sync-file-versions": {
+      "types": "./dist/live-sync-file-versions.d.ts",
+      "default": "./dist/live-sync-file-versions.js"
+    },
     "./task-history-search": {
       "types": "./dist/task-history-search.d.ts",
       "default": "./dist/task-history-search.js"

@@ -5,6 +5,7 @@ import type {
   TaskLiveSyncFolderSearchResult,
   TaskLiveSyncStatus
 } from "../live-sync-types.js";
+import type { LiveSyncFileVersionContent, LiveSyncFileVersionList } from "@meowbert/shared/live-sync-file-versions";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -61,6 +62,18 @@ export interface PlatformToolHost {
     depth: number;
     filters: TaskLiveSyncFolderSearchFilters;
   }): Promise<TaskLiveSyncFolderSearchResult>;
+  // filePath is the file inside a linked folder, or null when the linked item is the file itself.
+  liveSyncFileVersions(input: {
+    taskRelativePath: string;
+    filePath: string | null;
+    limit: number;
+    modifiedBefore: string | null;
+  }): Promise<LiveSyncFileVersionList>;
+  liveSyncFileVersionContent(input: {
+    taskRelativePath: string;
+    filePath: string | null;
+    versionId: string;
+  }): Promise<LiveSyncFileVersionContent>;
 
   createProjectCanvas(input: { name: string; entryPath: string }): Promise<CreatedProjectCanvas>;
   recordProjectCanvasEntry(input: { canvasId: string; entryPath: string }): Promise<void>;

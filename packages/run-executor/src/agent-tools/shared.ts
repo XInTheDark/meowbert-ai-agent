@@ -26,6 +26,7 @@ export const GET_LIVE_SYNC_STATUS_TOOL_NAME = "get_live_sync_status";
 export const PULL_LIVE_SYNC_FILE_TOOL_NAME = "pull_live_sync_file";
 export const PUSH_LIVE_SYNC_FILE_TOOL_NAME = "push_live_sync_file";
 export const SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME = "search_live_sync_folder";
+export const LIVE_SYNC_FILE_VERSIONS_TOOL_NAME = "live_sync_file_versions";
 export const QUERY_TASKS_TOOL_NAME = "query_tasks";
 // Earlier runs recorded calls under this name; dispatch still accepts it for replay.
 export const LEGACY_SEARCH_TASK_HISTORY_TOOL_NAME = "search_task_history";
@@ -100,6 +101,7 @@ export interface ResponseToolAvailability {
   allowLiveSyncTools?: boolean;
   allowLiveSyncFileTools?: boolean;
   allowLiveSyncFolderSearch?: boolean;
+  allowLiveSyncFileVersions?: boolean;
   allowCanvasTools?: boolean;
   // The file index lives in Memory; read-only runs can look entries up but not save them.
   allowFileIndexTools?: boolean;

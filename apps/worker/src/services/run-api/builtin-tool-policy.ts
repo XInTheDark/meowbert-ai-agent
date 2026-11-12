@@ -39,6 +39,7 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
       allowLiveSyncTools: bootstrap.liveSyncFiles.length > 0,
       allowLiveSyncFileTools: features.linkedSources,
       allowLiveSyncFolderSearch: bootstrap.liveSyncFiles.some((file) => file.provider === "google-drive" && file.linkKind === "folder"),
+      allowLiveSyncFileVersions: bootstrap.liveSyncFiles.some((file) => file.provider === "google-drive"),
       allowCanvasTools: features.canvases && !snapshot.task.read_only && options.enabledSkills.includes("html-canvas"),
       allowFileIndexTools: bootstrap.memoryEnabled, allowFileIndexSave: !snapshot.task.read_only,
       allowComputerLocalShell: !local, allowComputerVisualTools: !local || consent.computerUse === true,

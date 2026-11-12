@@ -661,7 +661,7 @@ function normalizeCodexText(value: string): string {
     .replace(/[\u00A0\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000]/g, " ");
 }
 
-async function resolveWritableFilePathWithinRoots(roots: string[], requestedPath: string): Promise<string> {
+export async function resolveWritableFilePathWithinRoots(roots: string[], requestedPath: string): Promise<string> {
   const absoluteRequestedPath = path.resolve(requestedPath);
   const uniqueRoots = new Map<string, { absoluteRoot: string; realRoot: string }>();
 

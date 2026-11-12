@@ -12,6 +12,7 @@ import {
   releaseTaskSourceFolderMounts
 } from "../services/source-file-links/service.js";
 import { searchTaskLiveSyncFolderByTaskPath } from "../services/source-file-links/task-live-sync-folder-search.js";
+import { listTaskLiveSyncFileVersions, readTaskLiveSyncFileVersion } from "../services/source-file-links/task-live-sync-file-versions.js";
 import {
   browseWorkspaceSource,
   downloadWorkspaceSourceFile,
@@ -24,6 +25,8 @@ import {
   internalLiveSyncSearchBody,
   internalLiveSyncStatusQuery,
   internalLiveSyncTaskParams,
+  internalLiveSyncVersionContentBody,
+  internalLiveSyncVersionsBody,
   requireLiveSyncProxyAccess,
   requireSourceProxyAccess,
   sourceBrowseQuery,
@@ -163,6 +166,24 @@ function registerInternalLiveSyncRoutes(fastify: Parameters<FastifyPluginAsync>[
       depth,
       filters
     });
+  });
+
+  fastify.post("/api/internal/live-sync/tasks/:taskId/versions", async (request) => {
+    const params = internalLiveSyncTaskParams.parse(request.params);
+    const { path, ...body } = internalLiveSyncVersionsBody.parse(request.body ?? {});
+    const ticket = extractBearerToken(request.headers.authorization);
+    await requireLiveSyncProxyAccess({ fastify, ticket, taskId: params.taskId });
+
+    return listTaskLiveSyncFileVersions({ taskId: params.taskId, taskRelativePath: path, ...body });
+  });
+
+  fastify.post("/api/internal/live-sync/tasks/:taskId/versions/content", async (request) => {
+    const params = internalLiveSyncTaskParams.parse(request.params);
+    const { path, ...body } = internalLiveSyncVersionContentBody.parse(request.body ?? {});
+    const ticket = extractBearerToken(request.headers.authorization);
+    await requireLiveSyncProxyAccess({ fastify, ticket, taskId: params.taskId });
+
+    return readTaskLiveSyncFileVersion({ taskId: params.taskId, taskRelativePath: path, ...body });
   });
 
   fastify.post("/api/internal/live-sync/tasks/:taskId/pull", async (request) => {

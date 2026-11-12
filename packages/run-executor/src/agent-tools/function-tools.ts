@@ -10,6 +10,7 @@ import {
   LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
   LIVE_SYNC_FOLDER_SEARCH_ORDERS
 } from "@meowbert/shared/live-sync-folder-search";
+import { LIVE_SYNC_FILE_VERSIONS_DEFAULT_LIMIT, LIVE_SYNC_FILE_VERSIONS_MAX_LIMIT } from "@meowbert/shared/live-sync-file-versions";
 import { applyPatchCustomToolDefinition } from "../agent/apply-patch.js";
 import {
   SEARCH_WEB_TOOL_NAME,
@@ -43,6 +44,7 @@ import {
   PULL_LIVE_SYNC_FILE_TOOL_NAME,
   PUSH_LIVE_SYNC_FILE_TOOL_NAME,
   SEARCH_LIVE_SYNC_FOLDER_TOOL_NAME,
+  LIVE_SYNC_FILE_VERSIONS_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   REFRESH_GH_TOKEN_TOOL_NAME,
   RUN_SHELL_MAX_TIMEOUT_SECONDS,
@@ -707,6 +709,40 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
         }
       },
       required: ["path", "depth", "query", "match", "file_types", "modified_after", "modified_before", "extra_query", "order_by", "limit"],
+      additionalProperties: false
+    }
+  },
+  {
+    type: "function",
+    name: LIVE_SYNC_FILE_VERSIONS_TOOL_NAME,
+    description:
+      "Google Drive version history for a linked file. Without version_id, lists past versions newest first. With version_id, saves that version as a separate local file and leaves the Drive file unchanged. Docs, Sheets and Slides are saved as Office files.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "A linked Google Drive file, or a file inside a linked Drive folder, such as `inputs/research/notes.docx`."
+        },
+        version_id: {
+          type: ["string", "null"],
+          description: "A version id from the list to save, or null to list versions."
+        },
+        save_to: {
+          type: ["string", "null"],
+          description: "Where to save the version, outside linked Drive folders. Null saves it under `drive-versions/`."
+        },
+        limit: {
+          type: ["integer", "null"],
+          description: `How many versions to list, 1-${LIVE_SYNC_FILE_VERSIONS_MAX_LIMIT}. Defaults to ${LIVE_SYNC_FILE_VERSIONS_DEFAULT_LIMIT}.`
+        },
+        modified_before: {
+          type: ["string", "null"],
+          description: "ISO 8601 timestamp; only list versions saved before it."
+        }
+      },
+      required: ["path", "version_id", "save_to", "limit", "modified_before"],
       additionalProperties: false
     }
   },

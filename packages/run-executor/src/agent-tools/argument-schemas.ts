@@ -18,6 +18,7 @@ import {
   LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT,
   LIVE_SYNC_FOLDER_SEARCH_ORDERS
 } from "@meowbert/shared/live-sync-folder-search";
+import { LIVE_SYNC_FILE_VERSIONS_MAX_LIMIT } from "@meowbert/shared/live-sync-file-versions";
 import {
   RUN_SHELL_MAX_TIMEOUT_SECONDS,
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS,
@@ -254,6 +255,14 @@ export const searchLiveSyncFolderArgumentsSchema = z.object({
   extra_query: z.string().max(1000).nullable().optional(),
   order_by: z.enum(LIVE_SYNC_FOLDER_SEARCH_ORDERS).nullable().optional(),
   limit: z.number().int().min(1).max(LIVE_SYNC_FOLDER_SEARCH_MAX_LIMIT).nullable().optional()
+});
+
+export const liveSyncFileVersionsArgumentsSchema = z.object({
+  path: z.string().min(1),
+  version_id: z.string().min(1).max(400).nullable().optional(),
+  save_to: z.string().min(1).max(1200).nullable().optional(),
+  limit: z.number().int().min(1).max(LIVE_SYNC_FILE_VERSIONS_MAX_LIMIT).nullable().optional(),
+  modified_before: liveSyncSearchTimestampSchema.nullable().optional()
 });
 
 // query and limit are legacy aliases kept so replayed search_task_history calls still parse.

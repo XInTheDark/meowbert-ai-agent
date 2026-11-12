@@ -23,6 +23,8 @@ import {
   fetchTaskLiveSyncStatus,
   pullTaskLiveSyncFile,
   pushTaskLiveSyncFile,
+  listTaskLiveSyncFileVersions,
+  readTaskLiveSyncFileVersion,
   searchTaskLiveSyncFolder
 } from "../agent/live-sync-client.js";
 import { markTaskArtifacts, unmarkTaskArtifacts } from "../agent/artifacts.js";
@@ -298,6 +300,14 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
     liveSyncFolderSearch: (input) => {
       const { taskId, workspaceId, actorUserId } = scope();
       return searchTaskLiveSyncFolder({ ...input, userId: actorUserId, taskId, workspaceId });
+    },
+    liveSyncFileVersions: (input) => {
+      const { taskId, workspaceId, actorUserId } = scope();
+      return listTaskLiveSyncFileVersions({ ...input, userId: actorUserId, taskId, workspaceId });
+    },
+    liveSyncFileVersionContent: (input) => {
+      const { taskId, workspaceId, actorUserId } = scope();
+      return readTaskLiveSyncFileVersion({ ...input, userId: actorUserId, taskId, workspaceId });
     },
     createProjectCanvas: (input) => insertProjectCanvas(scope().run, input),
     async recordProjectCanvasEntry({ canvasId, entryPath }) {

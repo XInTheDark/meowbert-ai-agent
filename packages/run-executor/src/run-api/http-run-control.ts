@@ -13,7 +13,7 @@ const CONTEXT_METHODS = [
 const PLATFORM_METHODS = [
   "queryTasks", "viewTaskHistory", "readTaskEvidence", "readOrganizedTaskHistory", "searchMemory", "createRecurringTask",
   "editCurrentTaskSchedule", "pauseRecurringSchedule", "applyInfiniteWait", "createSubtask", "startSubtasks",
-  "liveSyncStatus", "liveSyncTransfer", "liveSyncFolderSearch", "createProjectCanvas", "recordProjectCanvasEntry",
+  "liveSyncStatus", "liveSyncTransfer", "liveSyncFolderSearch", "liveSyncFileVersions", "liveSyncFileVersionContent", "createProjectCanvas", "recordProjectCanvasEntry",
   "markArtifacts", "unmarkArtifacts", "refreshGitHubToken", "issueSourceAccess", "getDesktopComputerPresence",
   "requestDesktopComputerAction", "persistentShell", "readShellSessionWaitState"
 ] as const satisfies readonly (keyof PlatformToolHost)[];

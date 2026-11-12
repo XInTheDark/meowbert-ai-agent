@@ -66,6 +66,8 @@ export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartb
   "platform.liveSyncStatus": platformCall("liveSyncStatus"),
   "platform.liveSyncTransfer": platformCall("liveSyncTransfer"),
   "platform.liveSyncFolderSearch": platformCall("liveSyncFolderSearch"),
+  "platform.liveSyncFileVersions": platformCall("liveSyncFileVersions"),
+  "platform.liveSyncFileVersionContent": platformCall("liveSyncFileVersionContent"),
   "platform.createProjectCanvas": platformCall("createProjectCanvas"),
   "platform.recordProjectCanvasEntry": platformCall("recordProjectCanvasEntry"),
   "platform.markArtifacts": platformCall("markArtifacts"),

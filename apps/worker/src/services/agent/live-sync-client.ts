@@ -1,4 +1,5 @@
 import { resolveInternalApiBaseUrl, signInternalScopedAccessTicket } from "./internal-api-proxy.js";
+import type { LiveSyncFileVersionContent, LiveSyncFileVersionList } from "@meowbert/shared/live-sync-file-versions";
 import type { TaskLiveSyncFolderSearchFilters, TaskLiveSyncFolderSearchResult, TaskLiveSyncStatus } from "@meowbert/run-executor/agent/live-sync-types";
 
 function buildLiveSyncHeaders(input: {
@@ -82,6 +83,55 @@ export async function searchTaskLiveSyncFolder(input: {
     })
   });
   return parseLiveSyncResponse<TaskLiveSyncFolderSearchResult>(response, "Failed to search live sync folder");
+}
+
+async function postLiveSyncJson<T>(input: {
+  userId: string | null;
+  taskId: string;
+  workspaceId: string;
+  route: string;
+  body: Record<string, unknown>;
+  fallbackPrefix: string;
+}): Promise<T> {
+  const response = await fetch(`${resolveInternalApiBaseUrl()}/api/internal/live-sync/tasks/${encodeURIComponent(input.taskId)}/${input.route}`, {
+    method: "POST",
+    headers: { ...buildLiveSyncHeaders(input), "content-type": "application/json" },
+    body: JSON.stringify(input.body)
+  });
+  return parseLiveSyncResponse<T>(response, input.fallbackPrefix);
+}
+
+export async function listTaskLiveSyncFileVersions(input: {
+  userId: string | null;
+  taskId: string;
+  workspaceId: string;
+  taskRelativePath: string;
+  filePath: string | null;
+  limit: number;
+  modifiedBefore: string | null;
+}): Promise<LiveSyncFileVersionList> {
+  return postLiveSyncJson<LiveSyncFileVersionList>({
+    ...input,
+    route: "versions",
+    body: { path: input.taskRelativePath, filePath: input.filePath, limit: input.limit, modifiedBefore: input.modifiedBefore },
+    fallbackPrefix: "Failed to list file versions"
+  });
+}
+
+export async function readTaskLiveSyncFileVersion(input: {
+  userId: string | null;
+  taskId: string;
+  workspaceId: string;
+  taskRelativePath: string;
+  filePath: string | null;
+  versionId: string;
+}): Promise<LiveSyncFileVersionContent> {
+  return postLiveSyncJson<LiveSyncFileVersionContent>({
+    ...input,
+    route: "versions/content",
+    body: { path: input.taskRelativePath, filePath: input.filePath, versionId: input.versionId },
+    fallbackPrefix: "Failed to read file version"
+  });
 }
 
 export async function ensureTaskSourceMounts(input: {
