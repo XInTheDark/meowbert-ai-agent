@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, X } from "lucide-react";
+import { Clock, Pencil, X } from "lucide-react";
 import type { ApiClient } from "../../../lib/api";
 import type { TaskQueuedMessage } from "../../../lib/types";
 import { removeQueuedTaskMessage, sendQueuedTaskMessageNow } from "./taskDetailMutations";
@@ -10,9 +10,11 @@ interface QueuedFollowUpsProps {
   messages: TaskQueuedMessage[];
   onChanged: () => Promise<void>;
   onError: (message: string) => void;
+  onEdit: (text: string) => void;
 }
 
-// Follow-ups waiting for the running task's next turn. Send now interrupts the run instead.
+// Follow-ups waiting for the running task's next turn. Send now interrupts the run instead;
+// Edit takes the message out of the queue and hands its text back to the composer.
 export function QueuedFollowUps(props: QueuedFollowUpsProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   if (props.messages.length === 0) return null;
@@ -29,6 +31,12 @@ export function QueuedFollowUps(props: QueuedFollowUpsProps) {
     }
   }
 
+  async function takeForEdit(message: TaskQueuedMessage): Promise<void> {
+    const removed = await removeQueuedTaskMessage(props.api, props.taskId, message.id);
+    if (!removed) throw new Error("This message was already delivered.");
+    props.onEdit(message.text);
+  }
+
   return (
     <ul className="queued-follow-ups" aria-label="Queued messages">
       {props.messages.map((message) => (
@@ -42,6 +50,16 @@ export function QueuedFollowUps(props: QueuedFollowUpsProps) {
             onClick={() => void run(message.id, () => sendQueuedTaskMessageNow(props.api, props.taskId, message.id))}
           >
             Send now
+          </button>
+          <button
+            type="button"
+            className="btn ghost queued-follow-up-edit"
+            aria-label="Edit queued message"
+            title="Edit"
+            disabled={busyId !== null}
+            onClick={() => void run(message.id, () => takeForEdit(message))}
+          >
+            <Pencil size={13} />
           </button>
           <button
             type="button"

@@ -342,6 +342,11 @@ function TaskConversationMain({ model }: ModelProps) {
               messages={model.context.data.taskDetail?.queued_messages ?? []}
               onChanged={model.context.data.loadTask}
               onError={model.context.setError}
+              onEdit={(text) => {
+                if (model.composer.editingMessageId) model.cancelEditMessage();
+                model.composer.setFollowUp(text);
+                model.view.layout.setIsMobileInputExpanded(true);
+              }}
             />
             {task.is_project_master ? (
               <ProjectMasterComposerSuggestions

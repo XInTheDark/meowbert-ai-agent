@@ -146,8 +146,10 @@ export async function sendQueuedTaskMessageNow(api: ApiClient, taskId: string, q
   return api.post<TaskFollowUpResponse>(`/api/tasks/${taskId}/queued-messages/${queuedMessageId}/send-now`, {});
 }
 
-export async function removeQueuedTaskMessage(api: ApiClient, taskId: string, queuedMessageId: string): Promise<void> {
-  await api.delete(`/api/tasks/${taskId}/queued-messages/${queuedMessageId}`);
+// Resolves false when the run already picked the message up.
+export async function removeQueuedTaskMessage(api: ApiClient, taskId: string, queuedMessageId: string): Promise<boolean> {
+  const result = await api.delete<{ removed?: boolean }>(`/api/tasks/${taskId}/queued-messages/${queuedMessageId}`);
+  return result?.removed !== false;
 }
 
 export async function switchTaskBranch(

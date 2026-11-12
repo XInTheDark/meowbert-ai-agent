@@ -7077,6 +7077,7 @@ a.managed-task-card:hover {
   font-size: 0.78rem;
 }
 
+.queued-follow-up-edit,
 .queued-follow-up-remove {
   flex-shrink: 0;
   padding: 0.2rem;
