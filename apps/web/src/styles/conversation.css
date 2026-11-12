@@ -1562,6 +1562,19 @@
   color: var(--text-muted);
 }
 
+.tool-activity-card-status {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  margin-top: 0.45rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .tool-activity-progress {
   display: flex;
   flex-direction: column;
@@ -1636,6 +1649,14 @@
 
 .tool-activity-progress-step.active .tool-activity-progress-step-title {
   font-weight: 600;
+}
+
+.tool-activity-progress-step-note {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .tool-activity-progress-step-detail {

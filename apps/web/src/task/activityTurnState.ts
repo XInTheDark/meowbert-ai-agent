@@ -1,8 +1,8 @@
 import { normalizeTaskProgress, type TaskProgress } from "@meowbert/shared/task-progress";
 import type { TaskMessage } from "../lib/types";
 
-// What an activity card shows of the turn so far: the agent's latest update_progress and the
-// files it marked as artifacts. Both build up over the turn, so later cards carry earlier ones.
+// What an activity card shows: the agent's latest update_progress, which carries over between
+// turns, and the files it marked as artifacts this turn. Later cards carry earlier ones.
 export interface ActivityTurnState {
   progress: TaskProgress | null;
   artifactPaths: string[];
@@ -14,12 +14,11 @@ function readPaths(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-// An update may leave out the goal or the steps to keep what it said before.
+// Each message stores the task's whole merged plan, so its steps replace the previous ones even
+// when cleared. Older messages could leave out the goal to keep the previous one; a merged plan
+// never drops it.
 function mergeProgress(previous: TaskProgress | null, next: TaskProgress): TaskProgress {
-  return {
-    goal: next.goal ?? previous?.goal ?? null,
-    steps: next.steps.length > 0 ? next.steps : previous?.steps ?? []
-  };
+  return { goal: next.goal ?? previous?.goal ?? null, status: next.status, steps: next.steps };
 }
 
 export function advanceActivityTurnState(state: ActivityTurnState, toolGroup: TaskMessage[]): ActivityTurnState {

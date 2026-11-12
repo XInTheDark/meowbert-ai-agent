@@ -9,8 +9,9 @@ function StepIcon(props: { status: TaskProgressStep["status"]; running: boolean 
     : <CircleDot size={14} aria-hidden="true" />;
 }
 
-// The agent's steps as a segmented bar and a list. The latest step summary sits under the active
-// step, so the card shows both where the task is and what the agent is doing right now.
+// The agent's steps as a segmented bar and a list. The active step shows its note and the latest
+// step summary, so the card shows both where the task is and what the agent is doing right now.
+// Notes on other steps stay in the progress tool call, which the card opens.
 export function ActivityProgressSteps(props: {
   steps: TaskProgressStep[];
   detail: string | null;
@@ -29,6 +30,9 @@ export function ActivityProgressSteps(props: {
             <StepIcon status={step.status} running={props.running} />
             <span className="tool-activity-progress-step-text">
               <span className="tool-activity-progress-step-title">{step.title}</span>
+              {step.status === "active" && step.note ? (
+                <span className="tool-activity-progress-step-note">{step.note}</span>
+              ) : null}
               {step.status === "active" && props.detail ? (
                 <span className={`tool-activity-progress-step-detail${props.running ? " running" : ""}`}>{props.detail}</span>
               ) : null}

@@ -1,4 +1,4 @@
-import type { ConversationNavigation, ConversationSnapshot, TaskEventType, TaskStatus } from "@meowbert/shared";
+import type { ConversationNavigation, ConversationSnapshot, TaskEventType, TaskProgress, TaskStatus } from "@meowbert/shared";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { RunBootstrap } from "./run-bootstrap.js";
 import type { PlatformToolHost } from "./platform-tools.js";
@@ -20,6 +20,9 @@ export interface RunControl {
   isDebugEnabled(): Promise<boolean>;
   loadConversationNavigation(leafMessageId: string | null): Promise<ConversationNavigation>;
   setGeneratedTitle(title: string): Promise<void>;
+  // The task's current update_progress plan, kept across runs.
+  loadTaskProgress(): Promise<TaskProgress | null>;
+  saveTaskProgress(progress: TaskProgress | null): Promise<void>;
   recordToolCallStart(input: RunToolCallStart): Promise<void>;
   recordToolCallResult(input: RunToolCallResult): Promise<void>;
   // Clears calls an earlier run left unfinished once the agent has been told about them.

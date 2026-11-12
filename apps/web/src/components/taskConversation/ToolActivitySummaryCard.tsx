@@ -86,6 +86,7 @@ export function ToolActivitySummaryCard(props: ToolActivitySummaryCardProps): JS
         ) : (
           <CountTitle title={title} count={count} running={badgeTone === "running"} secondaryLabel={secondaryLabel} />
         )}
+        {showTitle && progress?.status ? <span className="tool-activity-card-status">{progress.status}</span> : null}
         {hasPlan
           ? <ActivityProgressSteps steps={progress.steps} detail={steps[steps.length - 1] ?? null} running={running} />
           : <ActivityStepTrail steps={steps} running={running} />}

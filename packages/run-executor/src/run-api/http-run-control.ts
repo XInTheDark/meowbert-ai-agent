@@ -78,6 +78,10 @@ export function createHttpRunControl(client: RunApiClient, options: HttpRunContr
     setGeneratedTitle: async (title) => {
       await call("control.setGeneratedTitle", [title]);
     },
+    loadTaskProgress: () => call("control.loadTaskProgress") as ReturnType<RunControl["loadTaskProgress"]>,
+    saveTaskProgress: async (progress) => {
+      await call("control.saveTaskProgress", [progress]);
+    },
     recordToolCallStart: async (input) => {
       await call("control.recordToolCallStart", [input]);
     },

@@ -194,7 +194,7 @@ function withActivityTurnState(entries: ConversationDisplayEntry[]): Conversatio
   let turnState = EMPTY_ACTIVITY_TURN_STATE;
   return entries.map((entry) => {
     if (entry.kind === "message" && entry.message.role === "user") {
-      turnState = EMPTY_ACTIVITY_TURN_STATE;
+      turnState = { ...EMPTY_ACTIVITY_TURN_STATE, progress: turnState.progress };
     } else if (entry.kind === "activity") {
       turnState = advanceActivityTurnState(turnState, entry.toolGroup);
       return { ...entry, turnState };

@@ -47,7 +47,7 @@ describe("selectTaskMessageMetadataContent", () => {
     })).toEqual({
       tool: "update_progress",
       summary: "Checking the style guide",
-      progress: { goal: "Build the handout", steps: [{ title: "Read guides", status: "done" }] },
+      progress: { goal: "Build the handout", status: null, steps: [{ title: "Read guides", status: "done", note: null }] },
       artifact_paths: ["handout.pdf"],
       removed_artifact_paths: ["draft.pdf"]
     });

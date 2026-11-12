@@ -61,7 +61,7 @@ export function buildExecTool(nestedTools: FunctionTool[], maxTimeoutSeconds: nu
         },
         summary: {
           type: ["string", "null"],
-          description: "One short line the user sees about what this step does, e.g. \"Checking which tests fail\". Use null when the step is routine or no different from the last one."
+          description: "One short line the user sees when you move on to a different kind of work, e.g. \"Checking which tests fail\". The last line stays shown until you set a new one, so use null for follow-ups to the same work, such as a fix, a retry or a small edit."
         }
       },
       required: ["code", "timeout_seconds", "summary"],

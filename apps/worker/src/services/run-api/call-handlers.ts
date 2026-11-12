@@ -31,6 +31,8 @@ export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartb
   "control.selectBranch": controlCall("selectBranch"),
   "control.emitEvent": controlCall("emitEvent"),
   "control.setGeneratedTitle": controlCall("setGeneratedTitle"),
+  "control.loadTaskProgress": controlCall("loadTaskProgress"),
+  "control.saveTaskProgress": controlCall("saveTaskProgress"),
   "control.recordToolCallStart": controlCall("recordToolCallStart"),
   "control.recordToolCallResult": controlCall("recordToolCallResult"),
   "control.resolveInterruptedToolCalls": controlCall("resolveInterruptedToolCalls"),

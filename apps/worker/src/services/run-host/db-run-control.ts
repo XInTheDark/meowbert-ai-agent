@@ -1,5 +1,5 @@
 import { readTaskPayloads } from "../tasks/task-history-reader.js";
-import { loadConversationNavigation, type TaskExecutionJob } from "@meowbert/shared";
+import { loadConversationNavigation, normalizeTaskProgress, type TaskExecutionJob, type TaskProgress } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import {
   appendMessage,
@@ -50,6 +50,15 @@ async function setGeneratedTaskTitle(taskId: string, title: string): Promise<voi
         )`,
     [taskId, title]
   );
+}
+
+async function loadTaskProgress(taskId: string): Promise<TaskProgress | null> {
+  const result = await query<{ progress_json: unknown }>("SELECT progress_json FROM tasks WHERE id = $1", [taskId]);
+  return normalizeTaskProgress(result.rows[0]?.progress_json);
+}
+
+async function saveTaskProgress(taskId: string, progress: TaskProgress | null): Promise<void> {
+  await query("UPDATE tasks SET progress_json = $2::jsonb WHERE id = $1", [taskId, progress ? JSON.stringify(progress) : null]);
 }
 
 // Bootstrapping resolves the model route, which can take a while; a cancellation meanwhile aborts it.
@@ -116,6 +125,8 @@ export function createDbRunControl(
     isDebugEnabled: () => isTaskDebugModeEnabled(),
     loadConversationNavigation: (leafMessageId) => loadConversationNavigation({ query, readPayloads: readTaskPayloads }, taskId, leafMessageId),
     setGeneratedTitle: (title) => setGeneratedTaskTitle(taskId, title),
+    loadTaskProgress: () => loadTaskProgress(taskId),
+    saveTaskProgress: (progress) => saveTaskProgress(taskId, normalizeTaskProgress(progress)),
     recordToolCallStart: (call) => recordToolCallStarted(taskId, runId, call),
     recordToolCallResult: ({ callId }) => recordToolCallFinished(runId, callId),
     resolveInterruptedToolCalls: (callIds) => clearInterruptedToolCalls(taskId, callIds),

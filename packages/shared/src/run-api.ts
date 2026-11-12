@@ -22,6 +22,7 @@ export const RUN_API_READ_METHODS = [
   "control.readCancellation",
   "control.isDebugEnabled",
   "control.loadConversationNavigation",
+  "control.loadTaskProgress",
   "control.heartbeat",
   "context.loadWindowItems",
   "context.loadLastCallNumber",
@@ -55,6 +56,7 @@ export const RUN_API_READ_METHODS = [
 // response was lost is never applied twice.
 export const RUN_API_WRITE_METHODS = [
   "control.setTaskStatus",
+  "control.saveTaskProgress",
   "control.consumeCommandInterrupt",
   "control.appendMessage",
   "control.selectBranch",
