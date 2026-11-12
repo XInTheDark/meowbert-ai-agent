@@ -31,6 +31,6 @@ export interface LiveSyncFileVersionContent {
   modifiedAt: string | null;
   sizeBytes: number;
   contentBase64: string;
-  // Set when saving the version left something behind in Drive the user may want to undo.
+  // Set when saving the version changed something lasting in Drive, such as marking it "Keep forever".
   warning: string | null;
 }

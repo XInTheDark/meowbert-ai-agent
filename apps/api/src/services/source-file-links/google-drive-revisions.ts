@@ -10,7 +10,7 @@ import { getGoogleWorkspaceExport, isGoogleWorkspaceMimeType } from "../sources/
 import { fetchGoogleDriveWithRetry, throwGoogleDriveHttpError } from "./google-drive-remote.js";
 import type { GoogleDriveFileReference } from "./google-drive-file-lookup.js";
 import type { DriveRequestContext } from "./google-drive-folder-query.js";
-import { isUnpinnedDownloadRefusal, withTemporaryKeepForever } from "./google-drive-revision-pin.js";
+import { KEPT_FOREVER_NOTE, isUnpinnedDownloadRefusal, markRevisionKeepForever } from "./google-drive-revision-pin.js";
 import { SourceFileLinkActionError, SourceFileLinkProviderError } from "./provider-errors.js";
 import { isPlainObject, parseResponsePayload } from "./remote-http-utils.js";
 
@@ -220,6 +220,12 @@ async function downloadBinaryRevision(
   } catch (error) {
     if (revision.keepForever === true || !isUnpinnedDownloadRefusal(error)) throw error;
   }
-  const { value, warning } = await withTemporaryKeepForever(context, { fileId: file.fileId, revisionId: versionId }, download);
-  return { ...described, content: value, warning };
+  await markRevisionKeepForever(context, { fileId: file.fileId, revisionId: versionId });
+  try {
+    return { ...described, content: await download(), warning: KEPT_FOREVER_NOTE };
+  } catch (error) {
+    // The mark stays either way, so the caller has to hear about it even when the download fails.
+    const message = error instanceof Error ? error.message : String(error);
+    throw new SourceFileLinkActionError(`${message} Version ${versionId} was marked "Keep forever" in Google Drive to allow the download and stays marked.`);
+  }
 }

@@ -13,43 +13,19 @@ export function isUnpinnedDownloadRefusal(error: unknown): boolean {
     && !/rate limit/i.test(error.message);
 }
 
-async function setKeepForever(context: DriveRequestContext, input: { fileId: string; revisionId: string; keepForever: boolean }): Promise<void> {
+export const KEPT_FOREVER_NOTE = "Google Drive only allowed this download after the version was marked \"Keep forever\", so Drive now keeps it for good and counts it toward the owner's storage.";
+
+// Drive documents Keep Forever as lasting: a kept version can only be downloaded or deleted afterwards,
+// so this is a deliberate, persistent change and is never undone automatically.
+export async function markRevisionKeepForever(context: DriveRequestContext, input: { fileId: string; revisionId: string }): Promise<void> {
   const url = `${GOOGLE_DRIVE_API_BASE_URL}/files/${encodeURIComponent(input.fileId)}/revisions/${encodeURIComponent(input.revisionId)}?fields=id`;
   const { response, payload } = await fetchGoogleDriveWithRetry({
     execute: () => fetch(url, {
       method: "PATCH",
       headers: buildSourceBearerHeaders(context.accessToken, { ...context.headers, "content-type": "application/json" }),
-      body: JSON.stringify({ keepForever: input.keepForever })
+      body: JSON.stringify({ keepForever: true })
     }),
     maxAttempts: 3
   });
-  if (!response.ok) {
-    throwGoogleDriveHttpError(input.keepForever ? "Google Drive could not pin that version" : "Google Drive could not unpin that version", payload, response.status);
-  }
-}
-
-// Pins the version for one download and removes the pin afterwards. If the pin can't be removed,
-// the download still succeeds and the warning says so, since the copy is already in hand.
-export async function withTemporaryKeepForever<T>(
-  context: DriveRequestContext,
-  input: { fileId: string; revisionId: string },
-  run: () => Promise<T>
-): Promise<{ value: T; warning: string | null }> {
-  await setKeepForever(context, { ...input, keepForever: true });
-  let value: T;
-  try {
-    value = await run();
-  } catch (error) {
-    await setKeepForever(context, { ...input, keepForever: false }).catch(() => undefined);
-    throw error;
-  }
-  try {
-    await setKeepForever(context, { ...input, keepForever: false });
-    return { value, warning: null };
-  } catch {
-    return {
-      value,
-      warning: "Google Drive needed this version marked \"Keep forever\" to download it, and the mark couldn't be removed afterwards. Remove it in the file's version history in Google Drive if it isn't wanted."
-    };
-  }
+  if (!response.ok) throwGoogleDriveHttpError("Google Drive could not mark that version \"Keep forever\"", payload, response.status);
 }

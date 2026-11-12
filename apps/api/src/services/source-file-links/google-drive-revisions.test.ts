@@ -71,53 +71,54 @@ describe("downloadGoogleDriveFileRevision", () => {
     expect(calls).toContain("GET https://www.googleapis.com/drive/v3/files/file-1/revisions/r1?alt=media");
   });
 
-  // Drive stand-in that only serves a binary version's bytes while it is pinned.
-  function installPinningDrive(input: { pinnedAtStart: boolean; unpinFails?: boolean }) {
-    let pinned = input.pinnedAtStart;
+  // Drive stand-in that only serves a binary version's bytes once it is kept forever, and, like Drive,
+  // treats that mark as lasting: a request to clear it is rejected.
+  function installKeepForeverDrive(input: { keptAtStart: boolean; failDownloadAfterKeep?: boolean }) {
+    let kept = input.keptAtStart;
     const calls = installRoutes((url, init) => {
       if (url.pathname.endsWith("/revisions/r1") && init?.method === "PATCH") {
         const { keepForever } = JSON.parse(String(init.body)) as { keepForever: boolean };
-        if (!keepForever && input.unpinFails) return json({ error: { message: "Backend error" } }, 400);
-        pinned = keepForever;
+        if (!keepForever && kept) return json({ error: { message: "A kept revision can only be downloaded or deleted." } }, 400);
+        kept = keepForever;
         return json({ id: "r1" });
       }
       if (url.searchParams.get("alt") === "media") {
-        return pinned ? new Response("old bytes") : json({ error: { message: "Only revisions marked keepForever can be downloaded." } }, 403);
+        if (!kept) return json({ error: { message: "Only revisions marked keepForever can be downloaded." } }, 403);
+        return input.failDownloadAfterKeep ? json({ error: { message: "Backend error" } }, 500) : new Response("old bytes");
       }
-      if (url.pathname.endsWith("/revisions/r1")) return json({ id: "r1", size: "9", keepForever: input.pinnedAtStart });
+      if (url.pathname.endsWith("/revisions/r1")) return json({ id: "r1", size: "9", keepForever: input.keptAtStart });
       return undefined;
     });
-    return { calls, isPinned: () => pinned };
+    return { calls, isKept: () => kept };
   }
 
   const pdf = { fileId: "file-1", name: "notes.pdf", mimeType: "application/pdf" };
 
-  it("pins a refused unpinned version just for the download, then removes the pin", async () => {
-    const drive = installPinningDrive({ pinnedAtStart: false });
-    const result = await downloadGoogleDriveFileRevision(context, { file: pdf, versionId: "r1" });
-    expect(Buffer.from(result.contentBase64, "base64").toString()).toBe("old bytes");
-    expect(result.warning).toBeNull();
-    expect(drive.isPinned()).toBe(false);
-    expect(drive.calls.filter((call) => call.startsWith("PATCH") || call.includes("alt=media"))).toEqual([
-      "GET https://www.googleapis.com/drive/v3/files/file-1/revisions/r1?alt=media",
-      "PATCH https://www.googleapis.com/drive/v3/files/file-1/revisions/r1",
-      "GET https://www.googleapis.com/drive/v3/files/file-1/revisions/r1?alt=media",
-      "PATCH https://www.googleapis.com/drive/v3/files/file-1/revisions/r1"
-    ]);
-  });
-
-  it("never changes a version the user already pinned", async () => {
-    const drive = installPinningDrive({ pinnedAtStart: true });
-    await downloadGoogleDriveFileRevision(context, { file: pdf, versionId: "r1" });
-    expect(drive.calls.some((call) => call.startsWith("PATCH"))).toBe(false);
-    expect(drive.isPinned()).toBe(true);
-  });
-
-  it("still returns the copy, with a warning, when the pin can't be removed", async () => {
-    installPinningDrive({ pinnedAtStart: false, unpinFails: true });
+  it("marks a refused version Keep forever, downloads it, and says the mark stays", async () => {
+    const drive = installKeepForeverDrive({ keptAtStart: false });
     const result = await downloadGoogleDriveFileRevision(context, { file: pdf, versionId: "r1" });
     expect(Buffer.from(result.contentBase64, "base64").toString()).toBe("old bytes");
     expect(result.warning).toMatch(/Keep forever/);
+    expect(drive.isKept()).toBe(true);
+    expect(drive.calls.filter((call) => call.startsWith("PATCH") || call.includes("alt=media"))).toEqual([
+      "GET https://www.googleapis.com/drive/v3/files/file-1/revisions/r1?alt=media",
+      "PATCH https://www.googleapis.com/drive/v3/files/file-1/revisions/r1",
+      "GET https://www.googleapis.com/drive/v3/files/file-1/revisions/r1?alt=media"
+    ]);
+  });
+
+  it("downloads an already kept version without changing it", async () => {
+    const drive = installKeepForeverDrive({ keptAtStart: true });
+    const result = await downloadGoogleDriveFileRevision(context, { file: pdf, versionId: "r1" });
+    expect(result.warning).toBeNull();
+    expect(drive.calls.some((call) => call.startsWith("PATCH"))).toBe(false);
+  });
+
+  it("reports the lasting mark when the download fails after marking", async () => {
+    const drive = installKeepForeverDrive({ keptAtStart: false, failDownloadAfterKeep: true });
+    await expect(downloadGoogleDriveFileRevision(context, { file: pdf, versionId: "r1" }))
+      .rejects.toThrow(/Version r1 was marked "Keep forever".*stays marked/);
+    expect(drive.isKept()).toBe(true);
   });
 
   it("exports a Google Doc revision through its export link as an Office file", async () => {
