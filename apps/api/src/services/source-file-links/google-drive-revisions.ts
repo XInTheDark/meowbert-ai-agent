@@ -10,6 +10,7 @@ import { getGoogleWorkspaceExport, isGoogleWorkspaceMimeType } from "../sources/
 import { fetchGoogleDriveWithRetry, throwGoogleDriveHttpError } from "./google-drive-remote.js";
 import type { GoogleDriveFileReference } from "./google-drive-file-lookup.js";
 import type { DriveRequestContext } from "./google-drive-folder-query.js";
+import { isUnpinnedDownloadRefusal, withTemporaryKeepForever } from "./google-drive-revision-pin.js";
 import { SourceFileLinkActionError, SourceFileLinkProviderError } from "./provider-errors.js";
 import { isPlainObject, parseResponsePayload } from "./remote-http-utils.js";
 
@@ -182,19 +183,12 @@ export async function downloadGoogleDriveFileRevision(context: DriveRequestConte
   versionId: string;
 }): Promise<LiveSyncFileVersionContent> {
   const metadataUrl = revisionUrl(input.file.fileId, input.versionId);
-  metadataUrl.searchParams.set("fields", "id,mimeType,modifiedTime,size,exportLinks");
+  metadataUrl.searchParams.set("fields", "id,mimeType,modifiedTime,size,keepForever,exportLinks");
   const revision = await getDriveJson(context, metadataUrl, "Google Drive version lookup failed", "Google Drive has no version with that id for this file. It may have been purged.") as DriveRevision;
 
-  let downloaded: { content: Buffer; fileName: string; mimeType: string | null };
-  if (isGoogleWorkspaceMimeType(input.file.mimeType)) {
-    downloaded = await downloadWorkspaceRevision(context, input.file, revision);
-  } else {
-    const size = parseSize(revision.size);
-    if (size !== null && size > LIVE_SYNC_FILE_VERSION_MAX_BYTES) throw tooLargeError();
-    const mediaUrl = revisionUrl(input.file.fileId, input.versionId);
-    mediaUrl.searchParams.set("alt", "media");
-    downloaded = { content: await fetchContent(context, mediaUrl.toString()), fileName: input.file.name, mimeType: revision.mimeType ?? input.file.mimeType };
-  }
+  const downloaded = isGoogleWorkspaceMimeType(input.file.mimeType)
+    ? { ...await downloadWorkspaceRevision(context, input.file, revision), warning: null }
+    : await downloadBinaryRevision(context, input.file, revision, input.versionId);
 
   return {
     versionId: input.versionId,
@@ -202,6 +196,30 @@ export async function downloadGoogleDriveFileRevision(context: DriveRequestConte
     mimeType: downloaded.mimeType,
     modifiedAt: revision.modifiedTime ?? null,
     sizeBytes: downloaded.content.byteLength,
-    contentBase64: downloaded.content.toString("base64")
+    contentBase64: downloaded.content.toString("base64"),
+    warning: downloaded.warning
   };
+}
+
+// Tries the plain download first, so a version is only pinned when Google actually refuses it.
+async function downloadBinaryRevision(
+  context: DriveRequestContext,
+  file: GoogleDriveFileReference,
+  revision: DriveRevision,
+  versionId: string
+): Promise<{ content: Buffer; fileName: string; mimeType: string | null; warning: string | null }> {
+  const size = parseSize(revision.size);
+  if (size !== null && size > LIVE_SYNC_FILE_VERSION_MAX_BYTES) throw tooLargeError();
+  const mediaUrl = revisionUrl(file.fileId, versionId);
+  mediaUrl.searchParams.set("alt", "media");
+  const download = () => fetchContent(context, mediaUrl.toString());
+  const described = { fileName: file.name, mimeType: revision.mimeType ?? file.mimeType };
+
+  try {
+    return { ...described, content: await download(), warning: null };
+  } catch (error) {
+    if (revision.keepForever === true || !isUnpinnedDownloadRefusal(error)) throw error;
+  }
+  const { value, warning } = await withTemporaryKeepForever(context, { fileId: file.fileId, revisionId: versionId }, download);
+  return { ...described, content: value, warning };
 }

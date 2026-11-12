@@ -71,6 +71,55 @@ describe("downloadGoogleDriveFileRevision", () => {
     expect(calls).toContain("GET https://www.googleapis.com/drive/v3/files/file-1/revisions/r1?alt=media");
   });
 
+  // Drive stand-in that only serves a binary version's bytes while it is pinned.
+  function installPinningDrive(input: { pinnedAtStart: boolean; unpinFails?: boolean }) {
+    let pinned = input.pinnedAtStart;
+    const calls = installRoutes((url, init) => {
+      if (url.pathname.endsWith("/revisions/r1") && init?.method === "PATCH") {
+        const { keepForever } = JSON.parse(String(init.body)) as { keepForever: boolean };
+        if (!keepForever && input.unpinFails) return json({ error: { message: "Backend error" } }, 400);
+        pinned = keepForever;
+        return json({ id: "r1" });
+      }
+      if (url.searchParams.get("alt") === "media") {
+        return pinned ? new Response("old bytes") : json({ error: { message: "Only revisions marked keepForever can be downloaded." } }, 403);
+      }
+      if (url.pathname.endsWith("/revisions/r1")) return json({ id: "r1", size: "9", keepForever: input.pinnedAtStart });
+      return undefined;
+    });
+    return { calls, isPinned: () => pinned };
+  }
+
+  const pdf = { fileId: "file-1", name: "notes.pdf", mimeType: "application/pdf" };
+
+  it("pins a refused unpinned version just for the download, then removes the pin", async () => {
+    const drive = installPinningDrive({ pinnedAtStart: false });
+    const result = await downloadGoogleDriveFileRevision(context, { file: pdf, versionId: "r1" });
+    expect(Buffer.from(result.contentBase64, "base64").toString()).toBe("old bytes");
+    expect(result.warning).toBeNull();
+    expect(drive.isPinned()).toBe(false);
+    expect(drive.calls.filter((call) => call.startsWith("PATCH") || call.includes("alt=media"))).toEqual([
+      "GET https://www.googleapis.com/drive/v3/files/file-1/revisions/r1?alt=media",
+      "PATCH https://www.googleapis.com/drive/v3/files/file-1/revisions/r1",
+      "GET https://www.googleapis.com/drive/v3/files/file-1/revisions/r1?alt=media",
+      "PATCH https://www.googleapis.com/drive/v3/files/file-1/revisions/r1"
+    ]);
+  });
+
+  it("never changes a version the user already pinned", async () => {
+    const drive = installPinningDrive({ pinnedAtStart: true });
+    await downloadGoogleDriveFileRevision(context, { file: pdf, versionId: "r1" });
+    expect(drive.calls.some((call) => call.startsWith("PATCH"))).toBe(false);
+    expect(drive.isPinned()).toBe(true);
+  });
+
+  it("still returns the copy, with a warning, when the pin can't be removed", async () => {
+    installPinningDrive({ pinnedAtStart: false, unpinFails: true });
+    const result = await downloadGoogleDriveFileRevision(context, { file: pdf, versionId: "r1" });
+    expect(Buffer.from(result.contentBase64, "base64").toString()).toBe("old bytes");
+    expect(result.warning).toMatch(/Keep forever/);
+  });
+
   it("exports a Google Doc revision through its export link as an Office file", async () => {
     const calls = installRoutes((url) => {
       if (url.hostname === "docs.example.test") return new Response("docx bytes");
