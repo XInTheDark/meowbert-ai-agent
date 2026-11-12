@@ -19,7 +19,8 @@ vi.mock("../agent-db/index.js", () => ({
 vi.mock("../runtime/events.js", () => ({
   emitTaskEvent: vi.fn(async () => {})
 }));
-vi.mock("@meowbert/run-executor/runtime/shell", () => ({
+vi.mock("@meowbert/run-executor/runtime/shell", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@meowbert/run-executor/runtime/shell")>(),
   executeShellCommand: vi.fn(async (input: { command: string }) => ({
     command: input.command,
     stdout: input.command === "ls" ? "notes.txt\n" : `ran ${input.command}\n`,
