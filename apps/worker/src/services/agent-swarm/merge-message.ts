@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import type { AgentSwarmSettings } from "@meowbert/shared";
+import { REVIEW_PRIORITIES, type AgentSwarmSettings } from "@meowbert/shared";
 import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { appendRunInboxItems } from "../agent/run-inbox.js";
 import type { SwarmRunContext } from "./config.js";
@@ -33,7 +33,9 @@ function formatDecisions(result: SwarmLaneResult | null): string | null {
 function formatFindings(result: SwarmLaneResult | null): string {
   const findings = result?.findings ?? [];
   if (findings.length === 0) return "No findings.";
-  return findings.map((finding) => `- [${finding.severity}] ${finding.location}: ${finding.issue}`).join("\n");
+  const rank = (finding: typeof findings[number]) => finding.priority ? REVIEW_PRIORITIES.indexOf(finding.priority) : REVIEW_PRIORITIES.length;
+  return [...findings].sort((left, right) => rank(left) - rank(right))
+    .map((finding) => `- [${finding.priority ?? finding.severity}] ${finding.location}: ${finding.issue}`).join("\n");
 }
 
 function section(heading: string, lines: Array<string | null>): string {
@@ -70,7 +72,8 @@ function formatDivergedAnswers(lanes: MergedLane[], budgetsEnabled: boolean, ran
 function formatCheckLane(lane: MergedLane): string {
   return section(`## Check findings (${lane.status})`, [
     lane.result_json?.summary?.trim() || null,
-    formatFindings(lane.result_json)
+    formatFindings(lane.result_json),
+    formatFiles(lane.result_json)
   ]);
 }
 

@@ -111,6 +111,7 @@ export const dbSwarmBackend: SwarmBackend = {
     return { userMessages, spinePath };
   },
   startCheckLane: (run, input) => createCheckLane({
+    reviewEffort: input.reviewEffort,
     swarm: run.swarm,
     parentTaskId: run.taskId,
     seed: { capabilities: input.capabilities },

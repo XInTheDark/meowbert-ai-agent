@@ -20,7 +20,8 @@ export function SwarmLaneSidebar(props: SwarmLaneSidebarProps) {
         <div className="thread-sidebar-header-main">
           <div className="thread-sidebar-header-text">
             <div className="thread-sidebar-title-row"><strong>{lane.title}</strong></div>
-            <span>{[LANE_KIND_LABELS[lane.kind], lane.model].filter(Boolean).join(" · ")}</span>
+            <span>{[LANE_KIND_LABELS[lane.kind], lane.kind === "check" ? `${lane.reviewEffort === "thorough" ? "Thorough" : "Standard"} review` : null,
+              lane.model].filter(Boolean).join(" · ")}</span>
           </div>
         </div>
         <div className="thread-sidebar-header-actions">

@@ -9,6 +9,33 @@ vi.mock("node:path", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:path")>();
   return { ...actual, default: { ...actual.default, resolve: actual.win32.resolve } };
 });
+
+describe("submitted review findings", () => {
+  it.each([
+    { priority: "P1", location: "Slide 4", issue: "Labels are unreadable." },
+    { severity: "must_fix", location: "Slide 4", issue: "Labels are unreadable." }
+  ])("preserves findings from current and snapshotted tools: %j", async (finding) => {
+    const state = {} as ToolDispatchState;
+    const ctx = { taskDir: "/lane", swarm: { run: {
+      settings: normalizeAgentSwarmSettings({}), lane: { depth: 1, kind: "check" }
+    } } } as ToolDispatchContext;
+    const reply = await handleSubmit({ arguments: JSON.stringify({
+      summary: "One problem.", decisions: null, findings: [finding], files: []
+    }) } as never, ctx, state);
+    expect(reply).toEqual({ output: { submitted: true } });
+    expect(state.swarmSubmit?.findings).toEqual([finding]);
+  });
+
+  it("does not complete a lane with an invalid priority", async () => {
+    const state = {} as ToolDispatchState;
+    const ctx = { swarm: { run: { settings: normalizeAgentSwarmSettings({}), lane: { kind: "check" } } } } as ToolDispatchContext;
+    const reply = await handleSubmit({ arguments: JSON.stringify({
+      summary: "Problem.", decisions: null, findings: [{ priority: "P4", location: "Slide 4", issue: "Overlap." }], files: []
+    }) } as never, ctx, state);
+    expect(reply).toHaveProperty("output.error");
+    expect(state.swarmSubmit).toBeUndefined();
+  });
+});
 vi.mock("@meowbert/shared/docker-sandbox", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@meowbert/shared/docker-sandbox")>();
   return { ...actual, fromSandboxPath: (value: string) => actual.fromSandboxPath(value, "win32") };

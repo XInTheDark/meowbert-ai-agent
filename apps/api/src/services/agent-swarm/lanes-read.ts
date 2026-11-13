@@ -1,5 +1,6 @@
 import {
   normalizeAgentSwarmSettings,
+  normalizeReviewEffort,
   type AgentSwarmLaneView,
   type AgentSwarmNoteView,
   type AgentSwarmView
@@ -16,6 +17,7 @@ interface LaneRow {
   kind: AgentSwarmLaneView["kind"];
   title: string;
   direction: string | null;
+  review_effort: unknown;
   status: AgentSwarmLaneView["status"];
   model: string | null;
   steps: number;
@@ -45,6 +47,7 @@ function toLaneView(row: LaneRow, dormantLaneTurns: number): AgentSwarmLaneView 
     kind: row.kind,
     title: row.title,
     direction: row.direction,
+    reviewEffort: row.kind === "check" ? normalizeReviewEffort(row.review_effort) : null,
     status: row.status,
     model: row.model,
     steps: row.steps,
@@ -71,6 +74,7 @@ export async function loadAgentSwarmView(swarmTaskId: string): Promise<AgentSwar
   const lanes = await query<LaneRow>(
     `SELECT lane.task_id, lane.parent_task_id, lane.fork_seed_id, lane.depth, lane.kind, lane.title, lane.direction, lane.status,
             COALESCE(lane.model_route_json ->> 'modelId', seed.capabilities_json -> 'runtime' ->> 'model') AS model,
+            seed.capabilities_json ->> 'checkReviewEffort' AS review_effort,
             lane.steps, lane.spent_tokens::text AS spent_tokens, lane.check_findings,
             lane.result_json ->> 'summary' AS summary,
             (SELECT note.content FROM task_swarm_notes note

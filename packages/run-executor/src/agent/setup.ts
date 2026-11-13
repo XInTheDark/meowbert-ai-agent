@@ -373,7 +373,7 @@ async function buildRunPromptEnvelope(input: {
   if (prepared.isProjectMaster) appendPromptEnvelopeDelta(promptEnvelope, { reason: "project-master", content: buildProjectMasterPrompt() });
   const workflowPrompt = input.workflow.workflowPromptContext;
   const guide = input.swarm
-    ? input.swarm.lane?.kind === "check" ? loadCheckPrompt() : loadSwarmGuide()
+    ? input.swarm.lane?.kind === "check" ? loadCheckPrompt(input.swarm.lane.review_effort ?? "standard") : loadSwarmGuide()
     : workflowPrompt?.guide;
   if (guide) {
     appendPromptEnvelopeDelta(promptEnvelope, { reason: "workflow-guide", role: "developer", content: guide });

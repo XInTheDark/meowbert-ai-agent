@@ -1,6 +1,8 @@
 // What the task page shows of an Agent Swarm: its lanes as a tree, their latest notes, and the
 // swarm's totals. Lanes are tasks too, so each one opens with the normal task view.
 
+import type { ReviewEffort } from "./review.js";
+
 export type AgentSwarmLaneKind = "split" | "diverge" | "check";
 export type AgentSwarmLaneStatus = "queued" | "running" | "waiting" | "done" | "failed" | "stopped" | "expired";
 
@@ -13,6 +15,7 @@ export interface AgentSwarmLaneView {
   kind: AgentSwarmLaneKind;
   title: string;
   direction: string | null;
+  reviewEffort?: ReviewEffort | null;
   status: AgentSwarmLaneStatus;
   model: string | null;
   steps: number;

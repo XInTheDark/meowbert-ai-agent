@@ -126,6 +126,28 @@ Some examples:
 
 Small models make weaker leaders. Use a swarm whose leader runs on a strong model.
 
+### Check review effort
+
+A Check lane reviews the draft and its files with fresh context. The leader can choose between two review levels:
+
+| Level | What it checks |
+| --- | --- |
+| **Standard** | Correctness, missing requirements, contradictions, factual accuracy, readability, and writing rules. This is also the level used for automatic checks. |
+| **Thorough** | The same review criteria as Quality control, including rendered files, visual quality, audience suitability, and matters of taste. |
+
+Ask the leader for a thorough check when presentation matters, for example: "Before sending the report, run a thorough check of the writing and rendered pages." The agent chooses the level when it starts the Check lane; the lane's side panel shows **Standard review** or **Thorough review**. Review effort is separate from model reasoning effort and the swarm's delegation Effort setting.
+
+Review findings have priorities, ordered from highest to lowest:
+
+| Priority | Meaning |
+| --- | --- |
+| **P0 — Critical** | An exceptional issue requiring immediate attention because it risks severe consequences. |
+| **P1 — High** | A major correctness, usability, or requirement failure that needs correction before delivery. |
+| **P2 — Normal** | A concrete issue that materially reduces accuracy, completeness, clarity, or quality. |
+| **P3 — Low** | A smaller, actionable improvement with limited impact. |
+
+Both Check levels report findings for the leader to address. A Thorough Check uses Quality control's review criteria, while the separate Quality control workflow retains its approval and revision process. Older Check results may still show `must_fix` or `should_fix` labels.
+
 ### Talking to the swarm while it works
 
 The leader stays available while lanes work. Send a message at any time: the leader can tell you how far each lane has got, steer a lane, stop one, or start more.

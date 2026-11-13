@@ -1,5 +1,5 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import type { ChosenModelRoute, PlatformModelRouter, TaskExecutionJob } from "@meowbert/shared";
+import type { ChosenModelRoute, PlatformModelRouter, ReviewEffort, TaskExecutionJob } from "@meowbert/shared";
 import type { TaskRow } from "../agent/types.js";
 import type { SwarmBudgetState } from "./budget.js";
 import type { ForkSeed, ForkSeedCapabilities } from "./fork-types.js";
@@ -69,6 +69,7 @@ export interface SwarmBackend {
   loadAutoCheckFiles(run: SwarmRunRef): Promise<string[] | null>;
   loadCheckInputs(run: SwarmRunRef, leafMessageId: string | null): Promise<{ userMessages: string[]; spinePath: string | null }>;
   startCheckLane(run: SwarmRunRef, input: {
+    reviewEffort?: ReviewEffort;
     laneTaskId: string;
     brief: string;
     capabilities: ForkSeedCapabilities;

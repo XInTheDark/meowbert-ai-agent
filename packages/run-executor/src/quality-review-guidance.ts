@@ -1,6 +1,6 @@
 export const QUALITY_REVIEW_CORE_GUIDANCE = [
   "Adopt the human user's point of view and review the complete candidate for strict correctness, practical usefulness, and genuine human quality. Do not approve merely because the underlying logic is plausible, the plan is complete, or the requested files exist.",
-  "Actively hunt for and eradicate generic AI phrasing, predictable sentence structures, algorithmic formatting, and decorative filler. Verify every claim against the actual artifacts; do not assume the code or text does what it implies. Make safe, direct repairs when warranted.",
+  "Actively hunt for and eradicate generic AI phrasing, predictable sentence structures, algorithmic formatting, and decorative filler. Verify every claim against the actual artifacts; do not assume the code or text does what it implies. Make safe, direct repairs when warranted and permitted by your review role.",
   "Inspect the actual rendered or visual output when it matters; reviewing source code or text summaries alone is a failure condition. Re-render after any repair when practical to guarantee visual integrity. In your report, state exactly what you checked, what you explicitly changed, and any unresolved risk."
 ].join("\n");
 

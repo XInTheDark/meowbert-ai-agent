@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { PoolClient } from "pg";
-import { createTaskMessageMetadata, resolveAgentSwarmSpawnLimits, type ChosenModelRoute } from "@meowbert/shared";
+import { createTaskMessageMetadata, normalizeReviewEffort, resolveAgentSwarmSpawnLimits, type ChosenModelRoute, type ReviewEffort } from "@meowbert/shared";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { withTransaction } from "../../lib/db.js";
 import type { SwarmRunContext } from "./config.js";
@@ -147,6 +147,7 @@ export async function createForkedLanes(input: {
 // A Check lane is a fresh task, never a fork: its brief is an ordinary first message and it goes
 // through normal run setup. Its seed carries no history, only the runtime it runs on.
 export async function createCheckLane(input: {
+  reviewEffort?: ReviewEffort;
   swarm: SwarmRunContext;
   parentTaskId: string;
   seed: Pick<ForkSeed, "capabilities">;
@@ -163,7 +164,7 @@ export async function createCheckLane(input: {
       envelope: { baseVersion: "check", baseFrames: [], deltas: [] },
       tools: { response: [], codeMode: [] },
       items: [],
-      capabilities: input.seed.capabilities,
+      capabilities: { ...input.seed.capabilities, checkReviewEffort: normalizeReviewEffort(input.reviewEffort) },
       swarmTaskId: swarm.swarmTaskId,
       sourceTaskId: input.parentTaskId
     });

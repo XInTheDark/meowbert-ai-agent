@@ -18,7 +18,9 @@ const LANE_COLUMNS = `task_id, swarm_task_id, parent_task_id, depth, kind, title
 
 export async function loadLane(client: SwarmQueryable, laneTaskId: string, options: { forUpdate?: boolean } = {}): Promise<SwarmLaneRow | null> {
   const result = await client.query<SwarmLaneRow>(
-    `SELECT ${LANE_COLUMNS} FROM task_swarm_lanes WHERE task_id = $1${options.forUpdate ? " FOR UPDATE" : ""}`,
+    `SELECT ${LANE_COLUMNS},
+       (SELECT capabilities_json ->> 'checkReviewEffort' FROM task_swarm_fork_seeds WHERE id = fork_seed_id) AS review_effort
+       FROM task_swarm_lanes WHERE task_id = $1${options.forUpdate ? " FOR UPDATE" : ""}`,
     [laneTaskId]
   );
   return result.rows[0] ?? null;

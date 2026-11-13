@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ReviewEffort } from "@meowbert/shared";
+import { buildQualityReviewPrompt } from "../quality-review-prompt.js";
+import { REVIEW_PRIORITY_GUIDANCE } from "../review-priority-guidance.js";
 import type { SwarmNote } from "./lane-types.js";
 
 // prompt-texts ships in the worker image next to apps/, the same way as the personality prompts.
@@ -23,8 +26,11 @@ export function loadSwarmGuide(): string {
 }
 
 // Check lanes are fresh reviewers, not forks, so they get their own prompt instead of the guide.
-export function loadCheckPrompt(): string {
-  return loadPrompt("check.md");
+export function loadCheckPrompt(effort: ReviewEffort = "standard"): string {
+  if (effort === "thorough") {
+    return [loadPrompt("check-thorough.md"), buildQualityReviewPrompt(null, false)].join("\n\n");
+  }
+  return [loadPrompt("check.md"), REVIEW_PRIORITY_GUIDANCE].join("\n\n");
 }
 
 // The lane's own result for the parent's split call; the only lane-specific text in a fork.

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { FunctionTool } from "openai/resources/responses/responses";
-import { CHOSEN_MODEL_ROUTE_EFFORTS, type PlatformModelRouter } from "@meowbert/shared";
+import { CHOSEN_MODEL_ROUTE_EFFORTS, REVIEW_EFFORT_LEVELS, REVIEW_PRIORITIES, reviewEffortSchema, reviewFindingSchema, type PlatformModelRouter } from "@meowbert/shared";
 
 // Every forked swarm agent, leader and lanes alike, is offered the same swarm tools so a fork's tools
 // array matches its parent's; who may call what is checked when the call is dispatched. Check lanes
@@ -62,6 +62,7 @@ export const checkArgumentsSchema = z.object({
   draft: z.string().trim().min(1),
   files: z.array(z.string().trim().min(1)),
   focus: z.string().trim().min(1).max(4_000).nullable(),
+  review_effort: reviewEffortSchema.nullish(),
   ...laneModel
 });
 
@@ -92,11 +93,7 @@ export const submitArgumentsSchema = z.object({
     reason: z.string().trim().min(1),
     would_change_if: z.string().trim().min(1)
   })).nullable(),
-  findings: z.array(z.object({
-    severity: z.enum(["must_fix", "should_fix"]),
-    location: z.string().trim().min(1),
-    issue: z.string().trim().min(1)
-  })).nullable(),
+  findings: z.array(reviewFindingSchema).nullable(),
   files: z.array(z.string().trim().min(1))
 });
 
@@ -169,6 +166,10 @@ function buildCheckTool(router: PlatformModelRouter | null): FunctionTool {
     draft: { type: "string", description: "The reply or deliverable as you would send it." },
     files: { type: "array", items: { type: "string" }, description: "Paths of the deliverable's files." },
     focus: { type: ["string", "null"], description: "Anything the reviewer should look at first; null for none." },
+    review_effort: {
+      type: ["string", "null"], enum: [...REVIEW_EFFORT_LEVELS, null],
+      description: "Review depth: standard checks correctness, requirements and writing; thorough uses Quality Control criteria, including rendered artifacts, visual quality and taste. Null uses standard. Independent of model reasoning effort."
+    },
     ...modelChoiceProperties(router)
   });
 }
@@ -208,7 +209,7 @@ const SUBMIT_TOOL = tool(SUBMIT_TOOL_NAME, "Lanes only. Finish your part and rep
     type: ["array", "null"],
     description: "Problems found, when you were asked to check a deliverable; otherwise null.",
     items: strictObject({
-      severity: { type: "string", enum: ["must_fix", "should_fix"] },
+      priority: { type: "string", enum: [...REVIEW_PRIORITIES], description: "P0 critical, P1 high, P2 normal, P3 low. Choose by impact on the user." },
       location: { type: "string" },
       issue: { type: "string" }
     })

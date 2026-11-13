@@ -416,6 +416,20 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     expect(await loadAutoCheckFiles(swarm.swarmTaskId)).toBeNull();
   });
 
+  it.each([undefined, "standard", "thorough"] as const)("persists %s Check effort across run-context reloads", async (reviewEffort) => {
+    const swarm = await createSwarm();
+    const check = await createCheckLane({
+      swarm, parentTaskId: swarm.swarmTaskId, seed: { capabilities: seedCapabilities }, reviewEffort,
+      focus: null, modelRoute: null, envRoot: "/env", buildBrief: () => "Review the draft."
+    });
+    const first = await laneContext(check.taskId);
+    expect(first.lane?.review_effort).toBe(reviewEffort ?? "standard");
+    const reloaded = await laneContext(check.taskId);
+    expect(reloaded.lane?.review_effort).toBe(first.lane?.review_effort);
+    expect(seedCapabilities).not.toHaveProperty("checkReviewEffort");
+    expect((await loadLane(pool, check.taskId))?.review_effort).toBe(reviewEffort ?? "standard");
+  });
+
   it.each(["done", "failed"] as const)("keeps a merged %s lane resumable for the configured user turns, then expires it", async (status) => {
     const swarm = await createSwarm({ dormantLaneTurns: 1 });
     const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");

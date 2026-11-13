@@ -416,7 +416,8 @@ Contents, as one inbox item:
 - The Check lane is a **fresh** task, never a fork. It receives: every message the user wrote in the conversation (current branch), the draft, the deliverable files, and the spine for split deliverables. It receives no assistant reasoning.
 - Model: the leader's router pick when a router is set (guidance: prefer a different model than the author); otherwise the root model.
 - Tools: the normal read and run tools of the task, write access limited to its own lane directory, and `submit`. No swarm tools.
-- Output: `submit` with `findings`, each `must_fix` or `should_fix` with a location and a description. For split deliverables, the Check prompt puts seams first.
+- Review effort: `check` accepts `review_effort: "standard" | "thorough" | null`. Null, missing historical arguments and automatic checks use Standard. Thorough shares the Quality Control criteria, including rendered artifacts and taste, with report-only authority. The chosen level is stored as `checkReviewEffort` in the lane seed's capabilities and reloaded for each run. There is no review effort selector.
+- Output: `submit` with `findings`, each with `priority` (`P0` critical, `P1` high, `P2` normal, `P3` low), a location and a description. For split deliverables, the Check prompt puts seams first. Merge messages order findings by priority and include review-file paths. Historical severity payloads remain readable and accepted from old fork snapshots without assigning new priorities.
 - The leader receives the findings as its merge message, fixes them itself or resumes the lane that owns that part, and replies again. That reply is delivered without another automatic Check. The leader may call `check` again after substantial fixes. Check never blocks delivery indefinitely.
 
 ### 11.8 Dormant lanes and resume
@@ -647,7 +648,8 @@ A task with `workflow_type = 'agent_swarm'` and no `task_swarms` row is legacy. 
 Keep them short, natural and direct (AGENTS.md). Files under `prompt-texts/agent-swarm/`:
 
 - `guide.md`: in the prefix for every forked swarm agent. Explains: you are one agent that can fork itself; when to Split, Diverge, Check, or just work; split right after recon; write a spine before splitting a deliverable; lanes share only what would change how a sibling acts; Diverge lanes work alone; settle disagreements with Split; build from the best answer; the parent decides, lanes report. Includes both the parent role and the lane role in a few lines each.
-- `check.md`: the Check lane's prompt. Find what is wrong with this deliverable for this user; seams first for multi-part deliverables; report findings by severity with locations; do not rewrite the deliverable.
+- `check.md`: the Standard Check prompt. Find what is wrong with this deliverable for this user; seams first for multi-part deliverables; report findings by priority with locations; do not rewrite the deliverable.
+- `check-thorough.md`: Thorough Check's role and handoff instructions. The full review criteria come from the same `quality-review-prompt.ts` builder used by Quality Control, with repair authority disabled. Both levels receive the shared P0–P3 rubric.
 - `assembly` guidance lives in `guide.md` (an assembly lane is a Split lane with an assembly direction).
 
 The recon nudge, wrap-up note, dormant-lane list and merge message are runtime notes appended through the run inbox or `appendPromptEnvelopeDelta` (after sealing), never in the prefix.
@@ -660,12 +662,12 @@ All schemas use strict function tools: every key in `properties` is in `required
 |---|---|---|---|
 | `split` | leader; lanes below max depth (not Check) | `lanes: [{ title, direction, weight: number\|null, model: string\|null*, effort: string\|null* }]`, `spine_path: string\|null` | Forks Split lanes, parks the caller. Must be the last tool call. |
 | `diverge` | leader; Split lanes below max depth | `question`, `lanes: [{ title, direction: string\|null, model: string\|null*, effort: string\|null* }]` | Forks Diverge lanes, parks the caller. Adds an undirected lane if none. |
-| `check` | leader; lanes that have children | `draft`, `files: string[]`, `focus: string\|null`, `model: string\|null*` | Starts a fresh Check lane, parks the caller. |
+| `check` | leader; lanes that have children | `draft`, `files: string[]`, `focus: string\|null`, `review_effort: "standard"\|"thorough"\|null`, `model: string\|null*` | Starts a fresh Check lane, parks the caller. |
 | `steer` | parent of the lane | `lane_id`, `message` | Appends to the lane at its next step. |
 | `stop` | parent of the lane | `lane_id`, `discard: boolean` | Forced submit, or cancel and drop. |
 | `resume` | parent of the lane | `lane_id`, `message`, `extra_tokens: number\|null` | Continues a dormant lane, parks the caller. |
 | `share` | lanes | `text` | Adds a shared note for siblings. |
-| `submit` | lanes | `summary`, `decisions: [{ choice, reason, would_change_if }]\|null`, `findings: [{ severity, location, issue }]\|null`, `files: string[]` | Ends the lane run with its result. `decisions` is expected from Diverge lanes, `findings` from Check lanes. |
+| `submit` | lanes | `summary`, `decisions: [{ choice, reason, would_change_if }]\|null`, `findings: [{ priority, location, issue }]\|null`, `files: string[]` | Ends the lane run with its result. `decisions` is expected from Diverge lanes, `findings` from Check lanes. |
 
 `*` present only when the swarm has a router. `weight` is ignored when budgets are off. The summary is truncated to `laneSummaryMaxTokens`.
 

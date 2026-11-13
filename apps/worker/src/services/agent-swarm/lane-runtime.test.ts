@@ -96,6 +96,18 @@ describe("diverge and check results", () => {
     };
     expect(buildMergeMessage([check], settings)).toContain("- [must_fix] Table row 4: The 2026 deadline has passed.");
   });
+
+  it("delivers priority findings in urgency order and includes the full review file", () => {
+    const findings = ["P3", "P1", "P0", "P2"].map((priority) => ({ priority, location: "Slide 4", issue: priority })) as
+      import("@meowbert/shared").ReviewFinding[];
+    const check = { task_id: "c", title: "Check", kind: "check" as const, status: "done" as const,
+      created_at: "2026-10-23T00:00:00Z", result_json: { summary: "Four findings.", decisions: null, findings,
+        files: [{ path: "/lane/review.md", bytes: 100 }] } };
+    const message = buildMergeMessage([check], settings);
+    expect(message.match(/\[P\d\]/g)).toEqual(["[P0]", "[P1]", "[P2]", "[P3]"]);
+    expect(message).toContain("Files: /lane/review.md");
+    expect(findings.map((finding) => finding.priority)).toEqual(["P3", "P1", "P0", "P2"]);
+  });
 });
 
 describe("diverge note blindness", () => {

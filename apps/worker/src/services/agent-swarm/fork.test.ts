@@ -67,6 +67,18 @@ describe("forked lane requests", () => {
       .toBe(laneTurn(structuredClone(seed), parent.responseTools).promptPrefixHash);
   });
 
+  it("retains historical tool schemas instead of upgrading a stored fork", () => {
+    const { envelope } = leaderTurn();
+    const legacyTools = [{ type: "function" as const, name: "submit", strict: true,
+      description: "Submit a review.", parameters: { type: "object", properties: {
+        severity: { type: "string", enum: ["must_fix", "should_fix"] }
+      }, required: ["severity"], additionalProperties: false } }];
+    const before = structuredClone(legacyTools);
+    const request = laneTurn(snapshotForkEnvelope(envelope), legacyTools);
+    expect(request.responseTools).toEqual(before);
+    expect(legacyTools).toEqual(before);
+  });
+
   it("offer the swarm tools to the leader", () => {
     const { request } = leaderTurn();
     const names = request.responseTools.flatMap((tool) => tool.type === "function" ? [tool.name] : []);

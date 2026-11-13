@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
-import type { ChosenModelRoute } from "@meowbert/shared";
+import { normalizeReviewEffort, type ChosenModelRoute, type ReviewEffort } from "@meowbert/shared";
 import { checkArgumentsSchema } from "../../agent-tools/swarm.js";
 import { toolErrorResult, type ToolCallResult } from "../../agent-tool-dispatch/tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../../agent-tool-dispatch/types.js";
@@ -17,6 +17,7 @@ async function startCheck(backend: SwarmBackend, ctx: ToolDispatchContext, state
   draft: string;
   files: string[];
   focus: string | null;
+  reviewEffort: ReviewEffort;
   modelRoute: ChosenModelRoute | null;
 }): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
@@ -25,6 +26,7 @@ async function startCheck(backend: SwarmBackend, ctx: ToolDispatchContext, state
   const { userMessages, spinePath } = await backend.loadCheckInputs(run, swarm.run.lane ? null : ctx.getCurrentLeafMessageId());
   const laneTaskId = randomUUID();
   const lane = await backend.startCheckLane(run, {
+    reviewEffort: input.reviewEffort,
     laneTaskId,
     brief: buildCheckBrief({
       userMessages,
@@ -58,6 +60,7 @@ export async function handleCheck(backend: SwarmBackend, call: ResponseFunctionT
       draft: args.draft,
       files: args.files,
       focus: args.focus,
+      reviewEffort: normalizeReviewEffort(args.review_effort),
       modelRoute: buildLaneModelRoute(ctx.swarm!.run.router, args.model, args.effort)
     });
   });
@@ -91,6 +94,7 @@ export async function interceptFinalResponseForCheck(
       draft,
       files,
       focus: null,
+      reviewEffort: "standard",
       modelRoute: pickCheckModelRoute(swarm.run.router, swarm.runtime.model)
     });
   } catch (error) {

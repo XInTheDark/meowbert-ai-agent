@@ -1,4 +1,5 @@
 import type { FunctionTool, ResponseInputItem, Tool } from "openai/resources/responses/responses";
+import type { ReviewEffort } from "@meowbert/shared";
 import type { PromptEnvelope, PromptEnvelopeDelta, PromptEnvelopeFrame } from "../agent/prompt-envelope.js";
 import type { TaskMessageToolOptions } from "../agent/types.js";
 import type { SubagentRuntime } from "../subagents/types.js";
@@ -21,6 +22,7 @@ export interface ForkSeedTools {
 
 // What the seed's tools depend on at run time, so their handlers work in the lane.
 export interface ForkSeedCapabilities {
+  checkReviewEffort?: ReviewEffort;
   runtime: SubagentRuntime;
   runToolOptions: TaskMessageToolOptions;
   loadedToolGroups: string[];

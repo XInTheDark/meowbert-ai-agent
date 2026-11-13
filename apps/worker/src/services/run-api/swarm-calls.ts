@@ -1,5 +1,5 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import { reasoningScoreForEffort, type ChosenModelRoute, type RunApiMethod } from "@meowbert/shared";
+import { normalizeReviewEffort, reasoningScoreForEffort, reviewEffortSchema, type ChosenModelRoute, type RunApiMethod } from "@meowbert/shared";
 import type { PreparedForkLane, SwarmRunRef } from "@meowbert/run-executor/agent-swarm/backend";
 import type { ForkSeed, ForkSeedCapabilities } from "@meowbert/run-executor/agent-swarm/fork-types";
 import type { SwarmLaneResult } from "@meowbert/run-executor/agent-swarm/lane-types";
@@ -159,13 +159,16 @@ export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
   "swarm.startCheckLane": refusable(async (session, args) => {
     const swarm = requireSwarm(session);
     assertRole(session, CHECK_TOOL_NAME);
-    const request = input<{ laneTaskId?: unknown; brief?: unknown; capabilities?: ForkSeedCapabilities; focus?: unknown; modelRoute?: ChosenModelRoute | null }>(args);
+    const request = input<{ laneTaskId?: unknown; brief?: unknown; capabilities?: ForkSeedCapabilities; focus?: unknown; modelRoute?: ChosenModelRoute | null; reviewEffort?: unknown }>(args);
+    const effort = reviewEffortSchema.nullish().safeParse(request.reviewEffort);
+    if (!effort.success) invalid("Review effort must be standard or thorough.");
     if (typeof request.laneTaskId !== "string" || !UUID.test(request.laneTaskId)) invalid("A Check lane needs its id.");
     if (typeof request.brief !== "string" || !request.capabilities) invalid("A Check lane needs its brief.");
     if (swarm.context.lane && !await dbSwarmBackend.hasOwnLanes(runRef(session))) {
       throw new SwarmToolError("Only the leader and lanes that have lanes of their own can start a check. Submit your part instead.");
     }
     return dbSwarmBackend.startCheckLane(runRef(session), {
+      reviewEffort: normalizeReviewEffort(effort.data),
       laneTaskId: request.laneTaskId,
       brief: request.brief,
       capabilities: withAdmittedRuntime(swarm, { capabilities: request.capabilities }).capabilities,

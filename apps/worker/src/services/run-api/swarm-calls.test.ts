@@ -6,7 +6,8 @@ import { createHttpSwarmBackend } from "@meowbert/run-executor/run-api/http-swar
 vi.mock("../../lib/db.js", () => ({ query: vi.fn(async () => ({ rowCount: 1, rows: [] })) }));
 vi.mock("../agent-swarm/park.js", () => ({ clearSwarmPark: vi.fn() }));
 vi.mock("../agent-swarm/db-backend.js", () => ({
-  dbSwarmBackend: { forkLanes: vi.fn(async (_run: unknown, input: { lanes: Array<{ taskId: string; label: string; title: string }> }) =>
+  dbSwarmBackend: { startCheckLane: vi.fn(async () => ({ taskId: "check", label: "Check", title: "Check" })),
+    forkLanes: vi.fn(async (_run: unknown, input: { lanes: Array<{ taskId: string; label: string; title: string }> }) =>
     input.lanes.map(({ taskId, label, title }) => ({ taskId, label, title }))) }
 }));
 
@@ -71,6 +72,26 @@ describe("swarm calls from a device", () => {
   it("refuses lane models outside the swarm's router", async () => {
     const reply = await SWARM_CALL_HANDLERS["swarm.forkLanes"](session(true), [forkInput({ routerId: "router", modelId: "expensive", reasoningScore: 3 })]);
     expect(reply).toEqual({ refused: expect.stringContaining("router") });
+  });
+
+  it.each([undefined, "standard", "thorough"] as const)("carries %s Check effort through the desktop backend", async (reviewEffort) => {
+    const backend = createHttpSwarmBackend({
+      call: (method, args) => SWARM_CALL_HANDLERS[method as "swarm.startCheckLane"](session(true), args), model: vi.fn()
+    });
+    const capabilities = { runtime: { ...admittedRuntime, model: "chosen-by-device" }, runToolOptions: {}, loadedToolGroups: [], spinePath: null };
+    await backend.startCheckLane({} as never, {
+      laneTaskId: "11111111-1111-4111-8111-111111111111", brief: "Check this.", capabilities: capabilities as never,
+      focus: null, modelRoute: null, reviewEffort
+    });
+    expect(dbSwarmBackend.startCheckLane).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      reviewEffort: reviewEffort ?? "standard", capabilities: { ...capabilities, runtime: admittedRuntime }
+    }));
+  });
+
+  it("rejects invalid Check effort before creating a desktop review lane", async () => {
+    await expect(SWARM_CALL_HANDLERS["swarm.startCheckLane"](session(true), [{ reviewEffort: "high" }]))
+      .rejects.toThrow("Review effort must be standard or thorough.");
+    expect(dbSwarmBackend.startCheckLane).not.toHaveBeenCalled();
   });
 
   it("rejects swarm calls from a run outside a swarm", async () => {

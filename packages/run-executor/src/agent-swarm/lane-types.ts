@@ -1,3 +1,5 @@
+import type { ReviewEffort, ReviewFinding } from "@meowbert/shared";
+
 export type SwarmLaneKind = "split" | "diverge" | "check";
 export type SwarmLaneStatus = "queued" | "running" | "waiting" | "done" | "failed" | "stopped" | "expired";
 
@@ -13,7 +15,7 @@ export interface SwarmLaneFile {
 export interface SwarmLaneResult {
   summary: string;
   decisions: Array<{ choice: string; reason: string; would_change_if: string }> | null;
-  findings: Array<{ severity: string; location: string; issue: string }> | null;
+  findings: ReviewFinding[] | null;
   files: SwarmLaneFile[];
 }
 
@@ -25,6 +27,8 @@ export interface SwarmLaneRow {
   kind: SwarmLaneKind;
   title: string;
   direction: string | null;
+  // Read from the Check lane's seed metadata; older lanes default to standard.
+  review_effort?: ReviewEffort | null;
   status: SwarmLaneStatus;
   fork_seed_id: string | null;
   weight: string;
