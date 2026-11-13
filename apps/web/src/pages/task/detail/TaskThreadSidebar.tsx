@@ -456,17 +456,6 @@ function ThreadComposerPanel(props: {
         onClose={props.onClose}
       />
       <div className="thread-sidebar-body thread-composer-body">
-        {selectedTexts.length > 0 ? (
-          <div className="selected-text-quote-list thread-composer-quote-list">
-            {selectedTexts.map((quote, index) => (
-              <SelectedTextQuoteCard
-                key={`${quote.location ?? "quote"}:${index}:${quote.text.slice(0, 24)}`}
-                quote={quote}
-                onRemove={() => setSelectedTexts((current) => current.filter((_, quoteIndex) => quoteIndex !== index))}
-              />
-            ))}
-          </div>
-        ) : null}
         <ChatInput
           popoverPlacement="auto"
           value={followUp}
@@ -476,6 +465,17 @@ function ThreadComposerPanel(props: {
           }}
           isSubmitting={isSubmitting}
           placeholder="Ask a follow-up..."
+          quotedContent={selectedTexts.length > 0 ? (
+            <div className="selected-text-quote-list thread-composer-quote-list">
+              {selectedTexts.map((quote, index) => (
+                <SelectedTextQuoteCard
+                  key={`${quote.location ?? "quote"}:${index}:${quote.text.slice(0, 24)}`}
+                  quote={quote}
+                  onRemove={() => setSelectedTexts((current) => current.filter((_, quoteIndex) => quoteIndex !== index))}
+                />
+              ))}
+            </div>
+          ) : null}
           attachments={attachments}
           onRemoveAttachment={removeAttachment}
           onToggleAttachmentForceInclude={toggleAttachmentForceInclude}

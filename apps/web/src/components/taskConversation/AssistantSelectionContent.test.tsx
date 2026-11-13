@@ -235,7 +235,6 @@ describe("AssistantSelectionContent", () => {
           content="selectable assistant text"
           displayPreferences={displayPreferences}
           enabled
-          annotationIndex={3}
           onQuoteSelection={onQuoteSelection}
         />
       );
@@ -251,11 +250,8 @@ describe("AssistantSelectionContent", () => {
     });
 
     const textarea = document.querySelector<HTMLTextAreaElement>(".selection-annotation-card textarea");
-    const badge = document.querySelector<HTMLElement>(".selection-annotation-badge");
     const saveButton = document.querySelector<HTMLButtonElement>(".selection-annotation-action-btn.save");
     expect(textarea).toBeTruthy();
-    expect(badge).toBeTruthy();
-    expect(badge?.textContent).toBe("3");
     expect(saveButton?.disabled).toBe(true);
 
     await act(async () => {
@@ -277,7 +273,7 @@ describe("AssistantSelectionContent", () => {
     });
   });
 
-  it("discards annotation when clicking cancel or discard button", async () => {
+  it("discards annotation when pressing Escape", async () => {
     const onQuoteSelection = vi.fn();
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -302,7 +298,8 @@ describe("AssistantSelectionContent", () => {
     expect(document.querySelector(".selection-annotation-card")).toBeTruthy();
 
     await act(async () => {
-      document.querySelector<HTMLButtonElement>(".selection-annotation-action-btn.cancel")?.click();
+      document.querySelector<HTMLTextAreaElement>(".selection-annotation-card textarea")
+        ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
 
     expect(document.querySelector(".selection-annotation-card")).toBeNull();

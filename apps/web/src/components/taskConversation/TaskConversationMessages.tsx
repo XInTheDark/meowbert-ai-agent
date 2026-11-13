@@ -54,7 +54,6 @@ export interface TaskConversationMessagesProps {
   searchForceExpandedMessageIds?: Set<string>;
   searchSelectedMatch?: TaskConversationSearchMatch | null;
   conversationContainerRef?: RefObject<HTMLElement>;
-  stagedAnnotationCount?: number;
 }
 
 

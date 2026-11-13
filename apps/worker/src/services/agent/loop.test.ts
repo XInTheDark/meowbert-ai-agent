@@ -471,7 +471,7 @@ describe("runAgentStepLoop", () => {
     expect(execution.runTiming.reachedMaxRunSteps).toBe(false);
     expect(execution.state.dispatchState.conversationItems).toContainEqual({
       role: "user",
-      content: "[System: Continue working with tools. When the task is complete, call final_response explicitly; plain text does not finish the run.]"
+      content: "[System: Your last reply was plain text, which the user does not see. If it was your answer, send it again through final_response; otherwise keep working with tools.]"
     });
   });
 

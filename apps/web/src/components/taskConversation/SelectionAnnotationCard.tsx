@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Trash2 } from "lucide-react";
 
 export function SelectionAnnotationCard(props: {
   onSave: (comment: string) => void;
@@ -34,35 +33,18 @@ export function SelectionAnnotationCard(props: {
             handleSubmit();
           }
         }}
-        placeholder="Add an annotation..."
+        placeholder="Add a note"
         rows={2}
       />
       <div className="selection-annotation-card-footer">
+        <span className="selection-annotation-hint">Esc to cancel</span>
         <button
-          type="button"
-          className="selection-annotation-action-btn discard"
-          aria-label="Discard annotation"
-          title="Discard"
-          onClick={props.onDiscard}
+          type="submit"
+          className="selection-annotation-action-btn save"
+          disabled={!draft.trim()}
         >
-          <Trash2 size={14} />
+          Add
         </button>
-        <div className="selection-annotation-card-footer-right">
-          <button
-            type="button"
-            className="selection-annotation-action-btn cancel"
-            onClick={props.onDiscard}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="selection-annotation-action-btn save"
-            disabled={!draft.trim()}
-          >
-            Save
-          </button>
-        </div>
       </div>
     </form>
   );

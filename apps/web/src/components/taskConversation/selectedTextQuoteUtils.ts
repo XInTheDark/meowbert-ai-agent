@@ -40,16 +40,6 @@ export function formatSelectedTextLocation(location: SelectedTextLocation | null
   return `line ${location.startLine}:${location.startColumn} to line ${location.endLine}:${location.endColumn}`;
 }
 
-export function getSelectedTextQuotePreview(text: string): string {
-  const lines = text.trim().split(/\r?\n/);
-  const visibleLines = lines.slice(-3);
-  if (visibleLines.length === lines.length) {
-    return visibleLines.join("\n");
-  }
-
-  return ["...", ...visibleLines].join("\n");
-}
-
 function buildSelectedTextBlock(quote: SelectedTextQuote): string {
   const header = quote.location
     ? `About this selected snippet (${quote.location}):`

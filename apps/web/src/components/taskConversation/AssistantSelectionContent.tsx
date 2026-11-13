@@ -202,7 +202,6 @@ export function AssistantSelectionContent(props: {
   content: string;
   displayPreferences: TaskAssistantMessageDisplayPreferences;
   enabled: boolean;
-  annotationIndex?: number;
   onSelectionChange?: (selectedText: SelectedTextQuote | null) => void;
   onQuoteSelection?: (selectedText: SelectedTextQuote) => void;
   onAskSelectionInThread?: (selectedText: SelectedTextQuote) => void;
@@ -466,13 +465,10 @@ export function AssistantSelectionContent(props: {
           }}
         >
           {isAnnotationOpen ? (
-            <div className="selection-annotation-wrapper">
-              <div className="selection-annotation-badge" aria-hidden="true">{props.annotationIndex ?? 1}</div>
-              <SelectionAnnotationCard
-                onSave={handleSaveAnnotation}
-                onDiscard={clearSelection}
-              />
-            </div>
+            <SelectionAnnotationCard
+              onSave={handleSaveAnnotation}
+              onDiscard={clearSelection}
+            />
           ) : isInlineComposerOpen ? (
             <form
               className="selection-inline-thread-composer"

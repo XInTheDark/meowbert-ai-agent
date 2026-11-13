@@ -64,7 +64,6 @@ export interface HistoricalConversationItemsProps {
   buildInlineArtifactUrl?: (relativePath: string) => string | null;
   searchSelectedMessageId?: string | null;
   searchForceExpandedMessageIds?: Set<string>;
-  stagedAnnotationCount?: number;
   isTaskRunning?: boolean;
   // Agent Swarm turns tuck the work before their final answer into one row.
   foldFinishedTurns?: boolean;
@@ -264,7 +263,6 @@ function StandardMessageBubble(props: {
   resolvedAssistantMessageDisplayPreferences: TaskAssistantMessageDisplayPreferences;
   searchSelectedMessageId?: string | null;
   searchForceExpandedMessageIds?: Set<string>;
-  stagedAnnotationCount?: number;
   expansionId?: string;
 }): JSX.Element {
   const {
@@ -326,7 +324,6 @@ function StandardMessageBubble(props: {
             content={content}
             displayPreferences={messageDisplayPreferences}
             enabled={canStartThread && (props.enableThreadSelectionPopup ?? true)}
-            annotationIndex={(props.stagedAnnotationCount ?? 0) + 1}
             onSelectionChange={(selection) => {
               props.onAssistantSelectionChange?.(selection ? { ...selection, messageId: message.id } : null);
             }}

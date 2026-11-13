@@ -41,7 +41,7 @@ describe("SelectedTextQuoteCard", () => {
     });
 
     expect(container.querySelector("blockquote")?.textContent).toBe("const sample = true;");
-    expect(container.querySelector("figcaption")?.textContent).toBe("line 1:1 to line 1:20");
+    expect(container.querySelector("blockquote")?.getAttribute("title")).toContain("line 1:1 to line 1:20");
     expect(container.querySelector(".selected-text-quote-comment")).toBeNull();
 
     const removeBtn = container.querySelector<HTMLButtonElement>(".selected-text-quote-remove");
@@ -54,7 +54,7 @@ describe("SelectedTextQuoteCard", () => {
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
 
-  it("renders annotation layout with index badge, comment, and excerpt when comment is present", async () => {
+  it("renders the index, excerpt, and comment for an annotation", async () => {
     const onRemove = vi.fn();
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -74,11 +74,9 @@ describe("SelectedTextQuoteCard", () => {
       );
     });
 
-    expect(container.querySelector(".selected-text-annotation-badge")?.textContent).toBe("3");
-    expect(container.querySelector(".selected-text-annotation-title")?.textContent).toBe("Annotation 3");
-    expect(container.querySelector(".selected-text-annotation-comment")?.textContent).toBe("yes, so you should do this");
-    expect(container.querySelector(".selected-text-annotation-excerpt blockquote")?.textContent).toBe("fetch internal artifact links");
-    expect(container.querySelector("figcaption")?.textContent).toBe("line 10:1 to line 10:30");
+    expect(container.querySelector(".selected-text-quote-index")?.textContent).toBe("3");
+    expect(container.querySelector(".selected-text-quote-comment")?.textContent).toBe("yes, so you should do this");
+    expect(container.querySelector("blockquote")?.textContent).toBe("fetch internal artifact links");
 
     const removeBtn = container.querySelector<HTMLButtonElement>(".selected-text-quote-remove");
     expect(removeBtn).toBeTruthy();

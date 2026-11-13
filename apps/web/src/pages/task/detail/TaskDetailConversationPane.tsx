@@ -1,7 +1,7 @@
 import { useRef, type ReactNode, type RefObject } from "react";
 import type { ConversationMessageAccessory } from "../../../components/taskConversation/conversationMessageAccessories";
 import { flushSync } from "react-dom";
-import { ArrowUp, ChevronDown, MessageSquare } from "lucide-react";
+import { ArrowUp, ChevronDown } from "lucide-react";
 import type { AgentSummary } from "../../../components/tasks/AgentDropdown";
 import type { MasterTaskAgentPicker } from "../../../components/taskConversation/masterTaskAgentPicker";
 import { ChatInput } from "../../../components/taskConversation/ChatInput";
@@ -231,7 +231,6 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
               searchForceExpandedMessageIds={props.searchForceExpandedMessageIds}
               searchSelectedMatch={props.searchSelectedMatch}
               conversationContainerRef={props.chatFeedRef}
-              stagedAnnotationCount={props.quotedFollowUpSelections?.length ?? 0}
             />
             {props.pendingFollowUpText ? (
               <PendingFollowUpBubble
@@ -306,29 +305,6 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
                   </button>
                 </div>
               ) : null}
-              {(props.quotedFollowUpSelections?.length ?? 0) > 0 ? (
-                <div className="selected-text-quote-list follow-up-quote-list">
-                  {props.quotedFollowUpSelections?.some((q) => Boolean(q.comment?.trim())) ? (
-                    <div className="composer-annotations-header">
-                      <span className="composer-annotation-pill">
-                        <MessageSquare size={13} />
-                        <span>
-                          {props.quotedFollowUpSelections.filter((q) => Boolean(q.comment?.trim())).length}{" "}
-                          annotation{props.quotedFollowUpSelections.filter((q) => Boolean(q.comment?.trim())).length === 1 ? "" : "s"}
-                        </span>
-                      </span>
-                    </div>
-                  ) : null}
-                  {props.quotedFollowUpSelections?.map((quote, index) => (
-                    <SelectedTextQuoteCard
-                      key={`${quote.location ?? "quote"}:${index}:${quote.text.slice(0, 24)}`}
-                      quote={quote}
-                      index={index + 1}
-                      onRemove={() => props.onRemoveQuotedSelection?.(index)}
-                    />
-                  ))}
-                </div>
-              ) : null}
               {props.composerAccessory}
               <ChatInput
                 value={props.followUp}
@@ -336,6 +312,18 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
                 onSubmit={props.onSubmit}
                 isSubmitting={props.isBusy}
                 hasExternalContent={(props.quotedFollowUpSelections?.length ?? 0) > 0}
+                quotedContent={(props.quotedFollowUpSelections?.length ?? 0) > 0 ? (
+                  <div className="selected-text-quote-list follow-up-quote-list">
+                    {props.quotedFollowUpSelections?.map((quote, index) => (
+                      <SelectedTextQuoteCard
+                        key={`${quote.location ?? "quote"}:${index}:${quote.text.slice(0, 24)}`}
+                        quote={quote}
+                        index={index + 1}
+                        onRemove={() => props.onRemoveQuotedSelection?.(index)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
                 placeholder={props.editingMessageId ? "Edit message..." : "Reply to the agent..."}
                 attachments={props.attachments}
                 onRemoveAttachment={props.onRemoveAttachment}

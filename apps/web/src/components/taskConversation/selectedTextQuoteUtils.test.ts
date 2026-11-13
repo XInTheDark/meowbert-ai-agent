@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildSelectedTextMessage,
   formatSelectedTextLocation,
-  getSelectedTextQuotePreview,
   splitSelectedTextMessage,
   type SelectedTextQuote
 } from "./selectedTextQuoteUtils";
@@ -80,13 +79,5 @@ describe("selectedTextQuoteUtils", () => {
     expect(parsed?.quotes[1].text).toBe("second line");
     expect(parsed?.quotes[1].comment).toBeUndefined();
     expect(parsed?.message).toBe("Follow up message");
-  });
-
-  it("provides preview for long snippets", () => {
-    const longText = "line 1\nline 2\nline 3\nline 4\nline 5";
-    expect(getSelectedTextQuotePreview(longText)).toBe("...\nline 3\nline 4\nline 5");
-
-    const shortText = "line 1\nline 2";
-    expect(getSelectedTextQuotePreview(shortText)).toBe("line 1\nline 2");
   });
 });

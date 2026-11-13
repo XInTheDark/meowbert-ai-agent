@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState, useCallback, DragEvent } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback, DragEvent, type ReactNode } from "react";
 import { Brain, Search, ShieldCheck, Users } from "lucide-react";
 import { useAppRuntime } from "../../contexts/AppRuntimeContext";
 import { TaskAttachment, TaskParameters, TaskToolOptions, TaskType, TaskWorkflowComposerConfig } from "../../lib/types";
@@ -23,6 +23,7 @@ interface ChatInputProps {
   onSubmit: () => void;
   isSubmitting: boolean;
   hasExternalContent?: boolean;
+  quotedContent?: ReactNode;
   placeholder?: string;
   attachments: TaskAttachment[];
   popoverPlacement?: ChatToolsPopoverPlacement;
@@ -153,6 +154,7 @@ export function ChatInput({
   onSubmit,
   isSubmitting,
   hasExternalContent = false,
+  quotedContent,
   placeholder = "Type a message...",
   attachments,
   onRemoveAttachment,
@@ -354,6 +356,8 @@ export function ChatInput({
         if (e.dataTransfer.files.length > 0) void onAttachFiles(e.dataTransfer.files);
       }}
     >
+      {quotedContent}
+
       <ChatInputAttachmentRow
         pendingUploads={pendingUploads}
         attachments={attachments}

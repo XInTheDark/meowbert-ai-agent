@@ -690,7 +690,7 @@ function handlePlainTextWithoutToolCall(
     appendRuntimeNotice(execution, {
       role: "user",
       content: availability.allowFinalResponseTool
-        ? "[System: Workflow runs cannot finish via plain text. Call final_response explicitly.]"
+        ? "[System: Your last reply was plain text, which the user does not see, and workflow runs cannot finish that way. Send your answer through final_response.]"
         : "[System: Workflow runs cannot continue via plain text. Use the available workflow tool explicitly.]"
     });
     return;
@@ -699,7 +699,7 @@ function handlePlainTextWithoutToolCall(
   if (availability.allowFinalResponseTool) {
     appendRuntimeNotice(execution, {
       role: "user",
-      content: "[System: Continue working with tools. When the task is complete, call final_response explicitly; plain text does not finish the run.]"
+      content: "[System: Your last reply was plain text, which the user does not see. If it was your answer, send it again through final_response; otherwise keep working with tools.]"
     });
     return;
   }
