@@ -25,7 +25,7 @@ function simulate(windowEndMs: number, ttlMs = HOUR) {
 }
 
 function smartWindow(overrides: Partial<{ usedTokens: number; taskStatus: TaskStatus; viewing: boolean; nextRunAtMs: number | null; nowMs: number }>) {
-  const settings: CachebeatSettings = { mode: "smart", durationSeconds: 4 * 60 * 60 };
+  const settings: CachebeatSettings = { mode: "smart", durationSeconds: 4 * 60 * 60, providerId: null };
   return resolveCachebeatWindowEnd({
     settings,
     requestStartedAtMs: 0,

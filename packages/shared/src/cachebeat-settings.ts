@@ -7,11 +7,14 @@ export interface CachebeatSettings {
   mode: CachebeatMode;
   // Fixed: how long to keep the cache warm. Smart: the longest it may stay warm.
   durationSeconds: number;
+  // The AI provider beats go to, when the selected one is a gateway in front of Meridian that does
+  // not forward its session routes. Null sends them to the selected provider.
+  providerId: string | null;
 }
 
 export const CACHEBEAT_MIN_DURATION_SECONDS = 60;
 export const CACHEBEAT_MAX_DURATION_SECONDS = 24 * 60 * 60;
-export const DEFAULT_CACHEBEAT_SETTINGS: CachebeatSettings = { mode: "off", durationSeconds: 2 * 60 * 60 };
+export const DEFAULT_CACHEBEAT_SETTINGS: CachebeatSettings = { mode: "off", durationSeconds: 2 * 60 * 60, providerId: null };
 
 // Where the API records who has a task open, read by the worker's Smart cachebeat.
 export const TASK_VIEWERS_KEY_PREFIX = "task-viewers:";
@@ -24,6 +27,7 @@ export function normalizeCachebeatSettings(value: unknown): CachebeatSettings {
     : DEFAULT_CACHEBEAT_SETTINGS.durationSeconds;
   return {
     mode,
-    durationSeconds: Math.min(CACHEBEAT_MAX_DURATION_SECONDS, Math.max(CACHEBEAT_MIN_DURATION_SECONDS, duration))
+    durationSeconds: Math.min(CACHEBEAT_MAX_DURATION_SECONDS, Math.max(CACHEBEAT_MIN_DURATION_SECONDS, duration)),
+    providerId: typeof raw.providerId === "string" && raw.providerId.trim().length > 0 ? raw.providerId.trim() : null
   };
 }

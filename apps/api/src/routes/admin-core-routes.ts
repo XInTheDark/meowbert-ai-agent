@@ -99,7 +99,8 @@ const updateAdminSettingsSchema = z.object({
   idleCompactionDelaySeconds: z.number().int().min(1).max(86_400).nullable().default(null),
   cachebeat: z.object({
     mode: z.enum(CACHEBEAT_MODES),
-    durationSeconds: z.number().int().min(CACHEBEAT_MIN_DURATION_SECONDS).max(CACHEBEAT_MAX_DURATION_SECONDS)
+    durationSeconds: z.number().int().min(CACHEBEAT_MIN_DURATION_SECONDS).max(CACHEBEAT_MAX_DURATION_SECONDS),
+    providerId: z.string().uuid().nullable().default(null)
   }).default(DEFAULT_CACHEBEAT_SETTINGS),
   debugMode: z.boolean(),
   defaultFreeMessageLimit: z.number().int().min(0).nullable(),

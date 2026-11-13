@@ -1,8 +1,8 @@
 import { resolveIdleCompactionForModel, resolveModelTypeForModel } from "@meowbert/shared";
 import { buildPromptCacheKey } from "@meowbert/run-executor/agent/turn-request";
-import { resolveRuntimeAiProvider } from "../agent/runtime-provider.js";
 import { hasNewerWorkOrFreshContext } from "../idle-compaction/idle-task.js";
 import { loadLastModelRequest, type LastModelRequest } from "../idle-compaction/last-model-request.js";
+import { resolveCachebeatProvider } from "./cachebeat-provider.js";
 import { planCachebeat, planCachebeatRetry, CACHEBEAT_RETRY_MS, type CachebeatPlan } from "./cachebeat-plan.js";
 import { claimCachebeat, finishCachebeat, loadCachebeatState, recordCachebeatOutcome } from "./cachebeat-state.js";
 import { loadCachebeatPlatformSettings, loadIdleCachebeatTask, type CachebeatPlatformSettings } from "./cachebeat-task.js";
@@ -22,6 +22,7 @@ interface BeatContext {
   taskId: string;
   last: LastModelRequest & { prefixHash: string };
   ttlMs: number;
+  providerId: string | null;
 }
 
 async function loadBeatContext(taskId: string, platform: CachebeatPlatformSettings): Promise<BeatContext | null> {
@@ -32,7 +33,7 @@ async function loadBeatContext(taskId: string, platform: CachebeatPlatformSettin
   if (resolveModelTypeForModel(last.model, platform.modelMetadata) !== "claude") return null;
   if (await hasNewerWorkOrFreshContext(null, taskId)) return null;
   const ttlMs = resolveIdleCompactionForModel(last.model, platform.modelMetadata).promptCacheTtlSeconds * 1000;
-  return { taskId, last: { ...last, prefixHash: last.prefixHash }, ttlMs };
+  return { taskId, last: { ...last, prefixHash: last.prefixHash }, ttlMs, providerId: platform.cachebeat.providerId };
 }
 
 async function planNextStep(context: BeatContext, platform: CachebeatPlatformSettings, cacheReadAtMs: number): Promise<CachebeatPlan | null> {
@@ -56,7 +57,7 @@ async function planNextStep(context: BeatContext, platform: CachebeatPlatformSet
 async function beat(context: BeatContext, cacheReadAtMs: number): Promise<CachebeatProgress> {
   const startedAtMs = context.last.startedAtMs;
   if (!await claimCachebeat(context.taskId, startedAtMs)) return { kind: "beating", checkInMs: CACHEBEAT_RETRY_MS };
-  const provider = await resolveRuntimeAiProvider();
+  const provider = await resolveCachebeatProvider(context.providerId);
   const beatStartedAtMs = Date.now();
   const outcome = await requestCacheBeat(provider, buildPromptCacheKey(context.taskId, context.last.prefixHash));
   if (outcome === "reached") {
