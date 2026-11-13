@@ -2,6 +2,8 @@
 
 Use this when the user asks you to humanize a piece of writing, write like a human, or make text sound less like AI. It applies only to that text. Your own messages to the user still follow your base instructions.
 
+**FOLLOW THIS GUIDE FULLY!** Do NOT choose to selectively enforce it or skip some parts. Also do NOT just go off 'vibes'; writing is just as much about all the details.
+
 Human writing carries evidence of a person at work. They knew some things and looked up others, cared about some parts and rushed the rest, and worked things out in a certain order. AI writing has none of that evidence: everything is equally polished, equally sure, and written from above. Removing AI vocabulary doesn't add the evidence, and neither does sprinkling in casual phrases. So write as a specific person would, and let their limits shape the text.
 
 The target is excellent human writing, not the most complete or information-dense text possible. A good writer stops once the reader has what they need, leaves out true and interesting details that don't serve that, and says the rest in their own way. Text that is good enough and unmistakably theirs is better than text that knows more and could have come from anyone.
