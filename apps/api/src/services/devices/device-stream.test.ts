@@ -36,6 +36,40 @@ it("rejects a device owned by someone else before streaming any runs", async () 
   expect(response.status).toHaveBeenCalledWith(404); expect(response.hijack).not.toHaveBeenCalled();
   expect(state.query).toHaveBeenCalledTimes(1); expect(state.off).toHaveBeenCalledOnce();
 });
+it.each([true, false, null])("caps advertised Computer Use by device consent=%s without changing other run settings", async (consent) => {
+  const payload = { taskId: "task", executionTarget: { kind: "local", mode: "host", deviceId: "device" },
+    toolOptionsOverride: { computerUse: true, webSearch: true, enabledSkills: ["deep-ai-search"] } };
+  const row = { run_id: "run", task_id: "task", queue_state: "admitted", pending_reason: null, admitted_at: "now", payload_json: payload };
+  state.query.mockResolvedValueOnce({rowCount:1,rows:[]})
+    .mockResolvedValueOnce({rows:[{...row,computer_use_allowed:consent}]});
+  const response=reply();
+  await streamDeviceRuns("device","owner",response as unknown as FastifyReply,true);
+  const event=response.raw.write.mock.calls.find(([data])=>data.startsWith("event: runs"))![0];
+  const delivered=JSON.parse(event.split("data: ")[1]);
+  expect(delivered).toEqual([{...row,payload_json:{...payload,
+    toolOptionsOverride:{...payload.toolOptionsOverride,computerUse:consent===true}}}]);
+  expect(payload.toolOptionsOverride.computerUse).toBe(true);
+  response.raw.emit("close");
+});
+it.each([true, false])("does not enable Computer Use that the task disabled, device consent=%s", async (consent) => {
+  const payload={taskId:"task",toolOptionsOverride:{computerUse:false}};
+  state.query.mockResolvedValueOnce({rowCount:1,rows:[]})
+    .mockResolvedValueOnce({rows:[{run_id:"run",payload_json:payload,computer_use_allowed:consent}]});
+  const response=reply();
+  await streamDeviceRuns("device","owner",response as unknown as FastifyReply,true);
+  const event=response.raw.write.mock.calls.find(([data])=>data.startsWith("event: runs"))![0];
+  expect(JSON.parse(event.split("data: ")[1])[0].payload_json).toEqual(payload);
+  response.raw.emit("close");
+});
+it("overrides Computer Use inherited from messages when the job has no tool override", async () => {
+  state.query.mockResolvedValueOnce({rowCount:1,rows:[]})
+    .mockResolvedValueOnce({rows:[{run_id:"run",payload_json:{taskId:"task"},computer_use_allowed:false}]});
+  const response=reply();
+  await streamDeviceRuns("device","owner",response as unknown as FastifyReply,true);
+  const event=response.raw.write.mock.calls.find(([data])=>data.startsWith("event: runs"))![0];
+  expect(JSON.parse(event.split("data: ")[1])[0].payload_json).toEqual({taskId:"task",toolOptionsOverride:{computerUse:false}});
+  response.raw.emit("close");
+});
 it("closes immediately on revocation or lost notification delivery", async () => {
   const response=reply(); await streamDeviceRuns("device","owner",response as unknown as FastifyReply,true);
   state.subscribe.mock.calls[0][0].event("revoked"); expect(response.raw.end).toHaveBeenCalledOnce();

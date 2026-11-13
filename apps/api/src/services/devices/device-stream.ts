@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyReply } from "fastify";
+import type { TaskExecutionJob } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { deviceEvents, type DeviceEventKind } from "./device-events.js";
 
@@ -22,11 +23,17 @@ export async function streamDeviceRuns(deviceId: string, userId: string, reply: 
       while (events.size && !closed) {
         const batch = new Set(events); events.clear();
         for (const kind of ["config", "cleanup"] as const) if (batch.has(kind)) send(kind, {});
-        if (batch.has("runs")) send("runs", (await query(
-          "SELECT run_id, task_id, payload_json, queue_state, pending_reason, admitted_at::text FROM task_run_dispatches " +
+        if (batch.has("runs")) send("runs", (await query<{ payload_json: TaskExecutionJob; computer_use_allowed: boolean | null }>(
+          "SELECT run_id, task_id, payload_json, queue_state, pending_reason, admitted_at::text, " +
+          "(dv.consent_json->'computerUse' = 'true'::jsonb) AS computer_use_allowed FROM task_run_dispatches " +
+          "JOIN devices dv ON dv.id = $1::uuid " +
           "WHERE queue_state IN ('pending', 'admitted', 'running') AND payload_json->'executionTarget'->>'kind' = 'local' " +
-          "AND payload_json->'executionTarget'->>'deviceId' = $1 ORDER BY (queue_state = 'admitted') DESC, queued_at ASC LIMIT 20", [deviceId]
-        )).rows);
+          "AND payload_json->'executionTarget'->>'deviceId' = $1::text ORDER BY (queue_state = 'admitted') DESC, queued_at ASC LIMIT 20", [deviceId]
+        )).rows.map(({ computer_use_allowed, ...run }) => ({ ...run,
+          // Device consent caps task and preset requests before the executor builds model tools.
+          payload_json: computer_use_allowed === true ? run.payload_json : { ...run.payload_json,
+            toolOptionsOverride: { ...run.payload_json.toolOptionsOverride, computerUse: false } }
+        })));
       }
     } catch { close(); } finally { flushing = false; }
   };
