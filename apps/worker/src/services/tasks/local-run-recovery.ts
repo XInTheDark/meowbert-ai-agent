@@ -71,11 +71,14 @@ async function settleRecoveredLaneInTx(client: PoolClient, taskId: string, statu
   await wakeParentIfBarrierMetInTx(client, lane.parent_task_id);
 }
 
-/** Releases a local admission after the device has missed its claim window or lease grace. */
+/** Releases a local admission after the device has missed its claim window or lease grace, and
+ * ends at once any run of a stopped task that no device holds. */
 export async function reclaimExpiredLocalRunLeasesOnce(): Promise<number> {
   return recoverLocalRuns({
     predicate: `(d.queue_state = 'admitted' AND d.admitted_at < now() - ($1::double precision * interval '1 millisecond'))
-      OR (d.queue_state = 'running' AND COALESCE(d.lease_expires_at, d.started_at) < now() - ($2::double precision * interval '1 millisecond'))`,
+      OR (d.queue_state = 'running' AND COALESCE(d.lease_expires_at, d.started_at) < now() - ($2::double precision * interval '1 millisecond'))
+      OR (d.queue_state IN ('pending', 'admitted') AND d.lease_device_id IS NULL
+        AND ((t.cancellation_requested AND NOT t.resume_after_interrupt) OR t.trashed_at IS NOT NULL))`,
     params: [LOCAL_CLAIM_WINDOW_MS, LOCAL_LEASE_RECLAIM_GRACE_MS],
     update: `released AS (
        UPDATE task_run_dispatches d SET
