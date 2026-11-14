@@ -10,7 +10,7 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "package": "npm run build && electron-builder --config electron-builder.config.cjs",
     "package:release": "npm run build && electron-builder --config electron-builder.config.cjs --publish always",
-    "test": "vitest run"
+    "test": "vitest run && node --test scripts/*.test.mjs"
   },
   "dependencies": {
     "@meowbert/run-executor": "0.1.0",
@@ -22,7 +22,8 @@
     "react-router-dom": "7.18.2",
     "@playwright/mcp": "0.0.68",
     "playwright": "1.59.0-alpha-1771104257000",
-    "archiver": "7.0.1"
+    "archiver": "7.0.1",
+    "electron-sparkle": "0.2.0"
   },
   "devDependencies": {
     "@types/node": "22.19.11",

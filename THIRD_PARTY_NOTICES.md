@@ -23,3 +23,11 @@ Meowbert Desktop bundles rclone 1.75.2 for macOS live Google Drive folders.
 - Copyright: (C) 2012 Nick Craig-Wood
 - The complete MIT license and rclone README ship alongside the bundled binaries.
 - Build downloads are pinned by version and SHA-256 for macOS amd64 and arm64.
+
+## Sparkle
+
+Meowbert Desktop uses electron-sparkle 0.2.0 (MIT) to integrate Sparkle 2.9.6 on macOS.
+
+- Bridge: https://github.com/biw/electron-sparkle; its MIT license ships in the npm package.
+- Framework: https://github.com/sparkle-project/Sparkle; its complete license and component notices ship in the app at `Contents/Resources/ThirdPartyLicenses/Sparkle-LICENSE.txt`.
+- The pinned npm package includes the Sparkle distribution and native bridge; packaging verifies the framework archive's SHA-256 before extraction.

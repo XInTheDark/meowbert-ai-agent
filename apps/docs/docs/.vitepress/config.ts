@@ -143,6 +143,7 @@ export default defineConfig({
           { text: "Users & Sign-ups", link: "/self-hosting/users-and-signups" },
           { text: "Custom Skills", link: "/self-hosting/custom-skills" },
           { text: "Backups & Upgrades", link: "/self-hosting/backups-and-upgrades" },
+          { text: "Desktop Releases", link: "/self-hosting/desktop-releases" },
           { text: "Outgoing Email", link: "/reference/email-delivery" },
           { text: "Inbound Email", link: "/core-workflows/connectors-email-inbound-admin" },
           { text: "Sources", link: "/reference/sources-admin-setup" },

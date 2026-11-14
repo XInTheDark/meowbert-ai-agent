@@ -51,7 +51,7 @@ export async function verifyQuickAgent(context, mainPage, screenshots, fixture) 
     await quick.getByRole("heading", { name: "Sign in to use Quick Agent" }).waitFor();
     await mainPage.evaluate(() => window.meowbertDesktop.saveAuthToken("quick-smoke-token"));
     await quick.reload();
-    const input = quick.getByPlaceholder("Ask Bert to handle something…");
+    const input = quick.getByRole("textbox", { name: "Ask Bert to handle something…" });
     await input.waitFor({ state: "visible", timeout: 10_000 });
     await quick.waitForFunction(() => document.querySelector('select[aria-label="Project"]')?.value === "smoke-project");
     assert.equal(await quick.getByRole("combobox", { name: "Workspace", exact: true }).inputValue(), workspace.id);
@@ -77,11 +77,11 @@ export async function verifyQuickAgent(context, mainPage, screenshots, fixture) 
     await input.fill("Quick Agent smoke task");
     await input.press("Enter");
     await quick.getByText("Smoke submission temporarily unavailable", { exact: true }).waitFor();
-    assert.equal(await input.inputValue(), "Quick Agent smoke task", "Submission errors must retain the draft");
+    assert.equal(await input.textContent(), "Quick Agent smoke task", "Submission errors must retain the draft");
     const created = quick.waitForResponse((response) => response.url().endsWith("/api/projects/smoke-project/tasks") && response.status() === 200);
     await quick.getByRole("button", { name: "Send message", exact: true }).click();
     await created;
-    await quick.waitForFunction(() => document.querySelector("textarea")?.value === "");
+    await quick.waitForFunction(() => document.querySelector('[contenteditable="true"][role="textbox"]')?.textContent === "");
     assert.equal(fixture.createdTasks.length, 1);
     assert.equal(fixture.createdTasks[0].authorization, "Bearer quick-smoke-token");
     assert.match(fixture.createdTasks[0].body.message, /Quick Agent smoke task/);
@@ -89,7 +89,7 @@ export async function verifyQuickAgent(context, mainPage, screenshots, fixture) 
     const bootstrap = await mainPage.evaluate(() => window.meowbertDesktop.getBootstrapData());
     assert.deepEqual(bootstrap.activeContext, { workspaceId: workspace.id, environmentId: project.id });
     await mainPage.evaluate(() => window.meowbertDesktop.showQuickAgent());
-    await quick.waitForFunction(() => document.activeElement === document.querySelector("textarea"));
+    await quick.waitForFunction(() => document.activeElement === document.querySelector('[contenteditable="true"][role="textbox"]'));
     assert.deepEqual(errors, [], "Quick Agent must not crash");
     await quick.getByRole("button", { name: "Close Quick Agent" }).click();
     console.log("Verified packaged Quick Agent: sign-in state, authenticated composer, focus, themes, project files, error recovery, and task creation.");

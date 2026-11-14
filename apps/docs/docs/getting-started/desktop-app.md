@@ -36,7 +36,9 @@ const windowsDownloadUrl = `${releasesBaseUrl}/latest/download/Meowbert-desktop-
   <li><a :href="releasesPageUrl">All desktop releases</a></li>
 </ul>
 
-> macOS downloads are currently unsigned preview builds. In-app auto-update is available on Windows.
+Meowbert checks for desktop updates automatically. On macOS, Sparkle downloads and verifies updates using Meowbert's update-signing key, then handles installation and relaunch. Windows uses the existing in-app updater. You can also choose **Help → Check for Updates...**.
+
+The Sparkle-enabled Mac app requires macOS 14 or later. If you have an older Meowbert build without Sparkle, install the new desktop release manually once; later releases can update in-app. Mac downloads use ad-hoc signing rather than an Apple Developer ID certificate, so macOS may require you to allow the initial installation.
 
 ### Install or update from Terminal on macOS
 

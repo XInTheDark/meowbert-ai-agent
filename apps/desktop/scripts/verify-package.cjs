@@ -28,6 +28,15 @@ async function main() {
   for (const key of ["owner", "repo", "tagNamePrefix"]) {
     if (!update.split(/\r?\n/).includes(`${key}: ${publisher[key]}`)) throw new Error(`Incorrect updater ${key}.`);
   }
+  if (process.platform === "darwin") {
+    const frameworks = path.resolve(resources, "../Frameworks");
+    const native = appRequire("electron-sparkle");
+    if (typeof native.updater.start !== "function") throw new Error("Sparkle runtime is missing.");
+    for (const name of ["Sparkle.framework/Sparkle", "electron_sparkle.node"]) {
+      if (!fs.existsSync(path.join(frameworks, name))) throw new Error(`Missing Sparkle asset: ${name}.`);
+    }
+    appRequire(path.join(frameworks, "electron_sparkle.node"));
+  }
   console.log(`Verified packaged desktop ${expectedVersion}: executor, SSH, prompts, and updater.`);
 }
 

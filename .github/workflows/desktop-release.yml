@@ -153,6 +153,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify Sparkle signing is configured
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          node --input-type=module -e 'import { validateSigningKey } from "./apps/desktop/scripts/sparkle-appcast.mjs"; import { createRequire } from "node:module"; const require = createRequire(import.meta.url); validateSigningKey(process.env.SPARKLE_ED_PRIVATE_KEY, require("./apps/desktop/electron-builder.config.cjs").mac.extendInfo.SUPublicEDKey);'
+
       - name: Verify desktop version matches the pushed tag
         shell: bash
         run: |
@@ -201,19 +209,6 @@ jobs:
           if-no-files-found: ignore
           path: apps/desktop/dist-packages/renderer-checks/*.png
 
-      - name: Upload packaged desktop artifacts
-        if: inputs.build_only
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ runner.os }}
-          if-no-files-found: error
-          path: |
-            apps/desktop/dist-packages/*.dmg
-            apps/desktop/dist-packages/*.zip
-            apps/desktop/dist-packages/*.exe
-            apps/desktop/dist-packages/*.blockmap
-            apps/desktop/dist-packages/latest*.yml
-
       - name: Publish desktop artifacts
         if: ${{ !inputs.build_only }}
         shell: bash
@@ -260,3 +255,41 @@ jobs:
             echo "No desktop release artifacts were generated for ${RELEASE_TAG}" >&2
             exit 1
           fi
+
+      - name: Verify packaged Sparkle integration
+        if: runner.os == 'macOS'
+        run: |
+          npx --no-install electron-sparkle doctor --app apps/desktop/dist-packages/mac-universal/Meowbert.app
+          node apps/desktop/scripts/verify-sparkle.mjs apps/desktop/dist-packages/mac-universal/Meowbert.app/Contents/MacOS/Meowbert
+
+      - name: Generate signed Sparkle appcast
+        if: runner.os == 'macOS'
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: node apps/desktop/scripts/sparkle-appcast.mjs
+
+      - name: Publish Sparkle appcast
+        if: ${{ runner.os == 'macOS' && !inputs.build_only }}
+        shell: bash
+        env:
+          TARGET_GH_TOKEN: ${{ secrets.DESKTOP_RELEASES_GH_TOKEN }}
+          FALLBACK_GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET_REPOSITORY="$(node -e "process.stdout.write(require('./config/desktop-release.cjs').resolveDesktopReleaseEnv().repository)")"
+          export GH_TOKEN="${TARGET_GH_TOKEN:-${FALLBACK_GH_TOKEN}}"
+          gh release upload "${RELEASE_TAG}" --repo "${TARGET_REPOSITORY}" --clobber apps/desktop/dist-packages/appcast.xml
+
+      - name: Upload packaged desktop artifacts
+        if: inputs.build_only
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/dist-packages/*.dmg
+            apps/desktop/dist-packages/*.zip
+            apps/desktop/dist-packages/*.exe
+            apps/desktop/dist-packages/*.blockmap
+            apps/desktop/dist-packages/latest*.yml
+            apps/desktop/dist-packages/appcast.xml

@@ -1100,7 +1100,8 @@ app.whenReady().then(async () => {
 
   desktopUpdater = createDesktopUpdater({
     getOwnerWindow: () => BrowserWindow.getFocusedWindow() ?? mainWindow ?? quickAgentWindow,
-    focusMainWindow: () => focusMainWindow()
+    focusMainWindow: () => focusMainWindow(),
+    prepareForRelaunch: stopLocalExecutor
   });
 
   registerDeviceFileProtocol();
