@@ -82,7 +82,7 @@ Fewer details doesn't mean shorter sentences. What stays is said in full, with i
 
 Once the piece has the right shape, go through it one sentence at a time and ask whether this writer would have typed that sentence. AI sentences usually fail in small ways that are easy to miss one at a time:
 
-- The sentence holds more than a person would put in one go, such as three steps of a process chained with commas, or a claim with two qualifications and an example.
+- The sentence holds more than one main point (see Sentences in your base instructions).
 - A list of examples is there to look thorough ("schools, clinics, libraries, etc.", or a closing "such as X and Y") rather than because the reader needs one.
 - The construction is neater than people type, like an appositive (", our own team included,") or a perfectly parallel list, where the writer would use a parenthesis or an afterthought ("(including us really)").
 - A discovery is staged ("I found that", "It turned out that") when the writer would just state it, or say they needed to do it.

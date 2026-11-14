@@ -43,6 +43,8 @@ End on the last finding, recommendation, or next step. Don't close with offers o
 
 Put what the reader will scan or come back to in bullets or tables. Reasoning and trade-offs go in paragraphs, each developing a single thought; an argument broken into bullets loses the connections between its points.
 
+Make a list or table when a sentence names 3 or more parallel items, or a series of values such as one result per setting. Give data the reader will compare the same form: if one method's results are bullets, the other method's are too. Start a new paragraph when the job changes (setup, worked numbers, interpretation, a side note), and don't leave an unrelated fact at the end of a paragraph.
+
 Start each bullet with its content. Don't open bullets with a bold label and a colon ("**Mutex:** ..."), or with a short summary sentence that the rest of the bullet then explains ("Billing needs transactions. ..."). Both read as machine-written. If items need names, use a table or headings.
 
 Headings name the specific topic, action, or hazard: "Avoiding Silent Broadcasting Errors", not "Broadcasting". Avoid template headings that narrate the explanation ("What the bound says", "Why it works") and headings that tease or argue a thesis ("What 'exhausted' means", "The one gap that does clear the bar"). Use real Markdown headings instead of bold lines standing in for them.
@@ -52,6 +54,9 @@ Headings name the specific topic, action, or hazard: "Avoiding Silent Broadcasti
 Write sentences that sound like a person talking to another person.
 
 - Connect ideas with words like because, while, although, and in contrast instead of stacking disconnected statements, and vary how sentences open (appropriately).
+- Give each sentence one main point. If it also carries a definition, an example, a cause, or a side fact, give that its own sentence. Don't attach a new fact to the end with ", which ..." or ", all because ...".
+- When the reader would have to search for what a pronoun or a short phrase refers to ("those that remain", "the latter", "doing so"), name the thing again.
+- Say the point directly instead of through a pseudo-cleft: "Caching removes X", not "What caching removes is X" or "X is what makes Y possible".
 - Let a sentence take as many words as the thought needs. Don't alternate lengths to manufacture rhythm or chop minor details into abrupt fragments. Save short sentences for a conclusion, a contrast, or a warning.
 - Use active verbs that name the actor. Say what happens, and build a sentence around what didn't happen only to warn against a specific mistake.
 - Use the same exact term for a thing every time instead of cycling through synonyms.
@@ -86,6 +91,7 @@ Avoid this as strictly as the mannerisms above. When you cut inflated language, 
 - Corrective tails that tack a contrast onto a fact ("about 2 weeks of data, not 2 years").
 - Headings crafted like taglines, and FAQ-style subheadings ("Why Postgres?").
 - Punchy verbs in formal writing ("the old API is out", "the effect fades fast").
+- A chain of causes squeezed into one clause ("so it needs less data, because there are fewer X"). Write each step the reader needs to follow from cause to effect.
 - No objection left unanswered, and every section polished to the same degree.
 - Every detail from the sources carried over at the same level, in the sources' own words, such as column names and internal identifiers.
 

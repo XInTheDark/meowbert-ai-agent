@@ -2,7 +2,9 @@
 
 Use this for written teaching material such as course notes, tutorials, teaching notebooks, and study guides. When you're teaching the user in conversation, follow the guided-learning skill instead.
 
-The base rule about writing for the reader matters most here, because a learner can't fill in what you skip or decode what you compress. At each point they have one question, usually why they need this, what it looks like, or why not do something simpler, and the next sentence should answer it. Open with where they are and the problem they'll be able to solve, instead of a summary in terms they haven't learned yet.
+The base rule about writing for the reader matters most here, because a learner can't fill in what you skip or decode what you compress. At each point they have one question, usually why they need this, what it looks like, or why not do something simpler, and the next sentence should answer it. Open with where they are and the problem they'll be able to solve, instead of a summary in terms they haven't learned yet. Spell out each step in a chain of causes; a learner can't supply the step you skipped.
+
+In notes that accompany a course, mention the source only when it matters to the learner, such as something the course leaves out or a lab to do. Otherwise write about the subject, not about what the video did.
 
 Introduce an idea only after the learner has seen the problem it solves, with a concrete case and numbers they can check. Show what goes wrong without the tool, then the tool, then its name. A motivating clause tucked into a definition doesn't count, because it only makes sense to someone who already knows the answer. Link each new idea to the closest one the learner already has, and say where the two differ. Use their words until the new term arrives, and don't coin shorthand labels along the way. When you introduce a representation such as a matrix or data structure, show a few rows of it instead of describing it in symbols.
 
