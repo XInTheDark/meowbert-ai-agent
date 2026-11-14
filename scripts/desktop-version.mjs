@@ -22,7 +22,7 @@ function parseJson(content, label) {
   }
 }
 
-function isValidSemver(version) {
+export function isValidSemver(version) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([^+]+))?(?:\+(.+))?$/.exec(version);
   if (!match) {
     return false;

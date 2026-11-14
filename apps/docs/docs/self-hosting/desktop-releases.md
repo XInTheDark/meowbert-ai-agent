@@ -30,6 +30,16 @@ Keep using the same key for future updates. Replacing only the public key breaks
 
 ## Publishing
 
+To publish from the terminal, install GitHub CLI (`brew install gh` on macOS), authenticate with `gh auth login`, and run:
+
+```bash
+bash scripts/publish_release.sh
+```
+
+Start from a clean `main` checkout with your changes committed. The script suggests the next version and shows the release repository, tag, and any unpushed commits. After you confirm, it updates and commits the package and lockfile versions, pushes `main` and the release tag, follows the GitHub Actions build, and verifies the published Mac and Windows downloads and Sparkle appcast. You need Git, Node.js, curl, and permission to push to the source repository. Signing secrets stay in GitHub Actions; no local packaging or signing setup is needed.
+
+If the workflow fails after the tag is pushed, use the printed workflow details to fix or rerun that release. The script refuses to reuse an existing tag. It does not edit `CHANGELOG.md` or release notes.
+
 Use the **Desktop Release** GitHub Actions workflow with a tag matching the version in `apps/desktop/package.json`, such as `desktop-v2026.11.4`. The alternate form `desktop-2026.11.4` is also supported; archives and the appcast use the tag you supply. Cross-repository publishing also needs the existing `DESKTOP_RELEASES_GH_TOKEN` secret.
 
 The macOS job packages a universal app, signs its ZIP with Sparkle's official tooling, and generates a signed `appcast.xml`. It uploads the appcast after the release archives. Installed apps read `https://github.com/<owner>/<repo>/releases/latest/download/appcast.xml`; the feed references the ZIP under its exact release tag. Stable installations follow GitHub's latest stable release.
