@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { MachineHandle } from "@meowbert/shared/docker-sandbox";
-import { StorageNotReadyError } from "../storage/inputs";
+import { StorageNotReadyError } from "../storage/storage-not-ready";
 import { isNativeLiveFolderMounted } from "./native-mount";
 
 // Check named files in both directions, never walk a remote folder.

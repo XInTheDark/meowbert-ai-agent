@@ -29,7 +29,9 @@ export interface RunBootstrap {
   projectMasterTaskAgent: ProjectMasterTaskAgent | null;
   // Tool calls a previous attempt started but never recorded a result for.
   unfinishedToolCalls: RunToolCallStart[];
-  inputs?: Array<{ relativePath: string; sizeBytes: number; sha256: string }>;
+  // Always empty. Desktop builds up to 2026.11.5 refuse to run without this field and skip their
+  // input check when it is empty.
+  inputs?: [];
   sandboxImage?: {
     reference: string;
     digest: string | null;

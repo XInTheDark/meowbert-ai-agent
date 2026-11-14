@@ -1,6 +1,6 @@
 import type { LocalLiveFolder, LocalLiveFolderConfig } from "@meowbert/shared";
 import type { RunBootstrap } from "@meowbert/run-executor/agent/ports/run-bootstrap";
-import { StorageNotReadyError } from "../storage/inputs";
+import { StorageNotReadyError } from "../storage/storage-not-ready";
 import type { DesktopLocalExecutorOptions } from "../executor/local-executor";
 
 export async function prepareRunLiveFolders(input: {

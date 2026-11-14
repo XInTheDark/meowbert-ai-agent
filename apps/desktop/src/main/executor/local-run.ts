@@ -19,7 +19,7 @@ import { probeDesktopSandboxStorage } from "./sandbox-machine-host";
 import type { DesktopLocalExecutorOptions } from "./local-executor";
 import type { DeviceApi } from "./device-api";
 import path from "node:path";
-import { waitForRunInputs, StorageNotReadyError } from "../storage/inputs";
+import { StorageNotReadyError } from "../storage/storage-not-ready";
 
 export interface DeviceRunNotice { admitted_at?: string | null; run_id: string; queue_state: string; payload_json: TaskExecutionJob }
 export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceApi, notice: DeviceRunNotice, image: string, skillsRootDir: string, settings: ExecutorSettings, installId: string) {
@@ -75,8 +75,6 @@ export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceA
         if (!host) await probeDesktopSandboxStorage({ image, scratchRoot: options.scratchRoot, skillsRootDir, storageRoot: options.storageRoot,
           backendId: options.storageBackendId, deviceId: options.deviceId, installId });
       } catch { throw new StorageNotReadyError("Waiting for storage: Docker Desktop cannot access the selected mount."); }
-      storageStage = "run inputs";
-      await waitForRunInputs({ taskDir: path.resolve(envRoot, bootstrap.snapshot.task.task_root_path), inputs: bootstrap.inputs, signal: abort.signal });
       storageStage = "live Drive folders";
       const liveSyncFiles = await prepareRunLiveFolders({ options, bootstrap, runId: notice.run_id, token: claim.token, consumer: folderConsumer, host, signal: abort.signal });
       storageStage = "task folder";

@@ -81,7 +81,6 @@ import type { GitHubTokenRefresh } from "@meowbert/run-executor/agent/ports/plat
 import { listUnfinishedToolCalls } from "./tool-call-records.js";
 import { getTaskScheduleInfo } from "../task-schedules/service.js";
 import { config } from "../../lib/config.js";
-import { loadRunInputManifest } from "./input-manifest.js";
 import { createExecutorSnapshot } from "./executor-snapshot.js";
 
 type WorkspaceMemoryMainFile = Awaited<ReturnType<typeof readWorkspaceMemoryMainFile>>;
@@ -754,7 +753,7 @@ export async function loadServerRunState(
         ? resolveProjectMasterTaskAgent(snapshot, runActorIsSuperAdmin)
         : null,
       unfinishedToolCalls: await listUnfinishedToolCalls(job.taskId),
-      inputs: job.executionTarget?.kind === "local" ? await loadRunInputManifest(job.taskId) : [],
+      inputs: [],
       sandboxImage
     }
   };

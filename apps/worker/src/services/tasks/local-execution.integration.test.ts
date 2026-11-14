@@ -24,8 +24,13 @@ const { loadTaskOutputFiles } = await import("../agent-db/task-output-files.js")
 const { recordTaskUpload, lockTaskInputUploads, attachPendingTaskInputs, removeTaskInputUploads } = await import("../../../../api/src/services/files/task-upload-manifest.js");
 const { recordToolCallStarted, listUnfinishedToolCalls, clearInterruptedToolCalls } = await import("../run-host/tool-call-records.js");
 const { resolveRunLeaseHolderUrl } = await import("../../../../api/src/services/runs/run-api-forwarding.js");
-const { loadRunInputManifest } = await import("../run-host/input-manifest.js");
 const { completeTaskRun } = await import("./complete-task-run.js");
+
+async function recordedInputs(taskId: string) {
+  const result = await pool.query<{ relative_path: string; size_bytes: string; sha256: string }>(
+    "SELECT relative_path, size_bytes, sha256 FROM task_artifacts WHERE task_id = $1 AND kind = 'input' ORDER BY relative_path", [taskId]);
+  return result.rows.map((row) => ({ relativePath: row.relative_path, sizeBytes: Number(row.size_bytes), sha256: row.sha256 }));
+}
 
 describe.skipIf(!process.env.TEST_LOCAL_EXECUTION_DATABASE_URL)("local execution PostgreSQL lifecycle", () => {
   const userId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const deviceId = randomUUID();
@@ -66,11 +71,20 @@ describe.skipIf(!process.env.TEST_LOCAL_EXECUTION_DATABASE_URL)("local execution
       await client.query("INSERT INTO tasks(id,workspace_id,environment_id,task_root_path) VALUES ($1,$2,$3,$4)", [taskId, workspaceId, projectId, taskRoot]);
       await attachPendingTaskInputs(client, projectId, taskId);
     });
-    expect(await loadRunInputManifest(taskId)).toEqual([{ relativePath: "inputs/pending.txt", sizeBytes: 5, sha256: file.sha256 }]);
+    expect(await recordedInputs(taskId)).toEqual([{ relativePath: "inputs/pending.txt", sizeBytes: 5, sha256: file.sha256 }]);
     expect((await pool.query("SELECT * FROM pending_task_inputs WHERE task_id=$1", [taskId])).rows).toEqual([]);
     const updated = { ...file, sizeBytes: 7, sha256: "a".repeat(64) };
     await recordTaskUpload(projectId, updated);
-    expect(await loadRunInputManifest(taskId)).toEqual([{ relativePath: "inputs/pending.txt", sizeBytes: 7, sha256: updated.sha256 }]);
+    expect(await recordedInputs(taskId)).toEqual([{ relativePath: "inputs/pending.txt", sizeBytes: 7, sha256: updated.sha256 }]);
+  });
+  it("ends a stopped local run that no device holds without waiting for the claim window", async () => {
+    const { taskId, runId } = await createRun();
+    await pool.query("UPDATE task_run_dispatches SET queue_state='pending', admitted_at=NULL, pending_reason='waiting_for_storage' WHERE run_id=$1", [runId]);
+    await pool.query("UPDATE tasks SET cancellation_requested=true WHERE id=$1", [taskId]);
+    expect(await reclaimExpiredLocalRunLeasesOnce()).toBeGreaterThanOrEqual(1);
+    expect((await pool.query("SELECT queue_state FROM task_run_dispatches WHERE run_id=$1", [runId])).rows[0].queue_state).toBe("cancelled");
+    expect((await pool.query("SELECT status FROM tasks WHERE id=$1", [taskId])).rows[0].status).toBe("cancelled");
+    expect((await pool.query("SELECT exit_reason FROM task_runs WHERE id=$1", [runId])).rows[0].exit_reason).toBe("cancelled");
   });
   it("returns a refused storage admission to pending only for the owning device", async () => {
     const { runId } = await createRun();
@@ -94,7 +108,7 @@ describe.skipIf(!process.env.TEST_LOCAL_EXECUTION_DATABASE_URL)("local execution
       await client.query("INSERT INTO tasks(id,workspace_id,environment_id,task_root_path) VALUES ($1,$2,$3,$4)", [taskId, workspaceId, projectId, taskRoot]);
       await attachPendingTaskInputs(client, projectId, taskId);
     });
-    expect(await loadRunInputManifest(taskId)).toEqual([]);
+    expect(await recordedInputs(taskId)).toEqual([]);
     expect((await pool.query("SELECT task_id,environment_id FROM pending_task_inputs WHERE task_id=ANY($1::uuid[]) ORDER BY environment_id,task_id", [[taskId, otherTaskId]])).rows)
       .toEqual(expect.arrayContaining([{ task_id: taskId, environment_id: otherProjectId }, { task_id: otherTaskId, environment_id: projectId }]));
   });
@@ -145,7 +159,7 @@ describe.skipIf(!process.env.TEST_LOCAL_EXECUTION_DATABASE_URL)("local execution
     const taskRoot = ".meowbert/task-runs/" + taskId;
     const digest = createHash("sha256").update("hello").digest("hex");
     await recordTaskUpload(projectId, { name: "in.txt", relativePath: taskRoot + "/inputs/in.txt", sizeBytes: 5, sha256: digest, createdAt: null, modifiedAt: null });
-    expect(await loadRunInputManifest(taskId)).toEqual([{ relativePath: "inputs/in.txt", sizeBytes: 5, sha256: digest }]);
+    expect(await recordedInputs(taskId)).toEqual([{ relativePath: "inputs/in.txt", sizeBytes: 5, sha256: digest }]);
     await markTaskArtifacts(taskId, [{ relativePath: "out.txt", size: 5, sha256: digest }], true);
     expect(await loadTaskOutputFiles(pool, taskId)).toEqual([]);
     await publishPendingArtifactsOnce();
