@@ -49,7 +49,8 @@ describe("Check review effort", () => {
     await expect(interceptFinalResponseForCheck(backend as unknown as SwarmBackend,
       call("final_response", { response: "Progress", partial: true }), ctx, state)).resolves.toBeNull();
     expect(backend.startCheckLane).not.toHaveBeenCalled();
-    await interceptFinalResponseForCheck(backend as unknown as SwarmBackend, call("final_response", { response: "Draft" }), ctx, state);
+    const held = await interceptFinalResponseForCheck(backend as unknown as SwarmBackend, call("final_response", { response: "Draft" }), ctx, state);
+    expect(held).toHaveProperty("output.held_for_check", true);
     expect(backend.startCheckLane).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reviewEffort: "standard" }));
     expect(state.swarmPark).toEqual({ reason: "check" });
   });

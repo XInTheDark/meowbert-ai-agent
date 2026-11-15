@@ -36,6 +36,8 @@ export type InlineResponseSegment =
       kind: "text";
       id: string;
       text: string;
+      // A swarm reply held for an automatic Check: shown, but not the delivered answer.
+      draft?: true;
     }
   | {
       kind: "artifact";

@@ -33,6 +33,8 @@ export type ConversationDisplayEntry = ConversationActivityGroup | {
   key: string;
   message: TaskMessage;
   contentOverride?: string;
+  // A swarm reply held for an automatic Check, not the delivered answer.
+  draft?: boolean;
   showActions: boolean;
 } | {
   kind: "artifact";
@@ -81,7 +83,7 @@ function getMessageDisplayEntries(message: TaskMessage): ConversationDisplayEntr
     const lastText = segments.map((segment) => segment.kind).lastIndexOf("text");
     return segments.map((segment, index) => segment.kind === "artifact"
       ? { kind: "artifact", key: segment.id, artifact: segment.artifact }
-      : { kind: "message", key: segment.id, message, contentOverride: segment.text, showActions: index === lastText });
+      : { kind: "message", key: segment.id, message, contentOverride: segment.text, draft: segment.draft === true, showActions: index === lastText });
   }
   if (message.role === "assistant" && !(typeof message.content_json.text === "string" && message.content_json.text.trim())) {
     return [];

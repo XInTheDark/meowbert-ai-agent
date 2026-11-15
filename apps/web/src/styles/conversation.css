@@ -1347,6 +1347,14 @@
   white-space: nowrap;
 }
 
+.message-draft-label {
+  padding: 0 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
 .chat-bubble.assistant {
   align-self: flex-start;
   align-items: flex-start;

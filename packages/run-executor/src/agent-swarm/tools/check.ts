@@ -90,13 +90,15 @@ export async function interceptFinalResponseForCheck(
   const files = await backend.loadAutoCheckFiles(swarmRunRef(ctx));
   if (!files) return null;
   try {
-    return await startCheck(backend, ctx, state, {
+    const result = await startCheck(backend, ctx, state, {
       draft,
       files,
       focus: null,
       reviewEffort: "standard",
       modelRoute: pickCheckModelRoute(swarm.run.router, swarm.runtime.model)
     });
+    // Marks the reply as a held draft so the conversation shows it as one, not as the delivered answer.
+    return { ...result, output: { ...(result.output as Record<string, unknown>), held_for_check: true } };
   } catch (error) {
     // A Check that cannot start (the fan-out cap) never holds the reply back.
     if (error instanceof SwarmToolError) return null;

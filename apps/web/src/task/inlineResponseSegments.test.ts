@@ -49,4 +49,17 @@ describe("getInlineResponseSegments", () => {
 
     expect(segments).toEqual([{ kind: "text", id: "message-1:partial:call-final", text: "The answer is M." }]);
   });
+
+  it("marks a final_response held for an automatic Check as a draft", () => {
+    const segments = getInlineResponseSegments(assistantMessage([
+      finalResponseCall("call-final", "The answer is M."),
+      {
+        type: "function_call_output",
+        call_id: "call-final",
+        output: JSON.stringify({ lane_id: "lane-1", message: "A fresh reviewer is checking this.", held_for_check: true })
+      }
+    ]));
+
+    expect(segments).toEqual([{ kind: "text", id: "message-1:partial:call-final", text: "The answer is M.", draft: true }]);
+  });
 });

@@ -55,6 +55,21 @@ function collectRejectedCallIds(items: unknown[]): Set<string> {
   return rejected;
 }
 
+// A swarm reply held for an automatic Check stays visible, but as a draft rather than the answer.
+function collectHeldForCheckCallIds(items: unknown[]): Set<string> {
+  const held = new Set<string>();
+  for (const item of items) {
+    if (!isRecord(item) || item.type !== "function_call_output" || typeof item.call_id !== "string") {
+      continue;
+    }
+    const output = typeof item.output === "string" ? parseMaybeJson(item.output) : null;
+    if (isRecord(output) && output.held_for_check === true) {
+      held.add(item.call_id);
+    }
+  }
+  return held;
+}
+
 function withoutRejectedFinalResponses(items: unknown[]): unknown[] {
   const rejected = collectRejectedCallIds(items);
   if (rejected.size === 0) {
@@ -131,14 +146,17 @@ function getInlineResponseWindowItems(items: unknown[]): unknown[] {
   return items.slice(previousFinalIndex + 1, lastFinalIndex + 1);
 }
 
-function pushTextSegment(segments: InlineResponseSegment[], id: string, text: string): void {
+function pushTextSegment(segments: InlineResponseSegment[], id: string, text: string, draft: boolean): void {
   const previous = segments[segments.length - 1];
   if (previous?.kind !== "text") {
-    segments.push({ kind: "text", id, text });
+    segments.push(draft ? { kind: "text", id, text, draft: true } : { kind: "text", id, text });
     return;
   }
 
   previous.text = appendFinalResponseTextSegment(previous.text, text);
+  if (draft) {
+    previous.draft = true;
+  }
 }
 
 function getToolMessageInlineArtifact(message: DisplayToolMessage | undefined): InlineArtifact | null {
@@ -213,6 +231,7 @@ export function buildInlineResponseSegments(
   }
 
   const segments: InlineResponseSegment[] = [];
+  const heldCallIds = collectHeldForCheckCallIds(message.content_json.response_items);
   getInlineResponseWindowItems(withoutRejectedFinalResponses(message.content_json.response_items)).forEach((item, index) => {
     if (!isInlineResponseToolCallItem(item)) {
       return;
@@ -223,7 +242,7 @@ export function buildInlineResponseSegments(
     if (item.type === "function_call" && name === "final_response") {
       const parsed = parseFinalResponseArguments(item.arguments);
       if (parsed && parsed.response.length > 0) {
-        pushTextSegment(segments, `${message.id}:partial:${callId}`, parsed.response);
+        pushTextSegment(segments, `${message.id}:partial:${callId}`, parsed.response, heldCallIds.has(callId));
       }
       return;
     }

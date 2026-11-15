@@ -243,6 +243,7 @@ function buildSelectedTextThreadAnchors(threads: TaskThreadSummary[]): Array<{
 function StandardMessageBubble(props: {
   message: TaskMessage;
   contentOverride?: string;
+  isDraft?: boolean;
   taskId?: string;
   showMessageActions: boolean;
   showMessageAuthors: boolean;
@@ -318,6 +319,7 @@ function StandardMessageBubble(props: {
       onMouseLeave={() => setIsMessageActionsVisible(false)}
     >
       {authorLabel ? <div className="message-author-label">{authorLabel}</div> : null}
+      {props.isDraft ? <div className="message-draft-label">Draft sent to Check</div> : null}
       <div className="bubble-content markdown-content">
         {message.role === "assistant" ? (
           <AssistantSelectionContent
@@ -413,6 +415,7 @@ function HistoricalMessageItem(props: HistoricalConversationItemsProps & {
       {...props}
       message={message}
       contentOverride={entry.contentOverride}
+      isDraft={entry.draft}
       expansionId={entry.key}
       showMessageActions={entry.showActions && props.showMessageActions}
       showMessageAuthors={props.showMessageAuthors ?? false}
