@@ -1,6 +1,8 @@
-import { useState, type ComponentPropsWithoutRef, type MouseEvent } from "react";
+import { useContext, useState, type ComponentPropsWithoutRef, type MouseEvent } from "react";
 import { Loader2 } from "lucide-react";
 import type { ExtraProps } from "react-markdown";
+import { AppRuntimeContext } from "../../contexts/AppRuntimeContext";
+import { useOptionalWorkspaceApp } from "../../contexts/WorkspaceContext";
 import { triggerAuthenticatedBrowserDownload } from "../../lib/authenticated-download";
 import { CitationLink, resolveCitationPath } from "./composer/CitationLink";
 import { resolveMarkdownDownloadFilename, resolveRuntimeFileDownloadPath, resolveTrustedMarkdownDownloadUrl } from "./markdownDownload";
@@ -16,6 +18,8 @@ export function MarkdownLink({ href, children, node: _node, ...props }: Markdown
 
 function StandardMarkdownLink({ href, children, node: _node, ...props }: MarkdownLinkProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const runtime = useContext(AppRuntimeContext);
+  const workspaceApp = useOptionalWorkspaceApp();
   const runtimeDownloadPath = resolveRuntimeFileDownloadPath(href);
   const downloadUrl = resolveTrustedMarkdownDownloadUrl(runtimeDownloadPath ?? href);
   const linkHref = runtimeDownloadPath && downloadUrl ? downloadUrl : href;
@@ -32,8 +36,13 @@ function StandardMarkdownLink({ href, children, node: _node, ...props }: Markdow
 
     setIsDownloading(true);
     try {
-      const token = localStorage.getItem("meowbert_token");
+      const token = workspaceApp?.token ?? localStorage.getItem("meowbert_token");
       const filename = resolveMarkdownDownloadFilename(linkHref ?? href, children);
+      if (runtime?.capabilities.supportsNativeDownloads) {
+        const result = await runtime.platform.saveUrlToFile({ url: downloadUrl, token, suggestedFilename: filename });
+        if (!result.canceled) workspaceApp?.setFlash({ tone: "success", text: "File saved." });
+        return;
+      }
       await triggerAuthenticatedBrowserDownload({
         url: downloadUrl,
         token,
@@ -41,6 +50,7 @@ function StandardMarkdownLink({ href, children, node: _node, ...props }: Markdow
       });
     } catch (err) {
       console.error("Failed to download file from markdown link", err);
+      workspaceApp?.setFlash({ tone: "error", text: err instanceof Error ? err.message : "Failed to download file." });
     } finally {
       setIsDownloading(false);
     }

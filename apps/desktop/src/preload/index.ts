@@ -78,6 +78,13 @@ contextBridge.exposeInMainWorld("meowbertDesktop", {
       ipcRenderer.removeListener("desktop:navigate", listener);
     };
   },
+  onOpenInBrowserRequested: (callback: () => void): (() => void) => {
+    const listener = () => callback();
+    ipcRenderer.on("desktop:open-in-browser-requested", listener);
+    return () => {
+      ipcRenderer.removeListener("desktop:open-in-browser-requested", listener);
+    };
+  },
   onNavigationStateChanged: (callback: (state: DesktopNavigationState) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, state: DesktopNavigationState) => callback(state);
     ipcRenderer.on("desktop:navigation-state-changed", listener);

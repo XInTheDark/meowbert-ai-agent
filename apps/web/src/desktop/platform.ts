@@ -159,6 +159,7 @@ interface DesktopBridge {
   closeQuickAgent: () => Promise<void>;
   focusMainWindow: (route?: string) => Promise<void>;
   onNavigateRequested: (callback: (route: string) => void) => () => void;
+  onOpenInBrowserRequested?: (callback: () => void) => () => void;
   onQuickAgentActivated: (callback: () => void) => () => void;
 }
 
@@ -196,6 +197,7 @@ export interface PlatformAdapter {
   closeQuickAgent: () => Promise<void>;
   focusMainWindow: (route?: string) => Promise<void>;
   onNavigateRequested: (callback: (route: string) => void) => () => void;
+  onOpenInBrowserRequested: (callback: () => void) => () => void;
   onQuickAgentActivated: (callback: () => void) => () => void;
 }
 
@@ -499,6 +501,9 @@ function createWebPlatform(): PlatformAdapter {
     onNavigateRequested(): () => void {
       return () => undefined;
     },
+    onOpenInBrowserRequested(): () => void {
+      return () => undefined;
+    },
     onQuickAgentActivated(): () => void {
       return () => undefined;
     }
@@ -555,6 +560,7 @@ function createDesktopPlatform(bridge: DesktopBridge): PlatformAdapter {
     closeQuickAgent: bridge.closeQuickAgent,
     focusMainWindow: bridge.focusMainWindow,
     onNavigateRequested: bridge.onNavigateRequested,
+    onOpenInBrowserRequested: bridge.onOpenInBrowserRequested ?? (() => () => undefined),
     onQuickAgentActivated: bridge.onQuickAgentActivated
   };
 }

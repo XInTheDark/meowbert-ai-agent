@@ -59,6 +59,7 @@ import {
 } from "./desktop/platform";
 import { defaultApiBaseUrl, setRuntimeApiBaseUrl } from "./lib/runtime";
 import { invalidateApiCache } from "./lib/api-cache";
+import { DesktopOpenInBrowserListener } from "./desktop/DesktopOpenInBrowserListener";
 
 
 
@@ -329,6 +330,12 @@ export function App() {
   return (
     <AppRuntimeContext.Provider value={runtimeContextValue}>
       <DesktopNavigateListener />
+      <DesktopOpenInBrowserListener
+        platform={platform}
+        publicServerConfig={publicServerConfig}
+        serverBaseUrl={activeServerProfile?.baseUrl ?? null}
+        setFlash={setFlash}
+      />
       <DesktopComputerExecutorBridge
         token={token}
         enabled={enableDesktopComputerExecutor}

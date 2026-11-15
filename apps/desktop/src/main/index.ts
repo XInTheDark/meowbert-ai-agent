@@ -163,6 +163,13 @@ function reloadWindow(): void {
   mainWindow?.webContents.reload();
 }
 
+function requestOpenInBrowser(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  mainWindow.webContents.send("desktop:open-in-browser-requested");
+}
+
 function installApplicationMenu(): void {
   const quickAgentAccelerator = currentShortcutPreferences.quickAgent?.trim() || undefined;
   const desktopDisplayVersion = formatDesktopVersion(app.getVersion());
@@ -173,6 +180,12 @@ function installApplicationMenu(): void {
     {
       label: "File",
       submenu: [
+        {
+          label: "Open in Browser",
+          accelerator: "CommandOrControl+Shift+O",
+          click: () => requestOpenInBrowser()
+        },
+        { type: "separator" },
         ...(process.platform === "darwin"
           ? [{ role: "close" as const }]
           : [{ role: "quit" as const }])
