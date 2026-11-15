@@ -26,12 +26,26 @@ export function assertIdleCompactionNotExpired(job: Pick<TaskExecutionJob, "idle
   }
 }
 
+function isCancellation(execution: AgentExecutionContext, error: unknown): boolean {
+  return execution.prepared.cancellationMonitor?.signal.aborted === true
+    || (error instanceof Error && error.message === "TASK_CANCELLED");
+}
+
+function removeItem(items: ResponseInputItem[], item: ResponseInputItem): void {
+  const index = items.lastIndexOf(item);
+  if (index >= 0) items.splice(index, 1);
+}
+
+export type IdleCompactionResult = { notesTurn: "completed" } | { notesTurn: "failed"; errorMessage: string };
+
 // The request is the next turn the conversation would send, with the note added at the end, so it
 // reads the prompt cache the last turn wrote. The window is cleared once the model stops writing notes.
+// If that turn fails, the window is still cleared: the recent exchange with the user carries over
+// and the agent keeps whatever notes it already had.
 export async function runIdleCompaction(
   execution: AgentExecutionContext,
   runStepLoop: (execution: AgentExecutionContext) => Promise<void>
-): Promise<void> {
+): Promise<IdleCompactionResult> {
   const { dispatchState } = execution.state;
   // Taken before the turn, whose own closing text is not part of the conversation with the user.
   const seedItems = selectRolloverSeedItems(dispatchState.conversationItems, { replies: true });
@@ -40,10 +54,20 @@ export async function runIdleCompaction(
   dispatchState.runPersistedItems.push(note);
 
   execution.maxRunSteps = Math.min(execution.maxRunSteps, IDLE_COMPACTION_MAX_STEPS);
-  await runStepLoop(execution);
-  // Recorded only now: a failed compaction must not leave this note in the conversation's next run.
+  try {
+    await runStepLoop(execution);
+  } catch (error) {
+    if (isCancellation(execution, error)) throw error;
+    // The note asked for a turn that never happened, so it is dropped rather than archived.
+    removeItem(dispatchState.conversationItems, note);
+    removeItem(dispatchState.runPersistedItems, note);
+    await resetV2ContextWindow(execution, "idle", seedItems);
+    return { notesTurn: "failed", errorMessage: error instanceof Error ? error.message : String(error) };
+  }
+  // Recorded only now, once the turn it asked for has happened.
   if (execution.state.contextManagement.version === "v2") {
     await recordContextItems(execution.prepared.control.context, execution.state.contextManagement, [note]);
   }
   await resetV2ContextWindow(execution, "idle", seedItems);
+  return { notesTurn: "completed" };
 }

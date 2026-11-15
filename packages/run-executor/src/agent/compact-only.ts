@@ -62,9 +62,11 @@ export async function maybeHandleCompactOnlyRun(execution: AgentExecutionContext
   }
 
   if (execution.job.contextAction === "idle" && execution.state.contextManagement.version === "v2") {
-    await runIdleCompaction(execution, runAgentStepLoop);
+    const result = await runIdleCompaction(execution, runAgentStepLoop);
     await execution.prepared.control.emitEvent("log", {
-      message: "Idle context compaction completed.",
+      message: result.notesTurn === "completed"
+        ? "Idle context compaction completed."
+        : `Idle context compaction rolled the window over without new notes after a model error: ${result.errorMessage}`,
       trigger: "idle",
       contextManagementVersion: "v2"
     });

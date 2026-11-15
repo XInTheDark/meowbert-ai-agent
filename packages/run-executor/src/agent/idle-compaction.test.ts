@@ -33,18 +33,38 @@ describe("runIdleCompaction", () => {
     ]);
   });
 
-  it("leaves the context window untouched when the turn fails", async () => {
+  it("still rolls the window over when the notes turn hits a model error", async () => {
+    const conversationItems: unknown[] = [{ role: "user", content: "which option?" }];
+    const runPersistedItems: unknown[] = [];
     const execution = {
       maxRunSteps: 100,
-      prepared: { control: { context: {} } },
+      prepared: { control: { context: {} }, cancellationMonitor: { signal: new AbortController().signal } },
+      state: { contextManagement: { version: "v2" }, dispatchState: { conversationItems, runPersistedItems } }
+    } as never;
+
+    const result = await runIdleCompaction(execution, async () => {
+      throw new Error("502 Rate limit reached");
+    });
+
+    expect(result).toEqual({ notesTurn: "failed", errorMessage: "502 Rate limit reached" });
+    expect(mocks.recordContextItems).not.toHaveBeenCalled();
+    expect(mocks.resetV2ContextWindow).toHaveBeenCalledWith(execution, "idle", [{ role: "user", content: "which option?" }]);
+    expect(runPersistedItems).toEqual([]);
+  });
+
+  it("does not roll the window over when the run is cancelled", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const execution = {
+      maxRunSteps: 100,
+      prepared: { control: { context: {} }, cancellationMonitor: { signal: controller.signal } },
       state: { contextManagement: { version: "v2" }, dispatchState: { conversationItems: [], runPersistedItems: [] } }
     } as never;
 
     await expect(runIdleCompaction(execution, async () => {
-      throw new Error("502 Rate limit reached");
-    })).rejects.toThrow("Rate limit reached");
+      throw new Error("TASK_CANCELLED");
+    })).rejects.toThrow("TASK_CANCELLED");
 
-    expect(mocks.recordContextItems).not.toHaveBeenCalled();
     expect(mocks.resetV2ContextWindow).not.toHaveBeenCalled();
   });
 });
