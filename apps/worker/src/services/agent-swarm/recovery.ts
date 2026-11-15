@@ -6,6 +6,7 @@ import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
 import { buildUnsubmittedLaneResult } from "@meowbert/run-executor/agent-swarm/forced-submit";
 import { dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
 import { endCancelledIdleLeaders } from "./cancelled-leaders.js";
+import { failActiveLane } from "./run-finalize.js";
 
 const RECOVERY_BATCH_SIZE = 100;
 
@@ -132,9 +133,30 @@ async function endCancelledIdleLanes(): Promise<void> {
   }
 }
 
+// A lane whose task already failed with no open run (a failure settled outside the lane path) is ended,
+// so its parent's barrier completes. The grace period leaves room for the normal path to finish.
+async function endLanesWithFailedTasks(): Promise<void> {
+  const lanes = await query<{ task_id: string; run_id: string; error_summary: string | null }>(
+    `SELECT lane.task_id, run.id AS run_id, run.error_summary
+       FROM task_swarm_lanes lane
+       JOIN tasks task ON task.id = lane.task_id
+       JOIN LATERAL (SELECT id, error_summary FROM task_runs
+                      WHERE task_id = lane.task_id ORDER BY attempt_no DESC LIMIT 1) run ON true
+      WHERE lane.status IN ('running', 'waiting') AND task.status = 'failed'
+        AND task.updated_at < now() - interval '30 seconds'
+        AND NOT EXISTS (SELECT 1 FROM task_runs open WHERE open.task_id = lane.task_id AND open.ended_at IS NULL)
+      LIMIT $1`,
+    [RECOVERY_BATCH_SIZE]
+  );
+  for (const lane of lanes.rows) {
+    await failActiveLane(lane.task_id, lane.run_id, lane.error_summary ?? "The lane run failed.");
+  }
+}
+
 export async function recoverSwarmsOnce(): Promise<void> {
   await endCancelledIdleLeaders(RECOVERY_BATCH_SIZE);
   await endCancelledIdleLanes();
+  await endLanesWithFailedTasks();
   await wakeParkedParents();
   await wakeParentsWithUnmergedResults();
   await startWaitingQueues();

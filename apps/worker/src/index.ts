@@ -17,6 +17,7 @@ import { startTaskRunRecoveryLoop } from "./services/tasks/task-run-recovery.js"
 import { startTaskScheduleLoop } from "./services/task-schedules/service.js";
 import { startTaskCleanupLoop } from "./services/tasks/task-cleanup.js";
 import { finalizeUnhandledRunFailure } from "./services/tasks/run-failure-fallback.js";
+import { finishFailedLaneRun } from "./services/agent-swarm/run-finalize.js";
 import { isIdleCompactionRun } from "@meowbert/run-executor/agent/idle-compaction";
 import { settleFailedIdleCompaction } from "./services/idle-compaction/idle-compaction-failure.js";
 import { processEmailDeliveryJob } from "./services/email/email-delivery.js";
@@ -181,11 +182,15 @@ async function start(): Promise<void> {
         return;
       }
 
-      await finalizeUnhandledRunFailure({
+      const finalized = await finalizeUnhandledRunFailure({
         taskId: job.data.taskId,
         runId: job.data.runId,
         error
       });
+      // A lane that fails before its agent loop starts must still end, or its parked parent never wakes.
+      if (finalized.taskMarkedFailed) {
+        await finishFailedLaneRun(job.data, retryResult.errorMessage, false);
+      }
     })().catch((finalizeError) => {
       console.error(
         `Failed to handle unhandled run error for task ${job.data.taskId} / run ${job.data.runId}`,

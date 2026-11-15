@@ -573,4 +573,18 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["done", "stopped"]);
     expect(await pendingRuns(swarm.swarmTaskId)).toBe(1);
   });
+
+  it("ends a lane whose run failed before its agent loop started, and resumes its parent", async () => {
+    const swarm = await createSwarm();
+    const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    const [lane] = await split(swarm, swarm.swarmTaskId, ["Check"]);
+    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes" });
+    // The worker's fallback settled the run and task outside the lane path.
+    await pool.query("UPDATE task_runs SET ended_at = now(), exit_reason = 'error', error_summary = 'ENOSPC' WHERE task_id = $1", [lane.taskId]);
+    await pool.query("UPDATE tasks SET status = 'failed', updated_at = now() - interval '1 minute' WHERE id = $1", [lane.taskId]);
+
+    await recoverSwarmsOnce();
+    expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["failed"]);
+    expect(await pendingRuns(swarm.swarmTaskId)).toBe(1);
+  });
 });

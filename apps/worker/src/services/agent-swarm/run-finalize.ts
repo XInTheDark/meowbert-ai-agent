@@ -6,24 +6,35 @@ import { finishLaneRun } from "./lane-completion.js";
 import { dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "./lane-store.js";
 import { lockSwarmInTx, startQueuedLanesInTx } from "./scheduler.js";
 
+async function loadMaxRunningLanes(swarmTaskId: string): Promise<number> {
+  const config = (await pool.query<{ config_json: unknown }>("SELECT config_json FROM task_swarms WHERE task_id = $1", [swarmTaskId])).rows[0];
+  return normalizeAgentSwarmSettings(config?.config_json).advanced.maxRunningLanes;
+}
+
+// Ends a still-active lane as failed, so its parent's barrier completes.
+export async function failActiveLane(laneTaskId: string, runId: string, errorMessage: string): Promise<void> {
+  const lane = await loadLane(pool, laneTaskId);
+  if (!lane || !["running", "waiting"].includes(lane.status)) return;
+  await finishLaneRun({
+    lane,
+    runId,
+    status: "failed",
+    result: buildUnsubmittedLaneResult(`The lane failed: ${errorMessage}`),
+    maxRunningLanes: await loadMaxRunningLanes(lane.swarm_task_id),
+    errorSummary: errorMessage
+  });
+}
+
 // A lane run that fails for good still ends the lane, so its parent's barrier completes.
 export async function finishFailedLaneRun(job: TaskExecutionJob, errorMessage: string, cancelled: boolean): Promise<void> {
   if (job.mode !== "agent_swarm_lane") return;
-  const lane = await loadLane(pool, job.taskId);
-  if (!lane || !["running", "waiting"].includes(lane.status)) return;
-  const config = (await pool.query<{ config_json: unknown }>("SELECT config_json FROM task_swarms WHERE task_id = $1", [lane.swarm_task_id])).rows[0];
-  const maxRunningLanes = normalizeAgentSwarmSettings(config?.config_json).advanced.maxRunningLanes;
   if (!cancelled) {
-    await finishLaneRun({
-      lane,
-      runId: job.runId,
-      status: "failed",
-      result: buildUnsubmittedLaneResult(`The lane failed: ${errorMessage}`),
-      maxRunningLanes,
-      errorSummary: errorMessage
-    });
+    await failActiveLane(job.taskId, job.runId, errorMessage);
     return;
   }
+  const lane = await loadLane(pool, job.taskId);
+  if (!lane || !["running", "waiting"].includes(lane.status)) return;
+  const maxRunningLanes = await loadMaxRunningLanes(lane.swarm_task_id);
   await withTransaction(async (client) => {
     await lockSwarmInTx(client, lane.swarm_task_id);
     await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [lane.parent_task_id]);
