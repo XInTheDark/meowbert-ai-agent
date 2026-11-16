@@ -100,24 +100,6 @@ function convertSystemMessagesToUserMessages(items: ResponseInputItem[]): Respon
   });
 }
 
-function convertDeveloperMessagesToSystemMessages(items: ResponseInputItem[]): ResponseInputItem[] {
-  return items.map((item) => {
-    if (typeof item !== "object" || item === null || !("role" in item)) {
-      return item;
-    }
-
-    const role = (item as { role?: unknown }).role;
-    if (role !== "developer") {
-      return item;
-    }
-
-    return {
-      ...item,
-      role: "system"
-    } as ResponseInputItem;
-  });
-}
-
 type InstructionMessage = ResponseInputItem & {
   role: "system" | "developer";
   content: string | ResponseInputMessageContentList;
@@ -144,16 +126,32 @@ function mergeInstructionContent(messages: InstructionMessage[]): string | Respo
   ]);
 }
 
-function mergeGoogleInstructionMessages(items: ResponseInputItem[]): ResponseInputItem[] {
+// The instructions before the first conversation item are the system prompt; any later ones are
+// notices added as the conversation went on, which are sent as user turns in their place.
+function splitLeadingInstructions(items: ResponseInputItem[]): { leading: InstructionMessage[]; conversation: ResponseInputItem[] } {
   const firstConversationIndex = items.findIndex((item) => !isInstructionMessage(item));
   const leadingCount = firstConversationIndex === -1 ? items.length : firstConversationIndex;
-  const leading = items.slice(0, leadingCount) as InstructionMessage[];
-  // Google has a single system instruction. Later runtime notices stay in the conversation.
   const conversation = items.slice(leadingCount).map((item) => isInstructionMessage(item)
     ? { ...item, role: "user" as const } as ResponseInputItem
     : item);
+  return { leading: items.slice(0, leadingCount) as InstructionMessage[], conversation };
+}
+
+// Google has a single system instruction.
+function mergeGoogleInstructionMessages(items: ResponseInputItem[]): ResponseInputItem[] {
+  const { leading, conversation } = splitLeadingInstructions(items);
   return [
     ...(leading.length > 0 ? [{ role: "system" as const, content: mergeInstructionContent(leading) }] : []),
+    ...conversation
+  ];
+}
+
+// Claude proxies move a system message that comes after the conversation started into the system
+// prompt, which rewrites the cached prefix every time a notice is added. Notices stay user turns.
+function sendLaterInstructionsAsUserTurns(items: ResponseInputItem[]): ResponseInputItem[] {
+  const { leading, conversation } = splitLeadingInstructions(items);
+  return [
+    ...leading.map((item) => item.role === "developer" ? { ...item, role: "system" as const } as ResponseInputItem : item),
     ...conversation
   ];
 }
@@ -227,7 +225,7 @@ export function normalizeProviderRequestInput(
   } else if (hasCompatibilityMode(compatibilityModes, "noSystemMessages")) {
     compatibleItems = convertSystemMessagesToUserMessages(compatibleItems);
   } else if (hasCompatibilityMode(compatibilityModes, "noDeveloperMessages")) {
-    compatibleItems = convertDeveloperMessagesToSystemMessages(compatibleItems);
+    compatibleItems = sendLaterInstructionsAsUserTurns(compatibleItems);
   }
 
   if (modelType === "google") {

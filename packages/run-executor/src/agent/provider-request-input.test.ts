@@ -124,4 +124,24 @@ describe("normalizeProviderRequestInput", () => {
       }
     ]);
   });
+
+  it("keeps the system prompt as system and later notices in place as user turns for Claude", () => {
+    const output = normalizeProviderRequestInput([
+      { role: "developer", content: "Policy" },
+      { role: "system", content: "Tools" },
+      { role: "user", content: "Task" },
+      { role: "assistant", content: "Done" },
+      { role: "developer", content: "[Current task setup] web search on" },
+      { role: "system", content: "Budget" }
+    ] as ResponseInputItem[], "claude", ["noDeveloperMessages"]);
+
+    expect(output).toEqual([
+      { role: "system", content: "Policy" },
+      { role: "system", content: "Tools" },
+      { role: "user", content: "Task" },
+      { role: "assistant", content: "Done" },
+      { role: "user", content: "[Current task setup] web search on" },
+      { role: "user", content: "Budget" }
+    ]);
+  });
 });
