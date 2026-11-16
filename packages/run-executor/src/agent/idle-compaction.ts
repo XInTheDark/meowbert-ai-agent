@@ -8,11 +8,11 @@ import type { AgentExecutionContext } from "./execution-types.js";
 // Enough to read and rewrite a few notes; the turn is only bookkeeping.
 const IDLE_COMPACTION_MAX_STEPS = 8;
 
-const IDLE_COMPACTION_NOTE = [
+const IDLE_COMPACTION_NOTE = "[System: " + [
   "This conversation has gone idle, so its context window will be cleared after this turn.",
   "Your recent messages with the user will stay. Update the note continuity.md now with anything else you need to pick up where you left off.",
   "Only the notes tools work here, and nothing you write reaches the user."
-].join(" ");
+].join(" ") + "]";
 
 export function isIdleCompactionRun(job: Pick<TaskExecutionJob, "mode" | "contextAction">): boolean {
   return job.mode === "compact_only" && job.contextAction === "idle";
@@ -49,7 +49,10 @@ export async function runIdleCompaction(
   const { dispatchState } = execution.state;
   // Taken before the turn, whose own closing text is not part of the conversation with the user.
   const seedItems = selectRolloverSeedItems(dispatchState.conversationItems, { replies: true });
-  const note: ResponseInputItem = { role: "developer", content: IDLE_COMPACTION_NOTE };
+  // A user turn, not a developer one: the last turn usually ends on an assistant reply, and
+  // Claude proxies lift a system item that follows an assistant reply into the system prompt and
+  // drop that reply. That rewrites the cached prefix and breaks session resume on the next step.
+  const note: ResponseInputItem = { role: "user", content: IDLE_COMPACTION_NOTE };
   dispatchState.conversationItems.push(note);
   dispatchState.runPersistedItems.push(note);
 
