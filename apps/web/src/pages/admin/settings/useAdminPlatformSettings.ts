@@ -1,3 +1,4 @@
+import { DEFAULT_IDLE_COMPACTION_MODE, type IdleCompactionMode } from "@meowbert/shared/idle-compaction-settings";
 import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { ApiClient } from "../../../lib/api";
 import { DEFAULT_CACHEBEAT_SETTINGS, type CachebeatSettings } from "@meowbert/shared/cachebeat-settings";
@@ -25,7 +26,7 @@ function useAdminPlatformDraftState() {
   const [enableForgotPassword, setEnableForgotPassword] = useState(true);
   const [requireEmailVerificationOnSignup, setRequireEmailVerificationOnSignup] = useState(true);
   const [enablePromptCaching, setEnablePromptCaching] = useState(true);
-  const [idleCompactionForTasks, setIdleCompactionForTasks] = useState(false);
+  const [idleCompactionMode, setIdleCompactionMode] = useState<IdleCompactionMode>(DEFAULT_IDLE_COMPACTION_MODE);
   const [idleCompactionDelaySeconds, setIdleCompactionDelaySeconds] = useState<number | null>(null);
   const [cachebeat, setCachebeat] = useState<CachebeatSettings>(DEFAULT_CACHEBEAT_SETTINGS);
   const [debugMode, setDebugMode] = useState(false);
@@ -49,7 +50,7 @@ function useAdminPlatformDraftState() {
     setEnableForgotPassword(nextSettings.enableForgotPassword);
     setRequireEmailVerificationOnSignup(nextSettings.requireEmailVerificationOnSignup);
     setEnablePromptCaching(nextSettings.enablePromptCaching);
-    setIdleCompactionForTasks(nextSettings.idleCompactionForTasks);
+    setIdleCompactionMode(nextSettings.idleCompactionMode);
     setIdleCompactionDelaySeconds(nextSettings.idleCompactionDelaySeconds);
     setCachebeat(nextSettings.cachebeat);
     setDebugMode(nextSettings.debugMode);
@@ -79,8 +80,8 @@ function useAdminPlatformDraftState() {
     setRequireEmailVerificationOnSignup,
     enablePromptCaching,
     setEnablePromptCaching,
-    idleCompactionForTasks,
-    setIdleCompactionForTasks,
+    idleCompactionMode,
+    setIdleCompactionMode,
     idleCompactionDelaySeconds,
     setIdleCompactionDelaySeconds,
     cachebeat,
@@ -129,7 +130,7 @@ export function useAdminPlatformSettings(input: UseAdminPlatformSettingsInput) {
         enableForgotPassword: state.enableForgotPassword,
         requireEmailVerificationOnSignup: state.requireEmailVerificationOnSignup,
         enablePromptCaching: state.enablePromptCaching,
-        idleCompactionForTasks: state.idleCompactionForTasks,
+        idleCompactionMode: state.idleCompactionMode,
         idleCompactionDelaySeconds: state.idleCompactionDelaySeconds,
         cachebeat: state.cachebeat,
         debugMode: state.debugMode,

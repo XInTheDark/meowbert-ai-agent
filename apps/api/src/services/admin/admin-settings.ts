@@ -1,3 +1,4 @@
+import { normalizeIdleCompactionMode, type IdleCompactionMode } from "@meowbert/shared";
 import type { PoolClient } from "pg";
 import {
   buildDefaultTaskSchedulerSettings,
@@ -36,7 +37,7 @@ interface AdminSettingsRow {
   enable_forgot_password: boolean;
   require_email_verification_on_signup: boolean;
   enable_prompt_caching: boolean;
-  idle_compaction_for_tasks: boolean;
+  idle_compaction_mode: string;
   idle_compaction_delay_seconds: number | null;
   cachebeat_json: unknown;
   debug_mode: boolean;
@@ -57,7 +58,7 @@ export interface AdminSettings {
   enableForgotPassword: boolean;
   requireEmailVerificationOnSignup: boolean;
   enablePromptCaching: boolean;
-  idleCompactionForTasks: boolean;
+  idleCompactionMode: IdleCompactionMode;
   idleCompactionDelaySeconds: number | null;
   cachebeat: CachebeatSettings;
   debugMode: boolean;
@@ -120,7 +121,7 @@ function mapAdminSettings(row: AdminSettingsRow | undefined): AdminSettings {
     enableForgotPassword: row?.enable_forgot_password ?? false,
     requireEmailVerificationOnSignup: row?.require_email_verification_on_signup ?? false,
     enablePromptCaching: row?.enable_prompt_caching ?? true,
-    idleCompactionForTasks: row?.idle_compaction_for_tasks ?? false,
+    idleCompactionMode: normalizeIdleCompactionMode(row?.idle_compaction_mode),
     idleCompactionDelaySeconds: row?.idle_compaction_delay_seconds ?? null,
     cachebeat: normalizeCachebeatSettings(row?.cachebeat_json ?? null),
     debugMode: row?.debug_mode ?? false,
@@ -158,7 +159,7 @@ export async function getAdminSettings(client?: PoolClient): Promise<AdminSettin
        agent_presets_json,
        specialized_models_json,
        model_slider_agent_ids_json,
-       idle_compaction_for_tasks,
+       idle_compaction_mode,
        idle_compaction_delay_seconds,
        cachebeat_json
      FROM platform_settings
@@ -233,7 +234,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
     JSON.stringify(normalizedAgentPresets),
     JSON.stringify(normalizedSpecializedModels),
     JSON.stringify(normalizedModelSliderAgentIds),
-    input.idleCompactionForTasks,
+    normalizeIdleCompactionMode(input.idleCompactionMode),
     input.idleCompactionDelaySeconds,
     JSON.stringify(normalizeCachebeatSettings(input.cachebeat))
   ];
@@ -255,7 +256,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
             agent_presets_json = $13::jsonb,
             specialized_models_json = $14::jsonb,
             model_slider_agent_ids_json = $15::jsonb,
-            idle_compaction_for_tasks = $16,
+            idle_compaction_mode = $16,
             idle_compaction_delay_seconds = $17,
             cachebeat_json = $18::jsonb,
             updated_at = now()
@@ -276,7 +277,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       agent_presets_json,
       specialized_models_json,
       model_slider_agent_ids_json,
-      idle_compaction_for_tasks,
+      idle_compaction_mode,
       idle_compaction_delay_seconds,
       cachebeat_json`,
     params
@@ -304,7 +305,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       agent_presets_json,
       specialized_models_json,
       model_slider_agent_ids_json,
-      idle_compaction_for_tasks,
+      idle_compaction_mode,
       idle_compaction_delay_seconds,
       cachebeat_json
     )
@@ -326,7 +327,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
           agent_presets_json = EXCLUDED.agent_presets_json,
           specialized_models_json = EXCLUDED.specialized_models_json,
           model_slider_agent_ids_json = EXCLUDED.model_slider_agent_ids_json,
-          idle_compaction_for_tasks = EXCLUDED.idle_compaction_for_tasks,
+          idle_compaction_mode = EXCLUDED.idle_compaction_mode,
           idle_compaction_delay_seconds = EXCLUDED.idle_compaction_delay_seconds,
           cachebeat_json = EXCLUDED.cachebeat_json,
           updated_at = now()
@@ -346,7 +347,7 @@ export async function updateAdminSettings(input: AdminSettings): Promise<AdminSe
       agent_presets_json,
       specialized_models_json,
       model_slider_agent_ids_json,
-      idle_compaction_for_tasks,
+      idle_compaction_mode,
       idle_compaction_delay_seconds,
       cachebeat_json`,
     params

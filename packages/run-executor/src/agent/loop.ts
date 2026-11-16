@@ -22,6 +22,12 @@ import { persistModelRequestRecovery } from "./model-request-recovery.js";
 import { dispatchResponseOutput, type ToolDispatchContext } from "../agent-tool-dispatch/index.js";
 import { isContextManagementV2Tool } from "../agent-tool-dispatch/handlers/context-management-v2.js";
 import { isIdleCompactionRun } from "./idle-compaction.js";
+import {
+  beginExpiredCacheNotesTurn,
+  continueExpiredCacheNotesTurn,
+  isNotesOnlyTurn,
+  shouldCompactExpiredCache
+} from "./expired-cache-compaction.js";
 import { buildAgentTurnRequest } from "./turn-request.js";
 import { appendRuntimeNotice, persistRuntimeNotices } from "./runtime-notices.js";
 import { prepareWindowTurnRequest } from "./window-request.js";
@@ -303,6 +309,7 @@ interface ModelTurnResult {
   requireWorkflowToolAction: boolean;
   codeModeTools: FunctionTool[];
   responseTools: Tool[];
+  availableResponseTools: Tool[];
   // Conversation items sent with the request; a split forks from exactly this request.
   requestItemCount: number;
   // What the response cost, for swarm budgets; null when usage was not reported.
@@ -465,6 +472,7 @@ async function requestModelTurn(input: {
       }
   );
   execution.state.hasModelResponse = true;
+  execution.state.lastModelRequestStartedAtMs = Date.parse(requestStartedAt);
   await execution.prepared.control.emitEvent("thinking_end", { step });
   await recordModelResponseUsage({
     execution,
@@ -481,6 +489,7 @@ async function requestModelTurn(input: {
     requireWorkflowToolAction: availability.requireWorkflowToolAction,
     codeModeTools: turnRequest.codeModeTools,
     responseTools: turnRequest.responseTools,
+    availableResponseTools: turnRequest.availableResponseTools,
     requestItemCount,
     weightedTokens
   };
@@ -637,7 +646,7 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
         && !execution.runTiming.timedRunFinalizing && !execution.workflow.workflowContext,
       stop: execution.allowStopTask && !execution.runTiming.timedRunFinalizing
     },
-    notesOnly: isIdleCompactionRun(execution.job),
+    notesOnly: isNotesOnlyTurn(execution),
     runToolOptions: execution.prepared.runToolOptions,
     readOnly: execution.prepared.snapshot.task.read_only,
     shellToolMaxTimeoutMs: execution.prepared.snapshot.shell_tool_max_timeout_ms,
@@ -648,7 +657,7 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     activeMcpConnections: execution.prepared.activeMcpConnections,
     activeSkillTools: execution.prepared.activeSkillTools,
     ...(codeModeTools.length > 0 ? { codeModeTools } : {}),
-    allowedFunctionTools: [...turn.responseTools, ...codeModeTools]
+    allowedFunctionTools: [...turn.availableResponseTools, ...codeModeTools]
       .filter((tool): tool is FunctionTool => tool.type === "function").map((tool) => tool.name),
     enableSkillById: execution.enableSkillById,
     onDemandSkills: execution.onDemandCapabilities,
@@ -798,13 +807,16 @@ async function applyPendingContextManagementAction(
   return true;
 }
 
+function wroteNotes(response: ModelTurnResponse): boolean {
+  return response.output.some((item) => item.type === "function_call" && isContextManagementV2Tool(item.name));
+}
+
 // The window is cleared after the idle turn anyway, so context edits and resets wait for that.
 function continueIdleCompaction(execution: AgentExecutionContext, response: ModelTurnResponse): "continue" | "break" {
   const { dispatchState } = execution.state;
   dispatchState.pendingContextEdits = [];
   dispatchState.pendingContextV2Reset = false;
-  const wroteNotes = response.output.some((item) => item.type === "function_call" && isContextManagementV2Tool(item.name));
-  return wroteNotes ? "continue" : "break";
+  return wroteNotes(response) ? "continue" : "break";
 }
 
 async function processModelTurnResult(
@@ -822,6 +834,10 @@ async function processModelTurnResult(
   );
   await execution.prepared.features.afterModelTurn(execution, turn.weightedTokens);
   if (isIdleCompactionRun(execution.job)) return continueIdleCompaction(execution, response);
+  if (execution.state.expiredCacheNotesTurn) {
+    await continueExpiredCacheNotesTurn(execution, wroteNotes(response));
+    return "continue";
+  }
   if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
   if (execution.state.dispatchState.pendingContextV2Reset) {
     execution.state.dispatchState.pendingContextEdits = [];
@@ -916,12 +932,13 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
   }
 
   const availability = resolveStepAvailability(execution, step);
-  // An idle turn takes no new work: inboxes stay for the next real run, and it has no answer to wind down to.
-  if (!isIdleCompactionRun(execution.job)) {
+  // A notes turn takes no new work: inboxes wait for the work to resume, and it has no answer to wind down to.
+  if (!isNotesOnlyTurn(execution)) {
     await execution.prepared.features.beforeStep(execution);
     maybeAppendWindingDownNotice(execution, availability);
   }
   await persistRuntimeNotices(execution);
+  if (shouldCompactExpiredCache(execution, Date.now())) await beginExpiredCacheNotesTurn(execution);
   await maybeRunAutoCompaction(execution, step);
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);
   const turn = await requestModelTurnWithRecovery({

@@ -1,3 +1,4 @@
+import type { IdleCompactionMode } from "@meowbert/shared/idle-compaction-settings";
 import { THEME_MODE_VALUES, type ThemeMode } from "@meowbert/shared/themes";
 import type { AgentSwarmAdvancedSettings } from "@meowbert/shared/agent-swarm-config";
 import type { CachebeatSettings } from "@meowbert/shared/cachebeat-settings";
@@ -803,7 +804,7 @@ export interface AdminSettings {
   enableForgotPassword: boolean;
   requireEmailVerificationOnSignup: boolean;
   enablePromptCaching: boolean;
-  idleCompactionForTasks: boolean;
+  idleCompactionMode: IdleCompactionMode;
   idleCompactionDelaySeconds: number | null;
   cachebeat: CachebeatSettings;
   debugMode: boolean;

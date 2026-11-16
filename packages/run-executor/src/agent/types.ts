@@ -1,3 +1,4 @@
+import type { IdleCompactionMode } from "@meowbert/shared";
 import type {
   PlatformAgentPreset,
   PlatformModelMetadata,
@@ -60,6 +61,8 @@ export interface TaskRow {
   interactive_canvas_id: string | null;
   interactive_canvas_intent: "create" | "update" | "view" | null;
   execution_target?: TaskExecutionTarget;
+  // When the task's prompt cache was last read: its latest model request, or a later cachebeat.
+  prompt_cache_read_at?: string | null;
 }
 
 export interface TaskMessageToolOptions {
@@ -117,6 +120,8 @@ export interface TaskSnapshot {
   compaction_backend: WorkspaceCompactionBackend;
   context_management_tools_enabled: boolean;
   enable_prompt_caching: boolean;
+  // Older control planes leave it out, which reads as off.
+  idle_compaction_mode?: IdleCompactionMode;
   code_mode_enabled: boolean;
   platform_agent_presets: PlatformAgentPreset[];
   platform_model_metadata: PlatformModelMetadata;

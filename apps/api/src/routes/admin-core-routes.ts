@@ -1,3 +1,4 @@
+import { DEFAULT_IDLE_COMPACTION_MODE, IDLE_COMPACTION_MODES } from "@meowbert/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { loadAgentSwarmOutcomes } from "../services/agent-swarm/outcomes.js";
 import { z } from "zod";
@@ -95,7 +96,7 @@ const updateAdminSettingsSchema = z.object({
   enableForgotPassword: z.boolean(),
   requireEmailVerificationOnSignup: z.boolean(),
   enablePromptCaching: z.boolean(),
-  idleCompactionForTasks: z.boolean().default(false),
+  idleCompactionMode: z.enum(IDLE_COMPACTION_MODES).default(DEFAULT_IDLE_COMPACTION_MODE),
   idleCompactionDelaySeconds: z.number().int().min(1).max(86_400).nullable().default(null),
   cachebeat: z.object({
     mode: z.enum(CACHEBEAT_MODES),

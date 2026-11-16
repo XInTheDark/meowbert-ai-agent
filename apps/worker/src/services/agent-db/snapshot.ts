@@ -1,3 +1,4 @@
+import { normalizeIdleCompactionMode } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import { query } from "../../lib/db.js";
 import type { EnvironmentRow, TaskMessageRow, TaskRow, TaskSnapshot } from "@meowbert/run-executor/agent/types";
@@ -132,7 +133,16 @@ async function loadTaskSnapshotBase(taskId: string) {
               tasks.workflow_internal_role,
               tasks.interactive_canvas_id,
               tasks.interactive_canvas_intent,
-              tasks.execution_target
+              tasks.execution_target,
+              -- The latest model request, or a later cachebeat that kept its cache warm.
+              to_char(GREATEST(
+                (SELECT (e.payload_json->>'requestStartedAt')::timestamptz
+                   FROM task_events e
+                  WHERE e.task_id = tasks.id AND e.type = 'context_usage' AND e.payload_json->>'source' = 'actual'
+                  ORDER BY e.created_at DESC, e.id DESC
+                  LIMIT 1),
+                (SELECT cb.cache_read_at FROM task_cachebeats cb WHERE cb.task_id = tasks.id)
+              ) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS prompt_cache_read_at
          FROM tasks
          LEFT JOIN task_threads tt ON tt.task_id = tasks.id
         WHERE tasks.id = $1`,
@@ -166,12 +176,14 @@ async function loadTaskSnapshotBase(taskId: string) {
       model_routers_json: unknown;
       specialized_models_json: unknown;
       enable_prompt_caching: boolean;
+      idle_compaction_mode: string;
     }>(
       `SELECT agent_presets_json,
               model_metadata_json,
               model_routers_json,
               specialized_models_json,
-              enable_prompt_caching
+              enable_prompt_caching,
+              idle_compaction_mode
          FROM platform_settings
         WHERE id = 1`
     ),
@@ -290,6 +302,7 @@ export async function getTaskSnapshot(taskId: string, branchMessageId?: string |
     send_metadata_to_model: resolveWorkspaceSendMetadataToModel(base.modelDefaults),
     ...runtimeSettings,
     enable_prompt_caching: base.platformSettings?.enable_prompt_caching ?? true,
+    idle_compaction_mode: normalizeIdleCompactionMode(base.platformSettings?.idle_compaction_mode),
     code_mode_enabled: resolveWorkspaceCodeModeEnabled(base.modelDefaults),
     platform_agent_presets: normalizePlatformAgentPresets(base.platformSettings?.agent_presets_json ?? null),
     platform_model_metadata: normalizePlatformModelMetadata(base.platformSettings?.model_metadata_json ?? null),

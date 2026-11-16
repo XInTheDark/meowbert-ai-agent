@@ -81,6 +81,10 @@
       "types": "./dist/cachebeat-settings.d.ts",
       "default": "./dist/cachebeat-settings.js"
     },
+    "./idle-compaction-settings": {
+      "types": "./dist/idle-compaction-settings.d.ts",
+      "default": "./dist/idle-compaction-settings.js"
+    },
     "./agent-swarm-config": {
       "types": "./dist/agent-swarm-config.d.ts",
       "default": "./dist/agent-swarm-config.js"

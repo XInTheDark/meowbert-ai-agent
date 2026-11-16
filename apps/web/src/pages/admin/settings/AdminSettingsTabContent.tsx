@@ -142,7 +142,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
       requireEmailVerificationOnSignup={platform.requireEmailVerificationOnSignup}
       enableForgotPassword={platform.enableForgotPassword}
       enablePromptCaching={platform.enablePromptCaching}
-      idleCompactionForTasks={platform.idleCompactionForTasks}
+      idleCompactionMode={platform.idleCompactionMode}
       idleCompactionDelaySeconds={platform.idleCompactionDelaySeconds}
       cachebeat={platform.cachebeat}
       debugMode={platform.debugMode}
@@ -160,7 +160,7 @@ function AdminPlatformContent(props: AdminSettingsTabContentProps) {
       onRequireEmailVerificationOnSignupChange={platform.setRequireEmailVerificationOnSignup}
       onEnableForgotPasswordChange={platform.setEnableForgotPassword}
       onEnablePromptCachingChange={platform.setEnablePromptCaching}
-      onIdleCompactionForTasksChange={platform.setIdleCompactionForTasks}
+      onIdleCompactionModeChange={platform.setIdleCompactionMode}
       onIdleCompactionDelaySecondsChange={platform.setIdleCompactionDelaySeconds}
       onCachebeatChange={platform.setCachebeat}
       onDebugModeChange={platform.setDebugMode}

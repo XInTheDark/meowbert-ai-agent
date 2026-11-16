@@ -3,6 +3,8 @@ import { DraftNumberInput } from "../../../components/forms/DraftNumberInput";
 import type { CachebeatSettings } from "@meowbert/shared/cachebeat-settings";
 import { CachebeatDurationField } from "./CachebeatDurationField";
 import { IdleCompactionDelayField } from "./IdleCompactionDelayField";
+import { IdleCompactionModeField } from "./IdleCompactionModeField";
+import type { IdleCompactionMode } from "@meowbert/shared/idle-compaction-settings";
 
 interface PlatformSettingsTabProps {
   allowUserSignup: boolean;
@@ -10,7 +12,7 @@ interface PlatformSettingsTabProps {
   requireEmailVerificationOnSignup: boolean;
   enableForgotPassword: boolean;
   enablePromptCaching: boolean;
-  idleCompactionForTasks: boolean;
+  idleCompactionMode: IdleCompactionMode;
   idleCompactionDelaySeconds: number | null;
   cachebeat: CachebeatSettings;
   debugMode: boolean;
@@ -28,7 +30,7 @@ interface PlatformSettingsTabProps {
   onRequireEmailVerificationOnSignupChange: (value: boolean) => void;
   onEnableForgotPasswordChange: (value: boolean) => void;
   onEnablePromptCachingChange: (value: boolean) => void;
-  onIdleCompactionForTasksChange: (value: boolean) => void;
+  onIdleCompactionModeChange: (value: IdleCompactionMode) => void;
   onIdleCompactionDelaySecondsChange: (value: number | null) => void;
   onCachebeatChange: (value: CachebeatSettings) => void;
   onDebugModeChange: (value: boolean) => void;
@@ -249,8 +251,8 @@ function AdvancedSettingsSection(props: Pick<
   PlatformSettingsTabProps,
   | "enablePromptCaching"
   | "onEnablePromptCachingChange"
-  | "idleCompactionForTasks"
-  | "onIdleCompactionForTasksChange"
+  | "idleCompactionMode"
+  | "onIdleCompactionModeChange"
   | "idleCompactionDelaySeconds"
   | "onIdleCompactionDelaySecondsChange"
   | "cachebeat"
@@ -266,12 +268,7 @@ function AdvancedSettingsSection(props: Pick<
         description="Use prompt caching on model requests so compatible providers can reuse cached prompt prefixes."
         onChange={props.onEnablePromptCachingChange}
       />
-      <SettingsCheckboxField
-        checked={props.idleCompactionForTasks}
-        title="Idle compaction for all tasks"
-        description="Compact idle top-level tasks while their prompt cache is still warm, like the Project Master. Models with idle_compaction set to false in Model metadata are skipped."
-        onChange={props.onIdleCompactionForTasksChange}
-      />
+      <IdleCompactionModeField value={props.idleCompactionMode} onChange={props.onIdleCompactionModeChange} />
       <CachebeatDurationField value={props.cachebeat} onChange={props.onCachebeatChange} />
       <IdleCompactionDelayField
         delaySeconds={props.idleCompactionDelaySeconds}

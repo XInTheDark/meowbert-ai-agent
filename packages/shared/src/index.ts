@@ -96,3 +96,4 @@ export * from "./task-history-archive-segments.js";
 export * from "./task-history-archive-conversion.js";
 export { TASK_HISTORY_SEGMENT_CANDIDATE_SQL, taskHistorySegmentEligibilitySql } from "./task-history-segment-store.js";
 export * from "./cachebeat-settings.js";
+export * from "./idle-compaction-settings.js";

@@ -23,7 +23,7 @@ const IDLE_COMPACTION_ELIGIBLE = `
       AND COALESCE(ws.model_defaults_json->>'projectMasterEnabled', 'true') <> 'false'
     )
     OR (
-      EXISTS (SELECT 1 FROM platform_settings ps WHERE ps.id = 1 AND ps.idle_compaction_for_tasks)
+      EXISTS (SELECT 1 FROM platform_settings ps WHERE ps.id = 1 AND ps.idle_compaction_mode <> 'off')
       AND NOT EXISTS (SELECT 1 FROM project_masters pm WHERE pm.task_id = t.id)
       AND t.parent_task_id IS NULL
       AND t.workflow_parent_task_id IS NULL
