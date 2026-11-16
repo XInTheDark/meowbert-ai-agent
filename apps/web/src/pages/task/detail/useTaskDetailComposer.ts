@@ -19,7 +19,7 @@ import {
   type TaskInputDraft
 } from "../../../task/taskInputDrafts";
 import { canSelectTaskModel, getTaskMessageAgentId } from "../../../task/taskModelSelection";
-import { readLatestTaskMessageSetup } from "../../../task/taskMessageSetup";
+import { readLatestTaskMessageSetup, readTaskMessageSetup } from "../../../task/taskMessageSetup";
 import { buildTaskParametersFromTask } from "../../../task/taskParameters";
 import {
   buildTaskInputAttachmentPath,
@@ -99,7 +99,11 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
   const draftDefaults = useMemo(() => ({ memorySearch: input.workspaceMemoryEnabled }), [input.workspaceMemoryEnabled]);
   // A follow-up starts from the task's own latest message, so every device offers what the task last
   // ran with. Changes made here last until a new message is sent.
-  const latestSetup = useMemo(() => readLatestTaskMessageSetup(input.taskDetail?.messages ?? []), [input.taskDetail?.messages]);
+  const latestSetup = useMemo(() => {
+    const message = input.taskDetail?.latest_user_message;
+    if (message !== undefined) return message ? readTaskMessageSetup(message) : null;
+    return readLatestTaskMessageSetup(input.taskDetail?.messages ?? []);
+  }, [input.taskDetail?.latest_user_message, input.taskDetail?.messages]);
   const setupKey = `${input.taskId}:${latestSetup?.messageId ?? ""}`;
   const [changes, setChanges] = useState<{ key: string; toolOptions?: TaskToolOptions; agentId?: string | null }>({ key: setupKey });
   const currentChanges = changes.key === setupKey ? changes : { key: setupKey };

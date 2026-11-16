@@ -27,6 +27,7 @@ import {
   uniqueIdsPreserveOrder
 } from "./shared.js";
 import { loadLastIdleCompactionAt } from "../../services/tasks/idle-compaction-status.js";
+import { findNearestUserAncestorMessage } from "../../services/tasks/task-message-lineage.js";
 
 interface TaskMessageRow {
   id: string;
@@ -648,6 +649,9 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
   }
 
   const usage = await readTaskPayloads(params.taskId, "events", contextUsageRes.rows);
+  const latestUserMessage = activeLeafMessageId
+    ? await findNearestUserAncestorMessage(params.taskId, activeLeafMessageId)
+    : null;
   const debugMode = adminSettings.debugMode;
   return {
     task: {
@@ -661,6 +665,10 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
       schedule: buildTaskScheduleResponse(taskRes.rows[0])
     },
     messages: messages.map((message) => sanitizeTaskMessageForDebugMode(message, debugMode)),
+    latest_user_message: latestUserMessage ? {
+      id: latestUserMessage.id,
+      content_json: { tools: latestUserMessage.content_json.tools, agent: latestUserMessage.content_json.agent }
+    } : null,
     debug_mode: debugMode,
     thread_counts: threadCounts,
     active_leaf_message_id: activeLeafMessageId,

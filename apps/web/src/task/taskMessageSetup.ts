@@ -14,22 +14,26 @@ export function readLatestTaskMessageSetup(messages: readonly TaskMessage[]): Ta
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message.role !== "user") continue;
-    const tools = message.content_json.tools;
-    return {
-      messageId: message.id,
-      toolOptions: normalizeToolOptions({
-        webSearch: false,
-        memorySearch: false,
-        scheduleTask: false,
-        subtasks: false,
-        computerUse: false,
-        interactiveCanvas: false,
-        enabledSkills: [],
-        enabledSources: [],
-        ...(tools && typeof tools === "object" && !Array.isArray(tools) ? tools : {})
-      }),
-      agentId: getTaskMessageAgentId(message)
-    };
+    return readTaskMessageSetup(message);
   }
   return null;
+}
+
+export function readTaskMessageSetup(message: Pick<TaskMessage, "id" | "content_json">): TaskMessageSetup {
+  const tools = message.content_json.tools;
+  return {
+    messageId: message.id,
+    toolOptions: normalizeToolOptions({
+      webSearch: false,
+      memorySearch: false,
+      scheduleTask: false,
+      subtasks: false,
+      computerUse: false,
+      interactiveCanvas: false,
+      enabledSkills: [],
+      enabledSources: [],
+      ...(tools && typeof tools === "object" && !Array.isArray(tools) ? tools : {})
+    }),
+    agentId: getTaskMessageAgentId(message)
+  };
 }

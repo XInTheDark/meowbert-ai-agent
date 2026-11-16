@@ -31,6 +31,10 @@ vi.mock("../../services/tasks/task-history-reader.js", () => ({
   readTaskPayloads: vi.fn(async (_taskId, _kind, rows) => rows)
 }));
 
+vi.mock("../../services/tasks/task-message-lineage.js", () => ({
+  findNearestUserAncestorMessage: vi.fn(async () => null)
+}));
+
 vi.mock("../../services/tasks/task-history.js", () => ({
   ensureTaskHistoryWarm: vi.fn(async () => {})
 }));
@@ -71,6 +75,7 @@ vi.mock("./shared.js", async () => {
 
 import { query } from "../../lib/db.js";
 import { listTaskCanvases } from "../../services/canvases/project-canvases.js";
+import { findNearestUserAncestorMessage } from "../../services/tasks/task-message-lineage.js";
 import { registerTaskDetailRoutes } from "./detail-routes.js";
 
 describe("registerTaskDetailRoutes", () => {
@@ -112,6 +117,34 @@ describe("registerTaskDetailRoutes", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("includes the active branch's latest user setup when message bodies are omitted", async () => {
+    const app = Fastify();
+    app.decorate("authenticate", async (request: Fastify.FastifyRequest) => {
+      request.user = { id: "user-1", email: "user@example.com" };
+    });
+    mockedQuery.mockImplementation(async (sql: string) => createQueryResult(sql.includes("FROM tasks t")
+      ? [{ id: "task-1", public_share_id: null, schedule_mode: null }]
+      : []));
+    vi.mocked(findNearestUserAncestorMessage).mockResolvedValueOnce({
+      id: "branch-user",
+      content_json: { text: "A long prompt", tools: { webSearch: true }, agent: { id: "opus" } },
+      parent_message_id: "branch-parent"
+    });
+    await registerTaskDetailRoutes(app);
+
+    const response = await app.inject({
+      method: "GET", url: "/api/tasks/326522d1-67cc-4475-92ce-a85b18556261?messageDetail=none"
+    });
+
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().messages).toEqual([]);
+    expect(response.json().latest_user_message).toEqual({
+      id: "branch-user", content_json: { tools: { webSearch: true }, agent: { id: "opus" } }
+    });
+    expect(findNearestUserAncestorMessage).toHaveBeenCalledWith("326522d1-67cc-4475-92ce-a85b18556261", "msg-assistant");
+    await app.close();
   });
 
   it("returns task-associated canvases alongside marked file artifacts", async () => {

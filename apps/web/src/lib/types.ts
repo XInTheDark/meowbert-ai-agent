@@ -259,6 +259,7 @@ export interface TaskDetail {
     } | null;
   };
   messages: TaskMessage[];
+  latest_user_message?: Pick<TaskMessage, "id" | "content_json"> | null;
   debug_mode?: boolean;
   thread_counts?: TaskMessageThreadCount[];
   active_leaf_message_id?: string | null;
