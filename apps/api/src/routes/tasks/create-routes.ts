@@ -94,6 +94,7 @@ async function createRequestedTask(input: {
   swarmSettings: AgentSwarmSettings | null;
 }): Promise<{ taskId: string; runId: string; userMessageId: string; reusedExisting: boolean }> {
   const baseInput = {
+    sendAt: input.body.sendAt,
     taskId: input.body.taskId,
     workspaceId: input.workspaceId,
     environmentId: input.environmentId,

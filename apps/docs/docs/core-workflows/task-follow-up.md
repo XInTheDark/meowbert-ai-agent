@@ -69,6 +69,10 @@ Use follow-ups to:
 - Extend the work: _"Now also generate a chart from `output/q1_summary.csv`."_
 - Request a retry with different parameters: _"Retry the analysis but exclude January."_
 
+### Schedule send
+
+Right-click **Send**, choose **Schedule send**, then pick a date and time and confirm. The time uses your device's timezone. Scheduled follow-ups appear above the composer; use **Send now** to send early or **Remove** to cancel. They still send if you close the tab. If the task is running, the message joins it at the next available step after the chosen time.
+
 ## Reading older conversations
 
 On servers with cold storage enabled, older conversations load saved messages and attachments as you open them. Reading an old conversation does not restart the task. Send a follow-up to continue working with its saved execution context.

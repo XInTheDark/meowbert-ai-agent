@@ -10,7 +10,7 @@ import { announceQueuedMessagesDelivered, claimQueuedUserMessages } from "./clai
 export async function appendQueuedUserMessages(execution: AgentExecutionContext): Promise<void> {
   const { prepared, job } = execution;
   // Checked without the task lock first, since almost every turn has nothing queued.
-  const pending = await query("SELECT 1 FROM task_queued_messages WHERE task_id = $1 LIMIT 1", [job.taskId]);
+  const pending = await query("SELECT 1 FROM task_queued_messages WHERE task_id = $1 AND (send_at IS NULL OR send_at <= now()) LIMIT 1", [job.taskId]);
   if ((pending.rowCount ?? 0) === 0) return;
   const forceIncludeIssues: string[] = [];
   const delivered = await appendRunInboxMessages(

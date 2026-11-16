@@ -98,6 +98,7 @@ async function handlePostTaskMessage(request: FastifyRequest, reply: FastifyRepl
   const connectorContextId = isMaster ? null : undefined;
   // A run in flight takes the message at its next model turn instead of being interrupted.
   const queued = await queueTaskUserMessageIfRunActive({
+    sendAt: body.sendAt,
     taskId: params.taskId,
     userId: request.user.id,
     content: buildUserMessageContent({
@@ -123,6 +124,7 @@ async function handlePostTaskMessage(request: FastifyRequest, reply: FastifyRepl
     });
     return { taskId: params.taskId, mode: "queued" as const, queuedMessageId: queued.queuedMessageId };
   }
+  if (body.sendAt) return reply.status(400).send({ error: "Messages cannot be scheduled for this task." });
 
   const run = await appendTaskUserMessageAndEnqueue({
     taskId: params.taskId,

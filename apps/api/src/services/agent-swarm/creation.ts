@@ -41,6 +41,7 @@ export async function createAgentSwarmTask(input: BaseCreateWorkflowInput & {
   const taskId = input.taskId ?? randomUUID();
   const startLeader = async (userMessageId: string, reusedExisting: boolean) => {
     const run = await ensureWorkflowInitialRun({
+      sendAt: input.sendAt,
       taskId,
       userMessageId,
       workspaceId: input.workspaceId,
@@ -72,8 +73,12 @@ export async function createAgentSwarmTask(input: BaseCreateWorkflowInput & {
         client
       });
       await upsertAgentSwarmInTx(client, taskId, input.settings);
+      if (input.sendAt && input.settings.timeBudgetMinutes !== null) await client.query(
+        "UPDATE task_swarms SET deadline_at = $2::timestamptz + make_interval(mins => $3::int) WHERE task_id = $1",
+        [taskId, input.sendAt, input.settings.timeBudgetMinutes]
+      );
       if (input.timeLimitSeconds !== null && input.timeLimitSeconds !== undefined) {
-        await activateTaskTimeLimitInTx(client, taskId, leader.userMessageCreatedAt);
+        await activateTaskTimeLimitInTx(client, taskId, input.sendAt ?? leader.userMessageCreatedAt);
       }
       return leader.userMessageId;
     });

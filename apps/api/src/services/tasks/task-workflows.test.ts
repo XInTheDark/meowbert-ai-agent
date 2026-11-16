@@ -46,6 +46,16 @@ describe("workflow task creation retries", () => {
     });
   });
 
+  it("preserves a scheduled start when creating the initial workflow run", async () => {
+    query.mockResolvedValue(buildRowsResult([{ task_id: "task-1", user_message_id: "message-1" }]));
+    const sendAt = new Date(Date.now() + 3600_000).toISOString();
+    await createLongHorizonWorkflowTask({ ...buildInput("task-1"), sendAt });
+    expect(ensureDispatchedRun).toHaveBeenCalledWith(expect.objectContaining({ delayMs: expect.any(Number) }));
+    const delayMs = ensureDispatchedRun.mock.calls.at(-1)![0].delayMs;
+    expect(delayMs).toBeGreaterThan(3590_000);
+    expect(delayMs).toBeLessThanOrEqual(3600_000);
+  });
+
   it("reuses an existing Long Horizon task instead of inserting a duplicate", async () => {
     query.mockResolvedValue(buildRowsResult([{
       task_id: "task-1",

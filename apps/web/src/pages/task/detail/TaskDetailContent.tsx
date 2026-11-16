@@ -284,6 +284,7 @@ function TaskConversationMain({ model }: ModelProps) {
         followUp={model.composer.followUp}
         onFollowUpChange={model.composer.setFollowUp}
         onSubmit={() => void model.actions.handleSendFollowUp()}
+        onScheduleSend={model.composer.editingMessageId ? undefined : (sendAt) => void model.actions.handleSendFollowUp(undefined, sendAt)}
         attachments={model.composer.attachments}
         onRemoveAttachment={model.composer.removeAttachment}
         onToggleAttachmentForceInclude={model.composer.toggleAttachmentForceInclude}

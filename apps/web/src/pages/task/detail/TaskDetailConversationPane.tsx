@@ -80,6 +80,7 @@ interface TaskDetailConversationPaneProps {
   followUp: string;
   onFollowUpChange: (value: string) => void;
   onSubmit: () => void;
+  onScheduleSend?: (sendAt: string) => void;
   attachments: TaskAttachment[];
   onRemoveAttachment: (id: string) => void;
   onToggleAttachmentForceInclude?: (id: string) => void;
@@ -310,6 +311,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
                 value={props.followUp}
                 onChange={props.onFollowUpChange}
                 onSubmit={props.onSubmit}
+                onScheduleSend={props.onScheduleSend}
                 isSubmitting={props.isBusy}
                 hasExternalContent={(props.quotedFollowUpSelections?.length ?? 0) > 0}
                 quotedContent={(props.quotedFollowUpSelections?.length ?? 0) > 0 ? (

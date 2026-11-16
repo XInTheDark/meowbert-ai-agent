@@ -43,6 +43,7 @@ export function QueuedFollowUps(props: QueuedFollowUpsProps) {
         <li key={message.id} className="queued-follow-up">
           <Clock size={13} aria-hidden="true" className="queued-follow-up-icon" />
           <span className="queued-follow-up-text" title={message.text}>{message.text}</span>
+          {message.send_at ? <time dateTime={message.send_at}>{new Date(message.send_at).toLocaleString()}</time> : null}
           <button
             type="button"
             className="btn ghost queued-follow-up-send"

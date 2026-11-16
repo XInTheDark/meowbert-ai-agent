@@ -107,7 +107,7 @@ describe("createTaskWithInitialMessage", () => {
     mockedQuery.mockResolvedValue(buildRowsResult([]));
   });
 
-  it("uses selectionUserId for the initial branch selection and queued run actor", async () => {
+  it.each([undefined, "2030-01-01T12:00:00.000Z"])("uses the initial branch and preserves the send time (%s)", async (sendAt) => {
     const client = createClient((sql, params) => {
       if (sql.includes("INSERT INTO tasks (")) {
         return buildRowsResult([]);
@@ -142,6 +142,7 @@ describe("createTaskWithInitialMessage", () => {
     mockedWithTransaction.mockImplementation(async (callback) => callback(client as never));
 
     const created = await createTaskWithInitialMessage({
+      sendAt,
       taskId: "task-1",
       workspaceId: "workspace-1",
       environmentId: "environment-1",
@@ -174,6 +175,7 @@ describe("createTaskWithInitialMessage", () => {
     );
 
     const dispatch = expectDispatchPayload(client.query);
+    if (sendAt) expect(Math.abs(Date.parse(String(dispatch.params[6])) - Date.parse(sendAt))).toBeLessThan(100);
     expect(dispatch.params).toEqual(expect.arrayContaining([
       created.runId,
       "task-1",

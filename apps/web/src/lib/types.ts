@@ -284,6 +284,7 @@ export interface TaskQueuedMessage {
   id: string;
   text: string;
   created_at: string;
+  send_at?: string | null;
 }
 
 export interface ProjectCanvasSummary {

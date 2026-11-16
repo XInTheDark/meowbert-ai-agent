@@ -21,6 +21,7 @@ interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onScheduleSend?: (sendAt: string) => void;
   isSubmitting: boolean;
   hasExternalContent?: boolean;
   quotedContent?: ReactNode;
@@ -152,6 +153,7 @@ export function ChatInput({
   value,
   onChange,
   onSubmit,
+  onScheduleSend,
   isSubmitting,
   hasExternalContent = false,
   quotedContent,
@@ -431,6 +433,7 @@ export function ChatInput({
         submitBlockedByUploads={submitBlockedByUploads}
         isQueuedSubmitPending={isQueuedSubmitPending}
         handleSubmitRequest={handleSubmitRequest}
+        onScheduleSend={onScheduleSend}
         isSendButtonDisabled={isSendButtonDisabled}
       />
 

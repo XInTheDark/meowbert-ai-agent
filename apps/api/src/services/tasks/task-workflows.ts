@@ -26,6 +26,7 @@ type WorkflowPhase =
   | "completed";
 
 export interface BaseCreateWorkflowInput {
+  sendAt?: string;
   taskId?: string;
   workspaceId: string;
   environmentId: string;
@@ -114,6 +115,7 @@ async function findExistingWorkflowTask(
 }
 
 export async function ensureWorkflowInitialRun(input: {
+  sendAt?: string;
   taskId: string;
   userMessageId: string;
   workspaceId: string;
@@ -128,6 +130,7 @@ export async function ensureWorkflowInitialRun(input: {
     environmentId: input.environmentId,
     triggerSource: "web",
     mode: input.mode,
+    delayMs: input.sendAt ? Math.max(0, Date.parse(input.sendAt) - Date.now()) : undefined,
     branchMessageId: input.userMessageId,
     selectionUserId: input.initiatorUserId,
     priorityActorUserId: input.initiatorUserId,
@@ -140,6 +143,7 @@ export async function ensureWorkflowInitialRun(input: {
 }
 
 async function reuseExistingWorkflowTask(input: {
+  sendAt?: string;
   existing: ExistingWorkflowTaskCreateMatch;
   workspaceId: string;
   environmentId: string;
@@ -148,6 +152,7 @@ async function reuseExistingWorkflowTask(input: {
   toolOptionsOverride?: TaskMessageToolOptions;
 }): Promise<{ taskId: string; runId: string; userMessageId: string; reusedExisting: true }> {
   const run = await ensureWorkflowInitialRun({
+    sendAt: input.sendAt,
     taskId: input.existing.taskId,
     userMessageId: input.existing.userMessageId,
     workspaceId: input.workspaceId,
@@ -360,6 +365,7 @@ async function createLongHorizonWorkflowRecords(
       workflowType: "long_horizon",
       phase: enableClarifyPhase ? "clarify" : "working",
       config: {
+        ...(input.sendAt ? { scheduledStartAt: input.sendAt } : {}),
         reviewerCount,
         tokenBudget: input.tokenBudget ?? null,
         timeBudgetMinutes: input.timeBudgetMinutes ?? null,
@@ -409,7 +415,7 @@ async function createLongHorizonWorkflowRecords(
     }
 
     if (input.timeLimitSeconds !== null && input.timeLimitSeconds !== undefined) {
-      await activateTaskTimeLimitInTx(client, taskId, parent.userMessageCreatedAt);
+      await activateTaskTimeLimitInTx(client, taskId, input.sendAt ?? parent.userMessageCreatedAt);
     }
 
     return parent;
@@ -437,6 +443,7 @@ export async function createLongHorizonWorkflowTask(input: LongHorizonWorkflowIn
     : null;
   if (existingBeforeCreate) {
     return reuseExistingWorkflowTask({
+      sendAt: input.sendAt,
       existing: existingBeforeCreate,
       workspaceId: input.workspaceId,
       environmentId: input.environmentId,
@@ -464,6 +471,7 @@ export async function createLongHorizonWorkflowTask(input: LongHorizonWorkflowIn
       throw error;
     }
     return reuseExistingWorkflowTask({
+      sendAt: input.sendAt,
       existing,
       workspaceId: input.workspaceId,
       environmentId: input.environmentId,
@@ -473,6 +481,7 @@ export async function createLongHorizonWorkflowTask(input: LongHorizonWorkflowIn
   }
 
   const run = await ensureWorkflowInitialRun({
+    sendAt: input.sendAt,
     taskId,
     userMessageId: created.userMessageId,
     workspaceId: input.workspaceId,

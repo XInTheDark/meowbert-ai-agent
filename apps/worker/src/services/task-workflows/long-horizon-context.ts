@@ -60,7 +60,8 @@ export async function loadLongHorizonBudgetTelemetry(input: {
 }> {
   const result = await query<{ total_tokens: string | null; created_at: string | Date | null }>(
     `SELECT
-       (SELECT created_at FROM tasks WHERE id = $1) AS created_at,
+       (SELECT GREATEST(t.created_at, (w.config_json->>'scheduledStartAt')::timestamptz)
+          FROM tasks t LEFT JOIN task_workflows w ON w.task_id = t.id WHERE t.id = $1) AS created_at,
        COALESCE(SUM(u.weighted_tokens), 0)::text AS total_tokens
      FROM user_token_usage_events u
      WHERE u.task_id IN (

@@ -180,8 +180,10 @@ function useTaskFollowUpAction(
 ) {
   const [isBusy, setIsBusy] = useState(false);
   const [cacheWarning, setCacheWarning] = useState<CacheBreakingChange[] | null>(null);
+  const [pendingSendAt, setPendingSendAt] = useState<string | undefined>();
 
   async function submitFollowUp(request: {
+    sendAt?: string;
     message: string;
     attachments: UseTaskDetailActionsInput["attachments"];
     editingMessageId: string | null;
@@ -193,6 +195,7 @@ function useTaskFollowUpAction(
       await requestInterruptAndMarkTask();
     }
     const response = await sendTaskFollowUp({
+      sendAt: request.sendAt,
       api: input.api,
       taskId: input.taskId,
       followUp: request.message,
@@ -218,7 +221,8 @@ function useTaskFollowUpAction(
   }
 
   // Without a choice, a follow-up that would lose the prompt cache waits for the user to pick one.
-  async function handleSendFollowUp(choice?: CacheWarningChoice): Promise<void> {
+  async function handleSendFollowUp(choice?: CacheWarningChoice, scheduledAt?: string): Promise<void> {
+    const sendAt = choice ? pendingSendAt : scheduledAt;
     const message = input.quotedFollowUpSelections.length > 0
       ? buildSelectedTextMessage(input.quotedFollowUpSelections, input.followUp)
       : input.followUp;
@@ -227,11 +231,13 @@ function useTaskFollowUpAction(
     if (!choice && !input.editingMessageId) {
       const changes = findCacheBreakingChanges(previous, { toolOptions: input.toolOptions, agentId: input.selectedAgentId });
       if (changes.length > 0) {
+        setPendingSendAt(sendAt);
         setCacheWarning(changes);
         return;
       }
     }
     setCacheWarning(null);
+    setPendingSendAt(undefined);
     const setup = choice === "keep_previous" && previous
       ? { toolOptions: previous.toolOptions, agentId: previous.agentId ?? input.selectedAgentId }
       : undefined;
@@ -241,7 +247,7 @@ function useTaskFollowUpAction(
     // New messages show in the conversation and leave the composer at once; edits wait for the server.
     const sendsOptimistically = !input.editingMessageId && message.trim().length > 0;
     // A message for a running task waits in the queue above the composer rather than the conversation.
-    const showsPendingBubble = sendsOptimistically && !isTaskRunActive(input.taskDetail.task.status);
+    const showsPendingBubble = sendsOptimistically && !sendAt && !isTaskRunActive(input.taskDetail.task.status);
     const sentDraft = { followUp: input.followUp, quotes: input.quotedFollowUpSelections };
     if (sendsOptimistically) {
       if (showsPendingBubble) input.pendingFollowUp.begin(message);
@@ -250,7 +256,7 @@ function useTaskFollowUpAction(
       input.setQuotedFollowUpSelections([]);
     }
     try {
-      const response = await submitFollowUp({ message, attachments: input.attachments, editingMessageId: input.editingMessageId, setup });
+      const response = await submitFollowUp({ sendAt, message, attachments: input.attachments, editingMessageId: input.editingMessageId, setup });
       if (sendsOptimistically) {
         input.pendingFollowUp.confirm(response.messageId ?? null);
       } else {

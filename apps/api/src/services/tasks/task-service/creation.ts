@@ -20,6 +20,7 @@ import type { ProjectCanvasIntent } from "../../canvases/project-canvases.js";
 import { attachPendingTaskInputs, lockTaskInputUploads } from "../../files/task-upload-manifest.js";
 
 interface CreateTaskInput {
+  sendAt?: string;
   taskId?: string;
   workspaceId: string;
   environmentId: string;
@@ -205,7 +206,8 @@ async function insertUserMessage(
 async function insertTaskSchedule(
   client: PoolClient,
   taskId: string,
-  schedule: NonNullable<CreateTaskInput["schedule"]>
+  schedule: NonNullable<CreateTaskInput["schedule"]>,
+  sendAt?: string
 ): Promise<void> {
   await client.query(
     `INSERT INTO task_schedules (
@@ -233,7 +235,9 @@ async function insertTaskSchedule(
       schedule.createdByUserId ?? null,
       schedule.createdFromTaskId ?? null,
       schedule.runTimeoutSeconds ?? null,
-      schedule.runDeadlineAt ?? null
+      sendAt && schedule.runTimeoutSeconds
+        ? new Date(Date.parse(sendAt) + schedule.runTimeoutSeconds * 1000).toISOString()
+        : schedule.runDeadlineAt ?? null
     ]
   );
 }
@@ -269,11 +273,11 @@ async function createTaskRecords(input: CreateTaskInput, taskId: string, selecti
     }
 
     if (input.schedule) {
-      await insertTaskSchedule(client, taskId, input.schedule);
+      await insertTaskSchedule(client, taskId, input.schedule, input.sendAt);
     }
 
     if (input.timeLimitSeconds !== null && input.timeLimitSeconds !== undefined) {
-      await activateTaskTimeLimitInTx(client, taskId, insertedUserMessage.created_at);
+      await activateTaskTimeLimitInTx(client, taskId, input.sendAt ?? insertedUserMessage.created_at);
     }
 
     return userMessageId;
@@ -378,6 +382,7 @@ async function ensureTaskCreateRun(
     environmentId: input.environmentId,
     triggerSource: input.source,
     mode: input.initialRunMode,
+    delayMs: input.sendAt ? Math.max(0, Date.parse(input.sendAt) - Date.now()) : undefined,
     branchMessageId: userMessageId,
     selectionUserId,
     priorityActorUserId: selectionUserId,
@@ -438,6 +443,7 @@ export async function createTaskWithInitialMessage(
       environmentId: normalizedInput.environmentId,
       triggerSource: normalizedInput.source,
       mode: normalizedInput.initialRunMode,
+      delayMs: normalizedInput.sendAt ? Math.max(0, Date.parse(normalizedInput.sendAt) - Date.now()) : undefined,
       branchMessageId: userMessageId,
       selectionUserId,
       priorityActorUserId: selectionUserId,

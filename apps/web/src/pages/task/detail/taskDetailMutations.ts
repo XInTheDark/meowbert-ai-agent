@@ -96,6 +96,7 @@ export async function requestTaskInterrupt(api: ApiClient, taskId: string): Prom
 }
 
 export async function sendTaskFollowUp(args: {
+  sendAt?: string;
   api: ApiClient;
   taskId: string;
   followUp: string;
@@ -128,6 +129,7 @@ export async function sendTaskFollowUp(args: {
 
   return args.api.post<TaskFollowUpResponse>(requestPath, {
     message: joinTaskMessage(args.followUp, args.attachments),
+    ...(args.sendAt ? { sendAt: args.sendAt } : {}),
     attachments: args.attachments,
     ...(args.interactiveCanvasId
       ? {

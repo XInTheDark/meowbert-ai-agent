@@ -295,7 +295,7 @@ export function TaskComposerPage() {
     );
   }
 
-  async function submitTask() {
+  async function submitTask(sendAt?: string) {
     if ((!prompt.trim() && attachments.length === 0) || !activeEnvironmentId || !pendingTaskId) return;
 
     setError(null);
@@ -333,6 +333,7 @@ export function TaskComposerPage() {
 
       const created = await api.post<{ taskId: string }>(`/api/projects/${activeEnvironmentId}/tasks`, {
         taskId: pendingTaskId,
+        ...(sendAt ? { sendAt } : {}),
         ...(executionTarget.kind === "local" ? { executionTarget } : {}),
         message: joinTaskMessage(prompt, taskAttachments),
         ...(effectiveQuickMode ? { quickMode: true } : {}),
@@ -454,6 +455,7 @@ export function TaskComposerPage() {
               }));
             }}
             onSubmit={submitTask}
+            onScheduleSend={(sendAt) => void submitTask(sendAt)}
             isSubmitting={isSubmitting}
             attachments={attachments}
             onRemoveAttachment={removeAttachment}

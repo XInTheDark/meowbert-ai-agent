@@ -233,7 +233,11 @@ const taskRestrictionsSchema = z
   .strict()
   .optional();
 
+const sendAtSchema = z.string().datetime({ offset: true })
+  .refine((value) => Date.parse(value) > Date.now(), "Choose a send time in the future.").optional();
+
 export const createTaskBodySchema = z.object({
+  sendAt: sendAtSchema,
   taskId: z.string().uuid().optional(),
   title: z.string().max(240).optional(),
   message: z.string().min(1),
@@ -253,6 +257,7 @@ export const createTaskBodySchema = z.object({
 });
 
 export const postTaskMessageBody = z.object({
+  sendAt: sendAtSchema,
   message: z.string().min(1),
   interactiveCanvasId: z.string().uuid().nullable().optional(),
   interactiveCanvasIntent: z.enum(["create", "update", "view"]).optional(),

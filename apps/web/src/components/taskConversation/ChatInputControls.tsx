@@ -50,6 +50,7 @@ interface ChatInputControlsProps {
   submitBlockedByUploads: boolean;
   isQueuedSubmitPending: boolean;
   handleSubmitRequest: () => void;
+  onScheduleSend?: (sendAt: string) => void;
   isSendButtonDisabled: boolean;
 }
 
@@ -181,6 +182,7 @@ export function ChatInputControls(props: ChatInputControlsProps) {
           isQueuedSubmitPending={props.isQueuedSubmitPending}
           isSendButtonDisabled={props.isSendButtonDisabled}
           onClick={props.handleSubmitRequest}
+          onScheduleSend={props.onScheduleSend}
         />
       </div>
     </div>

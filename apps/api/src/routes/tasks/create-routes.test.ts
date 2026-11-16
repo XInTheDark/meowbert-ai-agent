@@ -100,4 +100,18 @@ describe("create task with an Agent Swarm preset", () => {
     expect(response.statusCode).toBe(400);
     expect(mocks.createAgentSwarmTask).not.toHaveBeenCalled();
   });
+
+  it("passes a future send time through to task creation", async () => {
+    const sendAt = new Date(Date.now() + 3600_000).toISOString();
+    mocks.createTaskWithInitialMessage.mockResolvedValue({ taskId: "task-1", runId: "run-1", userMessageId: "message-1", reusedExisting: false });
+    const response = await postTask({ message: "Send later", sendAt });
+    expect(response.statusCode, response.body).toBe(201);
+    expect(mocks.createTaskWithInitialMessage).toHaveBeenCalledWith(expect.objectContaining({ sendAt }));
+  });
+
+  it.each(["2000-01-01T00:00:00.000Z", "not a date"])("rejects an invalid send time: %s", async (sendAt) => {
+    const response = await postTask({ message: "Send later", sendAt });
+    expect(response.statusCode).toBeGreaterThanOrEqual(400);
+    expect(mocks.createTaskWithInitialMessage).not.toHaveBeenCalled();
+  });
 });

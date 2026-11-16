@@ -4371,3 +4371,18 @@ a.citation-pill:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.send-context-menu {
+  position: fixed;
+  z-index: 200;
+  width: 176px;
+  padding: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-lg);
+}
+
+.schedule-send-input {
+  width: 100%;
+  box-sizing: border-box;
+}

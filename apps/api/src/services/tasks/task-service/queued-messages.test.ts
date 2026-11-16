@@ -48,6 +48,19 @@ describe("queueTaskUserMessageIfRunActive", () => {
     expect(mocks.appendTaskEvent).toHaveBeenCalledWith("task-1", "log", expect.objectContaining({ phase: "queued_messages" }));
   });
 
+  it.each(["succeeded", "cancelled", "running"])("stores a scheduled send while the task is %s", async (status) => {
+    const sendAt = "2030-01-01T12:00:00.000Z";
+    mocks.clientQuery.mockResolvedValueOnce(rows([task({ status })]))
+      .mockResolvedValueOnce(rows([{ id: "scheduled-1" }])).mockResolvedValue(rows([]));
+
+    await expect(queueTaskUserMessageIfRunActive({ taskId: "task-1", userId: "user-1",
+      content: { text: "later", tools: { webSearch: true } }, sendAt })).resolves.toEqual({ queuedMessageId: "scheduled-1" });
+
+    expect(insertedQueueRows()).toHaveLength(1);
+    expect(insertedQueueRows()[0]).toEqual([expect.any(String), ["task-1", "user-1", JSON.stringify({ text: "later", tools: { webSearch: true } }), sendAt]]);
+    expect(mocks.clientQuery.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO task_messages"))).toBe(false);
+  });
+
   it.each([
     ["the task is idle", task({ status: "succeeded" })],
     ["the run is already being stopped", task({ cancellation_requested: true })],

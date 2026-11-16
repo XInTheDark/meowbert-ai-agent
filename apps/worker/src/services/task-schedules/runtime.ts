@@ -1,4 +1,5 @@
 import { query, withTransaction } from "../../lib/db.js";
+import { sendDueScheduledMessages } from "../queued-messages/scheduled-send.js";
 import {
   RECURRING_SCHEDULER_BATCH_SIZE,
   RECURRING_SCHEDULER_INTERVAL_MS,
@@ -389,6 +390,7 @@ export function startTaskScheduleLoop(): { stop: () => Promise<void> } {
 
     running = true;
     pendingRun = (async () => {
+      await sendDueScheduledMessages();
       const count = await runRecurringSchedulerOnce();
       if (count > 0) {
         console.log(`Recurring scheduler enqueued ${count} run(s)`);

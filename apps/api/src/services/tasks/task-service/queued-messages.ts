@@ -8,6 +8,7 @@ export interface TaskQueuedMessage {
   id: string;
   text: string;
   created_at: string;
+  send_at?: string | null;
 }
 
 const ACTIVE_RUN_STATUSES = new Set(["queued", "starting", "running"]);
@@ -32,6 +33,7 @@ export async function announceTaskQueuedMessagesChanged(taskId: string): Promise
 // Returns null when there is no such run, or when the run cannot take one (a device run, a lane, a
 // compaction or reviewer run, or a run already being stopped), so the caller sends it the usual way.
 export async function queueTaskUserMessageIfRunActive(input: {
+  sendAt?: string;
   taskId: string;
   userId: string;
   content: Record<string, unknown>;
@@ -55,31 +57,30 @@ export async function queueTaskUserMessageIfRunActive(input: {
     const task = taskRes.rows[0];
     if (
       !task
-      || !ACTIVE_RUN_STATUSES.has(task.status)
-      || task.cancellation_requested
-      || task.execution_target?.kind === "local"
+      || (!input.sendAt && (!ACTIVE_RUN_STATUSES.has(task.status)
+        || task.cancellation_requested || task.execution_target?.kind === "local"))
       || task.workflow_internal_role === "lane"
     ) {
       return null;
     }
-    const runRes = await client.query<{ run_kind: string }>(
-      `SELECT run_kind
+    if (!input.sendAt) {
+      const runRes = await client.query<{ run_kind: string }>(
+        `SELECT run_kind
          FROM task_runs
         WHERE task_id = $1
           AND ended_at IS NULL
         ORDER BY attempt_no DESC
         LIMIT 1`,
-      [input.taskId]
-    );
-    if (!QUEUEABLE_RUN_KINDS.has(runRes.rows[0]?.run_kind ?? "")) {
-      return null;
+        [input.taskId]
+      );
+      if (!QUEUEABLE_RUN_KINDS.has(runRes.rows[0]?.run_kind ?? "")) return null;
     }
 
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO task_queued_messages (task_id, author_user_id, content_json)
-       VALUES ($1, $2, $3::jsonb)
+      `INSERT INTO task_queued_messages (task_id, author_user_id, content_json, send_at)
+       VALUES ($1, $2, $3::jsonb, $4)
        RETURNING id`,
-      [input.taskId, input.userId, JSON.stringify(input.content)]
+      [input.taskId, input.userId, JSON.stringify(input.content), input.sendAt ?? null]
     );
     await applyFollowUpTaskSettingsInTx(client, input);
     return { queuedMessageId: inserted.rows[0].id };
@@ -89,8 +90,8 @@ export async function queueTaskUserMessageIfRunActive(input: {
 }
 
 export async function listTaskQueuedMessages(taskId: string): Promise<TaskQueuedMessage[]> {
-  const result = await query<{ id: string; content_json: Record<string, unknown>; created_at: string }>(
-    `SELECT id, content_json, created_at
+  const result = await query<{ id: string; content_json: Record<string, unknown>; created_at: string; send_at: string | null }>(
+    `SELECT id, content_json, created_at, send_at
        FROM task_queued_messages
       WHERE task_id = $1
       ORDER BY created_at, id`,
@@ -99,7 +100,8 @@ export async function listTaskQueuedMessages(taskId: string): Promise<TaskQueued
   return result.rows.map((row) => ({
     id: row.id,
     text: typeof row.content_json.text === "string" ? row.content_json.text : "",
-    created_at: row.created_at
+    created_at: row.created_at,
+    send_at: row.send_at
   }));
 }
 
