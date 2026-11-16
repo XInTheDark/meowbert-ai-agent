@@ -8,3 +8,7 @@ export interface WindowRequestState {
   tools: { response: Tool[]; codeMode: FunctionTool[] };
   toolChoice?: ModelToolChoice;
 }
+
+// What a request may change in the saved recipe: nothing (idle compaction replays the last turn),
+// only the tool choice, or the tool definitions too.
+export type WindowRequestUpdate = "replay" | "tool_choice" | "tools";

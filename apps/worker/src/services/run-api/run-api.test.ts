@@ -123,8 +123,8 @@ describe("Run API retries", () => {
     const remote = createHttpRunControl(client(token, {
       fetch: losingFirstResponse((url) => url.includes("context.prepareWindowRequest"))
     }));
-    await expect(remote.context.prepareWindowRequest(window, saved, true)).resolves.toEqual(saved);
-    expect(control.context.prepareWindowRequest).toHaveBeenCalledExactlyOnceWith(window, saved, true);
+    await expect(remote.context.prepareWindowRequest(window, saved, "replay")).resolves.toEqual(saved);
+    expect(control.context.prepareWindowRequest).toHaveBeenCalledExactlyOnceWith(window, saved, "replay");
     remote.stop();
   });
 

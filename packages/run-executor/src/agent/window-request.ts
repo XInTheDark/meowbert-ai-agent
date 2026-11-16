@@ -1,14 +1,15 @@
-import type { FunctionTool, Tool } from "openai/resources/responses/responses";
 import type { AgentExecutionContext } from "./execution-types.js";
 import type { AgentTurnRequest } from "./turn-request.js";
 import { isIdleCompactionRun } from "./idle-compaction.js";
 import { appendPromptEnvelopeDelta, computePromptPrefixHash, getPromptEnvelopeRevision, promptEnvelopeToPrefixItems } from "./prompt-envelope.js";
 import { buildPromptCacheKey } from "./turn-request.js";
 import type { WindowRequestState } from "./window-request-types.js";
-import { buildExecTool, EXEC_TOOL_NAME } from "../code-mode/exec-tool.js";
+import { buildToolChangeNotice } from "./tool-change-notice.js";
+import { needsNewToolDefinitions } from "./window-tool-freeze.js";
 import type { ModelToolChoice } from "./model.js";
 
 const SETUP_UPDATE = "[Current task setup]\n";
+const TOOL_CHANGES_REASON = "tool-changes";
 const preparedWindows = new WeakMap<AgentExecutionContext, string>();
 const currentSetups = new WeakMap<AgentExecutionContext, WindowRequestState["envelope"]>();
 const requestStates = new WeakMap<AgentExecutionContext, { windowId: string; signature: string; saved: WindowRequestState }>();
@@ -27,16 +28,6 @@ function latestSetupText(execution: AgentExecutionContext, original: string): st
   return original;
 }
 
-// Reuse only tools still supplied by the current authorized runtime. Idle dispatch is notes-only.
-function authorizedTools<T extends Tool | FunctionTool>(saved: T[], current: T[]): T[] {
-  const key = (tool: T) => tool.type + ":" + ("name" in tool ? tool.name : "");
-  const available = new Map(current.map((tool) => [key(tool), tool]));
-  return saved.flatMap((tool) => {
-    const authorized = available.get(key(tool));
-    return authorized ? [JSON.stringify(authorized) === JSON.stringify(tool) ? tool : authorized] : [];
-  });
-}
-
 function restoreEnvelope(execution: AgentExecutionContext, saved: WindowRequestState): void {
   const envelope = execution.promptEnvelope;
   envelope.baseVersion = saved.envelope.baseVersion;
@@ -45,13 +36,19 @@ function restoreEnvelope(execution: AgentExecutionContext, saved: WindowRequestS
   envelope.sealed = true;
 }
 
+// Saves the window's request recipe the first time, then keeps its tool definitions unless the run
+// needs a tool they cannot offer. Idle compaction always replays what the last turn sent.
 async function prepareStoredRequest(execution: AgentExecutionContext, candidate: WindowRequestState, idle: boolean): Promise<WindowRequestState> {
   const window = execution.state.contextManagement;
   if (window.version !== "v2") return candidate;
   const signature = JSON.stringify({ tools: candidate.tools, toolChoice: candidate.toolChoice });
   const cached = requestStates.get(execution);
   if (cached?.windowId === window.windowId && (idle || cached.signature === signature)) return cached.saved;
-  const saved = await execution.prepared.control.context.prepareWindowRequest(window, candidate, idle);
+  const store = execution.prepared.control.context;
+  let saved = await store.prepareWindowRequest(window, candidate, idle ? "replay" : "tool_choice");
+  if (!idle && needsNewToolDefinitions(saved.tools, candidate.tools)) {
+    saved = await store.prepareWindowRequest(window, candidate, "tools");
+  }
   requestStates.set(execution, { windowId: window.windowId, signature, saved });
   return saved;
 }
@@ -86,15 +83,18 @@ export async function prepareWindowTurnRequest(
       reason: "current-run-state", role: "developer",
       content: "A new task run has started. Earlier timed wrap-up instructions have ended; follow the current task setup and available actions."
     });
+    const toolChanges = idle ? null : buildToolChangeNotice(saved.tools,
+      { response: turn.responseTools, codeMode: turn.codeModeTools }, execution.state.dispatchState.conversationItems);
+    if (toolChanges) appendPromptEnvelopeDelta(execution.promptEnvelope, {
+      reason: TOOL_CHANGES_REASON, role: "developer", content: toolChanges
+    });
     preparedWindows.set(execution, window.windowId);
   }
-  const codeModeTools = idle ? authorizedTools(saved.tools.codeMode, turn.codeModeTools) : turn.codeModeTools;
-  const responseTools = idle ? authorizedTools(saved.tools.response, turn.responseTools).map((tool) =>
-    tool.type === "function" && tool.name === EXEC_TOOL_NAME
-      ? buildExecTool(codeModeTools, execution.prepared.runShellMaxTimeoutSeconds)
-      : tool) : turn.responseTools;
+  // The window's tool definitions go out unchanged; what this run may call is checked when it is called.
+  const responseTools = saved.tools.response;
+  const codeModeTools = turn.codeModeTools;
   const preferredToolChoice = idle ? saved.toolChoice ?? requestedToolChoice : requestedToolChoice;
-  const toolChoice = typeof preferredToolChoice === "object" && !responseTools.some((tool) =>
+  const toolChoice = typeof preferredToolChoice === "object" && !turn.availableResponseTools.some((tool) =>
     tool.type === "function" && tool.name === preferredToolChoice.name) ? "auto" : preferredToolChoice;
   const promptPrefixHash = computePromptPrefixHash({ envelope: execution.promptEnvelope, tools: responseTools });
   return { ...turn, responseTools, codeModeTools, toolChoice, promptPrefixHash,
@@ -113,7 +113,7 @@ export function resetWindowRequestSetup(execution: AgentExecutionContext): void 
   envelope.baseFrames = structuredClone(setup.baseFrames);
   envelope.deltas = structuredClone(setup.deltas);
   for (const delta of envelope.conversationDeltas) {
-    if (delta.reason === "current-task-setup" || delta.reason === "current-run-state") continue;
+    if (delta.reason === "current-task-setup" || delta.reason === "current-run-state" || delta.reason === TOOL_CHANGES_REASON) continue;
     if (!envelope.deltas.some((entry) => entry.role === delta.role && entry.content === delta.content)) {
       envelope.deltas.push(structuredClone(delta));
     }

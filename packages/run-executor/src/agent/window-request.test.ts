@@ -18,10 +18,10 @@ function fixture() {
   const snapshots = new Map<string, WindowRequestState>();
   const history: ResponseInputItem[] = [];
   const store = {
-    prepareWindowRequest: vi.fn(async (window, request, idle) => {
+    prepareWindowRequest: vi.fn(async (window, request, update) => {
       const saved = snapshots.get(window.windowId);
-      const next = saved ? { ...saved, tools: idle ? saved.tools : request.tools,
-        toolChoice: idle ? saved.toolChoice : request.toolChoice } : request;
+      const next = saved ? { ...saved, tools: update === "tools" ? request.tools : saved.tools,
+        toolChoice: update === "replay" ? saved.toolChoice : request.toolChoice } : request;
       snapshots.set(window.windowId, structuredClone(next));
       return structuredClone(next);
     }),
@@ -107,11 +107,55 @@ describe("context-window request replay", () => {
     expect(f.history).toHaveLength(0);
   });
 
-  it("drops revoked tools even when the idle snapshot had them", async () => {
+  it("keeps revoked tools' definitions for the cache but no longer allows them", async () => {
     const f = fixture();
     const before = await f.request(f.execution("Policy"), { allowFinalResponse: true });
     const after = await f.request(f.execution("Policy", [], true), { allowFinalResponse: false });
-    expect(after.turn.responseTools.some((tool) => tool.type === "function" && tool.name === "final_response")).toBe(false);
+    const isFinal = (tool: { type: string; name?: string }) => tool.type === "function" && tool.name === "final_response";
+    expect(after.turn.responseTools).toEqual(before.turn.responseTools);
+    expect(after.turn.availableResponseTools.some(isFinal)).toBe(false);
+    expect(after.turn.promptCacheKey).toBe(before.turn.promptCacheKey);
+  });
+
+  it("tells the model once when tools are turned off, without changing the definitions", async () => {
+    const f = fixture();
+    const first = f.execution("Policy");
+    const before = await f.request(first, { allowFinalResponse: true });
+    const resumed = f.execution("Policy", first.state.dispatchState.conversationItems);
+    const after = await f.request(resumed, { allowFinalResponse: false });
+    expect(after.turn.responseTools).toEqual(before.turn.responseTools);
+    expect(after.turn.promptCacheKey).toBe(before.turn.promptCacheKey);
+    expect(after.input.slice(0, before.input.length)).toEqual(before.input);
+    expect(after.input.at(-1)).toMatchObject({ role: "developer", content: expect.stringContaining("final_response") });
+    const again = f.execution("Policy", resumed.state.dispatchState.conversationItems);
+    expect((await f.request(again, { allowFinalResponse: false })).input).toEqual(after.input);
+    const restored = f.execution("Policy", again.state.dispatchState.conversationItems);
+    const back = await f.request(restored, { allowFinalResponse: true });
+    expect(back.input.at(-1)).toMatchObject({ role: "developer", content: expect.stringContaining("available again") });
+    expect(back.turn.promptCacheKey).toBe(before.turn.promptCacheKey);
+  });
+
+  it("offers a tool enabled behind exec through a note instead of new definitions", async () => {
+    const f = fixture();
+    const first = f.execution("Policy");
+    const before = await f.request(first, {}, true);
+    const extra: FunctionTool = { type: "function", name: "show_canvas", description: "Canvas", strict: false,
+      parameters: { type: "object", properties: {}, required: [] } };
+    const resumed = f.execution("Policy", first.state.dispatchState.conversationItems);
+    const after = await f.request(resumed, {}, true, [extra]);
+    expect(after.turn.responseTools).toEqual(before.turn.responseTools);
+    expect(after.turn.codeModeTools.some((tool) => tool.name === "show_canvas")).toBe(true);
+    expect(after.turn.promptCacheKey).toBe(before.turn.promptCacheKey);
+    expect(after.input.at(-1)).toMatchObject({ content: expect.stringContaining("show_canvas") });
+  });
+
+  it("adopts new definitions when the run adds a top-level tool", async () => {
+    const f = fixture();
+    const first = f.execution("Policy");
+    const before = await f.request(first, { allowFinalResponse: false });
+    const resumed = f.execution("Policy", first.state.dispatchState.conversationItems);
+    const after = await f.request(resumed, { allowFinalResponse: true });
+    expect(after.turn.responseTools).toEqual(after.turn.availableResponseTools);
     expect(after.turn.promptCacheKey).not.toBe(before.turn.promptCacheKey);
   });
 
@@ -122,7 +166,6 @@ describe("context-window request replay", () => {
       parameters: { type: "object", properties: {}, required: [] } };
     const after = await f.request(f.execution("Default policy", [], true), {}, true, [extra]);
     expect(after.turn.responseTools).toEqual(before.turn.responseTools);
-    expect(after.turn.codeModeTools).toEqual(before.turn.codeModeTools);
     expect(after.turn.promptCacheKey).toBe(before.turn.promptCacheKey);
   });
 
@@ -133,7 +176,6 @@ describe("context-window request replay", () => {
     await f.request(f.execution("Policy"), {}, true, [extra]);
     const after = await f.request(f.execution("Policy", [], true), {}, true);
     expect(after.turn.codeModeTools.some((tool) => tool.name === extra.name)).toBe(false);
-    expect(JSON.stringify(after.turn.responseTools)).not.toContain(extra.name);
   });
 
   it("updates computer readiness at the tail while keeping consented schemas stable", async () => {

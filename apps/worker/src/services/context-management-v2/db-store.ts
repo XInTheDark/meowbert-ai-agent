@@ -45,7 +45,7 @@ export function createDbContextStore(taskId: string): RunContextStore {
     loadLastCallNumber: () => loadLastCallNumber(taskId),
     loadNotesSummary: (contextNodeId) => loadContextNotesSummary(taskId, contextNodeId),
     freezeWindowPrompt: (window, items) => own(window).then((ref) => freezeContextWindowPrompt(ref, items)),
-    prepareWindowRequest: (window, request, idle) => own(window).then((ref) => prepareContextWindowRequest(ref, request, idle)),
+    prepareWindowRequest: (window, request, update) => own(window).then((ref) => prepareContextWindowRequest(ref, request, update)),
     startNewWindow: (window, branchLeafMessageId, reason) => own(window).then((ref) => startNewContextWindowRecord(ref, branchLeafMessageId, reason)),
     linkVisibleMessage: (window, visibleMessageId) => own(window).then((ref) => linkVisibleContextNode(ref, visibleMessageId)),
     listHistoryWindows: (window) => own(window).then((ref) => listContextHistoryWindows(ref)),

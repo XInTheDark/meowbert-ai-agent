@@ -69,18 +69,21 @@ describe.skipIf(!databaseUrl)("Window prompt snapshots in PostgreSQL", () => {
       tools: { response: [], codeMode: [] } };
     const other = { ...first, envelope: { ...first.envelope, baseVersion: "other" } };
     const results = await Promise.all([
-      prepareContextWindowRequest(window, first, false), prepareContextWindowRequest(window, other, false)
+      prepareContextWindowRequest(window, first, "tools"), prepareContextWindowRequest(window, other, "tools")
     ]);
     expect(results[0].envelope).toEqual(results[1].envelope);
     const tool = { type: "function" as const, name: "test", description: "test", strict: false,
       parameters: { type: "object", properties: {}, required: [] } };
     const updated = { ...other, tools: { response: [tool], codeMode: [] }, toolChoice: "required" as const };
-    const saved = await prepareContextWindowRequest(window, updated, false);
+    const saved = await prepareContextWindowRequest(window, updated, "tools");
     expect(saved.envelope).toEqual(results[0].envelope);
     expect(saved.tools).toEqual(updated.tools);
     expect(saved.toolChoice).toBe("required");
+    expect(await prepareContextWindowRequest(window, first, "replay")).toEqual(saved);
     expect(await prepareContextWindowRequest(window, first, true)).toEqual(saved);
-    await expect(prepareContextWindowRequest({ ...window, taskId: randomUUID() }, updated, false)).rejects.toThrow("does not belong");
+    const choiceOnly = await prepareContextWindowRequest(window, { ...first, toolChoice: "auto" }, "tool_choice");
+    expect(choiceOnly).toEqual({ ...saved, toolChoice: "auto" });
+    await expect(prepareContextWindowRequest({ ...window, taskId: randomUUID() }, updated, "tools")).rejects.toThrow("does not belong");
     await expect(pool.query("UPDATE task_context_windows SET request_state_json = '[]'::jsonb WHERE id = $1", [window.windowId]))
       .rejects.toMatchObject({ code: "23514" });
   });

@@ -51,9 +51,9 @@ it("binds request snapshots to the task and rejects a foreign window", async () 
   const request = { envelope: { baseVersion: "v1", baseFrames: [], deltas: [] }, tools: { response: [], codeMode: [] } };
   const window = { taskId: "forged", windowId: "window", contextNodeId: "node" };
   vi.mocked(prepareContextWindowRequest).mockResolvedValue(request);
-  await expect(createDbContextStore("owned").prepareWindowRequest(window, request, true)).resolves.toEqual(request);
-  expect(prepareContextWindowRequest).toHaveBeenCalledExactlyOnceWith({ ...window, taskId: "owned" }, request, true);
+  await expect(createDbContextStore("owned").prepareWindowRequest(window, request, "replay")).resolves.toEqual(request);
+  expect(prepareContextWindowRequest).toHaveBeenCalledExactlyOnceWith({ ...window, taskId: "owned" }, request, "replay");
   vi.mocked(assertContextWindowOfTask).mockRejectedValue(new Error("Not owned"));
-  await expect(createDbContextStore("owned").prepareWindowRequest(window, request, false)).rejects.toThrow("Not owned");
+  await expect(createDbContextStore("owned").prepareWindowRequest(window, request, "tools")).rejects.toThrow("Not owned");
   expect(prepareContextWindowRequest).toHaveBeenCalledOnce();
 });

@@ -62,6 +62,7 @@ vi.mock("@meowbert/run-executor/agent-tool-dispatch/index", () => ({
 vi.mock("@meowbert/run-executor/agent/turn-request", () => ({
   buildAgentTurnRequest: vi.fn(() => ({
     responseTools: [{ type: "function", name: "final_response" }],
+    availableResponseTools: [{ type: "function", name: "final_response" }],
     codeModeTools: [],
     promptPrefixItems: [],
     promptPrefixHash: "prefix-hash",

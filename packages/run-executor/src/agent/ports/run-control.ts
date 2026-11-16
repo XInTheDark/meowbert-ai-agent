@@ -2,7 +2,7 @@ import type { ConversationNavigation, ConversationSnapshot, TaskEventType, TaskP
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { RunBootstrap } from "./run-bootstrap.js";
 import type { PlatformToolHost } from "./platform-tools.js";
-import type { WindowRequestState } from "../window-request-types.js";
+import type { WindowRequestState, WindowRequestUpdate } from "../window-request-types.js";
 
 // Everything a run does with the control plane's database and pub/sub. Cloud workers use an
 // in-process implementation; executors elsewhere reach the same operations through the Run API.
@@ -170,8 +170,8 @@ export interface RunContextStore {
   loadNotesSummary(contextNodeId: string): Promise<ContextNotesSummary>;
   // Preserve the first window-opening prompt across runs, even after private notes change.
   freezeWindowPrompt(window: ContextWindowRef, items: ResponseInputItem[]): Promise<ResponseInputItem[]>;
-  // Freeze setup once; ordinary requests update the last tool recipe, idle requests only read it.
-  prepareWindowRequest(window: ContextWindowRef, request: WindowRequestState, idle: boolean): Promise<WindowRequestState>;
+  // Freezes the setup once; later requests change only what `update` allows.
+  prepareWindowRequest(window: ContextWindowRef, request: WindowRequestState, update: WindowRequestUpdate): Promise<WindowRequestState>;
   startNewWindow(window: ContextWindowRef, branchLeafMessageId: string | null, reason: string): Promise<{ windowId: string; contextNodeId: string; ordinal: number }>;
   linkVisibleMessage(window: ContextWindowRef, visibleMessageId: string): Promise<string>;
   // The windows on this window's lineage, oldest first.
