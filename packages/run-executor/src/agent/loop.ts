@@ -931,6 +931,7 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
     return "break";
   }
 
+  if (shouldCompactExpiredCache(execution, Date.now())) await beginExpiredCacheNotesTurn(execution);
   const availability = resolveStepAvailability(execution, step);
   // A notes turn takes no new work: inboxes wait for the work to resume, and it has no answer to wind down to.
   if (!isNotesOnlyTurn(execution)) {
@@ -938,7 +939,6 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
     maybeAppendWindingDownNotice(execution, availability);
   }
   await persistRuntimeNotices(execution);
-  if (shouldCompactExpiredCache(execution, Date.now())) await beginExpiredCacheNotesTurn(execution);
   await maybeRunAutoCompaction(execution, step);
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);
   const turn = await requestModelTurnWithRecovery({

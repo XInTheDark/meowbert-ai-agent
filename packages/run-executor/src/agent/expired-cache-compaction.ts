@@ -51,6 +51,7 @@ export async function beginExpiredCacheNotesTurn(execution: AgentExecutionContex
   dispatchState.conversationItems.push(note);
   dispatchState.runPersistedItems.push(note);
   execution.state.expiredCacheNotesTurn = { note, seedItems, stepsTaken: 0 };
+  execution.maxRunSteps += NOTES_TURN_MAX_STEPS;
   await execution.prepared.control.emitEvent("log", {
     message: "The prompt cache expired, so the agent is saving notes before its context window is cleared.",
     trigger: "cache_expired",
@@ -58,8 +59,7 @@ export async function beginExpiredCacheNotesTurn(execution: AgentExecutionContex
   });
 }
 
-// After each notes step: keep going while the agent is still writing notes, then clear the window and
-// give back the steps the notes took.
+// Keep going during notes activity, then clear the window and release the unused checkpoint allowance.
 export async function continueExpiredCacheNotesTurn(execution: AgentExecutionContext, wroteNotes: boolean): Promise<void> {
   const turn = execution.state.expiredCacheNotesTurn;
   if (!turn) return;
@@ -75,7 +75,7 @@ export async function continueExpiredCacheNotesTurn(execution: AgentExecutionCon
   }
   await resetV2ContextWindow(execution, "cache_expired", turn.seedItems);
   appendRuntimeNotice(execution, { role: "user", content: RESUME_NOTICE });
-  execution.maxRunSteps += turn.stepsTaken;
+  execution.maxRunSteps -= NOTES_TURN_MAX_STEPS - turn.stepsTaken;
   await execution.prepared.control.emitEvent("log", {
     message: "Context window cleared after its prompt cache expired.",
     trigger: "cache_expired",

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ContextManagementV2State } from "../../context-management-v2/types.js";
-import { NOTES_WRITE_FILE_TOOL_NAME } from "../../agent-tools/index.js";
+import { NOTES_WRITE_FILE_TOOL_NAME, buildResponseTools } from "../../agent-tools/index.js";
+import { buildCodeModeToolSet } from "../../code-mode/code-mode-tools.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 
 const mocks = vi.hoisted(() => ({
@@ -29,6 +30,27 @@ const contextManagementV2: ContextManagementV2State = {
 };
 
 describe("Context Management V2 tool calls", () => {
+  it("offers and executes note reads directly in a code-mode notes-only turn", async () => {
+    const tools = buildCodeModeToolSet(buildResponseTools({ webSearch: false, memorySearch: false,
+      scheduleTask: false, subtasks: false, computerUse: false, enabledSkills: [], enabledSources: [] },
+    [], { contextManagementVersion: "v2" }), 60);
+    expect(tools.responseTools).toContainEqual(expect.objectContaining({ type: "function", name: "notes_read_file" }));
+    expect(tools.nestedTools.some((tool) => tool.name === "notes_read_file")).toBe(false);
+    const readNote = vi.fn(async () => ({ path: "continuity.md", text: "Intermediate results" }));
+    const ctx = { notesOnly: true, contextManagementV2, compatibilityModes: [], assertNotCancelled: async () => {},
+      control: { context: { readNote, loadLastCallNumber: async () => 0 },
+        recordToolCallStart: async () => {}, recordToolCallResult: async () => {} }
+    } as unknown as ToolDispatchContext;
+    const state = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as unknown as ToolDispatchState;
+
+    await dispatchResponseOutput([{ type: "function_call", name: "notes_read_file", call_id: "read",
+      arguments: JSON.stringify({ path: "continuity.md", start_line: null, stop_line: null }) }], ctx, state);
+
+    expect(readNote).toHaveBeenCalledOnce();
+    const output = state.runPersistedItems.find((item) => item.type === "function_call_output");
+    expect(output).toMatchObject({ call_id: "read", output: expect.stringContaining("Intermediate results") });
+  });
+
   it("persists the context tool output for the task conversation", async () => {
     mocks.writeNote.mockResolvedValue({ path: "notes/continuity.md", updated: true });
     const call = {

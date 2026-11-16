@@ -12,6 +12,9 @@ import {
   LIST_SKILLS_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
+  NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
+  NOTES_READ_FILE_TOOL_NAME,
+  NOTES_SEARCH_CONTENTS_TOOL_NAME,
   NOTES_WRITE_FILE_TOOL_NAME,
   REQUEST_CLARIFICATION_TOOL_NAME,
   START_LONG_HORIZON_TASK_TOOL_NAME,
@@ -28,8 +31,8 @@ import { SEARCH_TOOLS_TOOL } from "./search-tools-tool.js";
 // Tools the model keeps calling directly in code mode: ones that end or pause the turn, change the
 // tool set or the context window, drive the computer, or edit files with a patch body that is awkward
 // to embed in a JavaScript string. Progress updates stay direct so they ride beside exec in the same
-// turn. Note writes stay direct because they are the only tools offered
-// while a context window is being checkpointed; history reads and context edits run inside exec, so a
+// turn. Notes tools stay direct so they work while a context window is being checkpointed;
+// history reads and context edits run inside exec, so a
 // script can pull earlier outputs and replace them without writing them out.
 const DIRECT_TOOL_NAMES = new Set<string>([
   FINAL_RESPONSE_TOOL_NAME,
@@ -48,6 +51,9 @@ const DIRECT_TOOL_NAMES = new Set<string>([
   NEW_CONTEXT_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
   NOTES_APPEND_TO_FILE_TOOL_NAME,
+  NOTES_LIST_FILES_BY_PREFIX_TOOL_NAME,
+  NOTES_READ_FILE_TOOL_NAME,
+  NOTES_SEARCH_CONTENTS_TOOL_NAME,
   NOTES_WRITE_FILE_TOOL_NAME,
   UPDATE_PROGRESS_TOOL_NAME,
   ...COMPUTER_RESPONSE_FUNCTION_TOOLS.map((tool) => tool.name),

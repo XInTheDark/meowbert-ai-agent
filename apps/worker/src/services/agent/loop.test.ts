@@ -270,6 +270,45 @@ describe("runAgentStepLoop", () => {
     vi.clearAllMocks();
   });
 
+  it.each([false, true])("reserves checkpoint steps with one work step left (uses full allowance: %s)", async (fullAllowance) => {
+    const execution = createExecutionContext();
+    execution.maxRunSteps = 1;
+    execution.prepared.snapshot.idle_compaction_mode = "full";
+    execution.prepared.snapshot.task.prompt_cache_read_at = new Date(0).toISOString();
+    execution.prepared.snapshot.platform_model_metadata = { default: { idle_compaction_min_tokens: 1 } };
+    execution.state.contextManagement = { version: "v2", taskId: "task-1", windowId: "w1", contextNodeId: "n1", recoveryPhase: "normal" };
+    execution.state.dispatchState.conversationItems = [{ role: "user", content: "Continue the task" }];
+    const notes = fullAllowance
+      ? Array(8).fill("notes_write_file")
+      : ["notes_list_files_by_prefix", "notes_read_file", "notes_write_file", null];
+    const dispatched = { sawToolCall: true, sawFunctionToolCall: true, finalResponse: null,
+      waitRequest: null, stopRequest: null, workflowPause: null };
+    for (const [index, name] of notes.entries()) {
+      mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: name
+        ? [{ type: "function_call", name, call_id: `notes-${index}`, arguments: "{}" }] : [], output_text: "" });
+      mockedDispatchResponseOutput.mockImplementationOnce(async (_output, ctx) => {
+        expect(ctx.notesOnly).toBe(true);
+        expect(mockedResetV2ContextWindow).not.toHaveBeenCalled();
+        return dispatched;
+      });
+    }
+    const finalResponse = { response: "Work resumed.", notify: true };
+    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: [], output_text: "" });
+    mockedDispatchResponseOutput.mockImplementationOnce(async (_output, ctx) => {
+      expect(ctx.notesOnly).toBe(false);
+      return { ...dispatched, finalResponse };
+    });
+
+    await runAgentStepLoop(execution);
+
+    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(notes.length + 1);
+    expect(mockedResetV2ContextWindow).toHaveBeenCalledOnce();
+    expect(execution.state.expiredCacheNotesTurn).toBeNull();
+    expect(execution.maxRunSteps).toBe(notes.length + 1);
+    expect(execution.runTiming.reachedMaxRunSteps).toBe(false);
+    expect(execution.state.finalResponseFromTool).toEqual(finalResponse);
+  });
+
   it("delivers the timed wrap-up response despite the expired run deadline", async () => {
     const execution = createExpiredTimedExecutionContext();
     const finalResponse = { response: "Completed work before the deadline.", notify: true, partial: false };

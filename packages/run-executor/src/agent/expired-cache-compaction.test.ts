@@ -69,6 +69,7 @@ describe("expired cache compaction", () => {
   it("takes notes, then clears the window with the user's messages and returns the steps", async () => {
     const run = execution();
     await beginExpiredCacheNotesTurn(run);
+    expect(run.maxRunSteps).toBe(58);
     expect(isNotesOnlyTurn(run)).toBe(true);
     expect(shouldCompactExpiredCache(run, START_MS + 2 * HOUR_MS)).toBe(false);
     expect(run.state.dispatchState.conversationItems.at(-1)).toMatchObject({ role: "user", content: expect.stringContaining("continuity.md") });

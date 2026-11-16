@@ -17,7 +17,8 @@ describe("buildCodeModeToolSet", () => {
     const directNames = responseTools.map(toolName);
     const nestedNames = nestedTools.map((tool) => tool.name);
 
-    expect(directNames).toEqual(expect.arrayContaining(["final_response", "wait", "new_context", "notes_write_file", "enable_skill", "web_search", "exec", "update_progress"]));
+    expect(directNames).toEqual(expect.arrayContaining(["final_response", "wait", "new_context", "notes_write_file",
+      "notes_read_file", "notes_list_files_by_prefix", "notes_search_contents", "enable_skill", "web_search", "exec", "update_progress"]));
     expect(nestedNames).toEqual(expect.arrayContaining(["run_shell", "memory_search", "spawn_subagent", "view_image", "view_pdf_file"]));
     // A script reads earlier outputs and replaces them without the model writing them out.
     expect(nestedNames).toEqual(expect.arrayContaining(["run_shell", "context_replace_calls"]));
