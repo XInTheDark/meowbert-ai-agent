@@ -4,7 +4,7 @@
 
 ### Tasks
 
-- **Schedule a send** — Right-click **Send**, choose **Schedule send**, and pick a date and time. Works for new tasks and follow-ups, uses your device's timezone, and still sends after you close the tab. Scheduled follow-ups have **Send now** and **Remove** controls.
+- **Schedule a send** — Click the arrow beside **Send** or right-click **Send**, choose **Schedule send**, and pick a date and time. Works for new tasks and follow-ups, uses your device's timezone, and still sends after you close the tab. Scheduled follow-ups have **Send now** and **Remove** controls.
 - **Keep each task's setup** — Follow-ups start with the agent and tools used by the latest message on that branch, across devices. Changing the agent or newly enabling Computer Use asks before sending because it can break the prompt cache, with an option to keep the previous settings.
 - **Edit queued messages** — Click the pencil beside a queued follow-up to move it back into the composer for editing before it is sent.
 - **Plans carry across turns** — The activity card keeps the task's plan between runs, with an overall status and notes on individual steps. Agents can read it back after compaction and update the steps as work progresses.

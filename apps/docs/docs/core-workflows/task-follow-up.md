@@ -71,7 +71,7 @@ Use follow-ups to:
 
 ### Schedule send
 
-Right-click **Send**, choose **Schedule send**, then pick a date and time and confirm. The time uses your device's timezone. Scheduled follow-ups appear above the composer; use **Send now** to send early or **Remove** to cancel. They still send if you close the tab. If the task is running, the message joins it at the next available step after the chosen time.
+Click the arrow beside **Send**, choose **Schedule send**, then pick a date and time and confirm. You can also right-click **Send** to open the menu. The time uses your device's timezone. Scheduled follow-ups appear above the composer; use **Send now** to send early or **Remove** to cancel. They still send if you close the tab. If the task is running, the message joins it at the next available step after the chosen time.
 
 ## Reading older conversations
 

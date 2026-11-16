@@ -23,7 +23,7 @@ A new task combines an outcome, the files it needs and choices about how the age
 
 Use the defaults for a first task. The sections below explain individual choices when you need to change them.
 
-To send later, right-click **Send**, choose **Schedule send**, then pick a date and time and confirm. The time uses your device's timezone. The task waits until that time before starting, even if you close the tab.
+To send later, click the arrow beside **Send**, choose **Schedule send**, then pick a date and time and confirm. You can also right-click **Send** to open the menu. The time uses your device's timezone. The task waits until that time before starting, even if you close the tab.
 
 ## Writing an effective prompt
 

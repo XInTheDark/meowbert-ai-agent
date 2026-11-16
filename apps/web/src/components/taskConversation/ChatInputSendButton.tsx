@@ -1,4 +1,4 @@
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, ChevronDown, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScheduleSendDialog } from "./ScheduleSendDialog";
@@ -16,10 +16,15 @@ export function ChatInputSendButton(props: ChatInputSendButtonProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [scheduling, setScheduling] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const arrowRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!menu) return;
-    const close = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenu(null); };
-    const keyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(null); };
+    const close = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node) && !arrowRef.current?.contains(event.target as Node)) setMenu(null);
+    };
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setMenu(null); arrowRef.current?.focus(); }
+    };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", keyDown);
     return () => {
@@ -45,6 +50,7 @@ export function ChatInputSendButton(props: ChatInputSendButtonProps) {
 
   return (
     <>
+    <div className={props.onScheduleSend ? "send-btn-group send-btn-group-split" : "send-btn-group"}>
     <button
       className={[
         "send-btn",
@@ -75,6 +81,25 @@ export function ChatInputSendButton(props: ChatInputSendButtonProps) {
         <ArrowUp size={18} />
       )}
     </button>
+    {props.onScheduleSend ? (
+      <button
+        ref={arrowRef}
+        type="button"
+        className="send-btn send-btn-menu"
+        disabled={props.isSendButtonDisabled || props.submitBlockedByUploads}
+        aria-label="Send options"
+        aria-haspopup="menu"
+        aria-expanded={menu !== null}
+        title="Send options"
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          setMenu(menu ? null : { x: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), y: Math.max(8, rect.top - 44) });
+        }}
+      >
+        <ChevronDown size={12} aria-hidden="true" />
+      </button>
+    ) : null}
+    </div>
     {menu ? createPortal(
       <div ref={menuRef} className="send-context-menu" role="menu" style={{ left: menu.x, top: menu.y }}>
         <button type="button" className="btn ghost full" role="menuitem" autoFocus onClick={() => { setMenu(null); setScheduling(true); }}>Schedule send</button>

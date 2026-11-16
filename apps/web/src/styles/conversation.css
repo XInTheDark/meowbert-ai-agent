@@ -3271,6 +3271,24 @@ a.citation-pill:hover {
   padding-top: 0.15rem;
 }
 
+.send-btn-group {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.send-btn-group-split > .send-btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.send-btn-group-split > .send-btn-menu {
+  width: 1.25rem;
+  min-width: 1.25rem;
+  border-left: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
 .send-btn {
   border: none;
   padding: 0;
