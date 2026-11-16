@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { sandboxConfigSchema } from "./sandbox.js";
+import { DEFAULT_SCRATCH_EVICTION_POLICY, type ScratchEvictionPolicy } from "./scratch-eviction-policy.js";
 import {
   storageConfigSchema,
   type NormalizedStorageConfig,
@@ -19,7 +20,13 @@ const DEFAULT_MEMORY_INDEX_CACHE_ROOT = "/tmp/meowbert-memory-index-cache";
 const DEFAULT_TASK_SCRATCH_DIR_NAME = "task-scratch";
 const taskScratchConfigSchema = z.object({
   root: z.string().min(1).optional(),
-  xfsProjectQuota: xfsProjectQuotaSchema.optional()
+  xfsProjectQuota: xfsProjectQuotaSchema.optional(),
+  eviction: z.object({
+    highWatermark: z.number().positive().max(1).optional(),
+    targetWatermark: z.number().positive().max(1).optional(),
+    minIdleMinutes: z.number().int().min(60).optional(),
+    maxIdleDays: z.number().int().min(0).optional()
+  }).optional()
 });
 const browserUseConfigSchema = z.object({
   enabled: z.boolean().optional()
@@ -155,6 +162,7 @@ type ParsedAppConfig = z.infer<typeof configSchema>;
 export interface TaskScratchConfig {
   root: string;
   xfsProjectQuota?: XfsProjectQuotaConfig;
+  eviction: ScratchEvictionPolicy;
 }
 
 export type AppConfig = Omit<ParsedAppConfig, "storage" | "taskHistoryArchive" | "runtime"> & {
@@ -170,11 +178,16 @@ function normalizeTaskScratchConfig(
   baseDir: string,
   tasksRoot: string
 ): TaskScratchConfig {
+  const eviction = { ...DEFAULT_SCRATCH_EVICTION_POLICY, ...raw?.eviction };
+  if (eviction.targetWatermark >= eviction.highWatermark) {
+    throw new Error("Scratch targetWatermark must be below highWatermark.");
+  }
   const root = raw?.root
     ? resolvePathFromRoot(baseDir, raw.root)
     : path.resolve(tasksRoot, "..", DEFAULT_TASK_SCRATCH_DIR_NAME);
   return {
     root,
+    eviction,
     ...(raw?.xfsProjectQuota
       ? {
           xfsProjectQuota: {

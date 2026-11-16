@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { assertSuperAdmin } from "../services/admin/admin-settings.js";
+import { getAdminScratchStorage, updateAdminScratchStorage } from "../services/storage/admin-scratch-storage.js";
 import {
   listAdminHostStorageOverview,
   pruneAdminTaskEvents,
@@ -20,9 +21,22 @@ const vacuumFullTaskEventsSchema = z.object({
   confirmation: z.literal("VACUUM FULL task_events")
 });
 
+const scratchStorageSchema = z.object({ limitMb: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable() }).strict();
+
 export function registerAdminHostStorageRoutes(
   fastify: Parameters<FastifyPluginAsync>[0]
 ): void {
+  fastify.get("/api/admin/host-storage/scratch", { preHandler: fastify.authenticate }, async (request) => {
+    await assertSuperAdmin(request.user.id);
+    return getAdminScratchStorage();
+  });
+
+  fastify.patch("/api/admin/host-storage/scratch", { preHandler: fastify.authenticate }, async (request) => {
+    await assertSuperAdmin(request.user.id);
+    const body = scratchStorageSchema.parse(request.body);
+    return updateAdminScratchStorage(body.limitMb);
+  });
+
   fastify.get("/api/admin/host-storage", { preHandler: fastify.authenticate }, async (request) => {
     await assertSuperAdmin(request.user.id);
     return {

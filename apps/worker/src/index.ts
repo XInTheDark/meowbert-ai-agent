@@ -33,6 +33,7 @@ import { startTaskHistoryArchiveLoop } from "./services/tasks/task-history-archi
 import { startHistoryIndexDeletionLoop } from "./services/context-history-index/index.js";
 import { startTaskHistoryArchiveRequestLoop } from "./services/tasks/task-history-archive-request-loop.js";
 import { startSandboxOrphanCleanupLoop } from "./services/tasks/sandbox-orphan-cleanup.js";
+import { startScratchCleanupLoop } from "./services/storage/scratch-eviction.js";
 import { startEventRetentionCleanupLoop } from "./services/tasks/event-retention.js";
 import { workerSandboxManager } from "./services/runtime/sandbox.js";
 import { restorePersistentShellExpiryTimers } from "./services/runtime/persistent-shell-sessions.js";
@@ -152,6 +153,7 @@ async function start(): Promise<void> {
   const adminRuntimeMigrationLoop = startAdminRuntimeMigrationLoop();
   const workspaceStorageMigrationLoop = startWorkspaceStorageMigrationLoop();
   const sandboxOrphanCleanupLoop = startSandboxOrphanCleanupLoop();
+  const scratchCleanupLoop = startScratchCleanupLoop();
   const memorySynthesisEventListener = startMemorySynthesisEventListener();
   const memoryReindexListener = startMemoryReindexListener();
 
@@ -228,6 +230,7 @@ async function start(): Promise<void> {
     await adminRuntimeMigrationLoop.stop();
     await workspaceStorageMigrationLoop.stop();
     await sandboxOrphanCleanupLoop.stop();
+    await scratchCleanupLoop.stop();
     await memorySynthesisEventListener.stop();
     await memoryReindexListener.stop();
     await worker.close();

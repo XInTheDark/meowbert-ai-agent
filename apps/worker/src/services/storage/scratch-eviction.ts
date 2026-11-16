@@ -1,0 +1,79 @@
+import fs from "node:fs/promises";
+import {
+  rankScratchCandidates, readScratchProjectSizes, readScratchStorage, scratchNeedsCleanup,
+  type ScratchCandidate
+} from "@meowbert/shared";
+import { config } from "../../lib/config.js";
+import { withConnection } from "../../lib/db.js";
+import { workerSandboxManager } from "../runtime/sandbox.js";
+import { detachIdleScratch, drainScratchTrash, listIdleScratchTasks } from "./scratch-eviction-store.js";
+
+const SCRATCH_CLEANUP_LOCK = 1_296_385;
+
+async function evictCandidates(candidates: ScratchCandidate[], limitMb: number | null, cutoff: string): Promise<number> {
+  const { root, eviction } = config.runtime.taskScratch;
+  let status = await readScratchStorage(root, limitMb);
+  const pressured = scratchNeedsCleanup(status.usedBytes, status.availableBytes, status.capacityBytes, status.effectiveLimitBytes, eviction.highWatermark);
+  let removed = 0;
+  let attempted = 0;
+  for (const task of candidates) {
+    const expired = eviction.maxIdleDays > 0 && Date.now() - task.idleSince > eviction.maxIdleDays * 86_400_000;
+    const needsSpace = pressured && scratchNeedsCleanup(status.usedBytes, status.availableBytes, status.capacityBytes, status.effectiveLimitBytes, eviction.targetWatermark);
+    if (!expired && !needsSpace) continue;
+    if (attempted++ >= 20) break;
+    const trash = await detachIdleScratch(task, cutoff);
+    if (trash) {
+      await fs.rm(trash, { recursive: true, force: true });
+      removed++;
+      status = await readScratchStorage(root, limitMb);
+    }
+  }
+  return removed;
+}
+
+export async function cleanupScratchOnce(): Promise<number> {
+  return withConnection(async (client) => {
+    const lock = await client.query<{ acquired: boolean }>("SELECT pg_try_advisory_lock($1) AS acquired", [SCRATCH_CLEANUP_LOCK]);
+    if (!lock.rows[0]?.acquired) return 0;
+    try {
+      const { root, eviction } = config.runtime.taskScratch;
+      await fs.mkdir(root, { recursive: true });
+      await drainScratchTrash(root);
+      const settings = await client.query<{ scratch_storage_limit_mb: string | null }>("SELECT scratch_storage_limit_mb FROM platform_settings WHERE id = 1");
+      const limitMb = settings.rows[0]?.scratch_storage_limit_mb == null ? null : Number(settings.rows[0].scratch_storage_limit_mb);
+      const status = await readScratchStorage(root, limitMb);
+      const minIdleMs = Math.max(eviction.minIdleMinutes * 60_000, config.runtime.sandbox.sessionIdleTimeoutMs);
+      const cutoff = new Date(Date.now() - minIdleMs).toISOString();
+      const sizes = await readScratchProjectSizes(config.runtime.taskScratch).catch((error) => {
+        console.warn("[scratch] Size accounting unavailable; using age:", error);
+        return null;
+      });
+      const rows = await listIdleScratchTasks(client, cutoff);
+      const containers = await workerSandboxManager.listManagedContainers();
+      const mountedTasks = new Set(containers.filter((container) => container.state === "running").map((container) => container.taskId));
+      const candidates = rows.filter((row) => !mountedTasks.has(row.id)).map((row) => ({
+        id: row.id, workspaceId: row.workspace_id, idleSince: new Date(row.idle_since).getTime(),
+        sizeBytes: row.scratch_project_id === null ? null : sizes?.get(row.scratch_project_id) ?? null
+      }));
+      const usage = await client.query<{ workspace_id: string; scratch_project_id: number }>("SELECT workspace_id, scratch_project_id FROM tasks WHERE scratch_present AND scratch_project_id IS NOT NULL");
+      const workspaceBytes = new Map<string, number>();
+      for (const row of usage.rows) workspaceBytes.set(row.workspace_id, (workspaceBytes.get(row.workspace_id) ?? 0) + (sizes?.get(row.scratch_project_id) ?? 0));
+      return await evictCandidates(rankScratchCandidates(candidates, workspaceBytes, status.effectiveLimitBytes, Date.now(), minIdleMs), limitMb, cutoff);
+    } finally {
+      await client.query("SELECT pg_advisory_unlock($1)", [SCRATCH_CLEANUP_LOCK]);
+    }
+  });
+}
+
+export function startScratchCleanupLoop(): { stop: () => Promise<void> } {
+  let pending: Promise<unknown> | null = null;
+  const run = () => {
+    if (pending) return;
+    pending = cleanupScratchOnce().then((count) => {
+      if (count) console.log(`[scratch] Cleared ${count} idle task scratch directories`);
+    }).catch((error) => console.error("[scratch] Cleanup failed:", error)).finally(() => { pending = null; });
+  };
+  run();
+  const timer = setInterval(run, 60_000);
+  return { stop: async () => { clearInterval(timer); await pending; } };
+}

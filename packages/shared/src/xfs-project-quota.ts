@@ -86,6 +86,27 @@ export class XfsProjectQuotaManager {
     this.skipDeviceNodeCheck = input.commandRunner !== undefined;
   }
 
+  // Only call for a newly created, empty directory. Depth zero never retags an existing tree.
+  async assignEmptyProject(input: { mountPath: string; directory: string; projectId: number; command?: string }): Promise<void> {
+    if (!this.skipDeviceNodeCheck) await ensureMountDeviceNode(input.mountPath);
+    await this.commandRunner.execFile(input.command ?? DEFAULT_XFS_QUOTA_COMMAND, [
+      "-x", "-c", `project -s -d 0 -p ${quoteXfsCommandValue(path.resolve(input.directory))} ${input.projectId}`, input.mountPath
+    ]);
+  }
+
+  async readProjectUsage(input: { mountPath: string; command?: string }): Promise<Map<number, number>> {
+    if (!this.skipDeviceNodeCheck) await ensureMountDeviceNode(input.mountPath);
+    const result = await this.commandRunner.execFile(input.command ?? DEFAULT_XFS_QUOTA_COMMAND, [
+      "-x", "-c", "report -p -b -n -N", input.mountPath
+    ]);
+    const usage = new Map<number, number>();
+    for (const line of result.stdout.split("\n")) {
+      const match = line.trim().match(/^#?(\d+)\s+(\d+)\s+/);
+      if (match) usage.set(Number(match[1]), Number(match[2]) * 1024);
+    }
+    return usage;
+  }
+
   async inspectMount(input: {
     mountPath: string;
     command?: string;

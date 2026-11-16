@@ -8,6 +8,19 @@ describe("resolveWorkspaceStorageUnitRoot", () => {
 });
 
 describe("XfsProjectQuotaManager", () => {
+  it("accounts allocated blocks by numeric task project, including zero usage", async () => {
+    const execFile = vi.fn(async () => ({ stdout: "#1000000000  2048  0 0 00 [--------]\n#1000000001  0 0 0 00 [--------]\n", stderr: "" }));
+    const manager = new XfsProjectQuotaManager({ commandRunner: { execFile } });
+    expect(await manager.readProjectUsage({ mountPath: "/scratch" })).toEqual(new Map([[1000000000, 2097152], [1000000001, 0]]));
+  });
+
+  it("tags only the new directory, never recursively walking a task tree", async () => {
+    const execFile = vi.fn(async () => ({ stdout: "", stderr: "" }));
+    const manager = new XfsProjectQuotaManager({ commandRunner: { execFile } });
+    await manager.assignEmptyProject({ mountPath: "/scratch", directory: "/scratch/task", projectId: 1000000000 });
+    expect(execFile).toHaveBeenCalledWith("xfs_quota", ["-x", "-c", "project -s -d 0 -p '/scratch/task' 1000000000", "/scratch"]);
+  });
+
   it("checks project quota state for a mount path", async () => {
     const execFile = vi.fn(async () => ({
       stdout: "Project quota state on /runtime/workspaces (/dev/sdb1)\nAccounting: ON\nEnforcement: ON\n",

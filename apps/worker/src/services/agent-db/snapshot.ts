@@ -110,6 +110,7 @@ async function loadTaskSnapshotBase(taskId: string) {
               tasks.workspace_id,
               tasks.environment_id,
               tasks.status,
+              (tasks.scratch_evicted_at IS NOT NULL AND NOT tasks.scratch_present) AS scratch_was_evicted,
               tasks.source,
               tasks.initiator_user_id,
               tasks.connector_context_id,

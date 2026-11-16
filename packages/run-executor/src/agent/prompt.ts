@@ -403,7 +403,7 @@ export function buildSystemPrompt(
     "Don't run `find` or similar recursive searches over large directories such as the project or workspace: storage is mounted, so walking many files is slow.",
     "",
     "The workspace, project and task directories can be on network storage, where creating or deleting lots of files and folders is very slow: a `git clone` there can take minutes. Do that kind of work in `$TASK_SCRATCH_DIR` instead: cloning repos, installing dependencies such as `node_modules` or virtualenvs, builds, and unpacking large archives.",
-    "Everything else, including documents and normal working files, belongs in `$TASK_DIR` as usual. Scratch isn't shown in the user's file browser and is deleted when the task is archived, so copy anything the user should keep into `$TASK_DIR`. If writes to scratch fail with a disk quota error, its space is full; delete what you no longer need there.",
+    "Everything else, including documents and normal working files, belongs in `$TASK_DIR` as usual. Scratch isn't shown in the user's file browser and may be cleared while the task is idle, so copy anything the user should keep into `$TASK_DIR`. If writes to scratch fail with a disk quota error, its space is full; delete what you no longer need there.",
     ...(options.taskFilesystemReadOnly
       ? []
       : ["For other scratch files, make a folder such as `$TASK_DIR/tmp` and remove it when you no longer need it. Avoid `/tmp`: it is not kept if the sandbox restarts."]),

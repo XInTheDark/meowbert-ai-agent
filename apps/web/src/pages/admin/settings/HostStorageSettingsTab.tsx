@@ -1,4 +1,6 @@
 import { RefreshCw } from "lucide-react";
+import { ScratchStorageSettings } from "./ScratchStorageSettings";
+import type { useScratchStorageSettings } from "./useScratchStorageSettings";
 import { formatBytes } from "../../../lib/utils";
 import type {
   AdminHostStorageOverview,
@@ -6,6 +8,7 @@ import type {
 } from "./shared";
 
 interface HostStorageSettingsTabProps {
+  scratchStorage?: ReturnType<typeof useScratchStorageSettings>;
   overview: AdminHostStorageOverview | null;
   warmRetentionDaysDraft: string;
   isLoading: boolean;
@@ -303,6 +306,7 @@ export function HostStorageSettingsTab(props: HostStorageSettingsTabProps) {
         </button>
       </div>
       {props.error ? <p className="error-text">{props.error}</p> : null}
+      {props.scratchStorage ? <ScratchStorageSettings state={props.scratchStorage} /> : null}
       <PostgresStorageSection overview={props.overview} />
       <EventRetentionSection
         overview={props.overview}

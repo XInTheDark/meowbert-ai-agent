@@ -52,6 +52,8 @@ export * from "./context-usage.js";
 export * from "./xfs-project-quota.js";
 export * from "./xfs-quota-device-node.js";
 export * from "./task-scratch-paths.js";
+export * from "./scratch-storage.js";
+export * from "./scratch-eviction-policy.js";
 export * from "./user-resource-limits.js";
 export * from "./task-scheduler.js";
 export * from "./task-history-search.js";

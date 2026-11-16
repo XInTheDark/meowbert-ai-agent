@@ -71,7 +71,8 @@ vi.mock("@meowbert/run-executor/agent/turn-request", () => ({
   }))
 }));
 
-vi.mock("@meowbert/run-executor/agent/prompt-envelope", () => ({
+vi.mock("@meowbert/run-executor/agent/prompt-envelope", async (original) => ({
+  ...await original<typeof import("@meowbert/run-executor/agent/prompt-envelope")>(),
   appendPromptEnvelopeDelta: vi.fn(),
   promptEnvelopeToPrefixItems: vi.fn(() => []),
   sealPromptEnvelope: vi.fn()
@@ -113,6 +114,8 @@ import { createFakeRunControl } from "../run-host/test-run-environment.test-fixt
 import { runAgentStepLoop } from "@meowbert/run-executor/agent/loop";
 import { resetV2ContextWindow } from "@meowbert/run-executor/agent/context-window";
 import { cloudRunFeatures } from "../run-host/cloud-run-features.js";
+import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "@meowbert/run-executor/agent/prompt-envelope";
+import { appendQueuedPromptDeltas } from "@meowbert/run-executor/agent/queued-prompt-deltas";
 
 function createExecutionContext() {
   const abortController = new AbortController();
@@ -268,6 +271,34 @@ describe("runAgentStepLoop", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("delivers an eviction notice at the conversation tail once, preserving the cached prefix", async () => {
+    const envelope = await vi.importActual<typeof import("@meowbert/run-executor/agent/prompt-envelope")>("@meowbert/run-executor/agent/prompt-envelope");
+    const queued = await vi.importActual<typeof import("@meowbert/run-executor/agent/queued-prompt-deltas")>("@meowbert/run-executor/agent/queued-prompt-deltas");
+    const execution = createExecutionContext();
+    execution.promptEnvelope = envelope.createPromptEnvelope("Stable task policy");
+    execution.prepared.snapshot.task.scratch_was_evicted = true;
+    execution.state.contextManagement = { version: "v1" };
+    execution.state.dispatchState.conversationItems = [{ role: "user", content: "Continue" }];
+    vi.mocked(appendPromptEnvelopeDelta).mockImplementation(envelope.appendPromptEnvelopeDelta);
+    vi.mocked(sealPromptEnvelope).mockImplementation(envelope.sealPromptEnvelope);
+    vi.mocked(appendQueuedPromptDeltas).mockImplementation(queued.appendQueuedPromptDeltas);
+    mockedCreateModelResponseWithRetry.mockResolvedValue({ output: [], output_text: "" });
+    mockedDispatchResponseOutput.mockResolvedValue({ sawToolCall: true, sawFunctionToolCall: true,
+      finalResponse: { response: "Done", notify: false }, waitRequest: null, stopRequest: null, workflowPause: null });
+    try {
+      await runAgentStepLoop(execution);
+      expect(envelope.promptEnvelopeToPrefixItems(execution.promptEnvelope)).toEqual([{ role: "developer", content: "Stable task policy" }]);
+      expect(execution.promptEnvelope.conversationDeltas).toHaveLength(1);
+      expect(execution.state.dispatchState.conversationItems.at(-1)).toMatchObject({ role: "system" });
+      expect(execution.state.dispatchState.runPersistedItems).toEqual([execution.state.dispatchState.conversationItems.at(-1)]);
+      expect(execution.prepared.snapshot.task.scratch_was_evicted).toBe(false);
+    } finally {
+      vi.mocked(appendPromptEnvelopeDelta).mockReset();
+      vi.mocked(sealPromptEnvelope).mockReset();
+      vi.mocked(appendQueuedPromptDeltas).mockReset();
+    }
   });
 
   it.each([false, true])("reserves checkpoint steps with one work step left (uses full allowance: %s)", async (fullAllowance) => {

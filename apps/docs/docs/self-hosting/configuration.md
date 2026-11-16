@@ -88,15 +88,30 @@ Each task gets a scratch folder on local disk, `$TASK_SCRATCH_DIR`, for work tha
 "runtime": {
   "taskScratch": {
     "root": "/app/runtime/task-scratch",
-    "xfsProjectQuota": { "mountPath": "/app/runtime/task-scratch" }
+    "xfsProjectQuota": { "mountPath": "/app/runtime/task-scratch" },
+    "eviction": {
+      "highWatermark": 0.85,
+      "targetWatermark": 0.7,
+      "minIdleMinutes": 60,
+      "maxIdleDays": 14
+    }
   }
 }
 ```
 
 - `root`: where scratch folders live inside the API and worker containers. It defaults to `task-scratch` next to `tasksRoot`, which is `/srv/meowbert/runtime/task-scratch` on the host. Keep it on local disk.
-- `xfsProjectQuota`: optional. When `root` is an XFS mount with project quotas, each workspace's scratch is capped at its workspace storage limit (`storageMb`). Without it, scratch is limited only by the disk it's on.
+- `xfsProjectQuota`: optional. On an XFS mount with project accounting, new task scratch folders receive individual project IDs so the worker can read their sizes without scanning files. Workspace storage limits no longer control scratch. Existing scratch is left intact and uses age-based eviction until recreated. Without XFS, eviction uses age only.
+- `eviction`: optional; the example shows the defaults. Watermarks are fractions of the scratch budget. `minIdleMinutes` must be at least 60; the worker also waits at least the configured sandbox idle timeout. `maxIdleDays: 0` disables age-only expiry.
 
-Scratch is deleted when its task is deleted, expires, or is archived as a whole. Cooling older messages or closed context windows while the task remains active does not clear its scratch. Scratch isn't shown in the file browser.
+Set **Admin → Host storage → Task scratch → Scratch storage limit (MiB)** to manage the scratch budget independently of workspace storage and sandbox images. Blank uses the backing filesystem capacity. The API rejects a limit above that capacity, and the effective budget is capped if the filesystem later becomes smaller.
+
+Every minute, the worker checks backing filesystem usage. Above 85% of the budget, or when the filesystem is low on free space, it clears eligible scratch until usage is below 70%, in batches of up to 20 folders. Larger, older scratch goes first; workspaces above their fair share receive higher priority. Running and queued tasks, open runs, live persistent shells, active swarm work, and running sandbox mounts are protected. Scratch idle for 14 days also expires without pressure. A resumed agent is told when its scratch was cleared.
+
+This is a managed cleanup budget, not a hard write quota: active tasks can exceed it, and cleanup cannot reclaim space when all scratch is protected. The backing image or filesystem remains the hard ceiling. Use a dedicated filesystem for scratch: its usage includes history and pending deletions, and on a shared filesystem it also includes unrelated files. Cleanup only removes disposable task scratch; it preserves context history and saved task files. Existing legacy workspace scratch quotas are not automatically retagged or changed.
+
+Apply migration 166 before starting the updated worker. Docker installs run migrations when the API starts; source installs use `npm run migrate`. Keep API and worker on the same scratch mount. The host-side manager works with any sandbox image; changing the image does not change the budget.
+
+Scratch is also deleted when its task is deleted, expires, or is archived as a whole. Cooling older messages or closed context windows while the task remains active does not clear its scratch. Scratch isn't shown in the file browser.
 
 To give scratch its own fixed-size XFS filesystem from an image file:
 

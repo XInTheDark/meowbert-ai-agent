@@ -7,7 +7,8 @@ import {
   resolveWorkspaceScratchDir
 } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
-import { ensureWorkspaceScratchQuota } from "../storage/task-scratch-quota.js";
+import { withTransaction, query } from "../../lib/db.js";
+import { assignTaskScratchProject } from "../storage/task-scratch-accounting.js";
 
 const SCRATCH_DIR_MODE = 0o2775;
 
@@ -16,14 +17,24 @@ export async function ensureTaskScratchDir(input: { workspaceId: string; taskId:
   const workspaceScratchDir = resolveWorkspaceScratchDir(scratchRoot, input.workspaceId);
   const taskScratchDir = resolveTaskScratchDir(scratchRoot, input.workspaceId, input.taskId);
 
-  await fs.mkdir(workspaceScratchDir, { recursive: true, mode: SCRATCH_DIR_MODE });
-  // The scratch filesystem's own size still caps everything if a workspace quota can't be set.
-  await ensureWorkspaceScratchQuota({ workspaceId: input.workspaceId, workspaceScratchDir }).catch((error: unknown) => {
-    console.warn(`[task-scratch] Could not apply scratch quota for workspace ${input.workspaceId}: ${error instanceof Error ? error.message : String(error)}`);
+  return withTransaction(async (client) => {
+    const task = await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [input.taskId]);
+    if (!task.rowCount) throw new Error("Task not found");
+    await fs.mkdir(workspaceScratchDir, { recursive: true, mode: SCRATCH_DIR_MODE });
+    const created = await fs.mkdir(taskScratchDir, { mode: SCRATCH_DIR_MODE }).then(() => true).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "EEXIST") return false;
+      throw error;
+    });
+    if (created) {
+      await client.query("UPDATE tasks SET scratch_project_id = NULL WHERE id = $1", [input.taskId]);
+      await assignTaskScratchProject(client, input.taskId, taskScratchDir).catch((error: unknown) => {
+        console.warn(`[task-scratch] Size accounting unavailable for ${input.taskId}:`, error);
+      });
+    }
+    await ensureSandboxWritablePath({ rootPath: scratchRoot, targetPath: taskScratchDir });
+    await client.query("UPDATE tasks SET scratch_present = true WHERE id = $1", [input.taskId]);
+    return taskScratchDir;
   });
-  await fs.mkdir(taskScratchDir, { recursive: true, mode: SCRATCH_DIR_MODE });
-  await ensureSandboxWritablePath({ rootPath: scratchRoot, targetPath: taskScratchDir });
-  return taskScratchDir;
 }
 
 // Only the executor writes here; the sandbox mounts it read-only.
@@ -35,4 +46,5 @@ export async function ensureTaskHistoryDir(input: { workspaceId: string; taskId:
 
 export async function removeTasksScratch(workspaceId: string, taskIds: string[]): Promise<void> {
   await removeTaskScratchDirs(config.runtime.taskScratch.root, workspaceId, taskIds);
+  await query("UPDATE tasks SET scratch_present = false WHERE workspace_id = $1 AND id = ANY($2::uuid[])", [workspaceId, taskIds]);
 }

@@ -36,6 +36,7 @@ export interface TaskRow {
   workspace_id: string;
   environment_id: string;
   status: TaskStatus;
+  scratch_was_evicted?: boolean;
   source: TaskSource;
   initiator_user_id: string | null;
   connector_context_id: string | null;

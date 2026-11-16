@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useScratchStorageSettings } from "./useScratchStorageSettings";
 import type { ApiClient } from "../../../lib/api";
 import type { FlashMessage } from "../../../lib/types";
 import { formatBytes } from "../../../lib/utils";
@@ -197,6 +198,7 @@ function useAdminHostStorageMaintenanceActions(
 }
 
 export function useAdminHostStorageSettings(input: UseAdminHostStorageSettingsInput) {
+  const scratchStorage = useScratchStorageSettings(input.api, input.isSuperAdmin && input.activeTab === "host-storage");
   const state = useAdminHostStorageState(input.api);
   const actions = useAdminHostStorageActions(input, state);
   const maintenanceActions = useAdminHostStorageMaintenanceActions(input, state);
@@ -224,6 +226,7 @@ export function useAdminHostStorageSettings(input: UseAdminHostStorageSettingsIn
   }, [input.activeTab, input.api, input.isSuperAdmin, state.overview?.taskHistoryArchive.recentRuns]);
 
   return {
+    scratchStorage,
     ...state,
     ...actions,
     ...maintenanceActions

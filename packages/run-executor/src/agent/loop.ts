@@ -391,9 +391,16 @@ async function requestModelTurn(input: {
     },
     codeMode: isCodeModeEnabled(execution)
   }), resolveModelToolChoice(execution, availability, step));
+  sealPromptEnvelope(execution.promptEnvelope);
+  if (execution.prepared.snapshot.task.scratch_was_evicted) {
+    appendPromptEnvelopeDelta(execution.promptEnvelope, {
+      reason: "scratch-evicted",
+      content: "This task's temporary scratch files were cleared while it was idle. Recreate any scratch dependencies or working copies you still need; saved task files are unchanged."
+    });
+    execution.prepared.snapshot.task.scratch_was_evicted = false;
+  }
   await appendQueuedPromptDeltas(execution);
   prepareV2ContextWindowUsage(execution, turnRequest.promptPrefixItems);
-  sealPromptEnvelope(execution.promptEnvelope);
   logLaneForkPrefix(execution, turnRequest.promptPrefixHash);
   const toolChoice = turnRequest.toolChoice;
   const requestItemCount = execution.state.dispatchState.conversationItems.length;

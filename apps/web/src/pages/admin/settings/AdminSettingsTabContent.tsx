@@ -50,6 +50,7 @@ function AdminStorageAndMigrationContent(props: AdminSettingsTabContentProps) {
   if (activeTab === "host-storage") {
     return (
       <HostStorageSettingsTab
+        scratchStorage={hostStorage.scratchStorage}
         overview={hostStorage.overview}
         warmRetentionDaysDraft={hostStorage.warmRetentionDaysDraft}
         isLoading={hostStorage.isLoading}

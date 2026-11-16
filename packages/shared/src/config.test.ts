@@ -170,7 +170,7 @@ describe("loadConfig runtime path normalization", () => {
     const temp = writeTempConfig("config");
     const loaded = loadConfig(temp.configPath);
 
-    expect(loaded.runtime.taskScratch).toEqual({ root: path.resolve(temp.root, "runtime/task-scratch") });
+    expect(loaded.runtime.taskScratch).toMatchObject({ root: path.resolve(temp.root, "runtime/task-scratch"), eviction: { highWatermark: 0.85, targetWatermark: 0.7, minIdleMinutes: 60, maxIdleDays: 14 } });
     fs.rmSync(temp.root, { recursive: true, force: true });
   });
 
@@ -185,7 +185,7 @@ describe("loadConfig runtime path normalization", () => {
     }));
     const loaded = loadConfig(temp.configPath);
 
-    expect(loaded.runtime.taskScratch).toEqual({
+    expect(loaded.runtime.taskScratch).toMatchObject({
       root: path.resolve(temp.root, "scratch"),
       xfsProjectQuota: { mountPath: path.resolve(temp.root, "scratch"), projectIdBase: 10_000 }
     });
