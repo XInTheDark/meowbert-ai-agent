@@ -1,5 +1,33 @@
 # Changelog
 
+## Nov 16, 2026
+
+### Tasks
+
+- **Schedule a send** — Right-click **Send**, choose **Schedule send**, and pick a date and time. Works for new tasks and follow-ups, uses your device's timezone, and still sends after you close the tab. Scheduled follow-ups have **Send now** and **Remove** controls.
+- **Keep each task's setup** — Follow-ups start with the agent and tools used by the latest message on that branch, across devices. Changing the agent or newly enabling Computer Use asks before sending because it can break the prompt cache, with an option to keep the previous settings.
+- **Edit queued messages** — Click the pencil beside a queued follow-up to move it back into the composer for editing before it is sent.
+- **Plans carry across turns** — The activity card keeps the task's plan between runs, with an overall status and notes on individual steps. Agents can read it back after compaction and update the steps as work progresses.
+- **Faster long conversations** — Opening and navigating large conversations is faster. Scrolling back loads earlier messages sooner and in larger pages, while older tool results load when you open their group.
+
+### AI and agents
+
+- **Full idle compaction** — Admins can now choose **Disabled**, **Standard**, or **Full** for idle compaction on top-level tasks. Standard compacts between runs. Full also saves notes and clears a large window when its prompt cache expires during a long tool call, swarm wait, or retry, then continues the work. Checkpoint steps have their own allowance so they do not consume the run's remaining work steps.
+- **Fewer prompt cache breaks** — Tool definitions stay stable within a context window where possible, and setup notices no longer rewrite Claude's opening instructions. Turning a tool off still revokes access, including provider-side web search.
+- **Recover work after failures** — Failed-run retries continue on the same branch with the work already done. Failed swarm lanes can be resumed within their normal limits, and lanes that fail during setup no longer leave their leader waiting indefinitely.
+- **Long Horizon carries on after unanswered questions** — If nobody replies during the clarification phase for 15 minutes, the agent resumes using its best assumptions.
+
+### Canvas and connected sources
+
+- **Find and reuse task canvases** — The task's **Canvases** menu lists its pages in one searchable place. Use **Add to project** in the canvas panel to copy a page and its folder into a project canvas for other tasks to use.
+- **Read Google Drive version history** — Agents can list past versions of linked Drive files and save an older version as a separate local copy, including Office exports of Docs, Sheets, and Slides. The current Drive file stays unchanged. If Google requires an old binary version to be marked **Keep Forever** before downloading, that mark remains and the agent is told it counts toward storage.
+
+### Desktop
+
+- **Run Agent Swarms locally** — Agent Swarm now works with local execution in Meowbert Desktop, alongside standard tasks. Update both the server and desktop app.
+- **Mac updates in the app** — macOS now uses Sparkle to verify and install signed updates. Install a Sparkle-enabled release manually once if you have an older build; later updates can install in-app. Requires macOS 14 or later. Initial installation still uses ad-hoc app signing.
+- **More reliable local tasks and downloads** — Edited task files no longer leave local runs stuck in **Starting**, stopping an unclaimed run takes effect immediately, and Computer Use respects the device's permission settings. Chat file downloads use the native save dialog, and **File → Open in Browser** opens the current page in your browser.
+
 ## Nov 8, 2026
 
 ### Memory
