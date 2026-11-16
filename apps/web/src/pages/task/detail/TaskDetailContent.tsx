@@ -11,6 +11,7 @@ import { TaskCanvasesMenu } from "./TaskCanvasesMenu";
 import { getCanvasViewKey } from "../../../components/canvas/canvasViews";
 import type { ProjectCanvasSummary } from "../../../lib/types";
 import { ProjectFilePickerModal } from "../../../components/modals/ProjectFilePickerModal";
+import { CacheBreakWarningDialog } from "../../../components/tasks/CacheBreakWarningDialog";
 import { SourceFilePickerModal } from "../../../components/modals/SourceFilePickerModal";
 import { buildTaskRoutePath } from "../../../task/taskRouteContext";
 import { canSelectTaskModel } from "../../../task/taskModelSelection";
@@ -620,6 +621,14 @@ function TaskSecondaryTabs({ model }: ModelProps) {
 function TaskDetailModals({ model }: ModelProps) {
   return (
     <>
+      {model.actions.cacheWarning ? (
+        <CacheBreakWarningDialog
+          changes={model.actions.cacheWarning}
+          onKeepPrevious={() => void model.actions.handleSendFollowUp("keep_previous")}
+          onSendAnyway={() => void model.actions.handleSendFollowUp("send_anyway")}
+          onCancel={model.actions.dismissCacheWarning}
+        />
+      ) : null}
       <ProjectFilePickerModal
         api={model.context.workspace.api}
         token={model.context.workspace.token}

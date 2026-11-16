@@ -30,6 +30,11 @@ import {
 } from "./taskDetailMutations";
 import type { PendingFollowUpControls } from "./usePendingFollowUp";
 import { buildDefaultTaskParameters, taskScheduleMatches } from "../../../task/taskParameters";
+import { findCacheBreakingChanges, type CacheBreakingChange, type FollowUpSetup } from "../../../task/cacheBreakingChanges";
+import type { TaskMessageSetup } from "../../../task/taskMessageSetup";
+
+export type CacheWarningChoice = "keep_previous" | "send_anyway";
+
 
 interface UseTaskDetailActionsInput {
   api: ApiClient;
@@ -68,6 +73,8 @@ interface UseTaskDetailActionsInput {
   taskParameters: TaskParameters;
   workspaceMemoryEnabled: boolean;
   selectedAgentId: string | null;
+  // What the task's latest message ran with, which a follow-up is checked against.
+  latestSetup: TaskMessageSetup | null;
   selectedMasterTaskAgentId: string | null;
   cancelPendingConversationDraftPersist: () => void;
   clearCurrentConversationDraft: () => void;
@@ -172,8 +179,14 @@ function useTaskFollowUpAction(
   requestInterruptAndMarkTask: () => Promise<void>
 ) {
   const [isBusy, setIsBusy] = useState(false);
+  const [cacheWarning, setCacheWarning] = useState<CacheBreakingChange[] | null>(null);
 
-  async function submitFollowUp(request: { message: string; attachments: UseTaskDetailActionsInput["attachments"]; editingMessageId: string | null }) {
+  async function submitFollowUp(request: {
+    message: string;
+    attachments: UseTaskDetailActionsInput["attachments"];
+    editingMessageId: string | null;
+    setup?: FollowUpSetup;
+  }) {
     if (!input.taskId || !input.taskDetail) throw new Error("Task is not loaded.");
     // An edit branches the conversation, so it stops the run; other follow-ups queue for it.
     if (request.editingMessageId && isTaskRunActive(input.taskDetail.task.status)) {
@@ -185,10 +198,10 @@ function useTaskFollowUpAction(
       followUp: request.message,
       attachments: request.attachments,
       editingMessageId: request.editingMessageId,
-      toolOptions: input.toolOptions,
+      toolOptions: request.setup?.toolOptions ?? input.toolOptions,
       workspaceMemoryEnabled: input.workspaceMemoryEnabled,
       allowComputerUse: input.capabilities.isDesktop,
-      selectedAgentId: input.selectedAgentId,
+      selectedAgentId: request.setup ? request.setup.agentId : input.selectedAgentId,
       masterTaskAgent: input.taskDetail.task.is_project_master ? { id: input.selectedMasterTaskAgentId } : null,
       interactiveCanvasId: input.taskDetail.task.interactive_canvas_id ?? input.selectedFollowUpCanvas?.id ?? null,
       interactiveCanvasIntent: input.taskDetail.task.interactive_canvas_id || input.selectedFollowUpCanvas ? "update" : null
@@ -204,11 +217,24 @@ function useTaskFollowUpAction(
     return response;
   }
 
-  async function handleSendFollowUp(): Promise<void> {
+  // Without a choice, a follow-up that would lose the prompt cache waits for the user to pick one.
+  async function handleSendFollowUp(choice?: CacheWarningChoice): Promise<void> {
     const message = input.quotedFollowUpSelections.length > 0
       ? buildSelectedTextMessage(input.quotedFollowUpSelections, input.followUp)
       : input.followUp;
     if ((!message.trim() && input.attachments.length === 0) || !input.taskId || !input.taskDetail) return;
+    const previous = input.latestSetup;
+    if (!choice && !input.editingMessageId) {
+      const changes = findCacheBreakingChanges(previous, { toolOptions: input.toolOptions, agentId: input.selectedAgentId });
+      if (changes.length > 0) {
+        setCacheWarning(changes);
+        return;
+      }
+    }
+    setCacheWarning(null);
+    const setup = choice === "keep_previous" && previous
+      ? { toolOptions: previous.toolOptions, agentId: previous.agentId ?? input.selectedAgentId }
+      : undefined;
 
     setIsBusy(true);
     input.setError(null);
@@ -224,7 +250,7 @@ function useTaskFollowUpAction(
       input.setQuotedFollowUpSelections([]);
     }
     try {
-      const response = await submitFollowUp({ message, attachments: input.attachments, editingMessageId: input.editingMessageId });
+      const response = await submitFollowUp({ message, attachments: input.attachments, editingMessageId: input.editingMessageId, setup });
       if (sendsOptimistically) {
         input.pendingFollowUp.confirm(response.messageId ?? null);
       } else {
@@ -268,7 +294,13 @@ function useTaskFollowUpAction(
     }
   }
 
-  return { isBusy, handleSendFollowUp, handleSendPrompt };
+  return {
+    isBusy,
+    handleSendFollowUp,
+    handleSendPrompt,
+    cacheWarning,
+    dismissCacheWarning: () => setCacheWarning(null)
+  };
 }
 
 function useTaskParameterAction(input: UseTaskDetailActionsInput) {

@@ -19,6 +19,7 @@ import {
   type TaskInputDraft
 } from "../../../task/taskInputDrafts";
 import { canSelectTaskModel, getTaskMessageAgentId } from "../../../task/taskModelSelection";
+import { readLatestTaskMessageSetup } from "../../../task/taskMessageSetup";
 import { buildTaskParametersFromTask } from "../../../task/taskParameters";
 import {
   buildTaskInputAttachmentPath,
@@ -96,13 +97,21 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [draftsByProject, setDraftsByProject] = useState<Record<string, TaskInputDraft>>(() => readTaskInputDrafts());
   const draftDefaults = useMemo(() => ({ memorySearch: input.workspaceMemoryEnabled }), [input.workspaceMemoryEnabled]);
+  // A follow-up starts from the task's own latest message, so every device offers what the task last
+  // ran with. Changes made here last until a new message is sent.
+  const latestSetup = useMemo(() => readLatestTaskMessageSetup(input.taskDetail?.messages ?? []), [input.taskDetail?.messages]);
+  const setupKey = `${input.taskId}:${latestSetup?.messageId ?? ""}`;
+  const [changes, setChanges] = useState<{ key: string; toolOptions?: TaskToolOptions; agentId?: string | null }>({ key: setupKey });
+  const currentChanges = changes.key === setupKey ? changes : { key: setupKey };
   const toolOptions = useMemo<TaskToolOptions>(() => {
-    const draft = getTaskInputDraftForProject(draftsByProject, input.taskProjectId, draftDefaults);
+    const options = currentChanges.toolOptions
+      ?? latestSetup?.toolOptions
+      ?? getTaskInputDraftForProject(draftsByProject, input.taskProjectId, draftDefaults).toolOptions;
     return {
-      ...draft.toolOptions,
-      memorySearch: input.workspaceMemoryEnabled ? draft.toolOptions.memorySearch : false
+      ...options,
+      memorySearch: input.workspaceMemoryEnabled ? options.memorySearch : false
     };
-  }, [draftDefaults, draftsByProject, input.taskProjectId, input.workspaceMemoryEnabled]);
+  }, [currentChanges.toolOptions, draftDefaults, draftsByProject, input.taskProjectId, input.workspaceMemoryEnabled, latestSetup]);
   const taskParameters = useMemo<TaskParameters>(() => buildTaskParametersFromTask({
     taskType: input.taskDetail?.task.task_type,
     maxStepsOverride: input.taskDetail?.task.max_steps_override ?? null,
@@ -138,11 +147,16 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
     ) {
       return selectedThreadAgentId;
     }
+    const isAvailable = (agentId: string | null | undefined): agentId is string =>
+      typeof agentId === "string" && input.availableAgents.some((agent) => agent.id === agentId);
+    if (currentChanges.agentId !== undefined && isAvailable(currentChanges.agentId)) return currentChanges.agentId;
+    if (isAvailable(latestSetup?.agentId)) return latestSetup.agentId;
     const draftAgentId = getTaskInputDraftForProject(draftsByProject, input.taskProjectId).agentId;
-    if (typeof draftAgentId === "string" && input.availableAgents.some((agent) => agent.id === draftAgentId)) return draftAgentId;
+    if (!latestSetup && isAvailable(draftAgentId)) return draftAgentId;
     if (input.defaultAgentId && input.availableAgents.some((agent) => agent.id === input.defaultAgentId)) return input.defaultAgentId;
     return input.availableAgents[0]?.id ?? null;
   }, [
+    currentChanges.agentId,
     draftsByProject,
     editingAgentId,
     editingMessageId,
@@ -151,6 +165,7 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
     input.taskDetail?.task.is_thread,
     input.taskProjectId,
     input.user,
+    latestSetup,
     selectedThreadAgentId
   ]);
 
@@ -168,11 +183,11 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
   }, [draftDefaults, input.taskProjectId]);
 
   const handleToolOptionsChange = useCallback((next: TaskToolOptions) => {
-    setDraftsByProject((current) => updateTaskInputDraftForProject(current, input.taskProjectId, (draft) => ({
-      ...draft,
+    setChanges((current) => ({
+      ...(current.key === setupKey ? current : { key: setupKey }),
       toolOptions: normalizeToolOptions(next, draftDefaults)
-    }), draftDefaults));
-  }, [draftDefaults, input.taskProjectId]);
+    }));
+  }, [draftDefaults, setupKey]);
 
   const handleAgentChange = useCallback((agentId: string | null) => {
     if (editingMessageId) {
@@ -184,11 +199,8 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
       return;
     }
 
-    setDraftsByProject((current) => updateTaskInputDraftForProject(current, input.taskProjectId, (draft) => ({
-      ...draft,
-      agentId
-    }), draftDefaults));
-  }, [draftDefaults, editingMessageId, input.taskProjectId, input.taskDetail?.task.is_thread]);
+    setChanges((current) => ({ ...(current.key === setupKey ? current : { key: setupKey }), agentId }));
+  }, [editingMessageId, input.taskDetail?.task.is_thread, setupKey]);
 
   const beginEditMessage = useCallback((message: TaskMessage) => {
     setEditingAgentId(getTaskMessageAgentId(message));
@@ -208,6 +220,7 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
     setDraftsByProject,
     draftDefaults,
     toolOptions,
+    latestSetup,
     taskParameters,
     workflowConfig,
     selectedAgentId,

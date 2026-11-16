@@ -209,6 +209,19 @@ a.landing-footer-link:hover {
   gap: 1rem;
 }
 
+.cache-break-dialog {
+  max-width: 28rem;
+}
+
+.cache-break-dialog-body p {
+  margin: 0 0 0.5rem;
+}
+
+.cache-break-dialog-body ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
 .task-fork-field,
 .task-fork-copy-option {
   display: flex;
