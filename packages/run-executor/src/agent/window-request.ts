@@ -5,7 +5,7 @@ import { appendPromptEnvelopeDelta, computePromptPrefixHash, getPromptEnvelopeRe
 import { buildPromptCacheKey } from "./turn-request.js";
 import type { WindowRequestState } from "./window-request-types.js";
 import { buildToolChangeNotice } from "./tool-change-notice.js";
-import { needsNewToolDefinitions } from "./window-tool-freeze.js";
+import { filterRevokedProviderTools, needsNewToolDefinitions } from "./window-tool-freeze.js";
 import type { ModelToolChoice } from "./model.js";
 
 const SETUP_UPDATE = "[Current task setup]\n";
@@ -90,8 +90,8 @@ export async function prepareWindowTurnRequest(
     });
     preparedWindows.set(execution, window.windowId);
   }
-  // The window's tool definitions go out unchanged; what this run may call is checked when it is called.
-  const responseTools = saved.tools.response;
+  // Frozen local functions are checked at dispatch; native tools execute at the provider.
+  const responseTools = filterRevokedProviderTools(saved.tools.response, turn.availableResponseTools);
   const codeModeTools = turn.codeModeTools;
   const preferredToolChoice = idle ? saved.toolChoice ?? requestedToolChoice : requestedToolChoice;
   const toolChoice = typeof preferredToolChoice === "object" && !turn.availableResponseTools.some((tool) =>

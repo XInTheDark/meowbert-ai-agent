@@ -40,6 +40,16 @@ describe("buildPromptCacheKey", () => {
 });
 
 describe("buildAgentTurnRequest", () => {
+  it.each([false, true])("removes revoked native tools inherited from a fork (code mode %s)", (codeMode) => {
+    const base = { taskId: "lane", promptEnvelope: createPromptEnvelope("Policy"),
+      activeSkillTools: [], availability: {}, codeMode };
+    const parent = buildAgentTurnRequest({ ...base, runToolOptions: { ...createBaseToolOptions(), webSearch: true } });
+    const child = buildAgentTurnRequest({ ...base, runToolOptions: createBaseToolOptions(),
+      fixedTools: { response: parent.responseTools, codeMode: parent.codeModeTools } });
+    expect(parent.responseTools.some((tool) => tool.type === "web_search")).toBe(true);
+    expect(child.responseTools.some((tool) => tool.type === "web_search")).toBe(false);
+  });
+
   it.each([false, true])("adds tools enabled within a forked lane (code mode: %s)", (codeMode) => {
     const promptEnvelope = createPromptEnvelope("Forked prompt.");
     const skillTool: FunctionTool = {

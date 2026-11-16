@@ -7,23 +7,22 @@ type WindowTools = { response: Tool[]; codeMode: FunctionTool[] };
 export const TOOL_CHANGES_PREFIX = "[Tool changes]\n";
 const BACK_TO_DEFINITIONS = "Every tool in your tool definitions is available again.";
 
-function functionNames(tools: WindowTools): Set<string> {
+function toolNames(tools: WindowTools): Set<string> {
   return new Set([...tools.response, ...tools.codeMode]
-    .filter((tool): tool is FunctionTool => tool.type === "function")
-    .map((tool) => tool.name));
+    .map((tool) => tool.type === "function" ? tool.name : tool.type));
 }
 
 // What differs between the tool definitions the window was started with and the tools this run
 // allows. Null when they match.
 function describeToolChanges(frozen: WindowTools, available: WindowTools): string | null {
-  const frozenNames = functionNames(frozen);
-  const availableNames = functionNames(available);
+  const frozenNames = toolNames(frozen);
+  const availableNames = toolNames(available);
   const added = available.codeMode.map((tool) => tool.name).filter((name) => !frozenNames.has(name));
   const removed = [...frozenNames].filter((name) => !availableNames.has(name));
   if (added.length === 0 && removed.length === 0) return null;
   return [
     ...(added.length > 0 ? [`Now available inside ${EXEC_TOOL_NAME}: ${added.join(", ")}. Look up any you have not used with ${SEARCH_TOOLS_TOOL_NAME}.`] : []),
-    ...(removed.length > 0 ? [`No longer available, so calls to them fail: ${removed.join(", ")}.`] : [])
+    ...(removed.length > 0 ? [`No longer available: ${removed.join(", ")}.`] : [])
   ].join("\n");
 }
 

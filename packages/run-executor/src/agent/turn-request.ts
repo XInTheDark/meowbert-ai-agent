@@ -4,6 +4,7 @@ import { buildResponseTools, RUN_SHELL_MAX_TIMEOUT_SECONDS, type ResponseToolAva
 import { buildCodeModeToolsPrompt, CODE_MODE_TOOLS_PROMPT_REASON } from "../code-mode/code-mode-prompt.js";
 import { buildCodeModeToolSet } from "../code-mode/code-mode-tools.js";
 import { isToolGroupTool } from "../agent-tools/tool-groups.js";
+import { filterRevokedProviderTools } from "./window-tool-freeze.js";
 import type { TaskMessageToolOptions } from "./types.js";
 import {
   appendPromptEnvelopeDelta,
@@ -58,14 +59,14 @@ function resolveTurnTools(input: {
     const additions = tools.filter((tool): tool is FunctionTool => tool.type === "function"
       && !inheritedNames.has(tool.name) && (skillNames.has(tool.name) || isToolGroupTool(tool.name)));
     if (additions.length === 0) {
-      return { responseTools: input.fixedTools.response, availableResponseTools: kept, nestedTools: input.fixedTools.codeMode };
+      return { responseTools: filterRevokedProviderTools(input.fixedTools.response, current), availableResponseTools: kept, nestedTools: input.fixedTools.codeMode };
     }
     const added = input.codeMode === true
       ? buildCodeModeToolSet(additions, maxTimeoutSeconds)
       : { responseTools: additions, nestedTools: [] };
     const addedResponseTools = added.responseTools.filter((tool) => tool.type !== "function" || !inheritedNames.has(tool.name));
     return {
-      responseTools: [...input.fixedTools.response, ...addedResponseTools],
+      responseTools: [...filterRevokedProviderTools(input.fixedTools.response, current), ...addedResponseTools],
       availableResponseTools: [...kept, ...addedResponseTools],
       nestedTools: [...input.fixedTools.codeMode, ...added.nestedTools]
     };

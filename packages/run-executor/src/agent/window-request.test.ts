@@ -37,8 +37,8 @@ function fixture() {
     } as unknown as AgentExecutionContext;
   }
   async function request(execution: AgentExecutionContext, availability = {}, codeMode = false,
-    activeSkillTools: FunctionTool[] = [], toolChoice: ModelToolChoice = "auto") {
-    const turn = await prepareWindowTurnRequest(execution, buildAgentTurnRequest({ taskId: "task", runToolOptions: options,
+    activeSkillTools: FunctionTool[] = [], toolChoice: ModelToolChoice = "auto", webSearch = false) {
+    const turn = await prepareWindowTurnRequest(execution, buildAgentTurnRequest({ taskId: "task", runToolOptions: { ...options, webSearch },
       activeSkillTools, promptEnvelope: execution.promptEnvelope,
       availability: { runShellMaxTimeoutSeconds: 60, ...availability }, codeMode }), toolChoice);
     await appendQueuedPromptDeltas(execution);
@@ -48,6 +48,23 @@ function fixture() {
 }
 
 describe("context-window request replay", () => {
+  it.each([false, true])("removes revoked native search before ordinary and idle requests (code mode %s)", async (codeMode) => {
+    const f = fixture();
+    const first = f.execution("Policy");
+    const before = await f.request(first, {}, codeMode, [], "auto", true);
+    expect(before.turn.responseTools.some((tool) => tool.type === "web_search")).toBe(true);
+    const resumed = f.execution("Policy", first.state.dispatchState.conversationItems);
+    const after = await f.request(resumed, {}, codeMode);
+    expect(after.turn.responseTools.some((tool) => tool.type === "web_search")).toBe(false);
+    expect(after.turn.promptCacheKey).not.toBe(before.turn.promptCacheKey);
+    expect(after.input.at(-1)).toMatchObject({ role: "developer", content: expect.stringContaining("web_search") });
+    const idle = await f.request(f.execution("Policy", resumed.state.dispatchState.conversationItems, true), {}, codeMode);
+    expect(idle.turn.responseTools.some((tool) => tool.type === "web_search")).toBe(false);
+    const restored = await f.request(f.execution("Policy", resumed.state.dispatchState.conversationItems), {}, codeMode, [], "auto", true);
+    expect(restored.turn.responseTools).toEqual(before.turn.responseTools);
+    expect(restored.turn.promptCacheKey).toBe(before.turn.promptCacheKey);
+  });
+
   it("does not rewrite the stored recipe on unchanged model turns", async () => {
     const f = fixture();
     const execution = f.execution("Policy");

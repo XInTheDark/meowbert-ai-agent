@@ -31,14 +31,14 @@ function leaderTurn() {
   return { envelope, request };
 }
 
-function laneTurn(seed: ReturnType<typeof snapshotForkEnvelope>, tools: ReturnType<typeof leaderTurn>["request"]["responseTools"]) {
+function laneTurn(seed: ReturnType<typeof snapshotForkEnvelope>, tools: ReturnType<typeof leaderTurn>["request"]["responseTools"], webSearch = toolOptions.webSearch) {
   const envelope = restoreForkEnvelope(seed);
   // A lane's own setup raises notes too; they must not reach its inherited prefix.
   appendPromptEnvelopeDelta(envelope, { reason: "desktop-computer-unavailable", content: "No desktop." });
   return buildAgentTurnRequest({
     taskId: "lane-task",
     cacheTaskId: "root-task",
-    runToolOptions: { ...toolOptions, webSearch: false },
+    runToolOptions: { ...toolOptions, webSearch },
     activeSkillTools: [],
     promptEnvelope: envelope,
     availability: { allowFinalResponse: false, allowWaitTool: false },
@@ -47,6 +47,15 @@ function laneTurn(seed: ReturnType<typeof snapshotForkEnvelope>, tools: ReturnTy
 }
 
 describe("forked lane requests", () => {
+  it("removes native search when a lane revokes it, even though its cache key changes", () => {
+    const { envelope, request: parent } = leaderTurn();
+    const lane = laneTurn(snapshotForkEnvelope(envelope), parent.responseTools, false);
+
+    expect(lane.responseTools).toEqual(parent.responseTools.filter((tool) => tool.type !== "web_search"));
+    expect(lane.promptPrefixItems).toEqual(parent.promptPrefixItems);
+    expect(lane.promptCacheKey).not.toBe(parent.promptCacheKey);
+  });
+
   it("repeat the parent's tools and prefix, share its cache key, and keep their own session affinity", () => {
     const { envelope, request: parent } = leaderTurn();
     const seed = snapshotForkEnvelope(envelope);
