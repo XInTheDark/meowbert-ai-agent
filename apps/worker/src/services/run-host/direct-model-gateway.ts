@@ -13,6 +13,7 @@ import { platformUsageRecorder } from "../tasks/platform-usage.js";
 import { getUserMonthlySubscriptionQuotaStatus } from "../tasks/subscription-usage.js";
 import type { ModelCallPurpose, ModelGateway, ModelGatewayRequest } from "@meowbert/run-executor/agent/ports/model-gateway";
 import type { ServerRunState } from "./bootstrap.js";
+import { createStreamIdleTimeout, MODEL_STREAM_IDLE_TIMEOUT_MS } from "./stream-idle-timeout.js";
 
 const PURPOSE_ENDPOINTS: Record<ModelCallPurpose, string> = {
   turn: "responses.create",
@@ -100,20 +101,23 @@ async function streamProviderResponse(input: {
       })
     : baseClient;
   const events: unknown[] | undefined = input.onNetworkRequest ? [] : undefined;
+  const idle = createStreamIdleTimeout(MODEL_STREAM_IDLE_TIMEOUT_MS, input.request.signal);
   const response = await streamResponseToFinal(client, input.body, {
     maxRetries: 0,
     timeout: input.request.timeoutMs,
     ...(input.request.headers && Object.keys(input.request.headers).length > 0 ? { headers: input.request.headers } : {}),
-    ...(input.request.signal ? { signal: input.request.signal } : {})
+    signal: idle.signal
   }, {
     onEvent: (event) => {
+      idle.touch();
       events?.push(event);
       input.request.onEvent?.(event);
     }
-  }).catch((error: unknown) => {
+  }).catch((caught: unknown) => {
+    const error = idle.translate(caught);
     if (events && error instanceof Error) attachResponseStreamEvents(error, events);
     throw error;
-  });
+  }).finally(() => idle.dispose());
   if (events) attachResponseStreamEvents(response as object, events);
   return response;
 }

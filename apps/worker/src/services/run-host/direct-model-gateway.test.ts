@@ -67,6 +67,28 @@ describe("createDirectModelGateway", () => {
     expect(create.mock.calls.map((call) => (call as unknown as [{ model: string }])[0].model)).toEqual(["gpt-main", "gpt-quick"]);
   });
 
+  it("gives up on a stream that opens and then goes silent, so the run can retry", async () => {
+    const create = vi.fn(async (_body: unknown, options: { signal: AbortSignal }) => ({
+      async *[Symbol.asyncIterator]() {
+        yield { type: "response.created", response: { error: null, output: [] } };
+        await new Promise((_resolve, reject) => {
+          options.signal.addEventListener("abort", () => reject(new Error("Request was aborted.")), { once: true });
+        });
+      }
+    }));
+    vi.mocked(getOpenAiClient).mockReturnValue({ responses: { create } } as never);
+    const gateway = gatewayFor({});
+    vi.useFakeTimers();
+    try {
+      const result = gateway.create({ purpose: "turn", body: {}, timeoutMs: 1000 });
+      const outcome = expect(result).rejects.toThrow(/stream sent nothing for 900s/);
+      await vi.advanceTimersByTimeAsync(15 * 60_000);
+      await outcome;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reports a failure to bill an agent turn without failing the turn", async () => {
     respondWith({ usage: { input_tokens: 1, output_tokens: 1 } });
     vi.mocked(platformUsageRecorder.recordEvent).mockRejectedValueOnce(new Error("db down"));

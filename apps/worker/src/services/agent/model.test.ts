@@ -630,12 +630,10 @@ describe("createModelResponse", () => {
       toolChoice: "auto"
     }));
 
-    expect(createMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        signal: controller.signal
-      })
-    );
+    const forwarded = (createMock.mock.calls[0] as unknown as [unknown, { signal: AbortSignal }])[1].signal;
+    expect(forwarded.aborted).toBe(false);
+    controller.abort();
+    expect(forwarded.aborted).toBe(true);
   });
 
   it("forwards prompt cache routing and TTL fields for cache bucketing", async () => {
