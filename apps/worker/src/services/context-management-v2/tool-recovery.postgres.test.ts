@@ -10,7 +10,17 @@ vi.mock("../../lib/db.js", async () => {
   const { Pool } = await import("pg");
   const pool = new Pool({ connectionString: process.env.TEST_CONTEXT_DATABASE_URL ?? "postgres://127.0.0.1:1/none",
     options: `-c search_path=${schema}`, max: 4 });
-  return { pool, query: (sql: string, params: unknown[]) => pool.query(sql, params) };
+  return { pool, query: (sql: string, params: unknown[]) => pool.query(sql, params),
+    withTransaction: async (fn: (client: unknown) => Promise<unknown>) => {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await fn(client);
+        await client.query("COMMIT");
+        return result;
+      } catch (error) { await client.query("ROLLBACK"); throw error; }
+      finally { client.release(); }
+    } };
 });
 vi.mock("../tasks/task-history-reader.js", () => ({ readTaskPayloads: async (_taskId: string, _kind: string, rows: unknown[]) => rows }));
 const { pool } = await import("../../lib/db.js");
@@ -20,8 +30,9 @@ const { appendToolMessage } = await import("@meowbert/run-executor/agent-tool-di
 describe.skipIf(!databaseUrl)("Tool message recovery in PostgreSQL", () => {
   beforeAll(async () => {
     await pool.query(`CREATE SCHEMA ${schema}`);
-    await pool.query("CREATE TABLE tasks (id uuid PRIMARY KEY); CREATE TABLE task_messages (id uuid PRIMARY KEY, task_id uuid REFERENCES tasks, parent_message_id uuid REFERENCES task_messages)");
+    await pool.query("CREATE TABLE tasks (id uuid PRIMARY KEY); CREATE TABLE task_messages (id uuid PRIMARY KEY, task_id uuid REFERENCES tasks, parent_message_id uuid REFERENCES task_messages, created_at timestamptz DEFAULT now())");
     await pool.query(await readFile(new URL("../../../../../db/migrations/110_context_management_v2.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../../../../../db/migrations/167_context_message_boundaries.sql", import.meta.url), "utf8"));
   });
   afterAll(async () => {
     await pool.query(`DROP SCHEMA ${schema} CASCADE`);

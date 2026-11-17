@@ -117,6 +117,8 @@ export interface ContextHistoryWindow {
   ordinal: number;
   // Null for an empty window. Older control planes leave it out.
   lastItemId?: string | null;
+  // Inclusive branch boundary; null or absent means the current, unbounded window.
+  maxOrdinal?: number | null;
 }
 
 export interface StoredContextHistoryItem {
@@ -183,6 +185,7 @@ export interface RunContextStore {
   writeNote(window: ContextWindowRef, input: { path: string; text: string; append: boolean }): Promise<{ path: string; bytes: number }>;
   listNotes(window: ContextWindowRef, input: {
     prefix?: string | null;
+    contains?: string | null;
     max_results?: number | null;
     file_order_by?: "name" | "created_at" | "updated_at" | null;
     file_order?: "ascending" | "descending" | null;

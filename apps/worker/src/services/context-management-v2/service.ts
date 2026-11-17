@@ -12,6 +12,7 @@ import type { ContextHistoryRow, ContextNoteRow, ContextWindowRow } from "@meowb
 
 import { getHistoryMetadata } from "@meowbert/run-executor/context-management-v2/history-item";
 import { accessibleNodesCte } from "./lineage.js";
+import { linkVisibleContextNode } from "./message-snapshot.js";
 export { accessibleNodesCte } from "./lineage.js";
 export { writeContextNote } from "./notes.js";
 
@@ -52,6 +53,7 @@ async function resolveVisibleContextNode(taskId: string, visibleMessageId: strin
     `SELECT id
        FROM task_context_nodes
       WHERE task_id = $1
+        AND kind = 'visible'
         AND visible_message_id IS NOT DISTINCT FROM $2
       ORDER BY created_at ASC
       LIMIT 1`,
@@ -94,23 +96,30 @@ async function resolveVisibleContextNode(taskId: string, visibleMessageId: strin
 
 
 export async function loadContextNotesSummary(taskId: string, contextNodeId: string): Promise<ContextNotesSummary> {
-  const result = await query<ContextNoteRow>(
-    `${accessibleNodesCte(2)}, effective_notes AS (
+  const effectiveNotes = `${accessibleNodesCte(2)}, effective_notes AS (
        SELECT DISTINCT ON (note.path) note.path, note.content, note.created_at, note.updated_at
          FROM task_context_notes note
          JOIN context_lineage ON context_lineage.id = note.context_node_id
         WHERE note.task_id = $1
+          AND (context_lineage.note_revision_limit IS NULL OR note.revision <= context_lineage.note_revision_limit)
         ORDER BY note.path, context_lineage.depth ASC, note.revision DESC
-     )
+     )`;
+  const [result, checkpoint] = await Promise.all([
+    query<ContextNoteRow>(`${effectiveNotes}
      SELECT path, content, created_at, updated_at
        FROM effective_notes
       ORDER BY updated_at DESC, path ASC
       LIMIT 50`,
-    [taskId, contextNodeId]
-  );
+      [taskId, contextNodeId]
+    ),
+    query<ContextNoteRow>(`${effectiveNotes}
+     SELECT path, content, created_at, updated_at FROM effective_notes
+      WHERE path IN ('continuity.md', 'notes/continuity.md')
+      ORDER BY updated_at DESC, path ASC LIMIT 1`, [taskId, contextNodeId])
+  ]);
   return {
     // Newest first. Windows used to label this note notes/continuity.md, and agents copied that path.
-    continuity: result.rows.find((note) => note.path === "continuity.md" || note.path === "notes/continuity.md")?.content ?? null,
+    continuity: checkpoint.rows[0]?.content ?? null,
     index: result.rows.map((note) => ({
       path: note.path,
       size: Buffer.byteLength(note.content, "utf8"),
@@ -128,9 +137,17 @@ export async function openContextWindow(taskId: string, branchLeafMessageId: str
        FROM task_context_windows context_window
        JOIN context_lineage ON context_lineage.id = context_window.context_node_id
       WHERE context_window.task_id = $1 AND context_window.closed_at IS NULL
+        AND (context_window.branch_leaf_message_id IS NOT DISTINCT FROM $3
+          OR EXISTS (SELECT 1 FROM context_lineage head
+                      WHERE head.visible_message_id = context_window.branch_leaf_message_id
+                        AND head.snapshot_window_id = context_window.id
+                        AND head.snapshot_history_ordinal >= (SELECT COALESCE(MAX(item.ordinal), 0)
+                              FROM task_context_history_items item WHERE item.window_id = context_window.id)
+                        AND head.snapshot_note_revision >= (SELECT COALESCE(MAX(note.revision), 0)
+                              FROM task_context_notes note WHERE note.task_id = $1 AND note.context_node_id = context_window.context_node_id)))
       ORDER BY context_window.ordinal DESC
       LIMIT 1`,
-    [taskId, visibleNodeId]
+    [taskId, visibleNodeId, branchLeafMessageId]
   );
   const contextNodeId = latest.rows[0]?.context_node_id ?? await createPrivateContextNode(taskId, visibleNodeId);
   const window = latest.rows[0] ?? await createWindow({
@@ -140,6 +157,9 @@ export async function openContextWindow(taskId: string, branchLeafMessageId: str
     branchLeafMessageId,
     reason: "initial"
   });
+  if (latest.rows[0]) {
+    await query("UPDATE task_context_windows SET branch_leaf_message_id = $2 WHERE id = $1", [window.id, branchLeafMessageId]);
+  }
   const first = await query<{ id: string }>(
     "SELECT id FROM task_context_windows WHERE task_id = $1 ORDER BY ordinal ASC LIMIT 1",
     [taskId]
@@ -250,8 +270,11 @@ export async function startNewContextWindowRecord(
   branchLeafMessageId: string | null,
   reason: string
 ): Promise<{ windowId: string; contextNodeId: string; ordinal: number }> {
+  const parentNodeId = branchLeafMessageId
+    ? await linkVisibleContextNode(state, branchLeafMessageId)
+    : state.contextNodeId;
   await query("UPDATE task_context_windows SET closed_at = now() WHERE id = $1 AND closed_at IS NULL", [state.windowId]);
-  const contextNodeId = await createPrivateContextNode(state.taskId, state.contextNodeId);
+  const contextNodeId = await createPrivateContextNode(state.taskId, parentNodeId);
   const window = await createWindow({
     taskId: state.taskId,
     parentWindowId: state.windowId,
@@ -275,17 +298,4 @@ export async function assertContextWindowOfTask(state: ContextWindowRef): Promis
   }
 }
 
-export async function linkVisibleContextNode(state: ContextWindowRef, visibleMessageId: string): Promise<string> {
-  const existing = await query<{ id: string }>(
-    "SELECT id FROM task_context_nodes WHERE task_id = $1 AND visible_message_id = $2 LIMIT 1",
-    [state.taskId, visibleMessageId]
-  );
-  if (existing.rows[0]) return existing.rows[0].id;
-  const nodeId = randomUUID();
-  await query(
-    `INSERT INTO task_context_nodes (id, task_id, parent_node_id, visible_message_id, kind)
-     VALUES ($1, $2, $3, $4, 'visible')`,
-    [nodeId, state.taskId, state.contextNodeId, visibleMessageId]
-  );
-  return nodeId;
-}
+export { linkVisibleContextNode };

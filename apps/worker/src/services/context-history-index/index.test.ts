@@ -54,6 +54,7 @@ const items: Record<string, Array<{ id: string; ordinal: number; call_number: nu
   w3: [{ id: "item-4", ordinal: 1, call_number: null, payload_json: message("assistant", "Writing the release notes") }]
 };
 let historySearchEnabled = true;
+let ancestorMaxOrdinal: number | null = null;
 let queuedDeletions: string[] = [];
 
 function fakeQuery(sql: string, params: unknown[] = []) {
@@ -65,7 +66,7 @@ function fakeQuery(sql: string, params: unknown[] = []) {
   if (sql.includes("closed_at FROM task_context_windows")) {
     return { rows: [{ id: "w1", closed_at: "2026-01-01" }, { id: "w2", closed_at: null }, { id: "w3", closed_at: null }] };
   }
-  if (sql.includes("context_lineage")) return { rows: [{ id: "w1", ordinal: 1 }, { id: "w3", ordinal: 3 }] };
+  if (sql.includes("context_lineage")) return { rows: [{ id: "w1", ordinal: 1, history_limit: ancestorMaxOrdinal }, { id: "w3", ordinal: 3, history_limit: null }] };
   if (sql.includes("FROM task_context_history_items")) {
     const [windowId, after] = params as [string, number];
     return { rows: (items[windowId] ?? []).filter((item) => item.ordinal > after) };
@@ -85,6 +86,7 @@ async function countTaskRows(): Promise<number> {
 
 beforeEach(async () => {
   historySearchEnabled = true;
+  ancestorMaxOrdinal = null;
   queuedDeletions = [];
   vi.mocked(readTaskPayloads).mockImplementation(async (_taskId, _kind, rows) => rows);
   vi.mocked(query).mockImplementation((async (sql: string, params?: unknown[]) => fakeQuery(sql, params)) as never);
@@ -112,6 +114,14 @@ describe("session history search", () => {
 
     expect(rows).toBe(4);
     expect(await countTaskRows()).toBe(rows);
+  });
+
+  it("excludes the abandoned tail of an otherwise accessible ancestor window", async () => {
+    await indexTaskHistory(taskId);
+    ancestorMaxOrdinal = 1;
+    const result = await searchTaskHistory(state, { query: "pnpm", limit: 10, window_id: null, role: null, tool: null });
+    expect(result.items.map((item) => item.item_id)).not.toContain("item-2");
+    expect(result.items.map((item) => item.item_id)).not.toContain("item-3");
   });
   it("rebuilds searchable excerpts when closed-window database payloads are cold", async () => {
     vi.mocked(query).mockImplementation((async (sql: string, params?: unknown[]) => {

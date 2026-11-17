@@ -141,6 +141,7 @@ export async function searchContextNotes(store: RunContextStore, state: ContextM
 }) {
   const listed = await store.listNotes(state, {
     prefix: input.path_prefix,
+    contains: input.query,
     max_results: input.max_files,
     file_order_by: "updated_at",
     file_order: input.recent_file_first ? "descending" : "ascending"

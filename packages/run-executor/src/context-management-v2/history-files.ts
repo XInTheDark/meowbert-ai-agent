@@ -57,9 +57,8 @@ async function writeFileAtomically(filePath: string, text: string): Promise<void
   await fs.rename(temporaryPath, filePath);
 }
 
-// Writes any lineage window that has no file, rewrites the open window's file when it does not end
-// with the window's last item, and removes files of windows on other branches. Closed windows never
-// change, so their existing files are kept.
+// Rebuild files whose permitted tail changed, including an ancestor window when
+// branching from an earlier message, and remove windows from other branches.
 export async function syncHistoryFiles(store: RunContextStore, window: ContextWindowRef, historyDir: string): Promise<Map<string, string>> {
   const windows = await store.listHistoryWindows(window);
   const expected = new Map(windows.map((entry) => [entry.windowId, historyFileName(entry)]));
@@ -71,7 +70,6 @@ export async function syncHistoryFiles(store: RunContextStore, window: ContextWi
   for (const entry of windows) {
     const name = historyFileName(entry);
     if (existing.has(name)) {
-      if (entry.windowId !== window.windowId) continue;
       if (entry.lastItemId !== undefined && await fileEndsWithItem(path.join(historyDir, name), entry.lastItemId)) continue;
     }
     const items = await store.loadHistoryWindow(window, entry.windowId);
@@ -80,8 +78,8 @@ export async function syncHistoryFiles(store: RunContextStore, window: ContextWi
   return expected;
 }
 
-// A context store that keeps the run's history files in step with what it records. File errors
-// are logged and never fail the run; the next window open rebuilds the files.
+// Appending can recover on reconnect. Opening fails closed if rebuilding the
+// branch view fails: stale files can contain another branch's instructions.
 export function withHistoryFiles(store: RunContextStore, input: { taskId: string; historyDir: string }): RunContextStore {
   const { taskId, historyDir } = input;
   const fileNames = new Map<string, string>();
@@ -94,8 +92,7 @@ export function withHistoryFiles(store: RunContextStore, input: { taskId: string
       const opened = await store.openWindow(branchLeafMessageId);
       const ref = { taskId, windowId: opened.windowId, contextNodeId: opened.contextNodeId };
       await syncHistoryFiles(store, ref, historyDir)
-        .then((names) => names.forEach((name, windowId) => fileNames.set(windowId, name)))
-        .catch(keepGoing("rebuild history files"));
+        .then((names) => names.forEach((name, windowId) => fileNames.set(windowId, name)));
       return opened;
     },
     async startNewWindow(window, branchLeafMessageId, reason) {

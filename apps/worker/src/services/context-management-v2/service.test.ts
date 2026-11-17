@@ -9,8 +9,10 @@ vi.mock("../../lib/db.js", () => ({
   query: mocks.query,
   withTransaction: mocks.withTransaction
 }));
+vi.mock("../tasks/task-history-reader.js", () => ({ readTaskPayloads: vi.fn(async (_task, _kind, rows) => rows) }));
 
 import { createDbContextStore } from "./db-store.js";
+import { readTaskPayloads } from "../tasks/task-history-reader.js";
 import { recordContextItems, resolveContextManagementState } from "@meowbert/run-executor/context-management-v2/window";
 
 const TASK_ID = "11111111-1111-1111-1111-111111111111";
@@ -38,6 +40,7 @@ describe("Context Management V2 service", () => {
           ordinal: 1
         }]
       })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "window-1" }] })
       .mockResolvedValueOnce({ rows: [] });
 
@@ -70,6 +73,7 @@ describe("Context Management V2 service", () => {
         branch_leaf_message_id: null,
         ordinal: 1
       }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "window-1" }] });
 
     const result = await resolveContextManagementState(createDbContextStore(TASK_ID), {
@@ -82,8 +86,8 @@ describe("Context Management V2 service", () => {
     });
 
     expect(result.conversationItems).toEqual([]);
-    expect(mocks.query).toHaveBeenCalledTimes(3);
-    expect(mocks.query.mock.calls.some(([sql]) => String(sql).includes("task_context_history_items"))).toBe(false);
+    expect(mocks.query).toHaveBeenCalledTimes(4);
+    expect(readTaskPayloads).not.toHaveBeenCalled();
   });
 
   it("refuses to record history into another task's window", async () => {

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ContextHistoryRecord, ContextWindowRef, RunContextStore, StoredContextHistoryItem } from "../agent/ports/run-control.js";
 import { historyFileName, withHistoryFiles } from "./history-files.js";
 import { toHistoryFileLine } from "./history-item.js";
@@ -10,6 +10,7 @@ import { toHistoryFileLine } from "./history-item.js";
 const directories: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(directories.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
 });
 
@@ -126,6 +127,49 @@ describe("history files", () => {
       historyFileName({ windowId: "w1", ordinal: 1 }),
       historyFileName({ windowId: "w2", ordinal: 2 })
     ]);
+  });
+
+  it("trims a cached ancestor file back to the selected message boundary", async () => {
+    const dir = await createHistoryDir();
+    const fake = createStore({ lineages: { left: ["w1"], right: ["w1", "w2"] } });
+    fake.addWindow("w1", 1, [
+      { id: "before", callNumber: null, item: message("shared") },
+      { id: "after", callNumber: null, item: message("abandoned instruction") }
+    ]);
+    fake.open("w1", "left");
+    const store = withHistoryFiles(fake.store, { taskId: "task", historyDir: dir });
+    await store.openWindow(null);
+    fake.addWindow("w1", 1, [{ id: "before", callNumber: null, item: message("shared") }]);
+    fake.addWindow("w2", 2);
+    fake.open("w2", "right");
+
+    await store.openWindow(null);
+
+    expect(await readLines(dir, { windowId: "w1", ordinal: 1 })).toEqual([
+      toHistoryFileLine({ id: "before", callNumber: null, item: message("shared") })
+    ]);
+  });
+
+  it("cannot open a branch when an I/O failure leaves an abandoned ancestor tail readable", async () => {
+    const dir = await createHistoryDir();
+    const fake = createStore({ lineages: { left: ["w1"], right: ["w1", "w2"] } });
+    fake.addWindow("w1", 1, [
+      { id: "before", callNumber: null, item: message("shared") },
+      { id: "after", callNumber: null, item: message("abandoned approval") }
+    ]);
+    fake.open("w1", "left");
+    const store = withHistoryFiles(fake.store, { taskId: "task", historyDir: dir });
+    await store.openWindow(null);
+    fake.addWindow("w1", 1, [{ id: "before", callNumber: null, item: message("shared") }]);
+    fake.addWindow("w2", 2);
+    fake.open("w2", "right");
+    const write = vi.spyOn(fs, "writeFile").mockRejectedValueOnce(Object.assign(new Error("ENOSPC"), { code: "ENOSPC" }));
+
+    await expect(store.openWindow(null)).rejects.toThrow("ENOSPC");
+    expect(await readLines(dir, { windowId: "w1", ordinal: 1 })).toHaveLength(2);
+    write.mockRestore();
+    await store.openWindow(null);
+    expect(await readLines(dir, { windowId: "w1", ordinal: 1 })).toHaveLength(1);
   });
 });
 

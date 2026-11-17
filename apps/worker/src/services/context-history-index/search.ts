@@ -17,10 +17,6 @@ const CATCH_UP_WAIT_MS = 3_000;
 const CATCH_UP_NOTICE = "Earlier history is still being indexed, so these results may be incomplete. Search again shortly, or read the history files.";
 const RESULT_COLUMNS = ["item_id", "window_id", "call_number", "role", "tool", MEMORY_SEARCH_TEXT_COLUMN];
 
-function inList(column: string, values: string[]): string {
-  return `${column} IN (${values.map((value) => `'${escapeSqlString(value)}'`).join(", ")})`;
-}
-
 async function catchUpWithin(taskId: string, waitMs: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;
   const caughtUp = indexTaskHistory(taskId).then(() => true, (error: unknown) => {
@@ -39,10 +35,9 @@ async function catchUpWithin(taskId: string, waitMs: number): Promise<boolean> {
 export async function searchTaskHistory(state: ContextWindowRef, input: HistorySearchInput): Promise<HistorySearchResult> {
   if (!(await readEmbeddingFeatures(query)).historySearchEnabled) return { error: "Session history search is switched off.", items: [] };
   const notice = await catchUpWithin(state.taskId, CATCH_UP_WAIT_MS) ? undefined : CATCH_UP_NOTICE;
-  const windowIds = (await listContextHistoryWindows(state))
-    .map((window) => window.windowId)
-    .filter((windowId) => !input.window_id || windowId === input.window_id);
-  if (windowIds.length === 0) return { notice, items: [] };
+  const windows = (await listContextHistoryWindows(state))
+    .filter((window) => !input.window_id || window.windowId === input.window_id);
+  if (windows.length === 0) return { notice, items: [] };
 
   const connection = await openHistoryConnection();
   try {
@@ -52,7 +47,9 @@ export async function searchTaskHistory(state: ContextWindowRef, input: HistoryS
     const [queryVector] = await embedTexts([applyEmbeddingTemplate(config.queryPromptTemplate, input.query)], config);
     const predicate = [
       `task_id = '${escapeSqlString(state.taskId)}'`,
-      inList("window_id", windowIds),
+      `(${windows.map((window) => `(window_id = '${escapeSqlString(window.windowId)}'${
+        window.maxOrdinal == null ? "" : ` AND ordinal <= ${window.maxOrdinal}`
+      })`).join(" OR ")})`,
       input.role ? `role = '${escapeSqlString(input.role)}'` : null,
       input.tool ? `tool = '${escapeSqlString(input.tool)}'` : null
     ].filter(Boolean).join(" AND ");
