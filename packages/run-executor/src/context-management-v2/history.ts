@@ -1,4 +1,5 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
+import { getProviderCallId, isToolCallItem, isToolOutputItem } from "./call-numbers.js";
 
 const OPAQUE_ITEM_MARKER = /\n\[id: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]$/i;
 
@@ -26,6 +27,14 @@ function itemKey(item: ResponseInputItem): string {
   return JSON.stringify(normalizeForComparison(item));
 }
 
+// Seeds rebuilt from task messages lack fields the live run recorded (call numbers, status), so tool
+// items are matched by provider call id. The window keeps the copy the provider saw; replacing it
+// would change the cached prefix.
+function toolItemKey(item: ResponseInputItem): string | null {
+  if (!isToolCallItem(item) && !isToolOutputItem(item)) return null;
+  return `${(item as { type: string }).type}:${getProviderCallId(item)}`;
+}
+
 export function mergeContextSeedItems(existing: ResponseInputItem[], seedItems: ResponseInputItem[]): {
   conversationItems: ResponseInputItem[];
   newItems: ResponseInputItem[];
@@ -37,10 +46,16 @@ export function mergeContextSeedItems(existing: ResponseInputItem[], seedItems: 
     positions.indices.push(index);
     positionsByKey.set(key, positions);
   });
+  const existingToolKeys = new Set(existing.map(toolItemKey).filter((key) => key !== null));
   const newItems: ResponseInputItem[] = [];
   let existingIndex = 0;
 
   for (const seedItem of seedItems) {
+    const toolKey = toolItemKey(seedItem);
+    // Call ids are unique, and parallel calls may be ordered differently in the seed.
+    if (toolKey !== null && existingToolKeys.has(toolKey)) {
+      continue;
+    }
     const positions = positionsByKey.get(itemKey(seedItem));
     while (positions && positions.cursor < positions.indices.length && positions.indices[positions.cursor] < existingIndex) {
       positions.cursor += 1;

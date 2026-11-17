@@ -41,4 +41,27 @@ describe("Context Management V2 history", () => {
     expect(result.newItems).toEqual([seeds[1], seeds[4]]);
     expect(result.conversationItems).toEqual([...existing, seeds[1], seeds[4]]);
   });
+
+  it("keeps a cancelled run's recorded tool items when the seed rebuilds them from task messages", () => {
+    const existing = [
+      { role: "user", content: "Start" },
+      { type: "function_call", call_id: "call-a", name: "notes_append_to_file", arguments: "{}", status: "completed" },
+      { type: "function_call", call_id: "call-b", name: "exec", arguments: "{}", status: "completed" },
+      { type: "function_call_output", call_id: "call-a", output: "{\"call_number\":1,\"context\":\"16%\"}" },
+      { type: "function_call_output", call_id: "call-b", output: "{\"call_number\":2,\"logs\":\"ok\",\"context\":\"16%\"}" }
+    ];
+    const seeds = [
+      { role: "user", content: "Start" },
+      { type: "function_call", call_id: "call-b", name: "exec", arguments: "{}" },
+      { type: "function_call_output", call_id: "call-b", output: "{\"logs\":\"ok\"}" },
+      { type: "function_call", call_id: "call-a", name: "notes_append_to_file", arguments: "{}" },
+      { type: "function_call_output", call_id: "call-a", output: "{}" },
+      { role: "user", content: "Also check this" }
+    ];
+
+    const result = mergeContextSeedItems(existing, seeds);
+
+    expect(result.newItems).toEqual([{ role: "user", content: "Also check this" }]);
+    expect(result.conversationItems).toEqual([...existing, ...result.newItems]);
+  });
 });
