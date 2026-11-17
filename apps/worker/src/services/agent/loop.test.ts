@@ -908,7 +908,10 @@ describe("runAgentStepLoop", () => {
         if (index < 4) expect(store.startNewWindow).not.toHaveBeenCalled();
         if (index === 4) {
           expect(prompts.some((text: string) => text.includes(continuity))).toBe(true);
-          expect(input.conversationItems.some((item: { type?: string }) => item.type === "function_call")).toBe(false);
+          expect(input.conversationItems.filter((item: { type?: string }) => item.type === "function_call"))
+            .toEqual([expect.objectContaining({ call_id: "call-3", name: "new_context" })]);
+          expect(input.conversationItems.filter((item: { type?: string }) => item.type === "function_call_output"))
+            .toEqual([expect.objectContaining({ call_id: "call-3" })]);
         }
         return {
           output: [{ type: "function_call", call_id: `call-${index}`, name: turn.name, arguments: JSON.stringify(turn.args) }],

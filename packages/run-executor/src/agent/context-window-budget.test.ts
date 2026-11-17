@@ -153,6 +153,26 @@ describe("V2 checkpoint interval", () => {
     ]);
   });
 
+  it("hands unread completion receipts to the next prompt when a batch jumps over the reminder", async () => {
+    const { execution, usage, store } = createFixture();
+    usage.lastResponseTotalTokens = 210_000;
+    const calls: ResponseInputItem[] = Array.from({ length: 8 }, (_, index) => ({
+      type: "function_call", call_id: `batch-${index}`, name: "publish", arguments: "{}"
+    }));
+    const outputs: ResponseInputItem[] = calls.map((_, index) => ({ type: "function_call_output", call_id: `batch-${index}`,
+      output: JSON.stringify({ call_number: index + 1, success: true, receipt: `receipt-${index}`, stdout: "x".repeat(20_000) }) }));
+    execution.state.dispatchState.conversationItems.push(...calls, ...outputs);
+
+    await maybeAdvanceV2ContextWindow(execution);
+
+    expect(store.startNewWindow).toHaveBeenCalledTimes(1);
+    const nextPrompt = JSON.stringify(execution.state.dispatchState.conversationItems);
+    for (let index = 0; index < 8; index += 1) expect(nextPrompt).toContain(`receipt-${index}`);
+    expect(nextPrompt).toContain("window-1");
+    expect(nextPrompt.length).toBeLessThan(30_000);
+    expect(execution.state.contextManagement).toMatchObject({ windowId: "window-2", reminderSent: false });
+  });
+
   it("uses the same active-window calculation for remaining tokens and rollover", async () => {
     const { execution, usage } = createFixture();
     usage.lastResponseTotalTokens = 200_000;

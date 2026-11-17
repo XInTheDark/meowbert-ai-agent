@@ -6,6 +6,7 @@ import {
   startNewContextWindow
 } from "../context-management-v2/window.js";
 import { selectRolloverSeedItems } from "../context-management-v2/rollover-seed.js";
+import { selectRolloverToolItems } from "../context-management-v2/rollover-tools.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { AgentExecutionContext } from "./execution-types.js";
 import { resetWindowRequestSetup } from "./window-request.js";
@@ -16,10 +17,14 @@ import { persistRuntimeNotices } from "./runtime-notices.js";
 export async function resetV2ContextWindow(
   execution: AgentExecutionContext,
   reason: string,
-  seedItems: ResponseInputItem[] = selectRolloverSeedItems(execution.state.dispatchState.conversationItems, { replies: false })
+  seedItems?: ResponseInputItem[]
 ): Promise<void> {
   const context = execution.state.contextManagement;
   if (context.version !== "v2") return;
+  seedItems ??= [
+    ...selectRolloverSeedItems(execution.state.dispatchState.conversationItems, { replies: false }),
+    ...selectRolloverToolItems(execution.state.dispatchState.conversationItems, context.windowId)
+  ];
   await persistRuntimeNotices(execution);
   const { control } = execution.prepared;
   const tokenEstimate = execution.state.dispatchState.contextUsage?.usedTokens ?? null;

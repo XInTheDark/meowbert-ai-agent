@@ -139,7 +139,7 @@ describe("resetV2ContextWindow", () => {
 
     await resetV2ContextWindow(execution, "provider_overflow");
 
-    expect(execution.state.dispatchState.conversationItems).toHaveLength(3);
+    expect(execution.state.dispatchState.conversationItems).toHaveLength(4);
     expect(execution.state.dispatchState.conversationItems[2]).toEqual({
       role: "user",
       content: expect.stringContaining("[excerpt truncated; the full item is in the context history]")
@@ -147,6 +147,6 @@ describe("resetV2ContextWindow", () => {
     expect((execution.state.dispatchState.conversationItems[2] as { content: string }).content).toContain(
       "[id: 123e4567-e89b-12d3-a456-426614174000]"
     );
-    expect(mocks.recordContextItems).toHaveBeenCalledWith(control.context, nextState, [execution.state.dispatchState.conversationItems[2]]);
+    expect(mocks.recordContextItems).toHaveBeenCalledWith(control.context, nextState, execution.state.dispatchState.conversationItems.slice(2));
   });
 });
