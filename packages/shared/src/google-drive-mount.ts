@@ -15,7 +15,7 @@ export function buildGoogleDriveMountConfig(input: {
 export function googleDriveMountArgs(input: { configPath: string; mountPoint: string; transport: "fuse" | "nfs"; cacheDir?: string }): string[] {
   return ["--config", input.configPath, input.transport === "nfs" ? "nfsmount" : "mount", "google-drive:", input.mountPoint,
     "--vfs-cache-mode", "full", "--vfs-write-back", "1s", "--vfs-cache-max-size", "10G",
-    "--vfs-fast-fingerprint", "--dir-cache-time", "30m", "--drive-pacer-min-sleep", "100ms",
+    "--vfs-fast-fingerprint", "--dir-cache-time", "1h", "--drive-pacer-min-sleep", "100ms",
     "--drive-export-formats", "url", ...(input.transport === "fuse" ? ["--allow-other"] : []),
     "--timeout", "10s", "--contimeout", "5s", "--low-level-retries", "2", "--retries", "1",
     ...(input.cacheDir ? ["--cache-dir", input.cacheDir] : [])];
