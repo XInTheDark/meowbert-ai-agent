@@ -55,21 +55,21 @@ export async function runIdleCompaction(
   const note: ResponseInputItem = { role: "user", content: IDLE_COMPACTION_NOTE };
   dispatchState.conversationItems.push(note);
   dispatchState.runPersistedItems.push(note);
+  // Recorded before the turn it asks for, so an interrupted run replays it ahead of that turn's notes activity.
+  if (execution.state.contextManagement.version === "v2") {
+    await recordContextItems(execution.prepared.control.context, execution.state.contextManagement, [note]);
+  }
 
   execution.maxRunSteps = Math.min(execution.maxRunSteps, IDLE_COMPACTION_MAX_STEPS);
   try {
     await runStepLoop(execution);
   } catch (error) {
     if (isCancellation(execution, error)) throw error;
-    // The note asked for a turn that never happened, so it is dropped rather than archived.
+    // The note asked for a turn that never happened, so it stays out of what the run saves.
     removeItem(dispatchState.conversationItems, note);
     removeItem(dispatchState.runPersistedItems, note);
     await resetV2ContextWindow(execution, "idle", seedItems);
     return { notesTurn: "failed", errorMessage: error instanceof Error ? error.message : String(error) };
-  }
-  // Recorded only now, once the turn it asked for has happened.
-  if (execution.state.contextManagement.version === "v2") {
-    await recordContextItems(execution.prepared.control.context, execution.state.contextManagement, [note]);
   }
   await resetV2ContextWindow(execution, "idle", seedItems);
   return { notesTurn: "completed" };

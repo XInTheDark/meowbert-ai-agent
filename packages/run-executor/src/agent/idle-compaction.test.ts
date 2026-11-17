@@ -47,9 +47,25 @@ describe("runIdleCompaction", () => {
     });
 
     expect(result).toEqual({ notesTurn: "failed", errorMessage: "502 Rate limit reached" });
-    expect(mocks.recordContextItems).not.toHaveBeenCalled();
     expect(mocks.resetV2ContextWindow).toHaveBeenCalledWith(execution, "idle", [{ role: "user", content: "which option?" }]);
     expect(runPersistedItems).toEqual([]);
+  });
+
+  it("records its instruction in the window before the notes turn runs", async () => {
+    const conversationItems: unknown[] = [{ role: "user", content: "which option?" }];
+    const execution = {
+      maxRunSteps: 100,
+      prepared: { control: { context: {} } },
+      state: { contextManagement: { version: "v2" }, dispatchState: { conversationItems, runPersistedItems: [] } }
+    } as never;
+    let recordedBeforeTurn: unknown[] = [];
+
+    await runIdleCompaction(execution, async () => {
+      recordedBeforeTurn = mocks.recordContextItems.mock.calls.flatMap((call) => call[2] as unknown[]);
+    });
+
+    expect(recordedBeforeTurn).toEqual([conversationItems[1]]);
+    expect(conversationItems[1]).toMatchObject({ role: "user" });
   });
 
   it("does not roll the window over when the run is cancelled", async () => {

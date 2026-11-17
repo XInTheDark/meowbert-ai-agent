@@ -50,6 +50,10 @@ export async function beginExpiredCacheNotesTurn(execution: AgentExecutionContex
   const note: ResponseInputItem = { role: "user", content: EXPIRED_CACHE_NOTE };
   dispatchState.conversationItems.push(note);
   dispatchState.runPersistedItems.push(note);
+  // Recorded before the turn it asks for, so an interrupted run replays it ahead of that turn's notes activity.
+  if (execution.state.contextManagement.version === "v2") {
+    await recordContextItems(execution.prepared.control.context, execution.state.contextManagement, [note]);
+  }
   execution.state.expiredCacheNotesTurn = { note, seedItems, stepsTaken: 0 };
   execution.maxRunSteps += NOTES_TURN_MAX_STEPS;
   await execution.prepared.control.emitEvent("log", {
@@ -70,9 +74,6 @@ export async function continueExpiredCacheNotesTurn(execution: AgentExecutionCon
   if (wroteNotes && turn.stepsTaken < NOTES_TURN_MAX_STEPS) return;
 
   execution.state.expiredCacheNotesTurn = null;
-  if (execution.state.contextManagement.version === "v2") {
-    await recordContextItems(execution.prepared.control.context, execution.state.contextManagement, [turn.note]);
-  }
   await resetV2ContextWindow(execution, "cache_expired", turn.seedItems);
   appendRuntimeNotice(execution, { role: "user", content: RESUME_NOTICE });
   execution.maxRunSteps -= NOTES_TURN_MAX_STEPS - turn.stepsTaken;

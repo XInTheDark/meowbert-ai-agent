@@ -6,6 +6,7 @@ vi.mock("./context-window.js", () => ({ resetV2ContextWindow: vi.fn(async () => 
 vi.mock("../context-management-v2/window.js", () => ({ recordContextItems: vi.fn(async () => undefined) }));
 
 const { resetV2ContextWindow } = await import("./context-window.js");
+const { recordContextItems } = await import("../context-management-v2/window.js");
 const {
   beginExpiredCacheNotesTurn,
   continueExpiredCacheNotesTurn,
@@ -44,7 +45,10 @@ function execution(input: { mode?: string; readAt?: string | null; tokens?: numb
 }
 
 describe("expired cache compaction", () => {
-  beforeEach(() => vi.mocked(resetV2ContextWindow).mockClear());
+  beforeEach(() => {
+    vi.mocked(resetV2ContextWindow).mockClear();
+    vi.mocked(recordContextItems).mockClear();
+  });
 
   it("waits until the cache lifetime has passed", () => {
     expect(shouldCompactExpiredCache(execution(), START_MS + HOUR_MS - 1)).toBe(false);
@@ -72,12 +76,16 @@ describe("expired cache compaction", () => {
     expect(run.maxRunSteps).toBe(58);
     expect(isNotesOnlyTurn(run)).toBe(true);
     expect(shouldCompactExpiredCache(run, START_MS + 2 * HOUR_MS)).toBe(false);
-    expect(run.state.dispatchState.conversationItems.at(-1)).toMatchObject({ role: "user", content: expect.stringContaining("continuity.md") });
+    const note = run.state.dispatchState.conversationItems.at(-1);
+    expect(note).toMatchObject({ role: "user", content: expect.stringContaining("continuity.md") });
+    // Recorded before the notes turn, so an interrupted run replays it ahead of the notes activity.
+    expect(vi.mocked(recordContextItems).mock.calls.map((call) => call[2])).toEqual([[note]]);
 
     await continueExpiredCacheNotesTurn(run, true);
     expect(resetV2ContextWindow).not.toHaveBeenCalled();
     await continueExpiredCacheNotesTurn(run, false);
     expect(resetV2ContextWindow).toHaveBeenCalledWith(run, "cache_expired", [{ role: "user", content: "Build it" }]);
+    expect(recordContextItems).toHaveBeenCalledTimes(1);
     expect(isNotesOnlyTurn(run)).toBe(false);
     expect(run.maxRunSteps).toBe(52);
   });
