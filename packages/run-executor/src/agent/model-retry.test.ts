@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createModelResponseWithRetry } from "./model.js";
+import { isExhaustedModelRequest } from "./model-request-exhaustion.js";
 import type { ModelGateway } from "./ports/model-gateway.js";
 import type { RunControl } from "./ports/run-control.js";
 
@@ -99,9 +100,31 @@ it("trims from the tail after repeated rejections that name no item", async () =
 it.each(["lease_lost", "outcome_unknown", "operation_conflict", "unauthorized", "quota_exceeded"])("does not issue fresh provider work after %s", async (code) => {
   const { models, control, input } = fixture();
   models.create.mockRejectedValue(Object.assign(new Error("Request cannot safely continue"), { code }));
-  await expect(createModelResponseWithRetry(control, "task", input)).rejects.toMatchObject({ code });
+  const error = await createModelResponseWithRetry(control, "task", input).catch((error) => error);
+  expect(error).toMatchObject({ code });
+  expect(isExhaustedModelRequest(error)).toBe(false);
   expect(models.create).toHaveBeenCalledOnce();
   expect(input.onConsecutiveErrorRecovery).not.toHaveBeenCalled();
+});
+
+it("marks the original failure for fallback only after exhausting provider attempts", async () => {
+  vi.useFakeTimers();
+  const { models, control, input } = fixture();
+  const error = Object.assign(new Error("502 provider down"), { retryAfterMs: 1000 });
+  models.create.mockRejectedValue(error);
+  const pending = createModelResponseWithRetry(control, "task", input).catch((error) => error);
+  await vi.runAllTimersAsync();
+  expect(await pending).toBe(error);
+  expect(models.create).toHaveBeenCalledTimes(6);
+  expect(isExhaustedModelRequest(error)).toBe(true);
+});
+
+it.each(["TASK_CANCELLED", "RUN_TIME_LIMIT_REACHED", "maximum context length exceeded"])("does not mark %s as exhausted", async (message) => {
+  const { models, control, input } = fixture();
+  const error = new Error(message);
+  models.create.mockRejectedValue(error);
+  await expect(createModelResponseWithRetry(control, "task", input)).rejects.toBe(error);
+  expect(isExhaustedModelRequest(error)).toBe(false);
 });
 
 function rateLimited(retryAfterSeconds?: number): Error {

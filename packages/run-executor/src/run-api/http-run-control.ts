@@ -62,6 +62,7 @@ export function createHttpRunControl(client: RunApiClient, options: HttpRunContr
       return bootstrap;
     },
     setTaskStatus: (status) => call("control.setTaskStatus", [status]) as Promise<boolean>,
+    activateFallbackModel: (model) => call("control.activateFallbackModel", [model]) as ReturnType<NonNullable<RunControl["activateFallbackModel"]>>,
     readCancellation: () => call("control.readCancellation") as Promise<RunCancellationState>,
     watchCancellation: (watcher) => lease.watch(watcher),
     consumeCommandInterrupt: (step) => call("control.consumeCommandInterrupt", [step]) as Promise<boolean>,

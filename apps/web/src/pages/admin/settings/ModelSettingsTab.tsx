@@ -55,6 +55,9 @@ export function ModelSettingsTab(props: ModelSettingsTabProps) {
           onChange={(event) => props.onModelMetadataDraftChange(event.target.value)}
           rows={12}
         />
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          Set <code>fallbackModels</code> to an ordered array of model IDs, such as <code>["backup-model"]</code>. With context management v2, exhausted model requests switch to the next model in a fresh context window. Each fallback uses its own metadata and the same provider.
+        </p>
       </label>
 
       <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>

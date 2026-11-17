@@ -22,6 +22,14 @@ function platformCall(name: keyof RunControl["platform"]): Handler {
 // control.heartbeat is handled with the lease, and model calls by the model proxy.
 export const RUN_API_CALL_HANDLERS: Record<Exclude<RunApiMethod, "control.heartbeat" | "control.releaseForStorage">, Handler> = {
   "control.bootstrap": controlCall("bootstrap"),
+  "control.activateFallbackModel": async (session, args) => {
+    const route = await session.control.activateFallbackModel?.(args[0] as string);
+    if (route && session.swarm) session.swarm.runtime = {
+      model: route.model, payload: route.modelPayload,
+      provider: { kind: route.providerKind, baseUrl: route.providerBaseUrl }
+    };
+    return route ?? null;
+  },
   "control.readCancellation": controlCall("readCancellation"),
   "control.isDebugEnabled": controlCall("isDebugEnabled"),
   "control.loadConversationNavigation": controlCall("loadConversationNavigation"),

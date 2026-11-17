@@ -8,8 +8,21 @@ import {
   resolveContextManagementVersionForModel,
   resolveContextWindowForModel,
   resolveIdleCompactionForModel,
+  resolveFallbackModelsForModel,
   resolveModelTypeForModel
 } from "./model-metadata.js";
+
+it("resolves ordered fallback IDs, inheriting defaults unless a model overrides them", () => {
+  const metadata = {
+    default: { fallbackModels: [" backup ", "backup", "last", "", null, 3] },
+    primary: { fallbackModels: ["primary", "alternate", "alternate", "backup"] },
+    disabled: { fallbackModels: [] }
+  };
+  expect(resolveFallbackModelsForModel("primary", metadata)).toEqual(["alternate", "backup"]);
+  expect(resolveFallbackModelsForModel("other", metadata)).toEqual(["backup", "last"]);
+  expect(resolveFallbackModelsForModel("disabled", metadata)).toEqual([]);
+  expect(resolveFallbackModelsForModel("backup", metadata)).toEqual(["last"]);
+});
 
 describe("normalizePlatformModelMetadata", () => {
   it("falls back to the default metadata when raw value is invalid", () => {

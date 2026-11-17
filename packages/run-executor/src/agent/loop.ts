@@ -18,6 +18,8 @@ import { resetV2ContextWindow, withoutWindowSetupItems } from "./context-window.
 import { applyPendingContextEdits } from "./context-edits.js";
 import { createModelResponseWithRetry, type ModelToolChoice } from "./model.js";
 import { resolveModelErrorAction } from "./model-error-actions.js";
+import { activateFallbackModel } from "./model-fallback.js";
+import { exhaustedModelRequest } from "./model-request-exhaustion.js";
 import { persistModelRequestRecovery } from "./model-request-recovery.js";
 import { RETRY_NOTICE_KIND } from "./retry-notices.js";
 import { dispatchResponseOutput, type ToolDispatchContext } from "../agent-tool-dispatch/index.js";
@@ -349,13 +351,78 @@ function buildParentTurnRequest(
       : execution.runTiming.runAbortSignal,
     cacheUserId: execution.prepared.snapshot.task.initiator_user_id ?? execution.job.taskId,
     promptCacheKey: turnRequest.promptCacheKey,
-    sessionAffinityKey: turnRequest.sessionAffinityKey,
+    sessionAffinityKey: execution.state.modelFallbackCount
+      ? `${turnRequest.sessionAffinityKey}:${execution.job.runId}:fallback:${execution.state.modelFallbackCount}`
+      : turnRequest.sessionAffinityKey,
+    ...(execution.state.modelFallbackCount ? { requestSessionId: `${execution.job.runId}:fallback:${execution.state.modelFallbackCount}` } : {}),
     ...(execution.prepared.snapshot.enable_prompt_caching !== false ? { promptCacheTtl: "1h" as const } : {}),
     prefixItems: turnRequest.promptPrefixItems,
     modelPayload: execution.prepared.runtimeModelPayload,
     tools: turnRequest.responseTools,
     toolChoice: turnRequest.toolChoice
   };
+}
+
+async function createTurnResponse(
+  execution: AgentExecutionContext,
+  parentRequest: ParentTurnRequest,
+  turnRequest: AgentTurnRequest
+) {
+  let recoveredItemCount = 0;
+  return createModelResponseWithRetry(
+    execution.prepared.control,
+    execution.job.taskId,
+    {
+      ...parentRequest,
+      ...(execution.state.hasModelResponse || execution.state.modelFallbackCount ? {} : {
+        retryDeadlineAtMs: parseRetryDeadlineMs(execution.job.retryDeadlineAt)
+      }),
+      hardRetryDeadlineAtMs: parseRetryDeadlineMs(execution.job.idleCompactionDeadlineAt),
+      forkSourceSessionKey: laneForkSourceSessionKey({
+        swarm: execution.swarm,
+        laneSeed: execution.laneSeed,
+        runtimeModel: execution.prepared.runtimeModel,
+        promptPrefixHash: turnRequest.promptPrefixHash
+      }),
+      conversationItems: execution.state.dispatchState.conversationItems,
+      onConsecutiveErrorRecovery: async (errorMessage, { rejectedItemIndex }) => {
+        if (recoveredItemCount >= MAX_MODEL_REQUEST_RECOVERY_ITEMS) {
+          return false;
+        }
+
+        const recovered = await persistModelRequestRecovery({
+          control: execution.prepared.control,
+          errorMessage,
+          conversationItems: execution.state.dispatchState.conversationItems,
+          runPersistedItems: execution.state.dispatchState.runPersistedItems,
+          historicalMessages: execution.prepared.snapshot.messages,
+          rejectedItemIndex,
+          getCurrentLeafMessageId: () => execution.state.currentLeafMessageId,
+          setCurrentLeafMessageId: (messageId: string) => {
+            execution.state.currentLeafMessageId = messageId;
+          }
+        });
+        if (recovered) {
+          if (execution.state.contextManagement.version === "v2") {
+            await resetV2ContextWindow(
+              execution,
+              "model_request_recovery",
+              withoutWindowSetupItems(execution.state.dispatchState.conversationItems)
+            );
+          }
+          recoveredItemCount += 1;
+        }
+        return recovered;
+      }
+    },
+    async (retryMessage) => {
+      execution.state.currentLeafMessageId = await execution.prepared.control.appendMessage({
+        role: "system",
+        content: { kind: RETRY_NOTICE_KIND, text: retryMessage },
+        parentMessageId: execution.state.currentLeafMessageId
+      });
+    }
+  );
 }
 
 async function requestModelTurn(input: {
@@ -436,61 +503,7 @@ async function requestModelTurn(input: {
   await execution.prepared.control.emitEvent("thinking_start", { step });
   // Taken before retries, so a retried request is timed from its first attempt, never later.
   const requestStartedAt = new Date().toISOString();
-  let recoveredItemCount = 0;
-  const { response, weightedTokens } = await createModelResponseWithRetry(
-      execution.prepared.control,
-      execution.job.taskId,
-      {
-      ...parentRequest,
-      ...(execution.state.hasModelResponse ? {} : {
-        retryDeadlineAtMs: parseRetryDeadlineMs(execution.job.retryDeadlineAt),
-        hardRetryDeadlineAtMs: parseRetryDeadlineMs(execution.job.idleCompactionDeadlineAt)
-      }),
-      forkSourceSessionKey: laneForkSourceSessionKey({
-        swarm: execution.swarm,
-        laneSeed: execution.laneSeed,
-        runtimeModel: execution.prepared.runtimeModel,
-        promptPrefixHash: turnRequest.promptPrefixHash
-      }),
-      conversationItems: execution.state.dispatchState.conversationItems,
-      onConsecutiveErrorRecovery: async (errorMessage, { rejectedItemIndex }) => {
-        if (recoveredItemCount >= MAX_MODEL_REQUEST_RECOVERY_ITEMS) {
-          return false;
-        }
-
-        const recovered = await persistModelRequestRecovery({
-          control: execution.prepared.control,
-          errorMessage,
-          conversationItems: execution.state.dispatchState.conversationItems,
-          runPersistedItems: execution.state.dispatchState.runPersistedItems,
-          historicalMessages: execution.prepared.snapshot.messages,
-          rejectedItemIndex,
-          getCurrentLeafMessageId: () => execution.state.currentLeafMessageId,
-          setCurrentLeafMessageId: (messageId: string) => {
-            execution.state.currentLeafMessageId = messageId;
-          }
-        });
-        if (recovered) {
-          if (execution.state.contextManagement.version === "v2") {
-            await resetV2ContextWindow(
-              execution,
-              "model_request_recovery",
-              withoutWindowSetupItems(execution.state.dispatchState.conversationItems)
-            );
-          }
-          recoveredItemCount += 1;
-        }
-        return recovered;
-      }
-      },
-      async (retryMessage) => {
-        execution.state.currentLeafMessageId = await execution.prepared.control.appendMessage({
-          role: "system",
-          content: { kind: RETRY_NOTICE_KIND, text: retryMessage },
-          parentMessageId: execution.state.currentLeafMessageId
-        });
-      }
-  );
+  const { response, weightedTokens } = await createTurnResponse(execution, parentRequest, turnRequest);
   execution.state.hasModelResponse = true;
   execution.state.lastModelRequestStartedAtMs = Date.parse(requestStartedAt);
   await execution.prepared.control.emitEvent("thinking_end", { step });
@@ -516,7 +529,7 @@ async function requestModelTurn(input: {
   };
 }
 
-async function requestModelTurnWithRecovery(input: {
+async function requestModelTurnWithContextRecovery(input: {
   execution: AgentExecutionContext;
   step: number;
   availability: AgentStepAvailability;
@@ -578,6 +591,19 @@ async function requestModelTurnWithRecovery(input: {
     }
 
     return requestModelTurn(input);
+  }
+}
+
+async function requestModelTurnWithRecovery(input: Parameters<typeof requestModelTurnWithContextRecovery>[0]): Promise<ModelTurnResult> {
+  while (true) {
+    try {
+      return await requestModelTurnWithContextRecovery(input);
+    } catch (error) {
+      // Context overflow gets its existing rollover retry before falling back.
+      if (error instanceof Error && resolveModelErrorAction(error) === "compact_context") exhaustedModelRequest(error);
+      if (!await activateFallbackModel(input.execution, error)) throw error;
+      await input.execution.prepared.control.emitEvent("thinking_end", { step: input.step, recovery: "model_fallback" });
+    }
   }
 }
 

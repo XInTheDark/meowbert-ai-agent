@@ -3,6 +3,7 @@ export interface PlatformModelMetadataEntry extends Record<string, unknown> {
   compatibility?: PlatformModelCompatibilityMode[];
   context_management?: PlatformContextManagementVersion;
   context_window?: number;
+  fallbackModels?: string[];
   type?: PlatformModelType;
   // How long the provider keeps a prompt cache, counted from the start of the request that wrote it.
   prompt_cache_ttl_seconds?: number;
@@ -176,6 +177,11 @@ function normalizeEntry(rawEntry: unknown, fallbackToDefaultContextWindow: boole
     delete entry.code_mode;
   }
   normalizeIdleCompactionFields(entry);
+  if (Object.prototype.hasOwnProperty.call(entry, "fallbackModels")) {
+    entry.fallbackModels = Array.isArray(entry.fallbackModels)
+      ? [...new Set(entry.fallbackModels.map(normalizeModelKey).filter((model): model is string => model !== null))]
+      : [];
+  }
 
   if (fallbackToDefaultContextWindow && !entry.type) {
     entry.type = DEFAULT_MODEL_TYPE;
@@ -226,6 +232,11 @@ export function resolveModelTypeForModel(model: string | null | undefined, rawMe
   }
 
   return normalizeModelType(metadata.default?.type) ?? DEFAULT_MODEL_TYPE;
+}
+
+export function resolveFallbackModelsForModel(model: string, rawMetadata: unknown): string[] {
+  const metadata = normalizePlatformModelMetadata(rawMetadata);
+  return (metadata[model]?.fallbackModels ?? metadata.default?.fallbackModels ?? []).filter((candidate) => candidate !== model);
 }
 
 export function resolveCompatibilityModesForModel(

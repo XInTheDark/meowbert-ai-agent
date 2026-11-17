@@ -7,6 +7,8 @@ import { createHttpRunControl } from "@meowbert/run-executor/run-api/http-run-co
 import { createProxyModelGateway } from "@meowbert/run-executor/run-api/proxy-model-gateway";
 import type { ModelGateway } from "@meowbert/run-executor/agent/ports/model-gateway";
 import { createFakeRunControl, type FakeRunControl } from "../run-host/test-run-environment.test-fixtures.js";
+import { createTestServerRunState } from "../run-host/test-run-environment.test-fixtures.js";
+import { createModelFallbackActivator } from "../run-host/model-fallback.js";
 import { createRunApiHandler } from "./handler.js";
 import { createRunApiServer } from "./server.js";
 import { RunApiSessions, type RunApiSession, type RunModelPolicy } from "./sessions.js";
@@ -103,6 +105,29 @@ afterEach(async () => {
 });
 
 describe("Run API retries", () => {
+  it("replays a lost fallback reply once and admits the target's payload and context limit", async () => {
+    const state = createTestServerRunState({ model: "primary", snapshot: { platform_model_metadata: {
+      primary: { fallbackModels: ["backup", "last"] }, backup: { type: "google", context_window: 2000 }
+    } } });
+    state.bootstrap.runtime.requestedContextManagementVersion = "v2";
+    state.bootstrap.runtime.baseEnvironmentJsonPayload = { responses: { temperature: 0.2 } };
+    const { session, control, token } = await claim();
+    control.activateFallbackModel.mockImplementation(createModelFallbackActivator(() => state));
+    session.policy = () => policy({ model: () => state.bootstrap.runtime.model,
+      modelPayload: state.bootstrap.runtime.modelPayload, maxContextTokens: state.bootstrap.runtime.maxContextTokens });
+    const remote = createHttpRunControl(client(token, {
+      fetch: losingFirstResponse((url) => url.includes("control.activateFallbackModel"))
+    }));
+    try {
+      await expect(remote.activateFallbackModel!("primary")).resolves.toMatchObject({ model: "backup", modelType: "google", maxContextTokens: 2000 });
+      expect(control.activateFallbackModel).toHaveBeenCalledExactlyOnceWith("primary");
+      expect(session.policy()).toMatchObject({ maxContextTokens: 2000, modelPayload: { temperature: 0.2 } });
+      expect(session.policy().model("turn")).toBe("backup");
+      const gateway = createProxyModelGateway(client(token));
+      await expect(gateway.create({ purpose: "turn", body: { temperature: 0.9 }, timeoutMs: 1000 })).rejects.toMatchObject({ code: "invalid_request" });
+      await expect(gateway.create({ purpose: "turn", body: { max_output_tokens: 2001 }, timeoutMs: 1000 })).rejects.toMatchObject({ code: "invalid_request" });
+    } finally { remote.stop(); }
+  });
   it("reads original Memory evidence through the remote executor transport", async () => {
     const { control, token } = await claim();
     const input = { task_id: "10000000-0000-4000-8000-000000000001", message_id: null, before_message_id: null, offset_chars: null };

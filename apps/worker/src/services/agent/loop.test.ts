@@ -114,6 +114,7 @@ import { persistContextCheckpoint } from "@meowbert/run-executor/context-managem
 import { createFakeRunControl } from "../run-host/test-run-environment.test-fixtures.js";
 import { runAgentStepLoop } from "@meowbert/run-executor/agent/loop";
 import { resetV2ContextWindow } from "@meowbert/run-executor/agent/context-window";
+import { exhaustedModelRequest } from "@meowbert/run-executor/agent/model-request-exhaustion";
 import { cloudRunFeatures } from "../run-host/cloud-run-features.js";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "@meowbert/run-executor/agent/prompt-envelope";
 import { appendQueuedPromptDeltas } from "@meowbert/run-executor/agent/queued-prompt-deltas";
@@ -272,6 +273,90 @@ describe("runAgentStepLoop", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("continues the same step on a resolved fallback in a fresh v2 window with a persisted handoff", async () => {
+    const execution = createExecutionContext();
+    execution.promptEnvelope.deltas = [];
+    execution.state.contextManagement = { version: "v2", taskId: "task-1", windowId: "w1", contextNodeId: "n1", recoveryPhase: "normal" };
+    execution.state.dispatchState.conversationItems = [
+      { role: "user", content: "Complete the requested changes" },
+      { type: "function_call", name: "run_shell", call_id: "call-1", arguments: "{}" },
+      { type: "function_call_output", call_id: "call-1", output: "Changes written" }
+    ];
+    const store = execution.prepared.control.context;
+    store.startNewWindow.mockResolvedValue({ windowId: "w2", contextNodeId: "n2" });
+    store.loadNotesSummary.mockResolvedValue({ continuity: "Verify changes and report", index: [] });
+    store.linkVisibleMessage.mockResolvedValue("n2");
+    const actualWindow = await vi.importActual<typeof import("@meowbert/run-executor/agent/context-window")>("@meowbert/run-executor/agent/context-window");
+    mockedResetV2ContextWindow.mockImplementationOnce(actualWindow.resetV2ContextWindow);
+    execution.prepared.control.activateFallbackModel.mockResolvedValue({ model: "backup", modelType: "google",
+      compatibilityModes: ["disablePdfFile"], maxContextTokens: 64_000, environmentPayload: {}, modelPayload: { temperature: 0.5 } });
+    mockedCreateModelResponseWithRetry.mockRejectedValueOnce(exhaustedModelRequest(new Error("502 provider down")));
+    mockedCreateModelResponseWithRetry.mockImplementationOnce(async (_taskId, input) => {
+      expect(input).toMatchObject({ modelType: "google", compatibilityModes: ["disablePdfFile"], modelPayload: { temperature: 0.5 } });
+      expect(input.sessionAffinityKey).toContain(":fallback:1");
+      expect(input.requestSessionId).toContain(":fallback:1");
+      expect(input.conversationItems).toEqual(expect.arrayContaining([
+        expect.objectContaining({ role: "user", content: expect.stringContaining("Complete the requested changes") }),
+        expect.objectContaining({ type: "function_call_output", output: "Changes written" }),
+        expect.objectContaining({ role: "system", content: expect.stringContaining("fallback model (backup)") })
+      ]));
+      return { output: [], output_text: "", usage: { input_tokens: 500 } };
+    });
+    mockedDispatchResponseOutput.mockResolvedValueOnce({ sawToolCall: true, sawFunctionToolCall: true,
+      finalResponse: { response: "Done", notify: true }, waitRequest: null, stopRequest: null, workflowPause: null });
+
+    await runAgentStepLoop(execution);
+
+    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(2);
+    expect(mockedResetV2ContextWindow).toHaveBeenCalledWith(execution, "model_fallback");
+    expect(execution.state.contextManagement.windowId).toBe("w2");
+    expect(execution.prepared.maxContextTokens).toBe(64_000);
+    expect(execution.state.finalResponseFromTool.response).toBe("Done");
+    expect(store.recordItems).toHaveBeenCalledWith(expect.objectContaining({ windowId: "w2" }), expect.arrayContaining([
+      expect.objectContaining({ item: expect.objectContaining({ role: "system", content: expect.stringContaining("fallback model (backup)") }) })
+    ]));
+  });
+
+  it.each(["v1", "v2"])("preserves the original error when no fallback applies in %s", async (version) => {
+    const execution = createExecutionContext();
+    execution.state.contextManagement = { version };
+    const error = exhaustedModelRequest(new Error("502 provider down"));
+    execution.prepared.control.activateFallbackModel.mockResolvedValue(null);
+    mockedCreateModelResponseWithRetry.mockRejectedValueOnce(error);
+    await expect(runAgentStepLoop(execution)).rejects.toBe(error);
+    expect(mockedResetV2ContextWindow).not.toHaveBeenCalled();
+    expect(execution.prepared.control.activateFallbackModel).toHaveBeenCalledTimes(version === "v2" ? 1 : 0);
+  });
+
+  it("tries the existing context overflow recovery before switching to a fallback", async () => {
+    const execution = createExecutionContext();
+    execution.promptEnvelope.deltas = [];
+    execution.state.contextManagement = { version: "v2", taskId: "task-1", windowId: "w1", contextNodeId: "n1", recoveryPhase: "normal" };
+    execution.prepared.control.activateFallbackModel.mockResolvedValue({ model: "backup", modelType: "claude",
+      compatibilityModes: [], maxContextTokens: 200_000, environmentPayload: {}, modelPayload: {} });
+    mockedCreateModelResponseWithRetry.mockRejectedValueOnce(new Error("maximum context length exceeded"));
+    mockedCreateModelResponseWithRetry.mockImplementationOnce(async () => {
+      expect(execution.prepared.control.activateFallbackModel).not.toHaveBeenCalled();
+      throw new Error("maximum context length exceeded");
+    });
+    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: [], output_text: "" });
+    mockedDispatchResponseOutput.mockResolvedValueOnce({ sawToolCall: true, sawFunctionToolCall: true,
+      finalResponse: { response: "Done", notify: true }, waitRequest: null, stopRequest: null, workflowPause: null });
+    await runAgentStepLoop(execution);
+    expect(mockedResetV2ContextWindow.mock.calls.map((call) => call[1])).toEqual(["provider_overflow", "model_fallback"]);
+    expect(execution.prepared.control.activateFallbackModel).toHaveBeenCalledExactlyOnceWith("gpt-test");
+    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not activate a fallback for a non-model error", async () => {
+    const execution = createExecutionContext();
+    execution.state.contextManagement = { version: "v2" };
+    const error = new Error("failed to persist history");
+    mockedCreateModelResponseWithRetry.mockRejectedValueOnce(error);
+    await expect(runAgentStepLoop(execution)).rejects.toBe(error);
+    expect(execution.prepared.control.activateFallbackModel).not.toHaveBeenCalled();
   });
 
   it("delivers an eviction notice at the conversation tail once, preserving the cached prefix", async () => {

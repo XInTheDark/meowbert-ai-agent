@@ -134,7 +134,12 @@ export function parseModelMetadataDraft(raw: string): Record<string, Record<stri
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error(`Model metadata entry ${normalizedModel} must be an object.`);
     }
-    normalized[normalizedModel] = value as Record<string, unknown>;
+    const entry = value as Record<string, unknown>;
+    if (entry.fallbackModels !== undefined && (!Array.isArray(entry.fallbackModels)
+      || entry.fallbackModels.some((model) => typeof model !== "string" || !model.trim()))) {
+      throw new Error(`Model metadata entry ${normalizedModel}: fallbackModels must be an array of non-empty model IDs.`);
+    }
+    normalized[normalizedModel] = entry;
   }
   return normalized;
 }

@@ -99,6 +99,37 @@ Meowbert needs to know each model's context window to decide when to compact lon
 
 [Code mode](/core-workflows/code-mode) is on for every model by default. If a model handles it poorly, add `"code_mode": false` to that model's entry, or to the `default` entry to turn it off for all models. A workspace only uses code mode when both the model and the workspace allow it.
 
+### Fallback models
+
+For tasks using context management v2, `fallbackModels` lets a run continue on another model when its model requests exhaust retries and recovery. Meowbert opens a fresh context window with the recent user messages, unread tool results, saved notes, and access to earlier history. A system note tells the fallback model to continue or complete the task.
+
+Add an ordered list in **Admin Panel → Model → Model metadata**. These are model IDs available through the same provider, rather than agent preset or router IDs. For example, replace these example IDs with models your provider offers:
+
+```json
+{
+  "primary-model": {
+    "type": "openai",
+    "context_management": "v2",
+    "context_window": 256000,
+    "fallbackModels": ["backup-model", "second-backup"]
+  },
+  "backup-model": {
+    "type": "claude",
+    "context_management": "v2",
+    "context_window": 200000
+  },
+  "second-backup": {
+    "type": "google",
+    "context_management": "v2",
+    "context_window": 1000000
+  }
+}
+```
+
+The original model's list is tried in order, once per model per run. Each fallback uses its own type, compatibility settings, context window, and usage rates. Workspace request defaults still apply; settings from the original agent preset or router target do not carry over. Targets configured for v1 are skipped. Put `fallbackModels` on `default` to provide a shared list; an empty list on a model disables that default for it.
+
+Cancellation, quota limits, and lost or uncertain run operations still stop the run. Fallbacks do not change the task's selected model for future runs.
+
 ## Letting users bring their own provider
 
 Users can connect their own API key or, experimentally, a ChatGPT subscription in their settings. Their tasks then use their provider instead of yours. See [Bring Your Own Provider](/core-workflows/byo-providers).

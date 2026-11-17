@@ -18,6 +18,7 @@ import type { ServerRunState } from "./bootstrap.js";
 import { createDbPlatformToolHost } from "./platform-tools.js";
 import { startRunForQueuedMessages } from "../queued-messages/after-run.js";
 import { clearInterruptedToolCalls, recordToolCallFinished, recordToolCallStarted } from "./tool-call-records.js";
+import { createModelFallbackActivator } from "./model-fallback.js";
 
 // The run has already settled; a failed handoff leaves the messages queued for the user.
 async function startRunForQueuedMessagesSafely(job: TaskExecutionJob): Promise<void> {
@@ -93,6 +94,7 @@ export function createDbRunControl(
 
   return {
     serverState,
+    activateFallbackModel: createModelFallbackActivator(serverState),
     async bootstrap() {
       bootstrapping ??= loadCancellableServerRunState(job, debugLogger).then((loaded) => {
         state = loaded;

@@ -55,6 +55,7 @@ export const RUN_API_READ_METHODS = [
 // Calls that change state. Each carries an operation id that a retry reuses, so a call whose
 // response was lost is never applied twice.
 export const RUN_API_WRITE_METHODS = [
+  "control.activateFallbackModel",
   "control.setTaskStatus",
   "control.saveTaskProgress",
   "control.consumeCommandInterrupt",

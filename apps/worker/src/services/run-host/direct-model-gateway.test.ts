@@ -19,6 +19,7 @@ import { getOpenAiClient } from "@meowbert/run-executor/agent/openai-client";
 import { platformUsageRecorder } from "../tasks/platform-usage.js";
 import { getUserMonthlySubscriptionQuotaStatus } from "../tasks/subscription-usage.js";
 import { createDirectModelGateway } from "./direct-model-gateway.js";
+import { createModelFallbackActivator } from "./model-fallback.js";
 import { createTestServerRunState, type TestRunInput } from "./test-run-environment.test-fixtures.js";
 
 function respondWith(response: Record<string, unknown>) {
@@ -41,6 +42,20 @@ const billing = { userId: "user-1", taskId: "task-1", runId: "run-1" };
 describe("createDirectModelGateway", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("sends and bills fallback turns using the newly resolved model", async () => {
+    const create = respondWith({ usage: { input_tokens: 120, output_tokens: 30 } });
+    const state = createTestServerRunState({ billing, model: "primary", snapshot: {
+      platform_model_metadata: { primary: { fallbackModels: ["backup"] }, backup: { type: "google", context_window: 100_000 } }
+    } });
+    state.bootstrap.runtime.requestedContextManagementVersion = "v2";
+    const gateway = createDirectModelGateway({ requireRun: () => state, reportTurnUsageError: vi.fn() });
+    await createModelFallbackActivator(() => state)("primary");
+    await gateway.create({ purpose: "turn", body: { input: [] }, timeoutMs: 1000 });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ model: "backup" }), expect.anything());
+    expect(platformUsageRecorder.computeCost).toHaveBeenCalledWith("backup", expect.objectContaining({ inputTokens: 120 }));
+    expect(platformUsageRecorder.recordEvent).toHaveBeenCalledWith(billing, expect.anything(), expect.anything());
   });
 
   it("bills each response to the run that made it and returns its weighted cost", async () => {

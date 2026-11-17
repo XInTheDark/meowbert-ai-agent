@@ -27,6 +27,7 @@ import {
 } from "./utils.js";
 import { isModelSessionConflictError, isRecoverableModelInputError, isTerminalModelError, isUnnamedMissingToolOutputError, parseMissingToolOutputCallId, parseRejectedInputIndex, resolveModelErrorAction } from "./model-error-actions.js";
 import { resolveModelRequestSession } from "./model-request-session.js";
+import { exhaustedModelRequest } from "./model-request-exhaustion.js";
 import { normalizeProviderRequestInput } from "./provider-request-input.js";
 import { normalizeProviderRequestTools } from "./provider-request-tools.js";
 import { buildTaskDecisionContext } from "./task-decision-context.js";
@@ -338,7 +339,7 @@ export async function createModelResponseWithRetry(
       const retryAfterMs = readRetryAfterMs(err);
       const delayMs = retryAfterMs ?? MODEL_REQUEST_BASE_DELAY_MS * Math.pow(2, attempt);
       if (!canWaitForModelRetry({ delayMs, retryAfterMs, retryDeadlineAtMs, hardRetryDeadlineAtMs: input.hardRetryDeadlineAtMs ?? null })) {
-        throw lastError;
+        throw exhaustedModelRequest(lastError);
       }
 
       const retryMsg = `Model request failed (attempt ${attempt + 1}/${MODEL_REQUEST_MAX_RETRIES + 1}): ${lastError.message}. Retrying in ${(delayMs / 1000).toFixed(0)}s...`;
@@ -358,7 +359,7 @@ export async function createModelResponseWithRetry(
     }
   }
 
-  throw lastError!;
+  throw exhaustedModelRequest(lastError!);
 }
 
 export async function maybeAutoGenerateTaskTitle(input: {

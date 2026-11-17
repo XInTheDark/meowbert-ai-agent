@@ -66,7 +66,9 @@ const agentPresetSchema = z.object({
   advanced: agentSwarmAdvancedSchema.optional()
 });
 
-const modelMetadataSchema = z.record(z.string(), z.record(z.string(), z.unknown()));
+const modelMetadataSchema = z.record(z.string(), z.object({
+  fallbackModels: z.array(z.string().trim().min(1)).optional()
+}).passthrough());
 const specializedModelsSchema = z.object({
   internalModel: z.string().min(1).max(240).nullable().default(null),
   fastModel: z.string().min(1).max(240).nullable(),

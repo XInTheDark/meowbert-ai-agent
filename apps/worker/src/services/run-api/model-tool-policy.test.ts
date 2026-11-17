@@ -38,6 +38,18 @@ function state(webSearch = false): ServerRunState {
     runtime: { compatibilityModes: [], modelType: "openai" }, liveSyncFiles: [], github: {} } } as unknown as ServerRunState;
 }
 
+it("refreshes allowed contracts when fallback changes the model type", async () => {
+  const run = state();
+  run.bootstrap.memoryEnabled = true;
+  run.bootstrap.runtime.model = "primary";
+  const validate = createModelToolPolicy(run, control, {});
+  const tool = buildResponseTools(options, [], { runShellMaxTimeoutSeconds: 600 })
+    .find((item) => item.type === "function" && item.name === "query_tasks")!;
+  await expect(validate([tool], "turn")).resolves.toBeUndefined();
+  run.bootstrap.runtime = { ...run.bootstrap.runtime, model: "backup", modelType: "google" };
+  await expect(validate(normalizeProviderRequestTools([tool], "google"), "turn")).resolves.toBeUndefined();
+});
+
 it("accepts real builtin subsets and rejects altered schemas, duplicates and invented tools", async () => {
   const validate = createModelToolPolicy(state(), control, {});
   const shell = buildResponseTools(options, [], { runShellMaxTimeoutSeconds: 600 })

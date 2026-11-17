@@ -57,6 +57,7 @@ export interface WorkflowCapabilityState {
 export interface AgentExecutionState {
   // The job's retry deadlines cover the outage it was retried for, which a model response ends.
   hasModelResponse?: boolean;
+  modelFallbackCount?: number;
   contextManagement: ContextManagementState;
   currentLeafMessageId: string | null;
   dispatchState: ToolDispatchState;

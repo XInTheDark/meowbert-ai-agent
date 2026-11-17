@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { parseAgentPresetsDraft } from "./adminSettingsDrafts";
+import { parseAgentPresetsDraft, parseModelMetadataDraft } from "./adminSettingsDrafts";
+
+it("accepts ordered fallback IDs alongside arbitrary model metadata and rejects malformed lists", () => {
+  const metadata = { primary: { fallbackModels: ["backup", "last"], input_tokens: 2 }, backup: { type: "claude" } };
+  expect(parseModelMetadataDraft(JSON.stringify(metadata))).toEqual(metadata);
+  for (const fallbackModels of ["backup", [""], [null], [3]]) {
+    expect(() => parseModelMetadataDraft(JSON.stringify({ primary: { fallbackModels } }))).toThrow(/fallbackModels/);
+  }
+});
 
 function swarmDraft(fields: Record<string, unknown>): string {
   return JSON.stringify([{

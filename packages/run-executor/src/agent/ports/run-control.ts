@@ -1,6 +1,6 @@
 import type { ConversationNavigation, ConversationSnapshot, TaskEventType, TaskProgress, TaskStatus } from "@meowbert/shared";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import type { RunBootstrap } from "./run-bootstrap.js";
+import type { RunBootstrap, RunRuntimeRoute } from "./run-bootstrap.js";
 import type { PlatformToolHost } from "./platform-tools.js";
 import type { WindowRequestState, WindowRequestUpdate } from "../window-request-types.js";
 
@@ -9,6 +9,7 @@ import type { WindowRequestState, WindowRequestUpdate } from "../window-request-
 // Every argument and result is plain JSON so each call can cross a process boundary.
 export interface RunControl {
   bootstrap(): Promise<RunBootstrap>;
+  activateFallbackModel?(currentModel: string): Promise<RunRuntimeRoute | null>;
   setTaskStatus(status: TaskStatus): Promise<boolean>;
   readCancellation(): Promise<RunCancellationState>;
   watchCancellation(notify: (reason: RunCancellationReason) => void): () => void;

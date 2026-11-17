@@ -15,9 +15,14 @@ export function toolContract(tool: Tool): string {
 
 export function createModelToolPolicy(state: ServerRunState, control: RunControl, consent: DeviceToolConsent, swarm: RunSwarmTools | null = null) {
   const normalize = (tools: Tool[]) => normalizeProviderRequestTools(tools, state.bootstrap.runtime.modelType);
-  const builtin = normalize(builtinRunTools(state, consent, swarm));
   const skills = createSkillToolPolicy(state, control, consent);
+  let builtinModel: string | null = null;
+  let builtin: Tool[] = [];
   return async (tools: Tool[], purpose: string): Promise<void> => {
+    if (builtinModel !== state.bootstrap.runtime.model) {
+      builtin = normalize(builtinRunTools(state, consent, swarm));
+      builtinModel = state.bootstrap.runtime.model;
+    }
     const allowed = purpose === "turn" ? builtin : normalize(auxiliaryTools(purpose));
     const seen = new Set<string>();
     for (const tool of tools) {
