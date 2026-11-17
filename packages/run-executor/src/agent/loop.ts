@@ -28,7 +28,7 @@ import {
   isNotesOnlyTurn,
   shouldCompactExpiredCache
 } from "./expired-cache-compaction.js";
-import { buildAgentTurnRequest } from "./turn-request.js";
+import { buildAgentTurnRequest, type AgentTurnRequest } from "./turn-request.js";
 import { appendRuntimeNotice, persistRuntimeNotices } from "./runtime-notices.js";
 import { prepareWindowTurnRequest } from "./window-request.js";
 import type { FunctionTool } from "openai/resources/responses/responses";
@@ -40,6 +40,7 @@ import { buildTimedRunFinalizationMessage } from "../tasks/recurring-run-utils.j
 import type { AgentExecutionContext, AgentStepAvailability } from "./execution-types.js";
 import type { Tool } from "openai/resources/responses/responses";
 import { buildForkCompactor } from "../agent-swarm/fork-compaction.js";
+import type { ParentTurnRequest } from "../agent-swarm/fork-summary.js";
 import { isLaneFinalStep, resolveLaneToolChoice } from "../agent-swarm/forced-submit.js";
 import { buildForcedSubmitNote, LANE_PLAIN_TEXT_NOTE, LANE_STEP_LIMIT_NOTE } from "../agent-swarm/prompt.js";
 import type { SwarmDispatchContext } from "../agent-swarm/dispatch-context.js";
@@ -312,6 +313,8 @@ interface ModelTurnResult {
   availableResponseTools: Tool[];
   // Conversation items sent with the request; a split forks from exactly this request.
   requestItemCount: number;
+  // The request without its conversation, for a split's handoff to replay against the same cache.
+  parentRequest: ParentTurnRequest;
   // What the response cost, for swarm budgets; null when usage was not reported.
   weightedTokens: number | null;
 }
@@ -328,6 +331,31 @@ function isCodeModeEnabled(execution: AgentExecutionContext): boolean {
 function logLaneForkPrefix(execution: AgentExecutionContext, promptPrefixHash: string): void {
   if (process.env.NODE_ENV === "production" || !execution.laneSeed || execution.state.stepCount > 0) return;
   console.info("[agent-swarm] lane prefix", JSON.stringify({ laneTaskId: execution.job.taskId, seedId: execution.laneSeed.id, promptPrefixHash }));
+}
+
+// Everything the turn's request sends except its conversation and retry handling.
+function buildParentTurnRequest(
+  execution: AgentExecutionContext,
+  turnRequest: Pick<AgentTurnRequest, "promptCacheKey" | "sessionAffinityKey" | "promptPrefixItems" | "responseTools"> & { toolChoice: ModelToolChoice }
+): ParentTurnRequest {
+  return {
+    models: execution.prepared.models,
+    chatGptCodex: execution.prepared.chatGptCodex,
+    modelType: execution.prepared.runtimeModelType,
+    compatibilityModes: execution.prepared.runtimeCompatibilityModes,
+    requestTimeoutMs: execution.prepared.snapshot.model_request_timeout_ms,
+    abortSignal: execution.runTiming.timedRunFinalizing
+      ? execution.prepared.cancellationMonitor.signal
+      : execution.runTiming.runAbortSignal,
+    cacheUserId: execution.prepared.snapshot.task.initiator_user_id ?? execution.job.taskId,
+    promptCacheKey: turnRequest.promptCacheKey,
+    sessionAffinityKey: turnRequest.sessionAffinityKey,
+    ...(execution.prepared.snapshot.enable_prompt_caching !== false ? { promptCacheTtl: "1h" as const } : {}),
+    prefixItems: turnRequest.promptPrefixItems,
+    modelPayload: execution.prepared.runtimeModelPayload,
+    tools: turnRequest.responseTools,
+    toolChoice: turnRequest.toolChoice
+  };
 }
 
 async function requestModelTurn(input: {
@@ -402,8 +430,8 @@ async function requestModelTurn(input: {
   await appendQueuedPromptDeltas(execution);
   prepareV2ContextWindowUsage(execution, turnRequest.promptPrefixItems);
   logLaneForkPrefix(execution, turnRequest.promptPrefixHash);
-  const toolChoice = turnRequest.toolChoice;
   const requestItemCount = execution.state.dispatchState.conversationItems.length;
+  const parentRequest = buildParentTurnRequest(execution, turnRequest);
 
   await execution.prepared.control.emitEvent("thinking_start", { step });
   // Taken before retries, so a retried request is timed from its first attempt, never later.
@@ -413,33 +441,18 @@ async function requestModelTurn(input: {
       execution.prepared.control,
       execution.job.taskId,
       {
-      models: execution.prepared.models,
-      chatGptCodex: execution.prepared.chatGptCodex,
-      modelType: execution.prepared.runtimeModelType,
-      compatibilityModes: execution.prepared.runtimeCompatibilityModes,
-      requestTimeoutMs: execution.prepared.snapshot.model_request_timeout_ms,
-      abortSignal: execution.runTiming.timedRunFinalizing
-        ? execution.prepared.cancellationMonitor.signal
-        : execution.runTiming.runAbortSignal,
+      ...parentRequest,
       ...(execution.state.hasModelResponse ? {} : {
         retryDeadlineAtMs: parseRetryDeadlineMs(execution.job.retryDeadlineAt),
         hardRetryDeadlineAtMs: parseRetryDeadlineMs(execution.job.idleCompactionDeadlineAt)
       }),
-      cacheUserId: execution.prepared.snapshot.task.initiator_user_id ?? execution.job.taskId,
-      promptCacheKey: turnRequest.promptCacheKey,
-      sessionAffinityKey: turnRequest.sessionAffinityKey,
       forkSourceSessionKey: laneForkSourceSessionKey({
         swarm: execution.swarm,
         laneSeed: execution.laneSeed,
         runtimeModel: execution.prepared.runtimeModel,
         promptPrefixHash: turnRequest.promptPrefixHash
       }),
-      ...(execution.prepared.snapshot.enable_prompt_caching !== false ? { promptCacheTtl: "1h" as const } : {}),
-      prefixItems: turnRequest.promptPrefixItems,
       conversationItems: execution.state.dispatchState.conversationItems,
-      modelPayload: execution.prepared.runtimeModelPayload,
-      tools: turnRequest.responseTools,
-      toolChoice,
       onConsecutiveErrorRecovery: async (errorMessage, { rejectedItemIndex }) => {
         if (recoveredItemCount >= MAX_MODEL_REQUEST_RECOVERY_ITEMS) {
           return false;
@@ -498,6 +511,7 @@ async function requestModelTurn(input: {
     responseTools: turnRequest.responseTools,
     availableResponseTools: turnRequest.availableResponseTools,
     requestItemCount,
+    parentRequest,
     weightedTokens
   };
 }
@@ -584,7 +598,7 @@ function buildSwarmDispatchContext(execution: AgentExecutionContext, turn: Model
     },
     runToolOptions: execution.prepared.runToolOptions,
     loadedToolGroups: [...execution.loadedToolGroups],
-    compactForFork: buildForkCompactor(execution, () => step)
+    compactForFork: buildForkCompactor(execution, () => step, turn.parentRequest)
   };
 }
 

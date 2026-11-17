@@ -76,7 +76,7 @@ export type ModelToolChoice = "required" | "auto" | {
   name: string;
 };
 
-type CreateModelResponseInput = {
+export type CreateModelResponseInput = {
   models: ModelGateway;
   purpose?: ModelCallPurpose;
   // ChatGPT Codex takes the prompt prefix as instructions instead of input items.
