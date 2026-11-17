@@ -25,7 +25,7 @@ import {
   normalizeTitleCandidate,
   parseToolArguments
 } from "./utils.js";
-import { isModelSessionConflictError, isRecoverableModelInputError, isTerminalModelError, parseMissingToolOutputCallId, parseRejectedInputIndex, resolveModelErrorAction } from "./model-error-actions.js";
+import { isModelSessionConflictError, isRecoverableModelInputError, isTerminalModelError, isUnnamedMissingToolOutputError, parseMissingToolOutputCallId, parseRejectedInputIndex, resolveModelErrorAction } from "./model-error-actions.js";
 import { resolveModelRequestSession } from "./model-request-session.js";
 import { normalizeProviderRequestInput } from "./provider-request-input.js";
 import { normalizeProviderRequestTools } from "./provider-request-tools.js";
@@ -91,7 +91,7 @@ type CreateModelResponseInput = {
   sessionAffinityKey?: string;
   // The session a forked swarm lane started from; see laneForkSourceSessionKey.
   forkSourceSessionKey?: string;
-  promptCacheTtl?: "30m";
+  promptCacheTtl?: "1h";
   prefixItems: ResponseInputItem[];
   conversationItems: ResponseInputItem[];
   modelPayload: Record<string, unknown>;
@@ -134,7 +134,7 @@ function buildModelRequestPayload(input: CreateModelResponseInput): Record<strin
   if (typeof input.promptCacheKey === "string" && input.promptCacheKey.length > 0) {
     promptCacheOptions.prompt_cache_key = input.promptCacheKey;
   }
-  if (!chatGptCodex && input.promptCacheTtl === "30m") {
+  if (!chatGptCodex && input.promptCacheTtl === "1h") {
     promptCacheOptions.prompt_cache_options = {
       ttl: input.promptCacheTtl
     };
@@ -316,7 +316,8 @@ export async function createModelResponseWithRetry(
         Object.assign(requestInput, resolveModelRequestSession(input.models, requestSessionId, affinityKey, true));
       }
 
-      const isMissingToolOutput = parseMissingToolOutputCallId(lastError.message) !== null;
+      const isMissingToolOutput = parseMissingToolOutputCallId(lastError.message) !== null
+        || isUnnamedMissingToolOutputError(lastError.message);
       const rejectedItemIndex = consecutiveErrorCount > 0 ? resolveRejectedConversationItemIndex(err, input) : null;
       if (
         attempt < MODEL_REQUEST_MAX_RETRIES

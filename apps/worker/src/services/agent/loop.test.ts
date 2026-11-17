@@ -729,7 +729,7 @@ describe("runAgentStepLoop", () => {
     const request = mockedCreateModelResponseWithRetry.mock.calls[0]?.[1] as {
       promptCacheTtl?: string;
     };
-    expect(request.promptCacheTtl).toBe("30m");
+    expect(request.promptCacheTtl).toBe("1h");
   });
 
   it("reports the context usage of each model turn", async () => {

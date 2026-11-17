@@ -658,7 +658,7 @@ describe("createModelResponse", () => {
       model: "gpt-test",
       cacheUserId: "user-123",
       promptCacheKey: "task:abc",
-      promptCacheTtl: "30m",
+      promptCacheTtl: "1h",
       prefixItems: [
         {
           role: "developer",
@@ -680,7 +680,7 @@ describe("createModelResponse", () => {
     };
     expect(request.user).toBe("user-123");
     expect(request.prompt_cache_key).toBe("task:abc");
-    expect(request.prompt_cache_options).toEqual({ ttl: "30m" });
+    expect(request.prompt_cache_options).toEqual({ ttl: "1h" });
     expect(request).not.toHaveProperty("prompt_cache_retention");
   });
 
@@ -944,7 +944,7 @@ describe("createModelResponse", () => {
       compatibilityModes: ["noSystemMessages"],
       cacheUserId: "user-123",
       promptCacheKey: "task:abc",
-      promptCacheTtl: "30m",
+      promptCacheTtl: "1h",
       prefixItems: [
         {
           role: "developer",
@@ -992,7 +992,7 @@ describe("createModelResponse", () => {
           stream: true,
           prompt_cache_key: "task:abc",
           prompt_cache_options: {
-            ttl: "30m"
+            ttl: "1h"
           },
           user: "user-123",
           temperature: 0.2
@@ -1031,7 +1031,7 @@ describe("createModelResponse", () => {
       model: "gpt-5.4",
       cacheUserId: "user-123",
       promptCacheKey: "task:abc",
-      promptCacheTtl: "30m",
+      promptCacheTtl: "1h",
       prefixItems: [
         {
           role: "developer",

@@ -133,6 +133,13 @@ export function parseMissingToolOutput(error: unknown): MissingToolOutputCall | 
   return null;
 }
 
+// Some providers report a call without an output but do not say which call it was.
+const UNNAMED_MISSING_TOOL_OUTPUT_PATTERN = /\b(?:tool|function) (?:call )?history is missing\b|\bmissing (?:a )?(?:required )?(?:tool|function) (?:call )?(?:result|output)\b|\bno (?:tool|function) (?:call )?(?:result|output) found\b/i;
+
+export function isUnnamedMissingToolOutputError(error: unknown): boolean {
+  return UNNAMED_MISSING_TOOL_OUTPUT_PATTERN.test(collectErrorText(error).join("\n"));
+}
+
 export function parseMissingToolOutputCallId(error: unknown): string | null {
   return parseMissingToolOutput(error)?.callId ?? null;
 }

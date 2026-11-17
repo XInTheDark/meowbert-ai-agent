@@ -7,6 +7,7 @@ const RECOVERY_NOTICE_PREFIX = "[System: Recent request history was trimmed afte
 const LEGACY_RECOVERY_NOTICE_PREFIX = "[System: A recent request item was removed after repeated model-request errors.]";
 import {
   isRecoverableModelInputError,
+  isUnnamedMissingToolOutputError,
   parseMissingToolOutput,
   parseMissingToolOutputCallId,
   type MissingToolOutputCallKind
@@ -16,13 +17,14 @@ export { parseMissingToolOutput, parseMissingToolOutputCallId };
 
 export function buildMissingToolOutputItem(
   callId: string,
-  kind: MissingToolOutputCallKind = "function_call"
+  kind: MissingToolOutputCallKind = "function_call",
+  output = "system: an error occurred"
 ): ResponseInputItem {
   if (kind === "custom_tool_call") {
     return {
       type: "custom_tool_call_output",
       call_id: callId,
-      output: "system: an error occurred"
+      output
     } as ResponseInputItem;
   }
 
@@ -31,14 +33,14 @@ export function buildMissingToolOutputItem(
       type: "apply_patch_call_output",
       call_id: callId,
       status: "failed",
-      output: "system: an error occurred"
+      output
     } as ResponseInputItem;
   }
 
   return {
     type: "function_call_output",
     call_id: callId,
-    output: "system: an error occurred"
+    output
   };
 }
 
@@ -215,7 +217,9 @@ export async function persistModelRequestRecovery(input: {
   const hasReportedCall = missingToolOutput && input.conversationItems.some(
     (item) => isMatchingToolCall(item, missingToolOutput.callId)
   );
-  const rebuiltItems = hasReportedCall
+  // When the provider does not name the call, pair every unanswered call in the history.
+  const rebuildAll = !missingToolOutput && isUnnamedMissingToolOutputError(input.errorMessage);
+  const rebuiltItems = hasReportedCall || rebuildAll
     ? reconstructResponseInputItems(input.conversationItems, {
       fallbackItems: [
         ...input.runPersistedItems,
@@ -236,7 +240,9 @@ export async function persistModelRequestRecovery(input: {
 
   const recoveryNoticeText = repairedToolOutput && missingToolOutput
     ? `[System: Reconstructed tool output history for ${missingToolOutput.kind === "custom_tool_call" ? "custom tool" : missingToolOutput.kind === "apply_patch_call" ? "apply_patch" : "function"} call ${missingToolOutput.callId}.]`
-    : `${RECOVERY_NOTICE_PREFIX}\nProvider error: ${input.errorMessage}`;
+    : repairedToolOutput
+      ? "[System: Reconstructed missing tool outputs in the request history.]"
+      : `${RECOVERY_NOTICE_PREFIX}\nProvider error: ${input.errorMessage}`;
 
   const messageId = await input.control.appendMessage({
     role: "system",

@@ -434,7 +434,7 @@ async function requestModelTurn(input: {
         runtimeModel: execution.prepared.runtimeModel,
         promptPrefixHash: turnRequest.promptPrefixHash
       }),
-      ...(execution.prepared.snapshot.enable_prompt_caching !== false ? { promptCacheTtl: "30m" as const } : {}),
+      ...(execution.prepared.snapshot.enable_prompt_caching !== false ? { promptCacheTtl: "1h" as const } : {}),
       prefixItems: turnRequest.promptPrefixItems,
       conversationItems: execution.state.dispatchState.conversationItems,
       modelPayload: execution.prepared.runtimeModelPayload,
