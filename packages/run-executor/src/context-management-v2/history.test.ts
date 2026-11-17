@@ -64,4 +64,31 @@ describe("Context Management V2 history", () => {
     expect(result.newItems).toEqual([{ role: "user", content: "Also check this" }]);
     expect(result.conversationItems).toEqual([...existing, ...result.newItems]);
   });
+  it("does not repeat reasoning when a message the seed lists out of order was already repeated", () => {
+    const laneResults = { role: "user", content: "[Lane results] done\n[id: 00000000-0000-0000-0000-000000000001]" };
+    const notice = { role: "user", content: "[System: window cleared]\n[id: 00000000-0000-0000-0000-000000000002]" };
+    const reasoning = { type: "reasoning", summary: [{ type: "summary_text", text: "Thinking" }], encrypted_content: "sig-1" };
+    const existing = [
+      laneResults,
+      notice,
+      reasoning,
+      { type: "function_call", call_id: "call-1", name: "exec", arguments: "{}" },
+      { type: "function_call_output", call_id: "call-1", output: "ok" },
+      { role: "user", content: "[Lane results] done\n[id: 00000000-0000-0000-0000-000000000003]" },
+      { role: "assistant", content: "Reply" }
+    ];
+    const seeds = [
+      { role: "user", content: "[System: window cleared]" },
+      { role: "user", content: "[Lane results] done" },
+      { ...reasoning },
+      { type: "function_call", call_id: "call-1", name: "exec", arguments: "{}" },
+      { type: "function_call_output", call_id: "call-1", output: "ok" },
+      { role: "assistant", content: "Reply" },
+      { role: "user", content: "Next request" }
+    ];
+
+    const result = mergeContextSeedItems(existing, seeds);
+
+    expect(result.newItems).toEqual([{ role: "user", content: "Next request" }]);
+  });
 });

@@ -27,12 +27,19 @@ function itemKey(item: ResponseInputItem): string {
   return JSON.stringify(normalizeForComparison(item));
 }
 
-// Seeds rebuilt from task messages lack fields the live run recorded (call numbers, status), so tool
-// items are matched by provider call id. The window keeps the copy the provider saw; replacing it
-// would change the cached prefix.
-function toolItemKey(item: ResponseInputItem): string | null {
-  if (!isToolCallItem(item) && !isToolOutputItem(item)) return null;
-  return `${(item as { type: string }).type}:${getProviderCallId(item)}`;
+// Seeds rebuilt from task messages lack fields the live run recorded (call numbers, status), and their
+// order can differ from the window's, so items with their own identity are matched by it rather than
+// by position: tool items by provider call id, reasoning by its signed content. The window keeps the copy
+// the provider saw; replacing or repeating it would change the cached prefix.
+function identityKey(item: ResponseInputItem): string | null {
+  if (isToolCallItem(item) || isToolOutputItem(item)) {
+    return `${(item as { type: string }).type}:${getProviderCallId(item)}`;
+  }
+  const record = item as { type?: unknown; encrypted_content?: unknown };
+  if (record.type === "reasoning" && typeof record.encrypted_content === "string" && record.encrypted_content.length > 0) {
+    return `reasoning:${record.encrypted_content}`;
+  }
+  return null;
 }
 
 export function mergeContextSeedItems(existing: ResponseInputItem[], seedItems: ResponseInputItem[]): {
@@ -46,14 +53,14 @@ export function mergeContextSeedItems(existing: ResponseInputItem[], seedItems: 
     positions.indices.push(index);
     positionsByKey.set(key, positions);
   });
-  const existingToolKeys = new Set(existing.map(toolItemKey).filter((key) => key !== null));
+  const existingIdentityKeys = new Set(existing.map(identityKey).filter((key) => key !== null));
   const newItems: ResponseInputItem[] = [];
   let existingIndex = 0;
 
   for (const seedItem of seedItems) {
-    const toolKey = toolItemKey(seedItem);
-    // Call ids are unique, and parallel calls may be ordered differently in the seed.
-    if (toolKey !== null && existingToolKeys.has(toolKey)) {
+    const ownKey = identityKey(seedItem);
+    // These keys are unique, and parallel calls may be ordered differently in the seed.
+    if (ownKey !== null && existingIdentityKeys.has(ownKey)) {
       continue;
     }
     const positions = positionsByKey.get(itemKey(seedItem));
