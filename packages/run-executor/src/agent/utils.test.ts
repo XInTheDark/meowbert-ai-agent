@@ -16,6 +16,8 @@ import {
 } from "./utils.js";
 import { FORCE_INCLUDE_ISSUE_KIND, FORCE_INCLUDE_TEXT_MAX_BYTES, hasUnansweredForceIncludedAttachment } from "./force-included-attachments.js";
 import type { TaskMessageRow } from "./types.js";
+import { RETRY_NOTICE_KIND } from "./retry-notices.js";
+import { mergeContextSeedItems } from "../context-management-v2/history.js";
 
 function createPngBuffer(width: number, height: number): Buffer {
   const header = Buffer.alloc(24);
@@ -565,6 +567,37 @@ describe("mapMessagesForResponsesInput", () => {
 
     const mapped = await mapMessagesForResponsesInput(messages, "/tmp/task-inputs", "high");
     expect(mapped).toEqual(runItems);
+  });
+
+  it("replays a failed run's output after its retry notices without duplicating it in the window", async () => {
+    const row = (id: string, role: TaskMessageRow["role"], contentJson: Record<string, unknown>): TaskMessageRow => ({
+      id,
+      role,
+      content_json: contentJson,
+      parent_message_id: null,
+      edited_from_message_id: null,
+      created_at: "2026-11-17T00:00:00.000Z"
+    });
+    const runItems = [
+      { type: "reasoning", summary: [], encrypted_content: "first" },
+      { type: "function_call", call_id: "call_a", name: "run_shell", arguments: "{}" },
+      { type: "function_call_output", call_id: "call_a", output: "{\"call_number\":1}" },
+      { type: "reasoning", summary: [], encrypted_content: "second" }
+    ];
+    const user = row("m_user", "user", { text: "Start" });
+    // The loop writes retry notices while the run is live; the failed run saves its output after them.
+    const history = [
+      user,
+      row("m_model_retry", "system", { text: "Model request failed (attempt 1/6): 400 bad. Retrying in 15s..." }),
+      row("m_run", "assistant", { text: "", response_items: runItems }),
+      row("m_run_retry", "system", { kind: RETRY_NOTICE_KIND, text: "Task run failed (attempt 1): 400 bad. Retrying in 30s." })
+    ];
+    const window = [...await mapMessagesForResponsesInput([user], "/tmp/task-inputs", "high"), ...runItems];
+
+    for (let resumedRun = 0; resumedRun < 2; resumedRun += 1) {
+      const seed = await mapMessagesForResponsesInput(history, "/tmp/task-inputs", "high");
+      expect(mergeContextSeedItems(window, seed).newItems).toEqual([]);
+    }
   });
 
   it("restores a lost output from the tool message without reordering the run", async () => {

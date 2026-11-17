@@ -29,6 +29,7 @@ import {
   selectUnansweredUserMessageIds,
   SUPPORTED_VIEW_IMAGE_MIME_TYPES
 } from "./force-included-attachments.js";
+import { isRetryNoticeMessage } from "./retry-notices.js";
 import type { PdfSandboxRuntime } from "../agent-tool-dispatch/pdf.js";
 import { prepareToolOutputForModel } from "../agent-tool-dispatch/state.js";
 import type { WorkspaceImageDetail } from "../workspaces/workspace-model-settings.js";
@@ -644,7 +645,7 @@ export async function mapMessagesForResponsesInput(
   const unansweredMessageIds = selectUnansweredUserMessageIds(messages);
 
   for (const message of messages) {
-    if (message.content_json.kind === FORCE_INCLUDE_ISSUE_KIND) {
+    if (message.content_json.kind === FORCE_INCLUDE_ISSUE_KIND || isRetryNoticeMessage(message)) {
       continue;
     }
 

@@ -19,6 +19,7 @@ import { applyPendingContextEdits } from "./context-edits.js";
 import { createModelResponseWithRetry, type ModelToolChoice } from "./model.js";
 import { resolveModelErrorAction } from "./model-error-actions.js";
 import { persistModelRequestRecovery } from "./model-request-recovery.js";
+import { RETRY_NOTICE_KIND } from "./retry-notices.js";
 import { dispatchResponseOutput, type ToolDispatchContext } from "../agent-tool-dispatch/index.js";
 import { isContextManagementV2Tool } from "../agent-tool-dispatch/handlers/context-management-v2.js";
 import { isIdleCompactionRun } from "./idle-compaction.js";
@@ -473,7 +474,7 @@ async function requestModelTurn(input: {
       async (retryMessage) => {
         execution.state.currentLeafMessageId = await execution.prepared.control.appendMessage({
           role: "system",
-          content: { text: retryMessage },
+          content: { kind: RETRY_NOTICE_KIND, text: retryMessage },
           parentMessageId: execution.state.currentLeafMessageId
         });
       }

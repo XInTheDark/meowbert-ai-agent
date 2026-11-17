@@ -6,6 +6,7 @@ import {
 } from "../agent-db/index.js";
 import { buildAssistantHistoryItem } from "@meowbert/run-executor/agent/utils";
 import { isIdleCompactionRun } from "@meowbert/run-executor/agent/idle-compaction";
+import { RETRY_NOTICE_KIND } from "@meowbert/run-executor/agent/retry-notices";
 import { settleFailedIdleCompaction } from "../idle-compaction/idle-compaction-failure.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { scheduleTaskRunRetry } from "../tasks/task-run-retry.js";
@@ -63,7 +64,7 @@ export async function failServerRun(job: TaskExecutionJob, failure: RunFailure):
   if (retryResult.status === "scheduled") {
     if (!idleCompaction) {
       await appendPersistedAssistantItems(job, failure, leaf);
-      await appendBranchMessage(job, leaf, "system", { text: retryResult.retryNotice });
+      await appendBranchMessage(job, leaf, "system", { kind: RETRY_NOTICE_KIND, text: retryResult.retryNotice });
     }
     return;
   }
