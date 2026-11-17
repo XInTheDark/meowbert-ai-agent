@@ -49,7 +49,7 @@
 - Framework: Vitest (`*.test.ts` / `*.spec.ts`).
 - Tests may use at most 50% of all CPU cores. Every Vitest config sets `maxWorkers: "50%"`, so keep that setting on new configs, never override it with a higher value, and do not run several test commands at once.
 - Keep fast unit tests near changed code; add shared-schema tests in `packages/shared/src`.
-- For API/worker/web changes, run at minimum: `npm run test`, `npm run lint`, `npm run build`.
+- Run the full `npm run test`, `npm run lint` and `npm run build` only for big changes: cross-workspace refactors, schema or migration changes, dependency or build config changes, or anything touching many files. For small fixes, run the tests next to the changed code and the touched workspace's typecheck, and leave the rest to CI.
 - Add regression tests when fixing bugs (routing, task actions, shell session behavior).
 - Test observable behavior and public contracts, not implementation details. Do not add tests that merely assert literal prompt prose or search a generated prompt for expected words; those tests are useless when they only mirror the implementation and do not prove behavior. Prompt tests are appropriate only when they exercise meaningful conditional assembly or a prompt-controlled contract that changes routing, permissions, tool availability, or another observable outcome. Otherwise test the resulting state, routing, permissions, tool availability, or user-visible outcome. This follows the behavior-over-implementation testing principle described in Google's testing guidance.
 - Do not write tests for reversible, low-impact changes that mirror the implementation. If you do choose to verify your work with tests, make sure that the tests are meaningful and necessary to verify implementation.
