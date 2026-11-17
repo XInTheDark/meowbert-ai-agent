@@ -105,12 +105,13 @@ afterEach(async () => {
 });
 
 describe("Run API retries", () => {
-  it("replays a lost fallback reply once and admits the target's payload and context limit", async () => {
+  it("replays a lost fallback reply once and preserves the active payload with the target's context limit", async () => {
     const state = createTestServerRunState({ model: "primary", snapshot: { platform_model_metadata: {
       primary: { fallbackModels: ["backup", "last"] }, backup: { type: "google", context_window: 2000 }
     } } });
     state.bootstrap.runtime.requestedContextManagementVersion = "v2";
     state.bootstrap.runtime.baseEnvironmentJsonPayload = { responses: { temperature: 0.2 } };
+    state.bootstrap.runtime.modelPayload = { temperature: 0.4, reasoning: { effort: "high" } };
     const { session, control, token } = await claim();
     control.activateFallbackModel.mockImplementation(createModelFallbackActivator(() => state));
     session.policy = () => policy({ model: () => state.bootstrap.runtime.model,
@@ -121,7 +122,7 @@ describe("Run API retries", () => {
     try {
       await expect(remote.activateFallbackModel!("primary")).resolves.toMatchObject({ model: "backup", modelType: "google", maxContextTokens: 2000 });
       expect(control.activateFallbackModel).toHaveBeenCalledExactlyOnceWith("primary");
-      expect(session.policy()).toMatchObject({ maxContextTokens: 2000, modelPayload: { temperature: 0.2 } });
+      expect(session.policy()).toMatchObject({ maxContextTokens: 2000, modelPayload: { temperature: 0.4, reasoning: { effort: "high" } } });
       expect(session.policy().model("turn")).toBe("backup");
       const gateway = createProxyModelGateway(client(token));
       await expect(gateway.create({ purpose: "turn", body: { temperature: 0.9 }, timeoutMs: 1000 })).rejects.toMatchObject({ code: "invalid_request" });

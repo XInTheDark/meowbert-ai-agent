@@ -126,7 +126,7 @@ Add an ordered list in **Admin Panel → Model → Model metadata**. These are m
 }
 ```
 
-The original model's list is tried in order, once per model per run. Each fallback uses its own type, compatibility settings, context window, and usage rates. Workspace request defaults still apply; settings from the original agent preset or router target do not carry over. Targets configured for v1 are skipped. Put `fallbackModels` on `default` to provide a shared list; an empty list on a model disables that default for it.
+The original model's list is tried in order, once per model per run. Each fallback uses its own type, compatibility settings, context window, and usage rates. The active request payload stays the same, including reasoning effort and other settings from the workspace, agent preset, or router target. Targets configured for v1 are skipped. Put `fallbackModels` on `default` to provide a shared list; an empty list on a model disables that default for it.
 
 Cancellation, quota limits, and lost or uncertain run operations still stop the run. Fallbacks do not change the task's selected model for future runs.
 

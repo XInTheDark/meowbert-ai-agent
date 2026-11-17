@@ -50,10 +50,11 @@ describe("createDirectModelGateway", () => {
       platform_model_metadata: { primary: { fallbackModels: ["backup"] }, backup: { type: "google", context_window: 100_000 } }
     } });
     state.bootstrap.runtime.requestedContextManagementVersion = "v2";
+    state.bootstrap.runtime.modelPayload = { reasoning: { effort: "high" }, temperature: 0.4 };
     const gateway = createDirectModelGateway({ requireRun: () => state, reportTurnUsageError: vi.fn() });
     await createModelFallbackActivator(() => state)("primary");
-    await gateway.create({ purpose: "turn", body: { input: [] }, timeoutMs: 1000 });
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ model: "backup" }), expect.anything());
+    await gateway.create({ purpose: "turn", body: { ...state.bootstrap.runtime.modelPayload, input: [] }, timeoutMs: 1000 });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ model: "backup", reasoning: { effort: "high" }, temperature: 0.4 }), expect.anything());
     expect(platformUsageRecorder.computeCost).toHaveBeenCalledWith("backup", expect.objectContaining({ inputTokens: 120 }));
     expect(platformUsageRecorder.recordEvent).toHaveBeenCalledWith(billing, expect.anything(), expect.anything());
   });

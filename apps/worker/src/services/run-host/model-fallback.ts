@@ -5,11 +5,10 @@ import {
   resolveFallbackModelsForModel,
   resolveModelTypeForModel
 } from "@meowbert/shared";
-import { extractModelRequestPayload } from "@meowbert/run-executor/agent/utils";
 import type { ServerRunState } from "./bootstrap.js";
 
-// Only the admitted model's configured list can change a run's route. Keep the
-// provider and workspace defaults, discarding the original preset/router payload.
+// Only the admitted model's configured list can change a run's route.
+// Preserve the active payload while resolving the target's model metadata.
 export function createModelFallbackActivator(requireRun: () => ServerRunState) {
   let candidates: string[] | null = null;
   const attempted = new Set<string>();
@@ -25,7 +24,6 @@ export function createModelFallbackActivator(requireRun: () => ServerRunState) {
       && resolveContextManagementVersionForModel(candidate, metadata) === "v2");
     if (!model) return null;
     attempted.add(model);
-    const environmentPayload = structuredClone(runtime.baseEnvironmentJsonPayload);
     const quickModel = runtime.providerKind === "platform"
       ? run.snapshot.platform_specialized_models?.fastModel ?? model
       : model;
@@ -36,9 +34,7 @@ export function createModelFallbackActivator(requireRun: () => ServerRunState) {
       compatibilityModes: resolveCompatibilityModesForModel(model, metadata),
       maxContextTokens: resolveContextWindowForModel(model, metadata),
       quickModel,
-      quickModelCompatibilityModes: resolveCompatibilityModesForModel(quickModel, metadata),
-      environmentPayload,
-      modelPayload: extractModelRequestPayload(environmentPayload)
+      quickModelCompatibilityModes: resolveCompatibilityModesForModel(quickModel, metadata)
     };
     run.bootstrap.runtime = next;
     return next;

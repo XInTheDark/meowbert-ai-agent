@@ -13,19 +13,25 @@ function fixture() {
   });
   state.bootstrap.runtime.requestedContextManagementVersion = "v2";
   state.bootstrap.runtime.modelPayload = { reasoning: { effort: "high" }, max_output_tokens: 100_000 };
+  state.bootstrap.runtime.environmentPayload = { responses: state.bootstrap.runtime.modelPayload, persistent_runtime: { enabled: true } };
   return { state, activate: createModelFallbackActivator(() => state) };
 }
 
 describe("model fallback route", () => {
-  it("resolves a target's metadata and workspace defaults, dropping original preset fields", async () => {
+  it("resolves each target's metadata while preserving the active request and environment payloads", async () => {
     const { state, activate } = fixture();
+    const original = structuredClone(state.bootstrap.runtime);
     const route = await activate("primary");
     expect(route).toMatchObject({ model: "backup", quickModel: "backup", modelType: "claude", maxContextTokens: 200_000,
-      compatibilityModes: ["disablePdfFile"], modelPayload: { temperature: 0.4 },
+      compatibilityModes: ["disablePdfFile"], modelPayload: original.modelPayload,
       providerKind: "platform", providerBaseUrl: state.provider.baseUrl });
-    expect(route?.modelPayload).not.toHaveProperty("reasoning");
-    expect(route?.modelPayload).not.toHaveProperty("max_output_tokens");
+    expect(route?.modelPayload).toEqual(original.modelPayload);
+    expect(route?.environmentPayload).toEqual(original.environmentPayload);
     expect(state.bootstrap.runtime).toBe(route);
+    const last = await activate("backup");
+    expect(last).toMatchObject({ model: "last", modelType: "google", maxContextTokens: 1_000_000 });
+    expect(last?.modelPayload).toEqual(original.modelPayload);
+    expect(last?.environmentPayload).toEqual(original.environmentPayload);
   });
 
   it("uses only the original ordered list, skips v1, and stops after each candidate once", async () => {
