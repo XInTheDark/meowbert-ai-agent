@@ -69,17 +69,26 @@ export async function consumeCommandInterruptForStep(runId: string, step: number
   return requestedStep === step;
 }
 
-async function allocateContinuationRun(job: TaskExecutionJob, payload: TaskExecutionJob): Promise<number> {
+async function allocateContinuationRun(job: TaskExecutionJob, payload: TaskExecutionJob, onlyIfInterrupted: boolean): Promise<number> {
   return withTransaction(async (client) => {
-    const taskLockRes = await client.query<{ id: string; execution_target?: TaskExecutionTarget; initiator_user_id: string | null }>(
-      `SELECT id, execution_target, initiator_user_id
+    const taskLockRes = await client.query<{ id: string; execution_target?: TaskExecutionTarget; initiator_user_id: string | null;
+      cancellation_requested: boolean; resume_after_interrupt: boolean; current_run_owns_task: boolean }>(
+      `SELECT id, execution_target, initiator_user_id, cancellation_requested, resume_after_interrupt,
+              EXISTS (SELECT 1 FROM task_runs current_run WHERE current_run.id = $2
+                       AND current_run.task_id = tasks.id AND current_run.ended_at IS NULL
+                       AND NOT EXISTS (SELECT 1 FROM task_runs newer WHERE newer.task_id = tasks.id
+                                        AND newer.attempt_no > current_run.attempt_no)) AS current_run_owns_task
          FROM tasks
         WHERE id = $1
         FOR UPDATE`,
-      [job.taskId]
+      [job.taskId, job.runId]
     );
     if ((taskLockRes.rowCount ?? 0) === 0) {
       throw new Error(`Task not found: ${job.taskId}`);
+    }
+    const task = taskLockRes.rows[0];
+    if (onlyIfInterrupted && (!task.cancellation_requested || !task.resume_after_interrupt || !task.current_run_owns_task)) {
+      throw new Error("TASK_CANCELLED");
     }
     payload.executionTarget = taskLockRes.rows[0].execution_target ?? job.executionTarget;
 
@@ -153,6 +162,7 @@ export async function enqueueContinuationRun(
     selectionUserId?: string | null;
     mode?: TaskExecutionJob["mode"];
     toolOptionsOverride?: TaskExecutionJob["toolOptionsOverride"] | null;
+    onlyIfInterrupted?: boolean;
   } = {}
 ): Promise<{ runId: string; attemptNo: number }> {
   const runId = randomUUID();
@@ -165,7 +175,7 @@ export async function enqueueContinuationRun(
     selectionUserId: overrides.selectionUserId ?? job.selectionUserId,
     toolOptionsOverride: resolveContinuationToolOptions(job, overrides)
   };
-  const attemptNo = await allocateContinuationRun(job, payload);
+  const attemptNo = await allocateContinuationRun(job, payload, overrides.onlyIfInterrupted === true);
 
   await enqueueContinuationJob(jobId, payload);
   await emitTaskEvent(job.taskId, "status", { status: "queued" });

@@ -36,3 +36,30 @@ it("keeps a cloud continuation in the existing queue with its tool overrides", a
     executionTarget: { kind: "cloud" }, toolOptionsOverride: job.toolOptionsOverride }), expect.anything());
   expect(insertTaskRunDispatchWithClient).not.toHaveBeenCalled();
 });
+
+it.each([
+  { cancellation_requested: true, resume_after_interrupt: false, current_run_owns_task: true },
+  { cancellation_requested: true, resume_after_interrupt: true, current_run_owns_task: false }
+])("honors a later Stop or supersession under the interruption-allocation lock: %j", async (intent) => {
+  const task = { id: "task", status: "running", ...intent };
+  const query = vi.fn(async (sql: string) => {
+    expect(sql).toContain("FOR UPDATE");
+    return { rowCount: 1, rows: [task] };
+  });
+  vi.mocked(withTransaction).mockImplementation(async (run) => run({ query } as never));
+  await expect(enqueueContinuationRun(job, { onlyIfInterrupted: true })).rejects.toThrow("TASK_CANCELLED");
+  expect(query).toHaveBeenCalledTimes(1);
+  expect(task).toEqual({ id: "task", status: "running", ...intent });
+  expect(taskQueue.add).not.toHaveBeenCalled();
+  expect(insertTaskRunDispatchWithClient).not.toHaveBeenCalled();
+});
+
+it("resumes a still-requested interruption after checking it under the task lock", async () => {
+  const query = vi.fn(async (sql: string) => ({ rowCount: 1, rows: sql.includes("FROM tasks")
+    ? [{ id: "task", cancellation_requested: true, resume_after_interrupt: true, current_run_owns_task: true }]
+    : [{ attempt_no: 2 }] }));
+  vi.mocked(withTransaction).mockImplementation(async (run) => run({ query } as never));
+  const result = await enqueueContinuationRun(job, { onlyIfInterrupted: true });
+  expect(result.attemptNo).toBe(2);
+  expect(taskQueue.add).toHaveBeenCalledTimes(1);
+});

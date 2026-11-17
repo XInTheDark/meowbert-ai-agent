@@ -12,7 +12,7 @@ vi.mock("../runtime/events.js", () => ({
 }));
 
 vi.mock("../agent-db/index.js", () => ({
-  consumeResumeAfterInterrupt: vi.fn(),
+  isResumeAfterInterruptRequested: vi.fn(),
   enqueueContinuationRun: vi.fn(),
   isTaskRunLatestAttempt: vi.fn(),
   isCancellationRequested: vi.fn(),
@@ -28,7 +28,7 @@ vi.mock("../task-schedules/service.js", () => ({
 
 import { emitTaskEvent } from "../runtime/events.js";
 import {
-  consumeResumeAfterInterrupt,
+  isResumeAfterInterruptRequested,
   enqueueContinuationRun,
   isTaskRunLatestAttempt,
   isCancellationRequested,
@@ -42,7 +42,7 @@ import { createTestRunControl } from "../run-host/test-run-environment.test-fixt
 describe("task cancellation handling", () => {
   const mockedEmitTaskEvent = vi.mocked(emitTaskEvent);
   const mockedEnqueueContinuationRun = vi.mocked(enqueueContinuationRun);
-  const mockedConsumeResumeAfterInterrupt = vi.mocked(consumeResumeAfterInterrupt);
+  const mockedIsResumeAfterInterruptRequested = vi.mocked(isResumeAfterInterruptRequested);
   const mockedIsTaskRunLatestAttempt = vi.mocked(isTaskRunLatestAttempt);
   const mockedIsCancellationRequested = vi.mocked(isCancellationRequested);
   const mockedRecordRunCompletion = vi.mocked(recordRunCompletion);
@@ -51,7 +51,7 @@ describe("task cancellation handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedSetTaskStatusForRun.mockResolvedValue(true);
-    mockedConsumeResumeAfterInterrupt.mockResolvedValue(false);
+    mockedIsResumeAfterInterruptRequested.mockResolvedValue(false);
     mockedIsTaskRunLatestAttempt.mockResolvedValue(true);
     mockedIsCancellationRequested.mockResolvedValue(false);
   });

@@ -12,6 +12,7 @@ import { withTransaction } from "../../lib/db.js";
 import { taskQueue } from "../../lib/queue.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { insertTaskRunDispatchWithClient } from "./task-run-dispatch.js";
+import { handleCancelledRun } from "../run-host/run-cancellation.js";
 
 const RETRY_ELIGIBLE_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
   "queued",
@@ -249,8 +250,8 @@ export async function scheduleTaskRunRetry(input: {
       return { status: "noop", errorMessage } as const;
     }
 
-    const taskRes = await client.query<{ status: TaskStatus }>(
-      `SELECT status
+    const taskRes = await client.query<{ status: TaskStatus; cancellation_requested: boolean; resume_after_interrupt: boolean }>(
+      `SELECT status, cancellation_requested, resume_after_interrupt
          FROM tasks
         WHERE id = $1
         FOR UPDATE`,
@@ -269,8 +270,11 @@ export async function scheduleTaskRunRetry(input: {
       return { status: "noop", errorMessage } as const;
     }
 
-    const taskStatus = taskRes.rows[0].status;
-    if (!RETRY_ELIGIBLE_TASK_STATUSES.has(taskStatus)) {
+    const task = taskRes.rows[0];
+    if (task.cancellation_requested || task.resume_after_interrupt) {
+      return { status: "cancelled", errorMessage } as const;
+    }
+    if (!RETRY_ELIGIBLE_TASK_STATUSES.has(task.status)) {
       await client.query(
         `UPDATE task_runs
             SET ended_at = now(),
@@ -358,8 +362,6 @@ export async function scheduleTaskRunRetry(input: {
     await client.query(
       `UPDATE tasks
           SET status = 'queued',
-              cancellation_requested = false,
-              resume_after_interrupt = false,
               updated_at = now()
         WHERE id = $1`,
       [input.job.taskId]
@@ -407,6 +409,10 @@ export async function scheduleTaskRunRetry(input: {
     } as const;
   });
 
+  if (prepared.status === "cancelled") {
+    await handleCancelledRun(input.job);
+    return { status: "noop", errorMessage };
+  }
   if (prepared.status !== "scheduled") {
     return prepared;
   }

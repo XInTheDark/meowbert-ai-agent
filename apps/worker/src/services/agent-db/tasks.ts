@@ -55,16 +55,11 @@ export async function isCancellationRequested(taskId: string): Promise<boolean> 
   return result.rows[0]?.cancellation_requested ?? false;
 }
 
-export async function consumeResumeAfterInterrupt(taskId: string): Promise<boolean> {
-  const result = await query<{ id: string }>(
-    `UPDATE tasks
-        SET resume_after_interrupt = false,
-            updated_at = now()
-      WHERE id = $1
-        AND resume_after_interrupt = true
-      RETURNING id`,
+export async function isResumeAfterInterruptRequested(taskId: string): Promise<boolean> {
+  const result = await query<{ resume_after_interrupt: boolean }>(
+    `SELECT resume_after_interrupt FROM tasks WHERE id = $1`,
     [taskId]
   );
 
-  return (result.rowCount ?? 0) > 0;
+  return result.rows[0]?.resume_after_interrupt === true;
 }

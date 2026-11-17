@@ -18,11 +18,13 @@ vi.mock("../runtime/events.js", () => ({
 vi.mock("./task-run-dispatch.js", () => ({
   insertTaskRunDispatchWithClient: vi.fn()
 }));
+vi.mock("../run-host/run-cancellation.js", () => ({ handleCancelledRun: vi.fn() }));
 
 import { withTransaction } from "../../lib/db.js";
 import { taskQueue } from "../../lib/queue.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { insertTaskRunDispatchWithClient } from "./task-run-dispatch.js";
+import { handleCancelledRun } from "../run-host/run-cancellation.js";
 import {
   buildTaskRunRetryNotice,
   planTaskRunRetry,
@@ -123,6 +125,37 @@ describe("scheduleTaskRunRetry", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedQueueAdd.mockResolvedValue(undefined as never);
+  });
+
+  it.each([
+    { cancellation_requested: true, resume_after_interrupt: false },
+    { cancellation_requested: true, resume_after_interrupt: true },
+    { cancellation_requested: false, resume_after_interrupt: true }
+  ])("preserves pending cancellation or interruption intent: %j", async (intent) => {
+    const task = { status: "running", ...intent };
+    const queryMock = vi.fn()
+      .mockResolvedValueOnce(buildRowsResult([{
+        task_id: "task-1", attempt_no: 1, run_kind: "default", ended_at: null,
+        retry_sequence_no: 0, max_task_run_retries: 5
+      }]))
+      .mockImplementationOnce(async (sql: string) => {
+        expect(sql).toContain("FOR UPDATE");
+        return buildRowsResult([task]);
+      });
+    mockedWithTransaction.mockImplementationOnce(async (callback) => callback({ query: queryMock } as never));
+
+    const result = await scheduleTaskRunRetry({
+      job: { taskId: "task-1", runId: "run-1", workspaceId: "workspace-1", environmentId: "environment-1", triggerSource: "web" },
+      error: new Error("ordinary executor failure")
+    });
+
+    expect(result.status).toBe("noop");
+    expect(task).toEqual({ status: "running", ...intent });
+    expect(queryMock).toHaveBeenCalledTimes(2);
+    expect(mockedQueueAdd).not.toHaveBeenCalled();
+    expect(mockedInsertTaskRunDispatchWithClient).not.toHaveBeenCalled();
+    expect(mockedEmitTaskEvent).not.toHaveBeenCalled();
+    expect(handleCancelledRun).toHaveBeenCalledWith(expect.objectContaining({ taskId: "task-1", runId: "run-1" }));
   });
 
   it("records the failed run as retrying, schedules the next run, and emits retry metadata", async () => {

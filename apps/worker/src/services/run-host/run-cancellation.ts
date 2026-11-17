@@ -2,7 +2,7 @@ import type { TaskExecutionJob } from "@meowbert/shared";
 import { query } from "../../lib/db.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import {
-  consumeResumeAfterInterrupt,
+  isResumeAfterInterruptRequested,
   enqueueContinuationRun,
   isTaskRunLatestAttempt,
   recordRunCompletion,
@@ -16,7 +16,7 @@ export async function handleCancelledRun(job: TaskExecutionJob): Promise<void> {
   // An interrupt that resumes must never pass through "cancelled": that status is reported to
   // Project Master listeners, which would treat the still-active task as cancelled.
   const resuming = (await isTaskRunLatestAttempt(job.taskId, job.runId))
-    && (await consumeResumeAfterInterrupt(job.taskId));
+    && (await isResumeAfterInterruptRequested(job.taskId));
   if (resuming) {
     await resumeInterruptedRun(job);
     return;
@@ -38,7 +38,8 @@ async function resumeInterruptedRun(job: TaskExecutionJob): Promise<void> {
       mode: resumeMode,
       branchMessageId: resumeBranchMessageId,
       selectionUserId: resumeSelectionUserId,
-      toolOptionsOverride: null
+      toolOptionsOverride: null,
+      onlyIfInterrupted: true
     });
     await emitTaskEvent(job.taskId, "log", {
       message: "Task interrupted by a new message. Continuing with latest context.",
@@ -49,6 +50,7 @@ async function resumeInterruptedRun(job: TaskExecutionJob): Promise<void> {
     });
   } catch (error) {
     await setTaskStatusForRun(job.taskId, job.runId, "cancelled");
+    if (error instanceof Error && error.message === "TASK_CANCELLED") return;
     await query(
       `UPDATE tasks
           SET cancellation_requested = false,

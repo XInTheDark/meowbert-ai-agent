@@ -9,7 +9,7 @@ vi.mock("../runtime/events.js", () => ({
 }));
 
 vi.mock("../agent-db/index.js", () => ({
-  consumeResumeAfterInterrupt: vi.fn(),
+  isResumeAfterInterruptRequested: vi.fn(),
   enqueueContinuationRun: vi.fn(),
   isTaskRunLatestAttempt: vi.fn(),
   isCancellationRequested: vi.fn(),
@@ -24,8 +24,9 @@ vi.mock("../task-schedules/service.js", () => ({
 }));
 
 import { emitTaskEvent } from "../runtime/events.js";
+import { query } from "../../lib/db.js";
 import {
-  consumeResumeAfterInterrupt,
+  isResumeAfterInterruptRequested,
   enqueueContinuationRun,
   isTaskRunLatestAttempt,
   isCancellationRequested,
@@ -38,7 +39,7 @@ import { handleCancelledRun } from "./run-cancellation.js";
 describe("settling cancelled runs", () => {
   const mockedEmitTaskEvent = vi.mocked(emitTaskEvent);
   const mockedEnqueueContinuationRun = vi.mocked(enqueueContinuationRun);
-  const mockedConsumeResumeAfterInterrupt = vi.mocked(consumeResumeAfterInterrupt);
+  const mockedIsResumeAfterInterruptRequested = vi.mocked(isResumeAfterInterruptRequested);
   const mockedIsTaskRunLatestAttempt = vi.mocked(isTaskRunLatestAttempt);
   const mockedIsCancellationRequested = vi.mocked(isCancellationRequested);
   const mockedRecordRunCompletion = vi.mocked(recordRunCompletion);
@@ -47,7 +48,7 @@ describe("settling cancelled runs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedSetTaskStatusForRun.mockResolvedValue(true);
-    mockedConsumeResumeAfterInterrupt.mockResolvedValue(false);
+    mockedIsResumeAfterInterruptRequested.mockResolvedValue(false);
     mockedIsTaskRunLatestAttempt.mockResolvedValue(true);
     mockedIsCancellationRequested.mockResolvedValue(false);
   });
@@ -67,7 +68,7 @@ describe("settling cancelled runs", () => {
 
     expect(mockedSetTaskStatusForRun).toHaveBeenCalledWith("task-1", "run-stale", "cancelled");
     expect(mockedRecordRunCompletion).toHaveBeenCalledWith("run-stale", "cancelled");
-    expect(mockedConsumeResumeAfterInterrupt).not.toHaveBeenCalled();
+    expect(mockedIsResumeAfterInterruptRequested).not.toHaveBeenCalled();
     expect(mockedEmitTaskEvent).not.toHaveBeenCalled();
   });
 
@@ -82,7 +83,7 @@ describe("settling cancelled runs", () => {
     };
 
     beforeEach(() => {
-      mockedConsumeResumeAfterInterrupt.mockResolvedValue(true);
+      mockedIsResumeAfterInterruptRequested.mockResolvedValue(true);
       mockedEnqueueContinuationRun.mockResolvedValue({ runId: "run-2", attemptNo: 2 });
       vi.mocked(resolveContinuationModeForInterruptedTask).mockResolvedValue("default");
     });
@@ -91,8 +92,17 @@ describe("settling cancelled runs", () => {
       await handleCancelledRun(job);
 
       expect(mockedEnqueueContinuationRun).toHaveBeenCalledTimes(1);
+      expect(mockedEnqueueContinuationRun).toHaveBeenCalledWith(job, expect.objectContaining({ onlyIfInterrupted: true }));
       expect(mockedSetTaskStatusForRun).not.toHaveBeenCalled();
       expect(mockedRecordRunCompletion).toHaveBeenCalledWith("run-1", "cancelled");
+    });
+
+    it("settles a Stop arriving before continuation allocation without clearing its intent", async () => {
+      mockedEnqueueContinuationRun.mockRejectedValueOnce(new Error("TASK_CANCELLED"));
+      await handleCancelledRun(job);
+      expect(mockedSetTaskStatusForRun).toHaveBeenCalledWith("task-1", "run-1", "cancelled");
+      expect(mockedRecordRunCompletion).toHaveBeenCalledWith("run-1", "cancelled");
+      expect(query).not.toHaveBeenCalled();
     });
 
     it("settles the task as cancelled when the continuation cannot be queued", async () => {
