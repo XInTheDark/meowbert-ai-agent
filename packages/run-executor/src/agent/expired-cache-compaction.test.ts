@@ -3,14 +3,10 @@ import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { AgentExecutionContext } from "./execution-types.js";
 
 vi.mock("./context-window.js", () => ({ resetV2ContextWindow: vi.fn(async () => undefined) }));
-vi.mock("../context-management-v2/window.js", () => ({ recordContextItems: vi.fn(async () => undefined) }));
 
 const { resetV2ContextWindow } = await import("./context-window.js");
-const { recordContextItems } = await import("../context-management-v2/window.js");
 const {
-  beginExpiredCacheNotesTurn,
-  continueExpiredCacheNotesTurn,
-  isNotesOnlyTurn,
+  clearExpiredCacheWindow,
   shouldCompactExpiredCache
 } = await import("./expired-cache-compaction.js");
 
@@ -47,7 +43,6 @@ function execution(input: { mode?: string; readAt?: string | null; tokens?: numb
 describe("expired cache compaction", () => {
   beforeEach(() => {
     vi.mocked(resetV2ContextWindow).mockClear();
-    vi.mocked(recordContextItems).mockClear();
   });
 
   it("waits until the cache lifetime has passed", () => {
@@ -70,23 +65,10 @@ describe("expired cache compaction", () => {
     expect(shouldCompactExpiredCache(execution(input), START_MS + 2 * HOUR_MS)).toBe(false);
   });
 
-  it("takes notes, then clears the window with the user's messages and returns the steps", async () => {
+  it("clears the window without sending the expired conversation again", async () => {
     const run = execution();
-    await beginExpiredCacheNotesTurn(run);
-    expect(run.maxRunSteps).toBe(58);
-    expect(isNotesOnlyTurn(run)).toBe(true);
-    expect(shouldCompactExpiredCache(run, START_MS + 2 * HOUR_MS)).toBe(false);
-    const note = run.state.dispatchState.conversationItems.at(-1);
-    expect(note).toMatchObject({ role: "user", content: expect.stringContaining("continuity.md") });
-    // Recorded before the notes turn, so an interrupted run replays it ahead of the notes activity.
-    expect(vi.mocked(recordContextItems).mock.calls.map((call) => call[2])).toEqual([[note]]);
-
-    await continueExpiredCacheNotesTurn(run, true);
-    expect(resetV2ContextWindow).not.toHaveBeenCalled();
-    await continueExpiredCacheNotesTurn(run, false);
-    expect(resetV2ContextWindow).toHaveBeenCalledWith(run, "cache_expired", [{ role: "user", content: "Build it" }]);
-    expect(recordContextItems).toHaveBeenCalledTimes(1);
-    expect(isNotesOnlyTurn(run)).toBe(false);
-    expect(run.maxRunSteps).toBe(52);
+    await clearExpiredCacheWindow(run);
+    expect(resetV2ContextWindow).toHaveBeenCalledWith(run, "cache_expired");
+    expect(run.maxRunSteps).toBe(50);
   });
 });

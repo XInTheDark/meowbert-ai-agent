@@ -51,7 +51,8 @@ vi.mock("@meowbert/run-executor/agent/model-request-recovery", () => ({
   persistModelRequestRecovery: vi.fn()
 }));
 
-vi.mock("@meowbert/run-executor/agent/context-window", () => ({
+vi.mock("@meowbert/run-executor/agent/context-window", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@meowbert/run-executor/agent/context-window")>(),
   resetV2ContextWindow: vi.fn()
 }));
 
@@ -301,42 +302,31 @@ describe("runAgentStepLoop", () => {
     }
   });
 
-  it.each([false, true])("reserves checkpoint steps with one work step left (uses full allowance: %s)", async (fullAllowance) => {
+  it("clears an expired window before the request instead of re-sending it", async () => {
     const execution = createExecutionContext();
-    execution.maxRunSteps = 1;
     execution.prepared.snapshot.idle_compaction_mode = "full";
     execution.prepared.snapshot.task.prompt_cache_read_at = new Date(0).toISOString();
     execution.prepared.snapshot.platform_model_metadata = { default: { idle_compaction_min_tokens: 1 } };
     execution.state.contextManagement = { version: "v2", taskId: "task-1", windowId: "w1", contextNodeId: "n1", recoveryPhase: "normal" };
     execution.state.dispatchState.conversationItems = [{ role: "user", content: "Continue the task" }];
-    const notes = fullAllowance
-      ? Array(8).fill("notes_write_file")
-      : ["notes_list_files_by_prefix", "notes_read_file", "notes_write_file", null];
-    const dispatched = { sawToolCall: true, sawFunctionToolCall: true, finalResponse: null,
-      waitRequest: null, stopRequest: null, workflowPause: null };
-    for (const [index, name] of notes.entries()) {
-      mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: name
-        ? [{ type: "function_call", name, call_id: `notes-${index}`, arguments: "{}" }] : [], output_text: "" });
-      mockedDispatchResponseOutput.mockImplementationOnce(async (_output, ctx) => {
-        expect(ctx.notesOnly).toBe(true);
-        expect(mockedResetV2ContextWindow).not.toHaveBeenCalled();
-        return dispatched;
-      });
-    }
+    mockedResetV2ContextWindow.mockImplementationOnce(async (run) => {
+      run.state.dispatchState.conversationItems = [{ role: "user", content: "Continue the task" }];
+    });
     const finalResponse = { response: "Work resumed.", notify: true };
-    mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: [], output_text: "" });
+    mockedCreateModelResponseWithRetry.mockImplementationOnce(async () => {
+      expect(mockedResetV2ContextWindow).toHaveBeenCalledWith(execution, "cache_expired");
+      return { output: [], output_text: "" };
+    });
     mockedDispatchResponseOutput.mockImplementationOnce(async (_output, ctx) => {
       expect(ctx.notesOnly).toBe(false);
-      return { ...dispatched, finalResponse };
+      return { sawToolCall: true, sawFunctionToolCall: true, finalResponse,
+        waitRequest: null, stopRequest: null, workflowPause: null };
     });
 
     await runAgentStepLoop(execution);
 
-    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledTimes(notes.length + 1);
+    expect(mockedCreateModelResponseWithRetry).toHaveBeenCalledOnce();
     expect(mockedResetV2ContextWindow).toHaveBeenCalledOnce();
-    expect(execution.state.expiredCacheNotesTurn).toBeNull();
-    expect(execution.maxRunSteps).toBe(notes.length + 1);
-    expect(execution.runTiming.reachedMaxRunSteps).toBe(false);
     expect(execution.state.finalResponseFromTool).toEqual(finalResponse);
   });
 
@@ -813,6 +803,52 @@ describe("runAgentStepLoop", () => {
       { role: "user", content: "request" },
       { type: "function_call", call_id: "call-1", name: "run_shell", arguments: "{}" },
       { type: "function_call_output", call_id: "call-1", output: "stored result" }
+    ]);
+  });
+
+  it("keeps a swarm lane's inherited tool call paired with its output in the recovery window", async () => {
+    const execution = createExecutionContext();
+    execution.prepared.snapshot.messages = [];
+    execution.state.contextManagement = {
+      version: "v2",
+      taskId: "lane-1",
+      firstWindowId: "window-1",
+      windowId: "window-1",
+      contextNodeId: "node-1",
+      previousWindowId: null,
+      branchLeafMessageId: null,
+      reminderSent: false,
+      pendingReset: false,
+      recoveryPhase: "normal"
+    };
+    const inherited = [
+      { role: "user" as const, content: "parent request" },
+      { type: "function_call" as const, call_id: "split-1", name: "split", arguments: "{}" },
+      { type: "function_call_output" as const, call_id: "split-1", output: "lane assignment" }
+    ];
+    execution.state.dispatchState.conversationItems = [...inherited, { role: "system", content: "rejected item" }];
+    mockedPersistModelRequestRecovery.mockImplementationOnce(async (input) => {
+      input.conversationItems[3] = { role: "system", content: "recovery notice" };
+      return true;
+    });
+    mockedCreateModelResponseWithRetry.mockImplementationOnce(async (_taskId, input) => {
+      expect(await input.onConsecutiveErrorRecovery?.("400 Upstream rejected the request", { rejectedItemIndex: null })).toBe(true);
+      return { output: [], output_text: "" } as never;
+    });
+    mockedDispatchResponseOutput.mockResolvedValueOnce({
+      sawToolCall: false,
+      sawFunctionToolCall: false,
+      finalResponse: { response: "Done.", notify: true },
+      waitRequest: null,
+      stopRequest: null,
+      workflowPause: null
+    });
+
+    await runAgentStepLoop(execution as never);
+
+    expect(mockedResetV2ContextWindow).toHaveBeenCalledWith(execution, "model_request_recovery", [
+      ...inherited,
+      { role: "system", content: "recovery notice" }
     ]);
   });
 

@@ -16,8 +16,9 @@ export function IdleCompactionModeField(props: IdleCompactionModeFieldProps) {
     <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
       <strong>Idle compaction for all tasks</strong>
       <p className="muted-text" style={{ marginTop: 0 }}>
-        Standard compacts idle top-level tasks while their prompt cache is still warm, like the Project Master. Full also compacts
-        during a run when its next request comes after the cache expired, such as after a long tool call, a swarm wait or a retry.
+        Standard compacts idle top-level tasks while their prompt cache is still warm, like the Project Master. Full also clears
+        the context window during a run when its next request comes after the cache expired, such as after a long tool call, a
+        swarm wait or a retry, so the expired conversation is not sent again.
         Models with idle_compaction set to false in Model metadata are skipped.
       </p>
       <select

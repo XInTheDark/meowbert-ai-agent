@@ -12,6 +12,13 @@ import type { AgentExecutionContext } from "./execution-types.js";
 import { resetWindowRequestSetup } from "./window-request.js";
 import { persistRuntimeNotices } from "./runtime-notices.js";
 
+// The conversation without the developer items a window opens with. A swarm lane's window has none:
+// it starts with its parent's history, so the setup cannot be assumed to be a fixed number of items.
+export function withoutWindowSetupItems(items: ResponseInputItem[]): ResponseInputItem[] {
+  const firstConversationIndex = items.findIndex((item) => (item as { role?: string }).role !== "developer");
+  return firstConversationIndex < 0 ? [] : items.slice(firstConversationIndex);
+}
+
 // Unless the caller chooses seeds, the new window keeps the user's recent messages: a forced rollover
 // can arrive before the agent saved a note, and the current request must survive it.
 export async function resetV2ContextWindow(

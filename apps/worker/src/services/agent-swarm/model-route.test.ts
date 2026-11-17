@@ -59,12 +59,16 @@ describe("lane model picks", () => {
     expect(applyLaneModelRoute(runtime, null, [router], {})).toBe(runtime);
   });
 
-  it("drops the parent's reasoning items from a lane on a different model", () => {
+  it("drops the parent's encrypted reasoning and compaction items from a lane on a different model", () => {
     const seed = {
-      items: [{ role: "user" as const, content: "Price it." }, { type: "reasoning", id: "rs", summary: [] }] as never,
+      items: [
+        { type: "compaction", id: "cmp", encrypted_content: "parent-provider-only" },
+        { role: "user" as const, content: "Price it." },
+        { type: "reasoning", id: "rs", summary: [] }
+      ] as never,
       capabilities: { runtime: { model: "gpt-strong" } } as never
     };
-    expect(inheritedItems(seed, "gpt-strong")).toHaveLength(2);
+    expect(inheritedItems(seed, "gpt-strong")).toHaveLength(3);
     expect(inheritedItems(seed, "claude-other")).toEqual([{ role: "user", content: "Price it." }]);
   });
 });

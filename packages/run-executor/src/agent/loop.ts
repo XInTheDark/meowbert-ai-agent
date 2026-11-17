@@ -14,7 +14,7 @@ import {
 import { checkpointAndTrimContext, persistContextCheckpoint } from "../context-management/index.js";
 import { getResponseTotalTokens } from "../context-management-v2/token-usage.js";
 import { maybeAdvanceV2ContextWindow, prepareV2ContextWindowUsage } from "./context-window-budget.js";
-import { resetV2ContextWindow } from "./context-window.js";
+import { resetV2ContextWindow, withoutWindowSetupItems } from "./context-window.js";
 import { applyPendingContextEdits } from "./context-edits.js";
 import { createModelResponseWithRetry, type ModelToolChoice } from "./model.js";
 import { resolveModelErrorAction } from "./model-error-actions.js";
@@ -24,8 +24,7 @@ import { dispatchResponseOutput, type ToolDispatchContext } from "../agent-tool-
 import { isContextManagementV2Tool } from "../agent-tool-dispatch/handlers/context-management-v2.js";
 import { isIdleCompactionRun } from "./idle-compaction.js";
 import {
-  beginExpiredCacheNotesTurn,
-  continueExpiredCacheNotesTurn,
+  clearExpiredCacheWindow,
   isNotesOnlyTurn,
   shouldCompactExpiredCache
 } from "./expired-cache-compaction.js";
@@ -463,7 +462,7 @@ async function requestModelTurn(input: {
             await resetV2ContextWindow(
               execution,
               "model_request_recovery",
-              execution.state.dispatchState.conversationItems.slice(2)
+              withoutWindowSetupItems(execution.state.dispatchState.conversationItems)
             );
           }
           recoveredItemCount += 1;
@@ -842,10 +841,6 @@ async function processModelTurnResult(
   );
   await execution.prepared.features.afterModelTurn(execution, turn.weightedTokens);
   if (isIdleCompactionRun(execution.job)) return continueIdleCompaction(execution, response);
-  if (execution.state.expiredCacheNotesTurn) {
-    await continueExpiredCacheNotesTurn(execution, wroteNotes(response));
-    return "continue";
-  }
   if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
   if (execution.state.dispatchState.pendingContextV2Reset) {
     execution.state.dispatchState.pendingContextEdits = [];
@@ -939,9 +934,9 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
     return "break";
   }
 
-  if (shouldCompactExpiredCache(execution, Date.now())) await beginExpiredCacheNotesTurn(execution);
+  if (shouldCompactExpiredCache(execution, Date.now())) await clearExpiredCacheWindow(execution);
   const availability = resolveStepAvailability(execution, step);
-  // A notes turn takes no new work: inboxes wait for the work to resume, and it has no answer to wind down to.
+  // An idle notes turn takes no new work: inboxes wait for the work to resume, and it has no answer to wind down to.
   if (!isNotesOnlyTurn(execution)) {
     await execution.prepared.features.beforeStep(execution);
     maybeAppendWindingDownNotice(execution, availability);

@@ -13,12 +13,15 @@ export function findLaneForkOutput(messages: TaskMessageRow[]): ResponseInputIte
   return null;
 }
 
+// Reasoning and compaction items are encrypted for the provider that produced them.
+const PROVIDER_ENCRYPTED_ITEM_TYPES = new Set(["reasoning", "compaction"]);
+
 // A lane on a different model than its parent (a router pick) inherits the messages and tool calls but
-// not the parent's reasoning items, which only its own provider can read. It shares no cache anyway.
+// not the parent's encrypted items, which only the parent's provider can read. It shares no cache anyway.
 export function inheritedItems(seed: Pick<ForkSeed, "items" | "capabilities">, runtimeModel: string): ResponseInputItem[] {
   const items = structuredClone(seed.items);
   if (seed.capabilities.runtime.model === runtimeModel) return items;
-  return items.filter((item) => (item as { type?: string }).type !== "reasoning");
+  return items.filter((item) => !PROVIDER_ENCRYPTED_ITEM_TYPES.has(String((item as { type?: string }).type)));
 }
 
 // Forked lanes never go through normal run setup: every run, resumes included, uses the seed's

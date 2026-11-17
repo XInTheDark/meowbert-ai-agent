@@ -76,15 +76,6 @@ export interface AgentExecutionState {
   stepCount: number;
   // When this run's latest model request started, which is when the prompt cache was last read.
   lastModelRequestStartedAtMs?: number;
-  // Set while the agent saves notes before a context window whose cache expired is cleared.
-  expiredCacheNotesTurn?: ExpiredCacheNotesTurn | null;
-}
-
-export interface ExpiredCacheNotesTurn {
-  note: ResponseInputItem;
-  // What the new window starts with: the user's recent messages, taken before the note.
-  seedItems: ResponseInputItem[];
-  stepsTaken: number;
 }
 
 export interface AgentExecutionContext {
