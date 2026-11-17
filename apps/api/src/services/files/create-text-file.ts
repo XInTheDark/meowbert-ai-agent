@@ -1,14 +1,6 @@
-import fsPromises from "node:fs/promises";
-import path from "node:path";
-import { ensureSandboxWritablePath } from "@meowbert/shared";
-import { ensureDirectoryWithinRoot } from "@meowbert/shared/server-security";
-import {
-  assertPathInsideRoot,
-  claimAvailableFilePath,
-  sanitizeUploadFilename,
-  toIsoTimestamp,
-  toWebPath
-} from "./file-paths.js";
+import { Readable } from "node:stream";
+import { resolveStorageDirectory } from "./file-paths.js";
+import { saveUploadedFile } from "./save-uploaded-file.js";
 
 export async function createTextFileWithinRoot(input: {
   rootPath: string;
@@ -22,30 +14,16 @@ export async function createTextFileWithinRoot(input: {
   createdAt: string | null;
   modifiedAt: string | null;
 }> {
-  const targetDirectory = await ensureDirectoryWithinRoot({
-    rootPath: input.rootPath,
-    requestedPath: input.requestedDirectoryPath,
+  const saved = await saveUploadedFile({
+    targetDirectory: await resolveStorageDirectory(input.rootPath, input.requestedDirectoryPath),
+    filename: input.name,
+    file: Readable.from([Buffer.from(input.content, "utf8")]),
+    limitBytes: Number.MAX_SAFE_INTEGER,
+    writable: true,
     createDirectories: true
   });
-
-  const safeFilename = sanitizeUploadFilename(input.name);
-  const preferredPath = path.resolve(targetDirectory.absolutePath, safeFilename);
-  assertPathInsideRoot(targetDirectory.rootRealPath, preferredPath);
-  const destinationPath = await claimAvailableFilePath(preferredPath);
-  const readableRootPath = await fsPromises.realpath(input.rootPath).catch(() => path.resolve(input.rootPath));
-
-  await fsPromises.writeFile(destinationPath, input.content, "utf8");
-  await ensureSandboxWritablePath({
-    rootPath: readableRootPath,
-    targetPath: destinationPath
-  });
-  const savedStats = await fsPromises.stat(destinationPath);
-
+  const { name, relativePath, sizeBytes, createdAt, modifiedAt } = saved.file;
   return {
-    name: path.basename(destinationPath),
-    relativePath: toWebPath(path.relative(targetDirectory.rootRealPath, destinationPath)),
-    sizeBytes: savedStats.size,
-    createdAt: toIsoTimestamp(savedStats.birthtime),
-    modifiedAt: toIsoTimestamp(savedStats.mtime)
+    name, relativePath, sizeBytes, createdAt, modifiedAt
   };
 }

@@ -1,12 +1,7 @@
-import fs from "node:fs";
-import fsPromises from "node:fs/promises";
-import path from "node:path";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { pipeline } from "node:stream/promises";
-import { ensureSandboxWritablePath } from "@meowbert/shared";
-import { ensureDirectoryWithinRoot } from "@meowbert/shared/server-security";
-import { claimAvailableFilePath, sanitizeUploadFilename, toIsoTimestamp } from "../files/file-paths.js";
+import { resolveStorageDirectory } from "../files/file-paths.js";
+import { saveUploadedFile } from "../files/save-uploaded-file.js";
 import { downloadWorkspaceSourceFile } from "./source-operations.js";
 
 export async function importWorkspaceSourceFileToEnvironment(input: {
@@ -23,11 +18,7 @@ export async function importWorkspaceSourceFileToEnvironment(input: {
   createdAt: string | null;
   modifiedAt: string | null;
 }> {
-  const targetDirectory = await ensureDirectoryWithinRoot({
-    rootPath: input.environmentRootPath,
-    requestedPath: input.destinationPath ?? undefined,
-    createDirectories: input.createDirectories
-  });
+  const targetDirectory = await resolveStorageDirectory(input.environmentRootPath, input.destinationPath ?? undefined);
 
   const download = await downloadWorkspaceSourceFile({
     workspaceId: input.workspaceId,
@@ -38,26 +29,16 @@ export async function importWorkspaceSourceFileToEnvironment(input: {
     throw new Error("Source download returned an empty response body.");
   }
 
-  const safeFilename = sanitizeUploadFilename(download.fileName);
-  const preferredPath = path.join(targetDirectory.absolutePath, safeFilename);
-  const destinationPath = await claimAvailableFilePath(preferredPath);
-
-  await pipeline(
-    Readable.fromWeb(download.response.body as unknown as NodeReadableStream),
-    fs.createWriteStream(destinationPath)
-  );
-  await ensureSandboxWritablePath({
-    rootPath: input.environmentRootPath,
-    targetPath: destinationPath
+  const saved = await saveUploadedFile({
+    targetDirectory,
+    filename: download.fileName,
+    file: Readable.fromWeb(download.response.body as unknown as NodeReadableStream),
+    limitBytes: Number.MAX_SAFE_INTEGER,
+    writable: true,
+    createDirectories: input.createDirectories
   });
-
-  const savedStats = await fsPromises.stat(destinationPath);
-
+  const { name, relativePath, sizeBytes, createdAt, modifiedAt } = saved.file;
   return {
-    name: path.basename(destinationPath),
-    relativePath: path.relative(targetDirectory.rootRealPath, destinationPath).split(path.sep).join("/"),
-    sizeBytes: savedStats.size,
-    createdAt: toIsoTimestamp(savedStats.birthtime),
-    modifiedAt: toIsoTimestamp(savedStats.mtime)
+    name, relativePath, sizeBytes, createdAt, modifiedAt
   };
 }

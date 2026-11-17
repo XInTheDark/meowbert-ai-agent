@@ -1,12 +1,7 @@
-import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { ensureSandboxWritablePath } from "@meowbert/shared";
-import { ensureDirectoryWithinRoot } from "@meowbert/shared/server-security";
-import {
-  claimAvailableFilePath,
-  sanitizeUploadFilename,
-  toIsoTimestamp
-} from "../../files/file-paths.js";
+import { Readable } from "node:stream";
+import { resolveStorageDirectory, sanitizeUploadFilename } from "../../files/file-paths.js";
+import { saveUploadedFile } from "../../files/save-uploaded-file.js";
 import { signGoogleWorkspaceReference } from "./reference-signing.js";
 import {
   decodeGoogleDriveItemReference,
@@ -45,11 +40,7 @@ export async function createGoogleWorkspaceReferenceFile(input: {
   webUrl: string | null;
   reference: GoogleWorkspaceReferenceFile;
 }> {
-  const targetDirectory = await ensureDirectoryWithinRoot({
-    rootPath: input.environmentRootPath,
-    requestedPath: input.destinationPath ?? undefined,
-    createDirectories: input.createDirectories
-  });
+  const targetDirectory = await resolveStorageDirectory(input.environmentRootPath, input.destinationPath ?? undefined);
   const item = decodeGoogleDriveItemReference(input.itemReference);
   const payload: GoogleWorkspaceReferencePayload = {
     version: 1,
@@ -73,25 +64,18 @@ export async function createGoogleWorkspaceReferenceFile(input: {
     ...payload,
     referenceToken: signGoogleWorkspaceReference(payload)
   };
-  const destinationPath = await claimAvailableFilePath(path.join(
-    targetDirectory.absolutePath,
-    buildReferenceFileName(input.name, input.mimeType)
-  ));
   const serialized = `${JSON.stringify(referenceFile, null, 2)}\n`;
-
-  await fsPromises.writeFile(destinationPath, serialized, "utf8");
-  await ensureSandboxWritablePath({
-    rootPath: input.environmentRootPath,
-    targetPath: destinationPath
+  const saved = await saveUploadedFile({
+    targetDirectory,
+    filename: buildReferenceFileName(input.name, input.mimeType),
+    file: Readable.from([Buffer.from(serialized, "utf8")]),
+    limitBytes: Number.MAX_SAFE_INTEGER,
+    writable: true,
+    createDirectories: input.createDirectories
   });
-
-  const stats = await fsPromises.stat(destinationPath);
+  const { name, relativePath, sizeBytes, createdAt, modifiedAt } = saved.file;
   return {
-    name: path.basename(destinationPath),
-    relativePath: path.relative(targetDirectory.rootRealPath, destinationPath).split(path.sep).join("/"),
-    sizeBytes: stats.size,
-    createdAt: toIsoTimestamp(stats.birthtime),
-    modifiedAt: toIsoTimestamp(stats.mtime),
+    name, relativePath, sizeBytes, createdAt, modifiedAt,
     mimeType: input.mimeType,
     webUrl: input.webUrl,
     reference: referenceFile

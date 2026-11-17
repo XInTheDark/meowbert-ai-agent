@@ -34,6 +34,8 @@ describe("saveUploadedFile", () => {
 
     expect(saved.file).toMatchObject({ name: "report.txt", relativePath: "report.txt", sizeBytes: 5 });
     expect(saved.file.sha256).toBe("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+    expect(saved.file.createdAt).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+    expect(saved.file.modifiedAt).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
     await expect(fs.readFile(path.join(targetDirectory.absolutePath, "report.txt"), "utf8")).resolves.toBe("hello");
   });
 
@@ -63,5 +65,34 @@ describe("saveUploadedFile", () => {
     })).rejects.toBeInstanceOf(UploadTooLargeError);
 
     await expect(fs.readdir(targetDirectory.absolutePath)).resolves.toEqual([]);
+  });
+
+  it("enforces the byte limit even when the source is not marked truncated", async () => {
+    const targetDirectory = await createTargetDirectory();
+    await expect(saveUploadedFile({ targetDirectory, filename: "too-large.bin", file: uploadStream("oversized", false), limitBytes: 3 }))
+      .rejects.toBeInstanceOf(UploadTooLargeError);
+    expect(await fs.readdir(targetDirectory.absolutePath)).toEqual([]);
+  });
+
+  it("preserves a source stream failure and removes its partial upload", async () => {
+    const targetDirectory = await createTargetDirectory();
+    const file = Readable.from((async function* () {
+      yield Buffer.from("partial");
+      throw new Error("source disconnected");
+    })());
+    await expect(saveUploadedFile({ targetDirectory, filename: "partial.bin", file, limitBytes: 100 }))
+      .rejects.toThrow("source disconnected");
+    expect(await fs.readdir(targetDirectory.absolutePath)).toEqual([]);
+  });
+
+  it("treats an existing outside symlink as a collision and never overwrites it", async () => {
+    const targetDirectory = await createTargetDirectory();
+    const external = await createTargetDirectory();
+    const sentinel = path.join(external.absolutePath, "sentinel");
+    await fs.writeFile(sentinel, "untouched");
+    await fs.symlink(sentinel, path.join(targetDirectory.absolutePath, "report.txt"));
+    const saved = await saveUploadedFile({ targetDirectory, filename: "report.txt", file: uploadStream("new", false), limitBytes: 100 });
+    expect(saved.file.name).toBe("report (1).txt");
+    expect(await fs.readFile(sentinel, "utf8")).toBe("untouched");
   });
 });

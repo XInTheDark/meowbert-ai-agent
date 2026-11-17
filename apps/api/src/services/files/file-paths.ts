@@ -33,6 +33,15 @@ export function sanitizeUploadFilename(filename: string | undefined): string {
   return base;
 }
 
+// Only resolve the trusted root here. Descendant directories are opened/created
+// relative to its descriptor by the storage helper, never by checked pathnames.
+export async function resolveStorageDirectory(rootPath: string, requestedPath = ".") {
+  const rootRealPath = await fsPromises.realpath(rootPath);
+  const absolutePath = path.resolve(rootRealPath, requestedPath.trim() || ".");
+  assertPathInsideRoot(rootRealPath, absolutePath);
+  return { absolutePath, rootRealPath };
+}
+
 function* availableFilePathCandidates(targetPath: string): Generator<string> {
   const directory = path.dirname(targetPath);
   const extension = path.extname(targetPath);
@@ -50,23 +59,6 @@ export async function createAvailableFilePath(targetPath: string): Promise<strin
       await fsPromises.access(candidatePath);
     } catch {
       return candidatePath;
-    }
-  }
-
-  throw new Error("Too many files with the same name in this folder");
-}
-
-// Reserves the name by creating an empty file, so concurrent writers of the same name
-// each get their own path. The caller owns the file and writes over it.
-export async function claimAvailableFilePath(targetPath: string): Promise<string> {
-  for (const candidatePath of availableFilePathCandidates(targetPath)) {
-    try {
-      await (await fsPromises.open(candidatePath, "wx")).close();
-      return candidatePath;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
-        throw error;
-      }
     }
   }
 

@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { ensureSandboxWritablePath } from "@meowbert/shared";
 import { buildEnvironmentCleanupPlan } from "../../services/environments/environment-file-cleanup.js";
 import { getEnvironmentForUser, type EnvironmentForUser } from "../../services/environments/environment-for-user.js";
 import { listProjectDirectory } from "../../services/environments/project-directory-listing.js";
@@ -116,11 +115,7 @@ export async function registerEnvironmentFileRoutes(fastify: FastifyInstance): P
     const params = environmentParams.parse(request.params);
     const queryInput = fileUploadQuery.parse(request.query);
     const environment = await getEnvironmentForUser(params.envId, request.user.id);
-    const saved = await receiveFileUpload(request, { rootPath: environment.root_path, query: queryInput });
-    await ensureSandboxWritablePath({
-      rootPath: environment.root_path,
-      targetPath: saved.absolutePath
-    });
+    const saved = await receiveFileUpload(request, { rootPath: environment.root_path, query: queryInput, writable: true });
 
     await recordTaskUpload(environment.id, saved.file);
     return reply.status(201).send({ file: saved.file });

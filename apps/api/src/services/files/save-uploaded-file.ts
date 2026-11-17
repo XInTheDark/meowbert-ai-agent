@@ -1,17 +1,11 @@
-import fs from "node:fs";
-import { createHash } from "node:crypto";
-import { Transform } from "node:stream";
-import fsPromises from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import {
   assertPathInsideRoot,
-  claimAvailableFilePath,
   sanitizeUploadFilename,
-  toIsoTimestamp,
   toWebPath
 } from "./file-paths.js";
+import { runStorageFileOperation } from "./storage-file-operation.js";
 
 export const FILE_UPLOAD_LIMIT_BYTES = 100 * 1024 * 1024;
 
@@ -41,35 +35,30 @@ export async function saveUploadedFile(input: {
   filename: string | undefined;
   file: Readable & { truncated?: boolean };
   limitBytes: number;
+  writable?: boolean;
+  createDirectories?: boolean;
 }): Promise<{ absolutePath: string; file: SavedUploadedFile }> {
   const preferredPath = path.resolve(input.targetDirectory.absolutePath, sanitizeUploadFilename(input.filename));
   assertPathInsideRoot(input.targetDirectory.rootRealPath, preferredPath);
-  const destinationPath = await claimAvailableFilePath(preferredPath);
-
-  const hash = createHash("sha256");
-  const hashing = new Transform({
-    transform(chunk, _encoding, callback) { hash.update(chunk); callback(null, chunk); }
-  });
+  let saved: Omit<SavedUploadedFile, "relativePath">;
   try {
-    await pipeline(input.file, hashing, fs.createWriteStream(destinationPath));
-    if (input.file.truncated) {
+    saved = await runStorageFileOperation({
+      operation: "upload", rootPath: input.targetDirectory.rootRealPath,
+      relativePath: toWebPath(path.relative(input.targetDirectory.rootRealPath, preferredPath)),
+      limitBytes: input.limitBytes, writable: input.writable, createDirectories: input.createDirectories
+    }, input.file);
+  } catch (error) {
+    if (input.file.truncated || (error instanceof Error && error.message === "UPLOAD_TOO_LARGE")) {
       throw new UploadTooLargeError(input.limitBytes);
     }
-  } catch (error) {
-    await fsPromises.rm(destinationPath, { force: true });
     throw error;
   }
-
-  const savedStats = await fsPromises.stat(destinationPath);
+  const destinationPath = path.join(input.targetDirectory.absolutePath, saved.name);
   return {
     absolutePath: destinationPath,
     file: {
-      name: path.basename(destinationPath),
-      relativePath: toWebPath(path.relative(input.targetDirectory.rootRealPath, destinationPath)),
-      sizeBytes: savedStats.size,
-      sha256: hash.digest("hex"),
-      createdAt: toIsoTimestamp(savedStats.birthtime),
-      modifiedAt: toIsoTimestamp(savedStats.mtime)
+      ...saved,
+      relativePath: toWebPath(path.relative(input.targetDirectory.rootRealPath, destinationPath))
     }
   };
 }

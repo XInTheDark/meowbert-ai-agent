@@ -1,5 +1,5 @@
-import fsPromises from "node:fs/promises";
 import { resolveRealPathWithinRoot } from "@meowbert/shared/server-security";
+import { runStorageFileOperation } from "./storage-file-operation.js";
 
 const FILE_PREVIEW_LIMIT_BYTES = 300_000;
 
@@ -14,27 +14,17 @@ export interface FilePreview {
 // Reads the start of a file for the browser's preview pane; files with NUL bytes count as binary.
 export async function readFilePreview(rootPath: string, requestedPath: string): Promise<FilePreview> {
   const target = await resolveRealPathWithinRoot(rootPath, requestedPath);
-  const fileStats = await fsPromises.lstat(target.absolutePath).catch(() => null);
-  if (!fileStats || !fileStats.isFile()) {
-    throw new Error("File not found");
-  }
-
-  const previewBytes = Math.min(fileStats.size, FILE_PREVIEW_LIMIT_BYTES);
-  const previewBuffer = Buffer.alloc(previewBytes);
-  const fileHandle = await fsPromises.open(target.absolutePath, "r");
-  try {
-    if (previewBytes > 0) {
-      await fileHandle.read(previewBuffer, 0, previewBytes, 0);
-    }
-  } finally {
-    await fileHandle.close();
-  }
+  const opened = await runStorageFileOperation<{ sizeBytes: number; data: string }>({
+    operation: "preview", rootPath: target.rootRealPath, relativePath: target.relativePath,
+    limitBytes: FILE_PREVIEW_LIMIT_BYTES
+  });
+  const previewBuffer = Buffer.from(opened.data, "base64");
 
   const isBinary = previewBuffer.includes(0);
   return {
     relativePath: target.relativePath,
-    sizeBytes: fileStats.size,
-    truncated: fileStats.size > previewBytes,
+    sizeBytes: opened.sizeBytes,
+    truncated: opened.sizeBytes > previewBuffer.length,
     encoding: isBinary ? "binary" : "utf-8",
     text: isBinary ? null : previewBuffer.toString("utf8")
   };
