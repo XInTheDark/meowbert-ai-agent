@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { ModelGatewayRequest } from "../agent/ports/model-gateway.js";
 import { summarizeFromParentTurn, type ParentTurnRequest } from "./fork-summary.js";
 
-function parentRequest(output: unknown[]): { parent: ParentTurnRequest; requests: ModelGatewayRequest[] } {
+function parentRequest(...outputs: unknown[][]): { parent: ParentTurnRequest; requests: ModelGatewayRequest[] } {
   const requests: ModelGatewayRequest[] = [];
   const parent: ParentTurnRequest = {
     models: {
       create: async (request) => {
         requests.push(request);
+        const output = outputs[Math.min(requests.length, outputs.length) - 1];
         return { response: { output, usage: null } as never, weightedTokens: null };
       },
       isQuotaExceeded: async () => false
@@ -44,11 +45,28 @@ describe("summarizeFromParentTurn", () => {
     expect(request.headers?.["x-session-affinity"]).not.toBe("leader-session");
   });
 
-  it("gives up when the model calls a tool instead of answering", async () => {
-    const { parent } = parentRequest([
+  it("answers a tool call with null and keeps asking in the same session", async () => {
+    const call = { type: "function_call", call_id: "call-1", name: "exec", arguments: "{}" };
+    const { parent, requests } = parentRequest(
+      [call],
+      [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Handoff" }] }]
+    );
+
+    await expect(summarizeFromParentTurn(parent, conversation)).resolves.toBe("Handoff");
+
+    expect(requests).toHaveLength(2);
+    const [first, second] = requests.map((request) => request.body.input as unknown[]);
+    expect(second.slice(0, first.length)).toEqual(first);
+    expect(second.slice(first.length)).toEqual([call, { type: "function_call_output", call_id: "call-1", output: "null" }]);
+    expect(requests[1].headers?.["x-session-affinity"]).toBe(requests[0].headers?.["x-session-affinity"]);
+  });
+
+  it("gives up when the model keeps calling tools", async () => {
+    const { parent, requests } = parentRequest([
       { type: "function_call", call_id: "call-1", name: "exec", arguments: "{}" }
     ]);
 
     await expect(summarizeFromParentTurn(parent, conversation)).resolves.toBeNull();
+    expect(requests).toHaveLength(3);
   });
 });
