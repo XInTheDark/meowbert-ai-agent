@@ -1,4 +1,5 @@
 import { buildContextWindowGuidance } from "../context-management-v2/prompts.js";
+import { resolveLongPauseClearSeconds } from "./long-pause-clear.js";
 import {
   buildV2WindowDeveloperItems,
   linkContextNodeToVisibleMessage,
@@ -71,7 +72,11 @@ export async function resetV2ContextWindow(
     0,
     execution.state.dispatchState.conversationItems.length,
     ...windowDeveloperItems,
-    { role: "developer", content: buildContextWindowGuidance({ historySearch: execution.prepared.historySearchEnabled, historyFiles: execution.prepared.isProjectMaster !== true }) },
+    { role: "developer", content: buildContextWindowGuidance({
+      historySearch: execution.prepared.historySearchEnabled,
+      historyFiles: execution.prepared.isProjectMaster !== true,
+      clearAfterPauseSeconds: resolveLongPauseClearSeconds(execution.prepared, Boolean(execution.laneSeed))
+    }) },
     ...seedItems
   );
   await recordContextItems(control.context, next, seedItems);

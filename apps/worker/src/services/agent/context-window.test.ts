@@ -74,7 +74,7 @@ describe("resetV2ContextWindow", () => {
         lastActualContextUsage: { inputTokens: 120, estimatedInputTokens: 120 },
         hasActualContextUsage: true
       },
-      prepared: { runtimeAgentId: "main", control }
+      prepared: { runtimeAgentId: "main", control, snapshot: { idle_compaction_mode: "off" } }
     } as never;
 
     await resetV2ContextWindow(execution, "manual");
@@ -134,7 +134,7 @@ describe("resetV2ContextWindow", () => {
         lastActualContextUsage: null,
         hasActualContextUsage: false
       },
-      prepared: { runtimeAgentId: "main", control }
+      prepared: { runtimeAgentId: "main", control, snapshot: { idle_compaction_mode: "off" } }
     } as never;
 
     await resetV2ContextWindow(execution, "provider_overflow");

@@ -1134,7 +1134,7 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
           type: "integer",
           minimum: 1,
           maximum: 604800,
-          description: "Required maximum wait: 1 to 3600 seconds for in-run waits. Infinite recurring time-only waits use 60 to 604800 seconds. Never unlimited."
+          description: "Required maximum wait. In-run waits take 1 to 3600 seconds, or up to 21600 when shell_sessions are set, so a long job can wake you when it finishes. Infinite recurring time-only waits use 60 to 604800 seconds. Never unlimited."
         },
         shell_sessions: {
           type: ["array", "null"],

@@ -131,8 +131,23 @@ describe("waitForConditions", () => {
     await expect(waitForConditions(input())).rejects.toThrow(`is ${sessionStatus}`);
   });
 
-  it.each([0, 3601, Infinity, NaN, 1.5])("rejects an invalid or unbounded timeout %s", async (seconds) => {
-    await expect(waitForConditions(input({ seconds }))).rejects.toThrow("between 1 and 3600");
+  it.each([0, 3601, Infinity, NaN, 1.5])("rejects an invalid or unbounded time-only timeout %s", async (seconds) => {
+    await expect(waitForConditions(input({ seconds, shellSessions: [] }))).rejects.toThrow("1 to 3600 seconds");
+  });
+
+  it.each([0, 21601, Infinity])("rejects a shell wait timeout of %s", async (seconds) => {
+    await expect(waitForConditions(input({ seconds }))).rejects.toThrow("1 to 21600 seconds");
     expect(getStatus).not.toHaveBeenCalled();
+  });
+
+  it("lets a shell wait run for hours and wakes when the job exits", async () => {
+    const pending = waitForConditions(input({ seconds: 6 * 3600, shellSessions: [{ ...first, on_output: false }] }));
+    await vi.advanceTimersByTimeAsync(4 * 3600_000);
+    const readsBeforeExit = getStatus.mock.calls.length;
+    getStatus.mockResolvedValue(status({ status: "completed", exitCode: 0 }));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await pending).toMatchObject({ reason: "shell_exit", elapsed_seconds: 4 * 3600 + 5 });
+    // One read a second for five minutes, then one every five seconds.
+    expect(readsBeforeExit).toBeLessThan(300 + (4 * 3600 - 300) / 5 + 5);
   });
 });

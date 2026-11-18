@@ -1,7 +1,20 @@
 import type { ShellSessionWaitState } from "../agent/ports/platform-tools.js";
 
 export const MAX_IN_RUN_WAIT_SECONDS = 3600;
+// A wait tied to a shell session wakes when the job does, so it may run as long as a long job.
+export const MAX_SHELL_CONDITION_WAIT_SECONDS = 6 * 3600;
 const POLL_INTERVAL_MS = 1000;
+// After the first minutes a long wait reads its sessions less often.
+const SLOW_POLL_AFTER_MS = 5 * 60_000;
+const SLOW_POLL_INTERVAL_MS = 5000;
+
+export function maxInRunWaitSeconds(hasShellConditions: boolean): number {
+  return hasShellConditions ? MAX_SHELL_CONDITION_WAIT_SECONDS : MAX_IN_RUN_WAIT_SECONDS;
+}
+
+function shellPollIntervalMs(startedAtMs: number): number {
+  return Date.now() - startedAtMs < SLOW_POLL_AFTER_MS ? POLL_INTERVAL_MS : SLOW_POLL_INTERVAL_MS;
+}
 
 export interface ShellWaitCondition {
   session_id: string;
@@ -60,6 +73,7 @@ function shellResult(reason: "shell_output" | "shell_exit", session: ShellSessio
 }
 
 async function monitorShell(input: WaitInput, condition: ShellWaitCondition, signal: AbortSignal) {
+  const startedAtMs = Date.now();
   let initialOutputVersion: string | null | undefined;
   let observed = false;
   while (true) {
@@ -78,7 +92,7 @@ async function monitorShell(input: WaitInput, condition: ShellWaitCondition, sig
     }
     initialOutputVersion = session.outputVersion;
     observed = true;
-    await delay(POLL_INTERVAL_MS, signal);
+    await delay(shellPollIntervalMs(startedAtMs), signal);
   }
 }
 
@@ -90,8 +104,10 @@ async function monitorCancellation(input: WaitInput, signal: AbortSignal): Promi
 }
 
 export async function waitForConditions(input: WaitInput): Promise<WaitResult> {
-  if (!Number.isInteger(input.seconds) || input.seconds < 1 || input.seconds > MAX_IN_RUN_WAIT_SECONDS) {
-    throw new Error(`In-run wait seconds must be between 1 and ${MAX_IN_RUN_WAIT_SECONDS}.`);
+  const maxSeconds = maxInRunWaitSeconds(input.shellSessions.length > 0);
+  if (!Number.isInteger(input.seconds) || input.seconds < 1 || input.seconds > maxSeconds) {
+    const scope = input.shellSessions.length > 0 ? "In-run waits on shell sessions" : "Time-only in-run waits";
+    throw new Error(`${scope} take 1 to ${maxSeconds} seconds.`);
   }
   await input.assertNotCancelled();
   const startedAt = Date.now();

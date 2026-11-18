@@ -14,14 +14,18 @@ function buildHistoryAccessGuidance(options: { historySearch: boolean; historyFi
 }
 
 // Fixed for a run: history_search is offered only when the admin has session history search on, and
-// history files need a shell, which the Project Master never gets.
-export function buildContextWindowGuidance(options: { historySearch: boolean; historyFiles: boolean }): string {
+// history files need a shell, which the Project Master never gets. With Full idle compaction, a pause
+// that outlasts the prompt cache clears the window, so long waits need the checkpoint saved first.
+export function buildContextWindowGuidance(options: { historySearch: boolean; historyFiles: boolean; clearAfterPauseSeconds: number | null }): string {
+  const pause = options.clearAfterPauseSeconds !== null
+    ? `\n\nA pause longer than ${Math.round(options.clearAfterPauseSeconds / 60)} minutes, such as a long wait, clears this window before your next turn. Update the checkpoint before you start one.`
+    : "";
   return `<context_window_guidance>
 For tasks that may span context windows, keep a concise checkpoint in the note \`${CONTINUITY_NOTE_PATH}\` with the goal, decisions, progress, learnings and next steps. Include the window ID and item ID for every relevant user request you are currently solving, as well as important actions and tool calls. Use the context history to look up details through those references later. User and developer items have an item id \`[id: ...]\` immediately after their content, and every tool output starts with its \`call_number\`.
 
 A new window opens with the first ${CONTINUITY_HINT_MAX_BYTES / 1_000} KB of \`${CONTINUITY_NOTE_PATH}\` and your recent user messages, which may already be handled, so check the checkpoint before acting on them. Other notes are only listed by name.
 
-Take incremental notes while you work so important details are not missed.
+Take incremental notes while you work so important details are not missed.${pause}
 
 Keep the window lean with context_replace_calls. When you finish a stretch of work whose raw output you no longer need, such as exploring part of a codebase or reading material, replace those calls with the key findings and any exact snippets you will reuse. Do it right after them, never for calls far back in the window. Use get_context_remaining when useful. Once the token budget is exhausted, the current window is unavailable and recovery is through notes and the context history.
 
