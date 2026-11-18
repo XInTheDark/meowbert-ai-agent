@@ -8,7 +8,7 @@ export const PROJECT_MAP_TOOL_NAMES = [VIEW_PROJECT_MAP_TOOL_NAME, UPDATE_PROJEC
 
 export const PROJECT_MAP_OPS = [
   "create_folder", "rename_folder", "delete_folder", "set_note",
-  "create_card", "update_card", "delete_card", "rename_task", "move"
+  "create_card", "update_card", "delete_card", "rename_task", "trash_task", "move", "reorder"
 ] as const;
 export type ProjectMapOpName = (typeof PROJECT_MAP_OPS)[number];
 
@@ -23,26 +23,29 @@ export const projectMapOperationSchema = z.object({
   ids: z.array(idOrRef).max(200).nullable(),
   name: z.string().nullable(),
   text: z.string().nullable(),
-  state: z.enum(PROJECT_MAP_CARD_STATES).nullable()
+  state: z.enum(PROJECT_MAP_CARD_STATES).nullable(),
+  revision: z.string().trim().min(1).nullable().default(null)
 });
 export type ProjectMapOperation = z.infer<typeof projectMapOperationSchema>;
 export const updateProjectMapSchema = z.object({ operations: z.array(projectMapOperationSchema).min(1).max(50) });
 
 const nullableString = (description: string) => ({ type: ["string", "null"], description });
 
-const VIEW_DESCRIPTION = "Read the project map. With folder_id null you get the project brief and the whole tree, with each folder's note shortened. With a folder ID you get that folder's full note and everything under it, with full notes.";
+const VIEW_DESCRIPTION = "Read the project map. With folder_id null you get the project brief and the whole tree, with each folder's note shortened. With a folder ID you get that folder's full note and everything under it, with full notes. Full notes and the brief show the revision you need to change them.";
 
 const UPDATE_DESCRIPTION = [
   "Change the project map. Operations run in order, all or nothing.",
   "- create_folder: name, parent_id (null for top level), text (the folder's note, may be empty).",
   "- rename_folder: id, name.",
   "- delete_folder: id. Its contents move up to its parent, so nothing is lost.",
-  "- set_note: id (a folder, or null for the project brief), text. Replaces the whole note.",
+  "- set_note: id (a folder, or null for the project brief), text, revision (from your latest full read, or null if the note is empty). Replaces the whole note, and fails if the note changed after that read.",
   "- create_card: name (title), parent_id (folder or null), text (details, may be empty), state.",
   "- update_card: id, and any of name, text, state; null keeps the current value.",
   "- delete_card: id.",
   "- rename_task: id, name (the new title).",
+  "- trash_task: ids (tasks that are not queued or running). The user can restore them from the trash.",
   "- move: ids (folders, cards or tasks, mixed), parent_id (target folder, or null for top level; tasks there are unfiled).",
+  "- reorder: ids (items already directly in one folder), parent_id (that folder, or null for top level). The listed items go first, in the order given. Folders, cards and tasks are each ordered separately, and unfiled tasks stay newest first.",
   "Set ref on a create to name the new item, then use that ref as an id or parent_id in later operations of the same call."
 ].join("\n");
 
@@ -51,10 +54,11 @@ const OPERATION_PROPERTIES = {
   ref: nullableString("Your label for an item this operation creates, such as \"billing\". Null if not needed."),
   id: nullableString("Folder, card or task ID (or a ref) the operation acts on."),
   parent_id: nullableString("Target folder ID or ref. Null means the top level of the map."),
-  ids: { type: ["array", "null"], items: { type: "string" }, description: "IDs or refs to move." },
+  ids: { type: ["array", "null"], items: { type: "string" }, description: "IDs or refs to move, reorder or trash." },
   name: nullableString("Folder name, card title or task title."),
   text: nullableString("Markdown for a note, or a card's details."),
-  state: { type: ["string", "null"], enum: [...PROJECT_MAP_CARD_STATES, null], description: "Card state: idea, next (ready to start) or done." }
+  state: { type: ["string", "null"], enum: [...PROJECT_MAP_CARD_STATES, null], description: "Card state: idea, next (ready to start) or done." },
+  revision: nullableString("For set_note, the note's revision from view_project_map. Null if the note is empty or for any other operation.")
 } as const;
 
 function strictTool(name: string, description: string, properties: Record<string, unknown>): FunctionTool {

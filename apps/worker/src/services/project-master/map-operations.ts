@@ -7,12 +7,15 @@ import {
   ProjectMapError,
   renameProjectFolder,
   renameProjectMapTask,
+  reorderProjectMapItems,
   setProjectBrief,
   setProjectFolderNote,
+  trashProjectMapTasks,
   updateProjectMapCard,
   type ProjectMapDb
 } from "@meowbert/shared";
 import type { ProjectMapOperation } from "@meowbert/run-executor/agent-tools/project-map";
+import { assertNoteUnchanged } from "./note-revision.js";
 
 export interface ProjectMapScope {
   workspaceId: string;
@@ -62,8 +65,10 @@ async function applyOperation(db: ProjectMapDb, scope: ProjectMapScope, refs: Re
       return null;
     case "set_note": {
       const text = required(operation.text, "text", operation.op);
-      if (operation.id === null) await setProjectBrief(db, environmentId, text);
-      else await setProjectFolderNote(db, environmentId, refs.resolve(operation.id), text);
+      const folderId = refs.resolveNullable(operation.id);
+      await assertNoteUnchanged(db, environmentId, folderId, operation.revision);
+      if (folderId === null) await setProjectBrief(db, environmentId, text);
+      else await setProjectFolderNote(db, environmentId, folderId, text);
       return null;
     }
     case "create_card": {
@@ -82,8 +87,15 @@ async function applyOperation(db: ProjectMapDb, scope: ProjectMapScope, refs: Re
     case "rename_task":
       await renameProjectMapTask(db, environmentId, refs.resolve(required(operation.id, "id", operation.op)), required(operation.name, "name", operation.op));
       return null;
+    case "trash_task":
+      await trashProjectMapTasks(db, environmentId, required(operation.ids, "ids", operation.op).map((id) => refs.resolve(id)));
+      return null;
     case "move":
       await moveProjectMapItems(db, environmentId, required(operation.ids, "ids", operation.op).map((id) => refs.resolve(id)),
+        refs.resolveNullable(operation.parent_id));
+      return null;
+    case "reorder":
+      await reorderProjectMapItems(db, environmentId, required(operation.ids, "ids", operation.op).map((id) => refs.resolve(id)),
         refs.resolveNullable(operation.parent_id));
       return null;
   }

@@ -42,15 +42,17 @@ async function loadCards(db: ProjectMapDb, environmentId: string): Promise<Proje
 }
 
 async function loadTasks(db: ProjectMapDb, environmentId: string): Promise<{ tasks: ProjectMapTask[]; truncated: boolean }> {
-  const result = await db.query<{ id: string; folder_id: string | null; title: string | null; status: ProjectMapTask["status"]; updated_at: Date | string }>(
-    `SELECT t.id, t.folder_id, t.title, t.status, t.updated_at
+  const result = await db.query<{ id: string; folder_id: string | null; folder_sort_order: number | string; title: string | null; status: ProjectMapTask["status"]; updated_at: Date | string }>(
+    `SELECT t.id, t.folder_id, t.folder_sort_order, t.title, t.status, t.updated_at
        FROM tasks t
       WHERE ${PROJECT_MAP_TASK_FILTER}
       ORDER BY t.updated_at DESC, t.id
       LIMIT $2`,
     [environmentId, PROJECT_MAP_TASK_LIMIT + 1]
   );
-  const rows = result.rows.slice(0, PROJECT_MAP_TASK_LIMIT);
+  // Tasks in a folder follow its saved order, with ties newest first. Unfiled tasks stay newest first.
+  const position = (row: (typeof result.rows)[number]) => row.folder_id ? Number(row.folder_sort_order) : 0;
+  const rows = result.rows.slice(0, PROJECT_MAP_TASK_LIMIT).sort((a, b) => position(a) - position(b));
   return {
     tasks: rows.map((row) => ({
       id: row.id, folderId: row.folder_id, title: row.title, status: row.status,

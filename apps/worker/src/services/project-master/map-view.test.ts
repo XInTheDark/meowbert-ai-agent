@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectMap } from "@meowbert/shared";
 import { renderProjectMapForMaster } from "./map-view.js";
+import { noteRevision } from "./note-revision.js";
 
 const details = "First instruction. ".repeat(20) + "\n\n- Preserve this final instruction.";
 
@@ -20,6 +21,15 @@ function makeMap(): ProjectMap {
 function bodyLines(output: string): string {
   return output.split("\n").map((line) => line.trimStart()).join("\n");
 }
+
+describe("Master map note revisions", () => {
+  it("offers a folder note's revision only when the whole note is shown", () => {
+    const map = makeMap();
+    const revision = noteRevision("Context");
+    expect(renderProjectMapForMaster(map, null)).not.toContain(`revision ${revision}`);
+    expect(renderProjectMapForMaster(map, "parent")).toContain(`revision ${revision}`);
+  });
+});
 
 describe("Master map card details", () => {
   it("exposes complete top-level card instructions on the whole-map read", () => {

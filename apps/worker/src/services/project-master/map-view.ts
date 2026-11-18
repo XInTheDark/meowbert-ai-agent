@@ -6,6 +6,7 @@ import {
   type ProjectMapFolder,
   type ProjectMapRollup
 } from "@meowbert/shared";
+import { noteRevision } from "./note-revision.js";
 
 const SHORT_NOTE_CHARS = 240;
 const UNFILED_TASK_LIMIT = 25;
@@ -33,8 +34,9 @@ function formatRollup(rollup: ProjectMapRollup | undefined): string {
 
 function indentNote(note: string, indent: string, full: boolean): string[] {
   if (!note.trim()) return [];
+  // A shortened note has no revision, so the Master must open the whole note before replacing it.
   if (!full) return [`${indent}  Note: ${shorten(note, SHORT_NOTE_CHARS)}`];
-  return [`${indent}  Note:`, ...note.trim().split("\n").map((line) => `${indent}    ${line}`)];
+  return [`${indent}  Note (revision ${noteRevision(note)}):`, ...note.trim().split("\n").map((line) => `${indent}    ${line}`)];
 }
 
 function renderCard(card: ProjectMapCard, indent: string, full: boolean): string[] {
@@ -60,7 +62,8 @@ function renderFolder(map: ProjectMap, folder: ProjectMapFolder, depth: number, 
 }
 
 function renderTopLevel(map: ProjectMap, rollups: Map<string, ProjectMapRollup>): string[] {
-  const lines = ["Project brief:", map.brief.trim() || "(empty)", "", "Map:"];
+  const briefRevision = noteRevision(map.brief);
+  const lines = [briefRevision ? `Project brief (revision ${briefRevision}):` : "Project brief:", map.brief.trim() || "(empty)", "", "Map:"];
   const topFolders = map.folders.filter((folder) => !folder.parentFolderId);
   const topCards = map.cards.filter((card) => !card.folderId);
   if (!topFolders.length && !topCards.length) lines.push("(no folders or cards yet)");
@@ -73,6 +76,8 @@ function renderTopLevel(map: ProjectMap, rollups: Map<string, ProjectMapRollup>)
     for (const task of unfiled.slice(0, UNFILED_TASK_LIMIT)) {
       lines.push(`- Task "${task.title ?? "Untitled task"}" [${task.id}] ${STATUS_LABELS[task.status] ?? task.status}`);
     }
+    const hidden = unfiled.length - UNFILED_TASK_LIMIT;
+    if (hidden > 0) lines.push(`${hidden} older unfiled tasks are not listed. Use query_tasks with folder "unfiled" to page through them.`);
   }
   if (map.tasksTruncated) lines.push("", "Only the most recently updated tasks are shown; use query_tasks for older ones.");
   return lines;

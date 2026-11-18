@@ -13,9 +13,10 @@ import {
 } from "@meowbert/shared";
 import type { ProjectMapOperation } from "@meowbert/run-executor/agent-tools/project-map";
 import { applyProjectMapOperations } from "./map-operations.js";
+import { noteRevision } from "./note-revision.js";
 
 function op(fields: Partial<ProjectMapOperation> & Pick<ProjectMapOperation, "op">): ProjectMapOperation {
-  return { ref: null, id: null, parent_id: null, ids: null, name: null, text: null, state: null, ...fields };
+  return { ref: null, id: null, parent_id: null, ids: null, name: null, text: null, state: null, revision: null, ...fields };
 }
 
 // Supply a disposable PostgreSQL database; each run uses and removes its own schema.
@@ -114,6 +115,55 @@ describe.skipIf(!databaseUrl)("Project map in PostgreSQL", () => {
     await expect(apply([op({ op: "rename_task", id: otherProjectTask, name: "Mine now" })])).rejects.toThrow(/Task not found/);
     const { rows } = await client.query<{ title: string }>("SELECT title FROM tasks WHERE id = $1", [otherProjectTask]);
     expect(rows[0].title).toBe("Theirs");
+  });
+
+  it("shows reordered tasks first in their folder and refuses items from elsewhere", async () => {
+    const [folder] = await apply([op({ op: "create_folder", name: "Ordered" })]);
+    const [first, second, third] = [await createTask("succeeded"), await createTask("succeeded"), await createTask("succeeded")];
+    const outsider = await createTask("succeeded");
+    await apply([op({ op: "move", ids: [first, second, third], parent_id: folder.id })]);
+
+    await apply([op({ op: "reorder", ids: [third, first], parent_id: folder.id })]);
+    const inFolder = (await loadProjectMap(db, environmentId)).tasks.filter((task) => task.folderId === folder.id);
+    expect(inFolder.map((task) => task.id)).toEqual([third, first, second]);
+
+    await expect(apply([op({ op: "reorder", ids: [outsider], parent_id: folder.id })])).rejects.toThrow(/already be directly in that folder/);
+    await expect(apply([op({ op: "reorder", ids: [outsider], parent_id: null })])).rejects.toThrow(/Unfiled tasks stay newest first/);
+  });
+
+  it("trashes finished tasks but leaves everything alone if one is still running", async () => {
+    const finished = await createTask("succeeded");
+    const other = await createTask("failed");
+    const running = await createTask("running");
+
+    await expect(apply([op({ op: "trash_task", ids: [other, running] })])).rejects.toThrow(/Cancel these tasks/);
+    expect((await loadProjectMap(db, environmentId)).tasks.map((task) => task.id)).toEqual(expect.arrayContaining([other, running]));
+
+    await apply([op({ op: "trash_task", ids: [finished] })]);
+    expect((await loadProjectMap(db, environmentId)).tasks.map((task) => task.id)).not.toContain(finished);
+    const { rows } = await client.query<{ trashed_at: Date | null }>("SELECT trashed_at FROM tasks WHERE id = $1", [finished]);
+    expect(rows[0].trashed_at).not.toBeNull();
+  });
+
+  it("keeps a member's newer note when the Master saves from an older read", async () => {
+    const [folder] = await apply([op({ op: "create_folder", name: "Launch", text: "Ship Friday." })]);
+    const staleRevision = noteRevision("Ship Friday.");
+    await client.query("UPDATE task_folders SET note_markdown = 'Ship Friday. Legal approves first.' WHERE id = $1", [folder.id]);
+    const noteNow = async () => (await loadProjectMap(db, environmentId)).folders.find((item) => item.id === folder.id)?.note;
+
+    await expect(apply([op({ op: "set_note", id: folder.id, text: "Ship Monday.", revision: staleRevision })])).rejects.toThrow(/changed since you read it/);
+    await expect(apply([op({ op: "set_note", id: folder.id, text: "Ship Monday." })])).rejects.toThrow(/changed since you read it/);
+    expect(await noteNow()).toBe("Ship Friday. Legal approves first.");
+
+    await apply([op({ op: "set_note", id: folder.id, text: "Ship Monday. Legal approves first.", revision: noteRevision("Ship Friday. Legal approves first.") })]);
+    expect(await noteNow()).toBe("Ship Monday. Legal approves first.");
+  });
+
+  it("applies the same check to the project brief", async () => {
+    const current = (await loadProjectMap(db, environmentId)).brief;
+    await expect(apply([op({ op: "set_note", text: "Replaced", revision: "stale" })])).rejects.toThrow(/changed since you read it/);
+    await apply([op({ op: "set_note", text: "Updated goal.", revision: noteRevision(current) })]);
+    expect((await loadProjectMap(db, environmentId)).brief).toBe("Updated goal.");
   });
 
   it("refuses to move a folder into its own subfolder", async () => {

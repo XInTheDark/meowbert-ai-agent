@@ -78,3 +78,44 @@ export async function moveProjectMapItems(
   );
   return moved;
 }
+
+const ORDER_COLUMNS = {
+  folders: { table: "task_folders", parent: "parent_folder_id", order: "sort_order" },
+  cards: { table: "project_map_cards", parent: "folder_id", order: "sort_order" },
+  tasks: { table: "tasks", parent: "folder_id", order: "folder_sort_order" }
+} as const;
+
+async function placeFirst(
+  db: ProjectMapDb,
+  environmentId: string,
+  { table, parent, order }: (typeof ORDER_COLUMNS)[keyof typeof ORDER_COLUMNS],
+  ids: string[],
+  folderId: string | null
+): Promise<void> {
+  if (!ids.length) return;
+  const inFolder = await db.query(`SELECT id FROM ${table} WHERE id = ANY($1::uuid[]) AND ${parent} IS NOT DISTINCT FROM $2::uuid`, [ids, folderId]);
+  if (inFolder.rows.length !== ids.length) throw new ProjectMapError("Items must already be directly in that folder to be reordered. Move them there first.", 409);
+  // Leaves updated_at alone: a new order is not new activity on the item.
+  await db.query(
+    `WITH base AS (SELECT COALESCE(MIN(${order}), 0) - $4::int - 1 AS value FROM ${table} WHERE environment_id = $1 AND ${parent} IS NOT DISTINCT FROM $3::uuid)
+     UPDATE ${table} item SET ${order} = base.value + input.ordinality
+       FROM unnest($2::uuid[]) WITH ORDINALITY AS input(id, ordinality), base
+      WHERE item.id = input.id`,
+    [environmentId, ids, folderId, ids.length]
+  );
+}
+
+// Puts the given items first among their siblings, in the order given. Folders, cards and tasks are
+// ordered separately, and anything not listed keeps its order after them. The caller runs this in a
+// transaction. Unfiled tasks always show newest first, so they have no order to set.
+export async function reorderProjectMapItems(db: ProjectMapDb, environmentId: string, ids: string[], folderId: string | null): Promise<void> {
+  await lockProjectMapHierarchy(db, environmentId);
+  const unique = [...new Set(ids)];
+  await assertFolderInProject(db, environmentId, folderId);
+  const items = await classifyIds(db, environmentId, unique);
+  if (!folderId && items.taskIds.length) throw new ProjectMapError("Unfiled tasks stay newest first. File them in a folder to set their order.");
+  const ordered = (subset: string[]) => unique.filter((id) => subset.includes(id));
+  await placeFirst(db, environmentId, ORDER_COLUMNS.folders, ordered(items.folderIds), folderId);
+  await placeFirst(db, environmentId, ORDER_COLUMNS.cards, ordered(items.cardIds), folderId);
+  await placeFirst(db, environmentId, ORDER_COLUMNS.tasks, ordered(items.taskIds), folderId);
+}

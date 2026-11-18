@@ -19,7 +19,19 @@ import type { ToolCallResult } from "@meowbert/run-executor/agent-tool-dispatch/
 import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { rethrowIfTaskCancelled } from "@meowbert/run-executor/agent-tool-dispatch/utils";
 import { assertFolderInProject, moveProjectMapItems } from "@meowbert/shared";
-import { pool } from "../../../lib/db.js";
+import { pool, withTransaction } from "../../../lib/db.js";
+
+// The task is already running by now, so a filing problem must not read as a failed create_task.
+async function fileNewTask(environmentId: string, taskId: string, folderId: string | null): Promise<{ folder_id: string | null; filing_error?: string }> {
+  if (!folderId) return { folder_id: null };
+  try {
+    await withTransaction((client) => moveProjectMapItems(client, environmentId, [taskId], folderId));
+    return { folder_id: folderId };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return { folder_id: null, filing_error: `The task was created and started, but could not be filed: ${reason} File it with update_project_map instead of creating it again.` };
+  }
+}
 
 async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDispatchContext) {
   const args: unknown = JSON.parse(call.arguments);
@@ -47,11 +59,11 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
           agent: taskAgent?.isSwarm ? null : agent,
           modelRoute
         });
-        if (folderId) await moveProjectMapItems(pool, ctx.environmentId, [scheduled.taskId], folderId);
+        const filing = await fileNewTask(ctx.environmentId, scheduled.taskId, folderId);
         // The first run starts at creation; next_scheduled_run_at is the run after it.
         return {
           task_id: scheduled.taskId,
-          folder_id: folderId,
+          ...filing,
           listening,
           first_run: "started_now",
           repeat: scheduled.repeat,
@@ -68,8 +80,7 @@ async function runProjectMasterTool(call: ResponseFunctionToolCall, ctx: ToolDis
         modelRoute
       });
       if (listening) await listenToNewTask(listenerTarget, created.taskId);
-      if (folderId) await moveProjectMapItems(pool, ctx.environmentId, [created.taskId], folderId);
-      return { task_id: created.taskId, listening, folder_id: folderId };
+      return { task_id: created.taskId, listening, ...await fileNewTask(ctx.environmentId, created.taskId, folderId) };
     }
     case "message_task": {
       const input = messageTaskSchema.parse(args);

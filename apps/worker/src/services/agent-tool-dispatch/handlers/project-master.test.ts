@@ -14,9 +14,20 @@ vi.mock("@meowbert/run-executor/agent-tool-dispatch/events", () => ({
   finishBuiltinToolSuccess: vi.fn(),
   finishBuiltinToolFailure: vi.fn()
 }));
+vi.mock("../../../lib/db.js", () => ({
+  pool: {},
+  withTransaction: vi.fn((work: (client: unknown) => Promise<unknown>) => work({}))
+}));
+vi.mock("@meowbert/shared", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@meowbert/shared")>(),
+  assertFolderInProject: vi.fn(),
+  moveProjectMapItems: vi.fn()
+}));
 
+import { createManagedTask } from "../../project-master/api-client.js";
 import { createScheduledManagedTask } from "../../project-master/scheduled-tasks.js";
-import { finishBuiltinToolSuccess } from "@meowbert/run-executor/agent-tool-dispatch/events";
+import { moveProjectMapItems } from "@meowbert/shared";
+import { finishBuiltinToolFailure, finishBuiltinToolSuccess } from "@meowbert/run-executor/agent-tool-dispatch/events";
 import type { ToolDispatchContext, ToolDispatchState } from "@meowbert/run-executor/agent-tool-dispatch/types";
 import { handleProjectMasterTool } from "./project-master.js";
 
@@ -31,6 +42,35 @@ const ctx = {
 function createTaskCall(args: Record<string, unknown>): ResponseFunctionToolCall {
   return { type: "function_call", call_id: "call-1", name: "create_task", arguments: JSON.stringify(args) };
 }
+
+describe("Master create_task filing", () => {
+  const folderId = "20000000-0000-4000-8000-000000000002";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(createManagedTask).mockResolvedValue({ taskId: "10000000-0000-4000-8000-000000000001", reusedExisting: false });
+  });
+
+  // A reported failure would lead the Master to start the same work a second time.
+  it("reports a started task as created when filing it fails", async () => {
+    vi.mocked(moveProjectMapItems).mockRejectedValueOnce(new Error("Folder was deleted."));
+
+    await handleProjectMasterTool(createTaskCall({ message: "Review the proposal", folder_id: folderId }), ctx, {} as ToolDispatchState);
+
+    expect(finishBuiltinToolFailure).not.toHaveBeenCalled();
+    const output = vi.mocked(finishBuiltinToolSuccess).mock.calls[0]?.[2];
+    expect(output).toMatchObject({ task_id: "10000000-0000-4000-8000-000000000001", folder_id: null });
+    expect(output).toHaveProperty("filing_error");
+  });
+
+  it("returns the folder when filing succeeds", async () => {
+    await handleProjectMasterTool(createTaskCall({ message: "Review the proposal", folder_id: folderId }), ctx, {} as ToolDispatchState);
+
+    const output = vi.mocked(finishBuiltinToolSuccess).mock.calls[0]?.[2];
+    expect(output).toMatchObject({ folder_id: folderId });
+    expect(output).not.toHaveProperty("filing_error");
+  });
+});
 
 describe("Master create_task with repeat", () => {
   beforeEach(() => {
