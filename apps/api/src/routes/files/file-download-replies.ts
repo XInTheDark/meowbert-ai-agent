@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import archiver from "archiver";
+import { ZipArchive, type Archiver } from "archiver";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { finalizeArchiveAfterReply } from "../../services/files/archive-stream.js";
 import type { ArchiveEntry, FileDownload } from "../../services/files/file-download.js";
@@ -12,9 +12,9 @@ function sendZip(
   request: FastifyRequest,
   reply: FastifyReply,
   filename: string,
-  addEntries: (archive: archiver.Archiver) => void
+  addEntries: (archive: Archiver) => void
 ) {
-  const archive = archiver("zip", { zlib: { level: 6 } });
+  const archive = new ZipArchive({ zlib: { level: 6 } });
   reply.header("Content-Type", "application/zip");
   reply.header("Content-Disposition", attachmentHeader(filename));
   archive.on("error", (err) => request.log.error(err));

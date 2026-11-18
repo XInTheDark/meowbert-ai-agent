@@ -1,7 +1,7 @@
-import archiver from "archiver";
+import type { Archiver } from "archiver";
 
 export function finalizeArchiveAfterReply(
-  archive: ReturnType<typeof archiver>,
+  archive: Archiver,
   onError: (error: Error) => void
 ): void {
   setImmediate(() => {

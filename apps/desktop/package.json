@@ -22,7 +22,7 @@
     "react-router-dom": "7.18.2",
     "@playwright/mcp": "0.0.68",
     "playwright": "1.59.0-alpha-1771104257000",
-    "archiver": "7.0.1",
+    "archiver": "8.0.0",
     "electron-sparkle": "0.2.0"
   },
   "devDependencies": {
@@ -32,9 +32,9 @@
     "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
     "typescript": "5.9.3",
-    "vite": "6.4.3",
-    "vitest": "4.1.11",
-    "@types/archiver": "7.0.0"
+    "vite": "6.4.6",
+    "vitest": "4.1.12",
+    "@types/archiver": "8.0.0"
   },
   "description": "Meowbert Desktop",
   "author": "Meowbert"

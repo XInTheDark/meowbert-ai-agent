@@ -3,7 +3,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { finished } from "node:stream/promises";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import { net, protocol } from "electron";
 import { readBootstrapData } from "../state";
 import { deviceFileContext } from "./service";
@@ -49,7 +49,7 @@ export async function downloadDeviceWorkspaceFile(url: string, destination: stri
     return true;
   }
   const output = fs.createWriteStream(destination);
-  const archive = archiver("zip");
+  const archive = new ZipArchive();
   archive.on("error", (error) => output.destroy(error));
   archive.on("warning", (error) => output.destroy(error));
   archive.pipe(output);
