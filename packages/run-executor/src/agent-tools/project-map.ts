@@ -8,7 +8,7 @@ export const PROJECT_MAP_TOOL_NAMES = [VIEW_PROJECT_MAP_TOOL_NAME, UPDATE_PROJEC
 
 export const PROJECT_MAP_OPS = [
   "create_folder", "rename_folder", "delete_folder", "set_note",
-  "create_card", "update_card", "delete_card", "move"
+  "create_card", "update_card", "delete_card", "rename_task", "move"
 ] as const;
 export type ProjectMapOpName = (typeof PROJECT_MAP_OPS)[number];
 
@@ -41,6 +41,7 @@ const UPDATE_DESCRIPTION = [
   "- create_card: name (title), parent_id (folder or null), text (details, may be empty), state.",
   "- update_card: id, and any of name, text, state; null keeps the current value.",
   "- delete_card: id.",
+  "- rename_task: id, name (the new title).",
   "- move: ids (folders, cards or tasks, mixed), parent_id (target folder, or null for top level; tasks there are unfiled).",
   "Set ref on a create to name the new item, then use that ref as an id or parent_id in later operations of the same call."
 ].join("\n");
@@ -48,10 +49,10 @@ const UPDATE_DESCRIPTION = [
 const OPERATION_PROPERTIES = {
   op: { type: "string", enum: [...PROJECT_MAP_OPS] },
   ref: nullableString("Your label for an item this operation creates, such as \"billing\". Null if not needed."),
-  id: nullableString("Folder or card ID (or a ref) the operation acts on."),
+  id: nullableString("Folder, card or task ID (or a ref) the operation acts on."),
   parent_id: nullableString("Target folder ID or ref. Null means the top level of the map."),
   ids: { type: ["array", "null"], items: { type: "string" }, description: "IDs or refs to move." },
-  name: nullableString("Folder name or card title."),
+  name: nullableString("Folder name, card title or task title."),
   text: nullableString("Markdown for a note, or a card's details."),
   state: { type: ["string", "null"], enum: [...PROJECT_MAP_CARD_STATES, null], description: "Card state: idea, next (ready to start) or done." }
 } as const;

@@ -77,6 +77,7 @@ export * from "./project-map-store.js";
 export * from "./project-map-folders.js";
 export * from "./project-map-cards.js";
 export * from "./project-map-placement.js";
+export * from "./project-map-tasks.js";
 export * from "./project-map-changes.js";
 export * from "./run-api.js";
 export * from "./retry-policy.js";

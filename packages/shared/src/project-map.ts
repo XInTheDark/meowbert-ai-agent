@@ -11,6 +11,7 @@ export const PROJECT_FOLDER_NOTE_MAX_CHARS = 20_000;
 export const PROJECT_MAP_CARD_BODY_MAX_CHARS = 8_000;
 export const PROJECT_MAP_NAME_MAX_CHARS = 120;
 export const PROJECT_MAP_CARD_TITLE_MAX_CHARS = 240;
+export const PROJECT_MAP_TASK_TITLE_MAX_CHARS = 240;
 // Newest tasks first; a project with more top-level tasks shows only these on the map.
 export const PROJECT_MAP_TASK_LIMIT = 1_000;
 

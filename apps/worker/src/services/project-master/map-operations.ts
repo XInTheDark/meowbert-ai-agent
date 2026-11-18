@@ -6,6 +6,7 @@ import {
   moveProjectMapItems,
   ProjectMapError,
   renameProjectFolder,
+  renameProjectMapTask,
   setProjectBrief,
   setProjectFolderNote,
   updateProjectMapCard,
@@ -77,6 +78,9 @@ async function applyOperation(db: ProjectMapDb, scope: ProjectMapScope, refs: Re
       return null;
     case "delete_card":
       await deleteProjectMapCard(db, environmentId, refs.resolve(required(operation.id, "id", operation.op)));
+      return null;
+    case "rename_task":
+      await renameProjectMapTask(db, environmentId, refs.resolve(required(operation.id, "id", operation.op)), required(operation.name, "name", operation.op));
       return null;
     case "move":
       await moveProjectMapItems(db, environmentId, required(operation.ids, "ids", operation.op).map((id) => refs.resolve(id)),

@@ -103,6 +103,19 @@ describe.skipIf(!databaseUrl)("Project map in PostgreSQL", () => {
     expect((await loadProjectMap(db, environmentId)).folders).toEqual(before.folders);
   });
 
+  it("renames tasks on this project's map and refuses tasks that are not on it", async () => {
+    const task = await createTask("succeeded");
+    const otherProjectTask = randomUUID();
+    await client.query("INSERT INTO tasks(id, environment_id, title, status) VALUES ($1, $2, 'Theirs', 'succeeded')", [otherProjectTask, randomUUID()]);
+
+    await apply([op({ op: "rename_task", id: task, name: "  Invoice export  " })]);
+    expect((await loadProjectMap(db, environmentId)).tasks.find((item) => item.id === task)?.title).toBe("Invoice export");
+
+    await expect(apply([op({ op: "rename_task", id: otherProjectTask, name: "Mine now" })])).rejects.toThrow(/Task not found/);
+    const { rows } = await client.query<{ title: string }>("SELECT title FROM tasks WHERE id = $1", [otherProjectTask]);
+    expect(rows[0].title).toBe("Theirs");
+  });
+
   it("refuses to move a folder into its own subfolder", async () => {
     const map = await loadProjectMap(db, environmentId);
     const billing = map.folders.find((folder) => folder.name === "Billing v2")!;
