@@ -1,0 +1,36 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /skills/deep-ai-search
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    # Match the 7-day minimum release age used for local installs.
+    cooldown:
+      default-days: 7
+    groups:
+      # Patch and minor bumps arrive as one PR. The auto-merge workflow only
+      # merges PRs from this group; major bumps stay as separate manual PRs.
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
