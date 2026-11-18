@@ -208,11 +208,13 @@ function TaskConversationNavigation({ model }: ModelProps) {
 // An Agent Swarm's lanes, as tracks under the leader messages that started them.
 function useSwarmLaneAccessories(model: TaskDetailLoadedController) {
   const { view, setOpenLaneId, stopLane } = model.swarm;
-  const messages = model.controllers.conversation.messages;
+  const { messages, messagePage, isConversationBootstrapping } = model.controllers.conversation;
   const taskId = model.context.taskId;
+  const { has_older: hasOlder, has_newer: hasNewer } = messagePage;
   return useMemo(() => {
     if (!view || !taskId) return undefined;
-    return buildSwarmLaneGroups(view.lanes, taskId, messages).map((group) => ({
+    const loadedWindow = { loading: isConversationBootstrapping, hasOlder, hasNewer };
+    return buildSwarmLaneGroups(view.lanes, taskId, messages, loadedWindow).map((group) => ({
       key: `swarm-lanes:${group.key}`,
       anchorMessageId: group.anchorMessageId,
       node: (
@@ -220,7 +222,7 @@ function useSwarmLaneAccessories(model: TaskDetailLoadedController) {
           onOpenLane={setOpenLaneId} onStopLane={(laneId) => void stopLane(laneId, false)} />
       )
     }));
-  }, [messages, setOpenLaneId, stopLane, taskId, view]);
+  }, [hasNewer, hasOlder, isConversationBootstrapping, messages, setOpenLaneId, stopLane, taskId, view]);
 }
 
 function TaskConversationMain({ model }: ModelProps) {

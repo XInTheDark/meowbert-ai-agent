@@ -42,6 +42,13 @@ describe("swarm lane groups", () => {
     expect(buildSwarmLaneGroups(lanes, "root", messages).map((group) => group.anchorMessageId)).toEqual(["split-call", "reply"]);
   });
 
+  it("holds back groups whose anchor is on a conversation page that is not loaded", () => {
+    const latestPage = [message("progress", "2026-10-23T10:10:00Z"), message("reply", "2026-10-23T10:21:00Z")];
+    const window = { loading: false, hasOlder: true, hasNewer: false };
+    expect(buildSwarmLaneGroups(lanes, "root", latestPage, window).map((group) => group.key)).toEqual(["seed-3"]);
+    expect(buildSwarmLaneGroups(lanes, "root", [], { ...window, loading: true })).toEqual([]);
+  });
+
   it("lists only the leader's resumable lanes as dormant", () => {
     expect(listDormantSwarmLanes([lane({ id: "a", resumable: true }), lane({ id: "b", parentId: "a", resumable: true }), lane({ id: "c" })], "root")
       .map((item) => item.id)).toEqual(["a"]);

@@ -35,7 +35,30 @@ export function findLaneGroupAnchor(messages: TaskMessage[], createdAt: string):
   return anchor?.id ?? null;
 }
 
-export function buildSwarmLaneGroups(lanes: AgentSwarmLaneView[], rootTaskId: string, messages: TaskMessage[]): SwarmLaneGroup[] {
+// Which part of the conversation is loaded. Without it every group is placed.
+export interface LoadedMessageWindow {
+  loading: boolean;
+  hasOlder: boolean;
+  hasNewer: boolean;
+}
+
+// A group whose anchor may sit on a page that is not loaded would otherwise pile up under the
+// nearest loaded message, so it waits until that page loads.
+function isGroupOnLoadedPage(createdAt: string, messages: TaskMessage[], window: LoadedMessageWindow): boolean {
+  if (messages.length === 0) return !window.loading && !window.hasOlder && !window.hasNewer;
+  const at = new Date(createdAt).getTime();
+  const times = messages.map((message) => new Date(message.created_at).getTime());
+  if (window.hasOlder && at < Math.min(...times)) return false;
+  if (window.hasNewer && at > Math.max(...times)) return false;
+  return true;
+}
+
+export function buildSwarmLaneGroups(
+  lanes: AgentSwarmLaneView[],
+  rootTaskId: string,
+  messages: TaskMessage[],
+  loadedWindow?: LoadedMessageWindow
+): SwarmLaneGroup[] {
   const groups = new Map<string, SwarmLaneGroup>();
   for (const node of buildNodes(lanes, rootTaskId)) {
     const key = node.lane.groupId ?? node.lane.id;
@@ -47,6 +70,7 @@ export function buildSwarmLaneGroups(lanes: AgentSwarmLaneView[], rootTaskId: st
     groups.set(key, { key, createdAt: node.lane.createdAt, anchorMessageId: null, nodes: [node] });
   }
   return [...groups.values()]
+    .filter((group) => !loadedWindow || isGroupOnLoadedPage(group.createdAt, messages, loadedWindow))
     .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
     .map((group) => ({ ...group, anchorMessageId: findLaneGroupAnchor(messages, group.createdAt) }));
 }
