@@ -27,6 +27,7 @@ import {
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
   LIST_LIVE_SYNC_FILES_TOOL_NAME,
   MEMORY_SEARCH_TOOL_NAME,
@@ -108,6 +109,10 @@ function isToolEnabled(
 
   if (tool.name === FINAL_RESPONSE_TOOL_NAME) {
     return availability.allowFinalResponse !== false;
+  }
+
+  if (tool.name === SEND_MESSAGE_TOOL_NAME) {
+    return availability.allowSendMessage === true;
   }
 
   if (tool.name === SHELL_SESSION_TOOL_NAME) {

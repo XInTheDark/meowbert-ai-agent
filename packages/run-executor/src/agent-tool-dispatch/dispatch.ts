@@ -23,6 +23,7 @@ import {
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   ENABLE_SKILL_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   MARK_ARTIFACT_TOOL_NAME,
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
   INIT_SANDBOX_TOOL_NAME,
@@ -87,6 +88,7 @@ import { handleSearchLiveSyncFolder } from "./handlers/live-sync-folder-search.j
 import { handleLiveSyncFileVersions } from "./handlers/live-sync-file-versions.js";
 import {
   handleFinalResponse,
+  handleSendMessage,
   handleRefreshGitHubToken,
   handleRunShell,
 } from "./handlers/shell.js";
@@ -178,6 +180,13 @@ async function dispatchFunctionToolCall(
 
     case REFRESH_GH_TOKEN_TOOL_NAME:
       return handleRefreshGitHubToken(outputItem, ctx, state);
+
+    case SEND_MESSAGE_TOOL_NAME:
+      // Forked lanes inherit the leader's tool list, but only the leader talks to the user.
+      if (ctx.swarm?.run.lane) {
+        return toolErrorResult("Lanes report through submit, not send_message.");
+      }
+      return handleSendMessage(outputItem, state);
 
     case FINAL_RESPONSE_TOOL_NAME:
       if (ctx.swarm?.run.lane) {

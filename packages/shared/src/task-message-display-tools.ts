@@ -143,7 +143,8 @@ export function buildResponseToolMessages(message: DisplaySourceMessage): Displa
       const callId = asString(item.call_id) ?? asString(item.id);
       const functionOutput = callId ? functionOutputsByCallId.get(callId) : null;
       const inlineArtifact = functionOutput ? parseInlineArtifact(functionOutput.output) : null;
-      if (item.name === "final_response") {
+      // These calls are the message itself, so they are not shown again as tool activity.
+      if (item.name === "final_response" || item.name === "send_message") {
         return;
       }
 

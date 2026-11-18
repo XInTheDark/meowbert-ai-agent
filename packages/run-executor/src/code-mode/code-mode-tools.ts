@@ -8,6 +8,7 @@ import {
   ENABLE_SKILL_TOOL_NAME,
   GET_CONTEXT_REMAINING_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   INIT_SANDBOX_TOOL_NAME,
   LIST_SKILLS_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
@@ -36,6 +37,7 @@ import { SEARCH_TOOLS_TOOL } from "./search-tools-tool.js";
 // script can pull earlier outputs and replace them without writing them out.
 const DIRECT_TOOL_NAMES = new Set<string>([
   FINAL_RESPONSE_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   WAIT_TOOL_NAME,
   STOP_TASK_TOOL_NAME,
   START_LONG_HORIZON_TASK_TOOL_NAME,

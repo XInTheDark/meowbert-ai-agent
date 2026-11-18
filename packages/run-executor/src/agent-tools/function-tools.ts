@@ -24,6 +24,7 @@ import {
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
   ENABLE_SKILL_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   MARK_ARTIFACT_TOOL_NAME,
   NEW_CONTEXT_TOOL_NAME,
   CONTEXT_REPLACE_CALLS_TOOL_NAME,
@@ -325,6 +326,23 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
       type: "object",
       properties: {},
       required: [],
+      additionalProperties: false
+    }
+  },
+  {
+    type: "function",
+    name: SEND_MESSAGE_TOOL_NAME,
+    description: "Post a message in the conversation and keep working. Use it to answer or update the user while work is still going, such as a job you need to keep watching, because final_response ends the run. It sends no push or channel notification.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        message: {
+          type: "string",
+          description: "Your message to the user, written in your own voice."
+        }
+      },
+      required: ["message"],
       additionalProperties: false
     }
   },

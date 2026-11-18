@@ -160,6 +160,10 @@ export const finalResponseArgumentsSchema = z.object({
   partial: z.boolean().nullable().optional()
 });
 
+export const sendMessageArgumentsSchema = z.object({
+  message: z.string().trim().min(1)
+}).strict();
+
 export const markArtifactArgumentsSchema = z.object({
   file_paths: z.array(z.string().min(1)).min(1).max(50),
   remove: z.boolean().nullable().optional()

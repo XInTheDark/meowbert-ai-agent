@@ -11,6 +11,7 @@ export const HOST_SHELL_TOOL_NAME = "host_shell";
 export const SHELL_SESSION_TOOL_NAME = "shell_session";
 export const REFRESH_GH_TOKEN_TOOL_NAME = "refresh_gh_token";
 export const FINAL_RESPONSE_TOOL_NAME = "final_response";
+export const SEND_MESSAGE_TOOL_NAME = "send_message";
 export const MARK_ARTIFACT_TOOL_NAME = "mark_artifact";
 export const CREATE_PROJECT_CANVAS_TOOL_NAME = "create_project_canvas";
 export const SHOW_CANVAS_TOOL_NAME = "show_canvas";
@@ -108,6 +109,7 @@ export interface ResponseToolAvailability {
   allowFileIndexSave?: boolean;
   allowStopTask?: boolean;
   allowWaitTool?: boolean;
+  allowSendMessage?: boolean;
   allowRefreshGitHubToken?: boolean;
   allowStartLongHorizonTask?: boolean;
   allowRequestClarification?: boolean;

@@ -5,9 +5,9 @@ import {
   shouldAutoApplyInfiniteWait,
   shouldPauseTimedScheduleAfterCompletion
 } from "../tasks/recurring-run-utils.js";
-import { linkContextNodeToVisibleMessage } from "../context-management-v2/window.js";
 import type { AgentExecutionContext } from "./execution-types.js";
 import { countPreservedReasoningContentItems } from "./reasoning-content-count.js";
+import { adoptVisibleMessage } from "./visible-message.js";
 
 const ASSISTANT_LOG_MESSAGE_MAX_CHARS = 100;
 const MIN_FINAL_RESPONSE_OVERLAP_CHARS = 40;
@@ -251,16 +251,7 @@ async function appendAssistantRunMessage(execution: AgentExecutionContext, final
     reasoningContentCount: countPreservedReasoningContentItems(execution.prepared.runPersistedItems)
   });
 
-  if (execution.state.contextManagement?.version === "v2" && execution.state.currentLeafMessageId) {
-    execution.state.contextManagement = await linkContextNodeToVisibleMessage(control.context, {
-      state: execution.state.contextManagement,
-      visibleMessageId: execution.state.currentLeafMessageId
-    });
-  }
-
-  if (execution.state.currentLeafMessageId) {
-    await control.selectBranch(execution.state.currentLeafMessageId);
-  }
+  await adoptVisibleMessage(execution);
 }
 
 async function completeRunWithTaskStatus(

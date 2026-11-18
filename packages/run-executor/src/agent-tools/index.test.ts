@@ -675,6 +675,14 @@ describe("buildResponseTools", () => {
     }));
   });
 
+  it("offers send_message only to runs allowed to post mid-run", () => {
+    const hasSendMessage = (allowSendMessage: boolean) => buildResponseTools({}, [], { allowSendMessage })
+      .some((tool) => tool.type === "function" && tool.name === "send_message");
+
+    expect(hasSendMessage(true)).toBe(true);
+    expect(hasSendMessage(false)).toBe(false);
+  });
+
   it("defines final_response with a strict partial parameter and no review bypass", () => {
     const finalResponseTool = RESPONSE_FUNCTION_TOOLS.find((tool) => tool.name === FINAL_RESPONSE_TOOL_NAME);
     const parameters = finalResponseTool?.parameters as { properties: Record<string, unknown>; required: string[] };

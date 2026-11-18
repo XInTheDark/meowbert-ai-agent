@@ -131,6 +131,8 @@ export interface ToolDispatchState {
   budgetTelemetry?: BudgetTelemetry | null;
   commandStep: number;
   finalResponseSegments?: Array<{ response: string; notify: boolean; partial: boolean; summary?: string }>;
+  // send_message text waiting to be posted once this turn's calls are recorded.
+  pendingMidRunMessages?: string[];
   pendingContextManagementAction?:
     | {
         kind: "compact";

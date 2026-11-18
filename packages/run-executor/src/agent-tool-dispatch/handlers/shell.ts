@@ -11,6 +11,8 @@ import {
 } from "@meowbert/shared";
 import {
   FINAL_RESPONSE_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
+  sendMessageArgumentsSchema,
   REFRESH_GH_TOKEN_TOOL_NAME,
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS,
   RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS,
@@ -428,6 +430,18 @@ export function handleFinalResponse(
       partial
     }
   };
+}
+
+export function handleSendMessage(
+  outputItem: ResponseFunctionToolCall,
+  state: ToolDispatchState
+): ToolCallResult {
+  const parsed = parseToolArguments(SEND_MESSAGE_TOOL_NAME, outputItem.arguments, sendMessageArgumentsSchema);
+  if (!parsed.ok) {
+    return toolErrorResult(parsed.error);
+  }
+  (state.pendingMidRunMessages ??= []).push(parsed.value.message);
+  return { output: { sent: true, note: "The run is still going. If the task is done, call final_response to end it." } };
 }
 
 export async function handleRefreshGitHubToken(

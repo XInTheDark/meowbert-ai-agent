@@ -25,6 +25,7 @@ import { RETRY_NOTICE_KIND } from "./retry-notices.js";
 import { dispatchResponseOutput, type ToolDispatchContext } from "../agent-tool-dispatch/index.js";
 import { isContextManagementV2Tool } from "../agent-tool-dispatch/handlers/context-management-v2.js";
 import { isIdleCompactionRun } from "./idle-compaction.js";
+import { publishMidRunMessages } from "./mid-run-messages.js";
 import {
   clearExpiredCacheWindow,
   isNotesOnlyTurn,
@@ -446,6 +447,8 @@ async function requestModelTurn(input: {
       allowFinalResponse: execution.workflow.workflowContext ? availability.allowFinalResponseTool : true,
       allowStopTask: execution.allowStopTask,
       allowWaitTool: execution.prepared.snapshot.task.allow_waiting !== false && !execution.workflow.workflowContext,
+      allowSendMessage: !execution.workflow.workflowContext && !execution.prepared.isSubtask
+        && !execution.prepared.snapshot.task.read_only && !isIdleCompactionRun(execution.job),
       allowScheduleTools: execution.allowScheduleTools,
       loadedToolGroups: [...execution.loadedToolGroups],
       allowSubtaskTools: execution.allowSubtaskTools,
@@ -879,6 +882,7 @@ async function processModelTurnResult(
     buildDispatchContext(execution, turn, step),
     execution.state.dispatchState
   );
+  await publishMidRunMessages(execution);
   await execution.prepared.features.afterModelTurn(execution, turn.weightedTokens);
   if (isIdleCompactionRun(execution.job)) return continueIdleCompaction(execution, response);
   if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
