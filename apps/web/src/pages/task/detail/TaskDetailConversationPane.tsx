@@ -102,6 +102,7 @@ interface TaskDetailConversationPaneProps {
   onTaskParametersChange: (taskParameters: TaskParameters) => void | Promise<void>;
   onWorkflowConfigChange?: (workflowConfig: TaskWorkflowComposerConfig) => void | Promise<void>;
   onStop: () => void;
+  stopRunningSince?: string | null;
   availableSkills: SkillSummary[];
   availableSources: WorkspaceSourceSummary[];
   attachableSources: WorkspaceSourceSummary[];
@@ -350,6 +351,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
                 taskParametersMode="edit"
                 isTaskRunning={props.isTaskRunning}
                 onStop={props.onStop}
+                stopRunningSince={props.stopRunningSince}
                 availableSkills={props.availableSkills}
                 availableSources={props.availableSources}
                 attachableSources={props.attachableSources}

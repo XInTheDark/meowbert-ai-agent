@@ -11,6 +11,7 @@ import type { TaskParameters, TaskToolOptions, TaskType, TaskWorkflowComposerCon
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
 import type { ChatToolsPopoverPlacement } from "../tasks/useChatToolsDropdownPlacement";
 import { ChatInputSendButton } from "./ChatInputSendButton";
+import { ConfirmStopButton } from "../tasks/ConfirmStopButton";
 
 interface ChatInputControlsProps {
   isSubmitting: boolean;
@@ -47,6 +48,7 @@ interface ChatInputControlsProps {
   shouldShowAgentSwitcher: boolean;
   isTaskRunning?: boolean;
   onStop?: () => void;
+  stopRunningSince?: string | null;
   submitBlockedByUploads: boolean;
   isQueuedSubmitPending: boolean;
   handleSubmitRequest: () => void;
@@ -167,14 +169,10 @@ export function ChatInputControls(props: ChatInputControlsProps) {
 
       <div className="chat-controls-right">
         {props.isTaskRunning && props.onStop ? (
-          <button
-            className="stop-btn"
-            onClick={props.onStop}
-            title="Stop task"
-            type="button"
-          >
+          <ConfirmStopButton className="stop-btn" title="Stop task" runningSince={props.stopRunningSince ?? null}
+            onStop={props.onStop}>
             <Square size={16} />
-          </button>
+          </ConfirmStopButton>
         ) : null}
         <ChatInputSendButton
           isSubmitting={props.isSubmitting}

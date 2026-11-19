@@ -232,6 +232,8 @@ export interface TaskDetail {
     task_root_path?: string;
     execution_target?: import("@meowbert/shared").TaskExecutionTarget;
     pending_reason?: string | null;
+    // When the run still going started, if one is.
+    active_run_started_at?: string | null;
     is_thread?: boolean;
     is_project_master?: boolean;
     thread_parent_task_id?: string | null;

@@ -55,6 +55,7 @@ interface TaskDetailRow {
   id: string;
   title: string | null;
   status: string;
+  active_run_started_at: string | null;
   cancellation_requested: boolean;
   resume_after_interrupt: boolean;
   workspace_id: string;
@@ -568,6 +569,7 @@ async function loadTaskDetailRecord(taskId: string) {
           t.execution_target,
           (SELECT d.pending_reason FROM task_run_dispatches d JOIN task_runs tr ON tr.id = d.run_id
             WHERE d.task_id = t.id AND tr.ended_at IS NULL ORDER BY tr.attempt_no DESC LIMIT 1) AS pending_reason,
+          (SELECT max(tr.started_at) FROM task_runs tr WHERE tr.task_id = t.id AND tr.ended_at IS NULL) AS active_run_started_at,
           t.workflow_type,
           ${legacyAgentSwarmTaskSql("t")} AS is_legacy_swarm,
           t.interactive_canvas_id,

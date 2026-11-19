@@ -44,6 +44,8 @@ interface ChatInputProps {
   allowSubtasksOption?: boolean;
   isTaskRunning?: boolean;
   onStop?: () => void;
+  // When the run the stop button would end started.
+  stopRunningSince?: string | null;
   availableSkills?: SkillSummary[];
   availableSources?: WorkspaceSourceSummary[];
   attachableSources?: WorkspaceSourceSummary[];
@@ -171,6 +173,7 @@ export function ChatInput({
   onToolOptionsChange,
   isTaskRunning,
   onStop,
+  stopRunningSince,
   showMemorySearch = false,
   showComputerUse = false,
   allowScheduleTaskOption = true,
@@ -430,6 +433,7 @@ export function ChatInput({
         shouldShowAgentSwitcher={shouldShowAgentSwitcher}
         isTaskRunning={isTaskRunning}
         onStop={onStop}
+        stopRunningSince={stopRunningSince}
         submitBlockedByUploads={submitBlockedByUploads}
         isQueuedSubmitPending={isQueuedSubmitPending}
         handleSubmitRequest={handleSubmitRequest}

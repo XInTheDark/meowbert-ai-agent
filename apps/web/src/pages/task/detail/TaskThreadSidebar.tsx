@@ -41,6 +41,7 @@ import { requestTaskInterrupt, sendTaskFollowUp, switchTaskBranch } from "./task
 import { createConversationScrollController } from "./conversationScrollController";
 import type { WorkspaceSourceSummary } from "../../../sources/sourceTypes";
 import { useSubscriptionUsageWarning } from "../../../subscription/usageLimits";
+import { useRunningSince } from "../../../hooks/useRunningSince";
 
 function createPendingThreadTaskId(): string {
   return crypto.randomUUID();
@@ -732,6 +733,7 @@ function ThreadConversationPanel(props: {
 
   const displayStatus = taskDetail ? getThreadDisplayStatus(taskDetail) : null;
   const isThreadActive = isTaskActiveStatus(taskDetail?.task.status);
+  const stopRunningSince = useRunningSince(isThreadActive, taskDetail?.task.active_run_started_at);
 
   useEffect(() => {
     void loadTask();
@@ -979,6 +981,7 @@ function ThreadConversationPanel(props: {
               onStop={() => {
                 void handleStop();
               }}
+              stopRunningSince={stopRunningSince}
               availableSkills={props.availableSkills}
               availableSources={props.availableSources}
               attachableSources={props.attachableSources}

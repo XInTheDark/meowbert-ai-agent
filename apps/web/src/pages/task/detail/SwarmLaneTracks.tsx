@@ -2,6 +2,7 @@ import { PanelRightOpen, Square } from "lucide-react";
 import type { AgentSwarmLaneView } from "@meowbert/shared/agent-swarm-view";
 import { badgeClass } from "../../../lib/utils";
 import { formatTokenCount } from "../../../components/taskConversation/shared";
+import { ConfirmStopButton } from "../../../components/tasks/ConfirmStopButton";
 import { ACTIVE_SWARM_LANE_STATUSES, type SwarmLaneGroup, type SwarmLaneNode } from "./swarmLaneGroups";
 
 interface SwarmLaneTracksProps {
@@ -40,10 +41,11 @@ function LaneRow(props: Omit<SwarmLaneTracksProps, "group"> & { node: SwarmLaneN
             <PanelRightOpen size={14} />
           </button>
           {active ? (
-            <button type="button" className="icon-btn-subtle" title="Stop: submit what it has"
-              aria-label={`Stop lane ${lane.title}`} onClick={() => props.onStopLane(lane.id)}>
+            <ConfirmStopButton className="icon-btn-subtle" title="Stop: submit what it has"
+              ariaLabel={`Stop lane ${lane.title}`} runningSince={lane.startedAt}
+              onStop={() => props.onStopLane(lane.id)}>
               <Square size={13} />
-            </button>
+            </ConfirmStopButton>
           ) : null}
         </span>
       </div>

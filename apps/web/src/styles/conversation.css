@@ -4344,16 +4344,18 @@ a.citation-pill:hover {
   }
 }
 
-.swarm-dormant-menu {
-  position: relative;
+.swarm-lane-menu {
+  display: inline-flex;
 }
 
-.swarm-dormant-list {
-  position: absolute;
-  top: calc(100% + 0.3rem);
-  right: 0;
-  z-index: 20;
-  width: min(22rem, 80vw);
+.swarm-lane-menu-list {
+  position: fixed;
+  left: var(--swarm-lane-menu-left);
+  top: var(--swarm-lane-menu-top);
+  z-index: 200;
+  width: min(22rem, calc(100vw - 1rem));
+  max-height: min(24rem, calc(100vh - 2rem));
+  overflow-y: auto;
   margin: 0;
   padding: 0.3rem;
   list-style: none;
@@ -4363,7 +4365,7 @@ a.citation-pill:hover {
   box-shadow: 0 8px 24px color-mix(in srgb, black 12%, transparent);
 }
 
-.swarm-dormant-list button {
+.swarm-lane-menu-list button {
   width: 100%;
   display: grid;
   gap: 0.1rem;
@@ -4378,11 +4380,12 @@ a.citation-pill:hover {
   cursor: pointer;
 }
 
-.swarm-dormant-list button:hover {
+.swarm-lane-menu-list button:hover {
   background: var(--surface-soft);
 }
 
-.swarm-dormant-list span {
+.swarm-lane-menu-list span {
+  min-width: 0;
   color: var(--text-muted);
   font-size: 0.74rem;
   overflow: hidden;
@@ -4403,4 +4406,12 @@ a.citation-pill:hover {
 .schedule-send-input {
   width: 100%;
   box-sizing: border-box;
+}
+
+/* A stop button waiting for its confirming second click. */
+button.stop-confirm-armed,
+button.stop-confirm-armed:hover {
+  background: var(--danger, #e05);
+  border-color: var(--danger, #e05);
+  color: #fff;
 }

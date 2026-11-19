@@ -32,6 +32,7 @@ import { TaskDetailTopbar } from "./TaskDetailTopbar";
 import { TaskDetailWorkflowStrip } from "./TaskDetailWorkflowStrip";
 import { TaskWorkflowSidebar } from "./TaskWorkflowSidebar";
 import { SwarmHeaderStrip } from "./SwarmHeaderStrip";
+import { useRunningSince } from "../../../hooks/useRunningSince";
 import { SwarmLaneSidebar } from "./SwarmLaneSidebar";
 import { SwarmLaneTracks } from "./SwarmLaneTracks";
 import { buildSwarmLaneGroups } from "./swarmLaneGroups";
@@ -228,6 +229,8 @@ function useSwarmLaneAccessories(model: TaskDetailLoadedController) {
 function TaskConversationMain({ model }: ModelProps) {
   const task = model.context.data.taskDetail?.task;
   const swarmLaneAccessories = useSwarmLaneAccessories(model);
+  const isTaskRunning = ["running", "starting", "queued"].includes(task?.status ?? "");
+  const stopRunningSince = useRunningSince(isTaskRunning, task?.active_run_started_at);
   if (!task) return null;
   const conversation = model.controllers.conversation;
   const events = model.controllers.events;
@@ -245,7 +248,7 @@ function TaskConversationMain({ model }: ModelProps) {
         conversationPageLoadDirection={conversation.conversationPageLoadDirection}
         hasOlderMessages={conversation.messagePage.has_older}
         onLoadOlderMessages={conversation.loadOlderMessages}
-        isTaskRunning={["running", "starting", "queued"].includes(task.status)}
+        isTaskRunning={isTaskRunning}
         isThinking={events.isThinking}
         chatFeedRef={conversation.chatFeedRef}
         onScroll={conversation.handleConversationScroll}
@@ -309,6 +312,7 @@ function TaskConversationMain({ model }: ModelProps) {
         onTaskParametersChange={model.actions.handleTaskParametersChange}
         onWorkflowConfigChange={model.actions.handleWorkflowChange}
         onStop={() => void model.actions.handleCancelTask()}
+        stopRunningSince={stopRunningSince}
         availableSkills={model.context.catalog.availableSkills}
         availableSources={model.context.catalog.availableSources}
         attachableSources={model.context.catalog.attachableSources}

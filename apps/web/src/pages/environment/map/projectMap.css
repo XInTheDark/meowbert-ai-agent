@@ -330,15 +330,23 @@ button.project-map-item-title:hover {
 
 .project-map-item:hover .project-map-row-menu,
 .project-map-column-header:hover .project-map-row-menu,
-.project-map-row-menu:focus-within {
+.project-map-row-menu:focus-within,
+.project-map-row-menu:has([aria-expanded="true"]) {
   opacity: 1;
 }
 
+/* Touch screens have no hover to reveal the button. */
+@media (hover: none) {
+  .project-map-row-menu {
+    opacity: 1;
+  }
+}
+
 .project-map-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.2rem);
-  z-index: 20;
+  position: fixed;
+  left: var(--project-map-menu-left);
+  top: var(--project-map-menu-top);
+  z-index: 200;
   min-width: 10rem;
   display: flex;
   flex-direction: column;
