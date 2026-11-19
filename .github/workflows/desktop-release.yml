@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload renderer screenshots
         if: ${{ !cancelled() && inputs.build_only }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ runner.os }}-screenshots
           if-no-files-found: ignore
@@ -282,7 +282,7 @@ jobs:
 
       - name: Upload packaged desktop artifacts
         if: inputs.build_only
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ runner.os }}
           if-no-files-found: error
