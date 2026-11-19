@@ -16,15 +16,15 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "4.0.40",
-    "@ai-sdk/openai": "4.0.44",
-    "@modelcontextprotocol/sdk": "1.32.1",
+    "@ai-sdk/anthropic": "4.0.102",
+    "@ai-sdk/openai": "4.0.115",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@mozilla/readability": "0.6.0",
-    "ai": "7.0.70",
+    "ai": "7.0.170",
     "jsdom": "26.1.0",
-    "lru-cache": "11.2.5",
+    "lru-cache": "11.5.3",
     "p-limit": "6.2.0",
-    "turndown": "7.2.2",
+    "turndown": "7.2.5",
     "zod": "4.6.7"
   },
   "optionalDependencies": {
@@ -36,7 +36,7 @@
     "@types/jsdom": "21.1.7",
     "@types/node": "22.19.7",
     "@types/turndown": "5.0.6",
-    "tsx": "4.23.12",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "4.1.12"
   },
