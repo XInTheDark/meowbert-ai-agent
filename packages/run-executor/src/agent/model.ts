@@ -126,7 +126,8 @@ function buildModelRequestPayload(input: CreateModelResponseInput): Record<strin
   const requestInput = normalizeProviderRequestInput(
     [...(chatGptCodex ? [] : input.prefixItems), ...input.conversationItems],
     modelType,
-    input.compatibilityModes ?? []
+    input.compatibilityModes ?? [],
+    !chatGptCodex && input.prefixItems.length > 0 ? input.prefixItems.length : undefined
   );
   const normalizedModelPayload = canonicalizeModelPayload(input.modelPayload);
   const normalizedTools = normalizeToolsForRequest(normalizeProviderRequestTools(input.tools, modelType));

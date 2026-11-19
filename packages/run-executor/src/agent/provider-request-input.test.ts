@@ -144,4 +144,34 @@ describe("normalizeProviderRequestInput", () => {
       { role: "user", content: "Budget" }
     ]);
   });
+
+  it("keeps a compaction summary after the prompt prefix out of the Claude system prompt", () => {
+    const prefix = [
+      { role: "developer", content: "Policy" },
+      { role: "system", content: "Tools" }
+    ] as ResponseInputItem[];
+    const output = normalizeProviderRequestInput([
+      ...prefix,
+      { role: "system", content: "## Context Compaction\n\nSummary" },
+      { type: "function_call_output", call_id: "c1", output: "Brief" }
+    ] as ResponseInputItem[], "claude", ["noDeveloperMessages"], prefix.length);
+
+    expect(output.slice(0, 3)).toEqual([
+      { role: "system", content: "Policy" },
+      { role: "system", content: "Tools" },
+      { role: "user", content: "## Context Compaction\n\nSummary" }
+    ]);
+  });
+
+  it("treats every leading instruction as the system prompt when the prefix length is unknown", () => {
+    expect(normalizeProviderRequestInput([
+      { role: "system", content: "Instructions" },
+      { role: "system", content: "More" },
+      { role: "user", content: "Task" }
+    ] as ResponseInputItem[], "claude", ["noDeveloperMessages"])).toEqual([
+      { role: "system", content: "Instructions" },
+      { role: "system", content: "More" },
+      { role: "user", content: "Task" }
+    ]);
+  });
 });

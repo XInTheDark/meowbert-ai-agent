@@ -127,10 +127,14 @@ function mergeInstructionContent(messages: InstructionMessage[]): string | Respo
 }
 
 // The instructions before the first conversation item are the system prompt; any later ones are
-// notices added as the conversation went on, which are sent as user turns in their place.
-function splitLeadingInstructions(items: ResponseInputItem[]): { leading: InstructionMessage[]; conversation: ResponseInputItem[] } {
+// notices added as the conversation went on, which are sent as user turns in their place. When the
+// prompt prefix's length is known, nothing past it counts as the system prompt.
+function splitLeadingInstructions(
+  items: ResponseInputItem[],
+  promptPrefixLength = items.length
+): { leading: InstructionMessage[]; conversation: ResponseInputItem[] } {
   const firstConversationIndex = items.findIndex((item) => !isInstructionMessage(item));
-  const leadingCount = firstConversationIndex === -1 ? items.length : firstConversationIndex;
+  const leadingCount = Math.min(firstConversationIndex === -1 ? items.length : firstConversationIndex, promptPrefixLength);
   const conversation = items.slice(leadingCount).map((item) => isInstructionMessage(item)
     ? { ...item, role: "user" as const } as ResponseInputItem
     : item);
@@ -147,9 +151,10 @@ function mergeGoogleInstructionMessages(items: ResponseInputItem[]): ResponseInp
 }
 
 // Claude proxies move a system message that comes after the conversation started into the system
-// prompt, which rewrites the cached prefix every time a notice is added. Notices stay user turns.
-function sendLaterInstructionsAsUserTurns(items: ResponseInputItem[]): ResponseInputItem[] {
-  const { leading, conversation } = splitLeadingInstructions(items);
+// prompt, which rewrites the cached prefix every time a notice is added. Notices stay user turns, and
+// so does a compaction summary that opens the conversation right after the prefix.
+function sendLaterInstructionsAsUserTurns(items: ResponseInputItem[], promptPrefixLength?: number): ResponseInputItem[] {
+  const { leading, conversation } = splitLeadingInstructions(items, promptPrefixLength);
   return [
     ...leading.map((item) => item.role === "developer" ? { ...item, role: "system" as const } as ResponseInputItem : item),
     ...conversation
@@ -217,7 +222,8 @@ export function normalizeGoogleToolResultAdjacency(items: ResponseInputItem[]): 
 export function normalizeProviderRequestInput(
   items: ResponseInputItem[],
   modelType: PlatformModelType,
-  compatibilityModes: readonly PlatformModelCompatibilityMode[] = []
+  compatibilityModes: readonly PlatformModelCompatibilityMode[] = [],
+  promptPrefixLength?: number
 ): ResponseInputItem[] {
   let compatibleItems = normalizeFunctionCallArguments(items);
   if (modelType === "google") {
@@ -225,7 +231,7 @@ export function normalizeProviderRequestInput(
   } else if (hasCompatibilityMode(compatibilityModes, "noSystemMessages")) {
     compatibleItems = convertSystemMessagesToUserMessages(compatibleItems);
   } else if (hasCompatibilityMode(compatibilityModes, "noDeveloperMessages")) {
-    compatibleItems = sendLaterInstructionsAsUserTurns(compatibleItems);
+    compatibleItems = sendLaterInstructionsAsUserTurns(compatibleItems, promptPrefixLength);
   }
 
   if (modelType === "google") {
