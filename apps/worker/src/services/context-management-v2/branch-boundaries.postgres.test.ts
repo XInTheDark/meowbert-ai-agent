@@ -126,6 +126,8 @@ describe.skipIf(!databaseUrl)("message context boundaries in PostgreSQL", () => 
     await note(state, "original");
     const checkpoint = await message(taskId, user);
     await linkVisibleContextNode(state, checkpoint);
+    const abandoned = await message(taskId, checkpoint);
+    expect((await openContextWindow(taskId, abandoned)).windowId).toBe(state.windowId);
     for (let index = 0; index < 5; index += 1) await note(state, `private ${index}`);
     await record(state, "assistant", "private later history");
     const replacement = await message(taskId, checkpoint);
@@ -135,8 +137,20 @@ describe.skipIf(!databaseUrl)("message context boundaries in PostgreSQL", () => 
     expect(await loadContextHistoryWindow(branch, state.windowId)).toHaveLength(1);
     const revisions = await pool.query("SELECT revision FROM task_context_notes WHERE context_node_id = $1 ORDER BY revision", [state.contextNodeId]);
     expect(revisions.rows.map((row) => row.revision)).toEqual([1, 6]);
-    // Reconnecting at the current tool checkpoint still recovers its live tail.
+  });
+
+  it("continues the window when a run is interrupted after its latest message", async () => {
+    const { taskId, user, state } = await fixture();
+    await record(state, "user", "shared");
+    const checkpoint = await message(taskId, user);
+    await linkVisibleContextNode(state, checkpoint);
+    await record(state, "assistant", "tool output recorded before the interrupt");
+    await note(state, "written before the interrupt");
     expect((await openContextWindow(taskId, checkpoint)).windowId).toBe(state.windowId);
+    const sentNow = await message(taskId, checkpoint);
+    const next = { taskId, ...await openContextWindow(taskId, sentNow) };
+    expect(next.windowId).toBe(state.windowId);
+    expect(await readContextNote(next, { path: "continuity.md" })).toMatchObject({ content: "written before the interrupt" });
   });
 
   it("rolls over through a frozen checkpoint even if an old writer later changes the ancestor", async () => {

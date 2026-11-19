@@ -129,6 +129,8 @@ export async function loadContextNotesSummary(taskId: string, contextNodeId: str
 }
 
 // The open window on the branch ending at `branchLeafMessageId`, created when it has none.
+// A message sent right after the window's latest message continues it, including work an
+// interrupted run recorded after that message, so the cached prompt prefix stays the same.
 export async function openContextWindow(taskId: string, branchLeafMessageId: string | null): Promise<OpenedContextWindow> {
   const visibleNodeId = await resolveVisibleContextNode(taskId, branchLeafMessageId);
   const latest = await query<ContextWindowRow>(
@@ -141,10 +143,11 @@ export async function openContextWindow(taskId: string, branchLeafMessageId: str
           OR EXISTS (SELECT 1 FROM context_lineage head
                       WHERE head.visible_message_id = context_window.branch_leaf_message_id
                         AND head.snapshot_window_id = context_window.id
-                        AND head.snapshot_history_ordinal >= (SELECT COALESCE(MAX(item.ordinal), 0)
-                              FROM task_context_history_items item WHERE item.window_id = context_window.id)
-                        AND head.snapshot_note_revision >= (SELECT COALESCE(MAX(note.revision), 0)
-                              FROM task_context_notes note WHERE note.task_id = $1 AND note.context_node_id = context_window.context_node_id)))
+                        AND (head.depth = 1
+                          OR (head.snapshot_history_ordinal >= (SELECT COALESCE(MAX(item.ordinal), 0)
+                                FROM task_context_history_items item WHERE item.window_id = context_window.id)
+                            AND head.snapshot_note_revision >= (SELECT COALESCE(MAX(note.revision), 0)
+                                FROM task_context_notes note WHERE note.task_id = $1 AND note.context_node_id = context_window.context_node_id)))))
       ORDER BY context_window.ordinal DESC
       LIMIT 1`,
     [taskId, visibleNodeId, branchLeafMessageId]
