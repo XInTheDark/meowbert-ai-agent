@@ -97,4 +97,20 @@ describe("persistent shell routes", () => {
     expect(response.json()).toEqual({ terminated: 2 });
     expect(mockedTerminatePersistentShellSessions).toHaveBeenCalledWith({ environmentId: projectId });
   });
+
+  it("does not read output when the query explicitly requests false", async () => {
+    const app = Fastify();
+    app.decorate("authenticate", async (request) => { request.user = { id: "user-1", email: "user@example.com" }; });
+    mockedListPersistentShellSessions.mockResolvedValueOnce([]);
+    await registerEnvironmentPersistentShellRoutes(app);
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/projects/33333333-3333-4333-8333-333333333333/persistent-shell-sessions?includeOutput=false"
+    });
+    expect(response.statusCode).toBe(200);
+    expect(mockedListPersistentShellSessions).toHaveBeenCalledWith({
+      environmentId: "33333333-3333-4333-8333-333333333333", includeOutput: false, outputTailLines: undefined
+    });
+    await app.close();
+  });
 });

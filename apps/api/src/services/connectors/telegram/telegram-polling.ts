@@ -169,7 +169,7 @@ async function processBindingPolling(
           { bindingId: binding.id, updateId, error: message },
           "Failed to process telegram update in polling mode"
         );
-        return;
+        break;
       }
 
       if (typeof updateId === "number") {
@@ -232,7 +232,7 @@ async function processSharedTelegramPolling(logger: PollingLogger): Promise<void
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error({ updateId, error: message }, "Failed to process shared Telegram update in polling mode");
-        return;
+        break;
       }
 
       if (typeof updateId === "number") {

@@ -30,7 +30,7 @@ export function formatMasterReport(report: PendingMasterReport): string {
 }
 
 // The caller holds the Master's task row lock so concurrent deliveries cannot duplicate reports.
-// A run only takes reports on work its own member asked for, so each update reaches the right person.
+// A run takes its member's reports, plus reports whose requester has left the workspace.
 // The excerpt comes from the reported run, never from an earlier one.
 export async function claimPendingMasterReports(
   client: PoolClient,
@@ -59,7 +59,9 @@ export async function claimPendingMasterReports(
        ) latest_message ON true
       WHERE r.master_task_id = $1
         AND r.delivered_at IS NULL
-        AND (r.requested_by_user_id IS NULL OR r.requested_by_user_id = $3::uuid)
+        AND (r.requested_by_user_id IS NULL OR r.requested_by_user_id = $3::uuid
+          OR NOT EXISTS (SELECT 1 FROM workspace_members wm JOIN tasks master ON master.workspace_id = wm.workspace_id
+            WHERE master.id = r.master_task_id AND wm.user_id = r.requested_by_user_id))
       ORDER BY r.created_at, r.id
       LIMIT $2`,
     [masterTaskId, MAX_REPORTS_PER_DELIVERY, actorUserId]

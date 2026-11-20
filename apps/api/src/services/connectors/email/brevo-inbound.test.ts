@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { parseBrevoInboundPayload } from "./brevo-inbound.js";
+import { parseBrevoInboundMessages, parseBrevoInboundPayload } from "./brevo-inbound.js";
 
 describe("parseBrevoInboundPayload", () => {
+  it("retains every parseable email in batched wrappers, including after an invalid entry", () => {
+    const message = (id: string) => ({ MessageId: id, From: "sender@example.com", To: ["recipient@inbound.example.com"] });
+    const parsed = parseBrevoInboundMessages({ items: [message("first"), {}, { Items: [message("second"), message("third")] }] });
+    expect(parsed.map((entry) => entry.messageId)).toEqual(["first", "second", "third"]);
+    expect(parseBrevoInboundMessages(message("single"))).toHaveLength(1);
+    expect(parseBrevoInboundMessages(null)).toEqual([]);
+  });
   it("returns null when required fields are missing", () => {
     expect(parseBrevoInboundPayload(null)).toBeNull();
     expect(parseBrevoInboundPayload({})).toBeNull();

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { queryBoolean } from "../lib/query-boolean.js";
 
 export const outlookBodyFormatSchema = z.enum(["text", "html"]);
 
@@ -148,7 +149,7 @@ export const outlookUpdateEventRequestBody = z.object({
 export const outlookDeleteEventQuery = z.object({
   calendarId: z.string().trim().min(1).max(400).optional(),
   expectedChangeKey: z.string().trim().min(1).max(400),
-  confirmAttendeeCancellation: z.coerce.boolean().optional()
+  confirmAttendeeCancellation: queryBoolean.optional()
 });
 
 export const outlookDeleteEventByIdQuery = outlookDeleteEventQuery.extend({

@@ -99,7 +99,8 @@ export const listConnectorsRoute: FastifyPluginAsync = async (fastify) => {
                     : row.type === "email"
                       ? "inbound"
                       : "webhook",
-              botToken: row.config_json.botToken ? "***" : undefined
+              botToken: row.config_json.botToken ? "***" : undefined,
+              webhookSecret: undefined
             },
             pairing: {
               paired: row.type === "email" ? true : typeof row.paired_at === "string",

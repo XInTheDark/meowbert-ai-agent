@@ -215,6 +215,14 @@ function parseAttachmentList(value: unknown): BrevoInboundAttachment[] {
   return attachments;
 }
 
+export function parseBrevoInboundMessages(payload: unknown): BrevoInboundMessage[] {
+  const record = asRecord(payload);
+  const items = record && (Array.isArray(record.items) ? record.items : Array.isArray(record.Items) ? record.Items : null);
+  if (items) return items.flatMap(parseBrevoInboundMessages);
+  const parsed = parseBrevoInboundPayload(payload);
+  return parsed ? [parsed] : [];
+}
+
 export function parseBrevoInboundPayload(payload: unknown): BrevoInboundMessage | null {
   const record = asRecord(payload);
   if (!record) {

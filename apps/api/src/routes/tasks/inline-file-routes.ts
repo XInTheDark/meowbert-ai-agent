@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { issueScopedAccessTicket, verifyScopedAccessTicket } from "../../services/auth/scoped-access-tickets.js";
+import { assertSessionTokenAccepted } from "../../services/auth/session-tokens.js";
 import { resolvePublicTaskInlineFile, resolveTaskInlineFile } from "../../services/tasks/task-inline-files.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { sendCanvasFile } from "../files/canvas-file-response.js";
@@ -56,6 +57,8 @@ async function authenticateTaskInlineFileRequest(request: FastifyRequest, reply:
       scope: "task_inline_file_view",
       taskId: params.taskId
     });
+    await assertSessionTokenAccepted({ userId: payload.userId, issuedAtSeconds: payload.iat });
+    await assertTaskMember(params.taskId, payload.userId);
     request.user = {
       id: payload.userId,
       email: ""

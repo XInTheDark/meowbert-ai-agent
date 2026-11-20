@@ -81,10 +81,14 @@ export async function resolveWakeRoute(
     }
   }
   const selection = await client.query<{ user_id: string }>(
-    "SELECT user_id FROM task_branch_selections WHERE task_id = $1 ORDER BY updated_at DESC LIMIT 1",
-    [masterTaskId]
+    `SELECT wm.user_id FROM workspace_members wm
+       LEFT JOIN task_branch_selections selection ON selection.task_id = $1 AND selection.user_id = wm.user_id
+      WHERE wm.workspace_id = $2
+      ORDER BY selection.updated_at DESC NULLS LAST, (wm.user_id = $3::uuid) DESC, wm.user_id
+      LIMIT 1`,
+    [masterTaskId, master.workspace_id, master.initiator_user_id]
   );
-  return { userId: selection.rows[0]?.user_id ?? master.initiator_user_id ?? undefined };
+  return { userId: selection.rows[0]?.user_id };
 }
 
 export async function wakeMasterIfDue(masterTaskId: string): Promise<MasterWakeOutcome> {
@@ -96,6 +100,7 @@ export async function wakeMasterIfDue(masterTaskId: string): Promise<MasterWakeO
     if (pending.dueInMs > 0) return { kind: "due_later", delayMs: pending.dueInMs };
 
     const route = await resolveWakeRoute(client, masterTaskId, master, pending.requestedByUserId);
+    if (!route.userId) return { kind: "skipped" };
     if (route.replyContext) {
       // The run reads its reply chat when it starts, so a message arriving mid-run cannot redirect it.
       await client.query(

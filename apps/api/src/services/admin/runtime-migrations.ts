@@ -124,6 +124,7 @@ async function countPendingEnvironmentRootMigrations(): Promise<number> {
             w.storage_backend_id
        FROM environments e
        JOIN workspaces w ON w.id = e.workspace_id
+      WHERE w.file_host->>'kind' IS DISTINCT FROM 'device'
       ORDER BY e.created_at ASC, e.id ASC`
   );
 
@@ -246,6 +247,7 @@ async function summarizeLocalXfsProjectQuotaMigration(
     `SELECT id, root_path, storage_backend_id, storage_project_id
        FROM workspaces
       WHERE storage_backend_id = ANY($1::text[])
+        AND file_host->>'kind' IS DISTINCT FROM 'device'
       ORDER BY created_at ASC, id ASC`,
     [backendIds]
   );

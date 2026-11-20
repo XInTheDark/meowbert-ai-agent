@@ -626,6 +626,14 @@ export async function deleteUser(userId: string): Promise<void> {
     await client.query(`UPDATE environments SET created_by = NULL WHERE created_by = $1`, [userId]);
     await client.query(`UPDATE task_message_revisions SET edited_by_user_id = NULL WHERE edited_by_user_id = $1`, [userId]);
     await client.query(`UPDATE audit_logs SET actor_user_id = NULL WHERE actor_user_id = $1`, [userId]);
+    await client.query(`UPDATE task_run_dispatches SET priority_actor_user_id = NULL WHERE priority_actor_user_id = $1`, [userId]);
+    await client.query(`UPDATE project_canvases SET created_by = NULL WHERE created_by = $1`, [userId]);
+    await client.query(
+      `DELETE FROM workspace_device_relinks
+        WHERE old_device_id IN (SELECT id FROM devices WHERE user_id = $1)
+           OR new_device_id IN (SELECT id FROM devices WHERE user_id = $1)`,
+      [userId]
+    );
     // Delete user (cascades handle workspace_members, connector_pairings, connector_pair_codes)
     const result = await client.query(`DELETE FROM users WHERE id = $1`, [userId]);
     if ((result.rowCount ?? 0) === 0) {

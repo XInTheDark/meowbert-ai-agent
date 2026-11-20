@@ -3,11 +3,9 @@ import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { config } from "../../lib/config.js";
 import {
-  findWorkspaceEmailConnectorByRecipient,
   getWorkspaceEmailConnector,
   upsertWorkspaceEmailConnector,
   disableWorkspaceEmailConnector,
-  shouldAllowEmailSender,
   buildWorkspaceEmailAddress,
   sanitizeLocalPartFromUserInput,
   AUTO_LOCAL_PART_SENTINEL
@@ -15,9 +13,9 @@ import {
 import { normalizeConnectorToolOptionsConfig } from "../../services/connectors/connector-tools.js";
 import { isEnvironmentMemoryEnabled } from "../../services/environments/environment-memory.js";
 import { getEmailInboundSettings } from "../../services/connectors/email/inbound-settings.js";
-import { parseBrevoInboundPayload, type BrevoInboundMessage } from "../../services/connectors/email/brevo-inbound.js";
+import { parseBrevoInboundMessages } from "../../services/connectors/email/brevo-inbound.js";
 import { appendEmailInboundDebugEvent } from "../../services/connectors/email/inbound-debug-events.js";
-import { processInboundEmailForWorkspace } from "../../services/connectors/email/inbound-ingest.js";
+import { deliverBrevoInboundMessage } from "../../services/connectors/email/brevo-inbound-delivery.js";
 import { parseTrustedSenderList } from "../../services/connectors/email/address-utils.js";
 import { assertWorkspaceMember, assertWorkspaceOwner } from "../../services/workspaces/workspace-access.js";
 import { query } from "../../lib/db.js";
@@ -133,20 +131,6 @@ function summarizeBrevoInboundPayloadShape(payload: unknown): Record<string, unk
     hasAttachments: Array.isArray(record.Attachments)
       || Array.isArray(record.attachments)
       || Boolean(firstWrappedItem && (Array.isArray(firstWrappedItem.Attachments) || Array.isArray(firstWrappedItem.attachments)))
-  };
-}
-
-function summarizeInboundMessage(input: BrevoInboundMessage): Record<string, unknown> {
-  return {
-    messageId: input.messageId,
-    fromEmail: input.fromEmail,
-    recipients: input.recipients,
-    subject: input.subject,
-    receivedAt: input.receivedAt,
-    replyReferenceIds: input.replyReferenceIds,
-    attachmentCount: input.attachments.length,
-    textBodyLength: input.textBody?.length ?? 0,
-    htmlBodyLength: input.htmlBody?.length ?? 0
   };
 }
 
@@ -414,8 +398,8 @@ export const emailConnectorRoutes: FastifyPluginAsync = async (fastify) => {
       details: summarizeBrevoInboundPayloadShape(request.body)
     });
 
-    const inbound = parseBrevoInboundPayload(request.body);
-    if (!inbound) {
+    const messages = parseBrevoInboundMessages(request.body);
+    if (messages.length === 0) {
       await logInboundDebug({
         eventType: "payload_ignored",
         level: "warn",
@@ -424,136 +408,13 @@ export const emailConnectorRoutes: FastifyPluginAsync = async (fastify) => {
       });
       return reply.send({ ok: true });
     }
-    await logInboundDebug({
-      eventType: "payload_parsed",
-      message: "Parsed inbound email payload.",
-      details: summarizeInboundMessage(inbound)
-    });
 
-    const inboundDomain = adminSettings.inboundDomain;
-    if (!inboundDomain) {
-      await logInboundDebug({
-        eventType: "config_error",
-        level: "error",
-        message: "Inbound domain is not configured; message was ignored.",
-        details: {
-          messageId: inbound.messageId
-        }
-      });
-      return reply.send({ ok: true });
+    let response: Record<string, unknown> = { ok: true };
+    for (const inbound of messages) {
+      const result = await deliverBrevoInboundMessage(inbound, adminSettings, logInboundDebug);
+      if (result.statusCode !== 200) return reply.status(result.statusCode).send(result.payload);
+      if (result.payload.taskId) response = result.payload;
     }
-
-    let matchedRecipient: string | null = null;
-    let connector: Awaited<ReturnType<typeof findWorkspaceEmailConnectorByRecipient>> = null;
-    for (const recipient of inbound.recipients) {
-      const matched = await findWorkspaceEmailConnectorByRecipient({
-        recipientEmail: recipient,
-        inboundDomain
-      });
-      if (matched) {
-        matchedRecipient = recipient;
-        connector = matched;
-        break;
-      }
-    }
-
-    if (!connector || !matchedRecipient) {
-      await logInboundDebug({
-        eventType: "recipient_unmatched",
-        level: "warn",
-        message: "Inbound recipient does not map to any active workspace email connector.",
-        details: {
-          messageId: inbound.messageId,
-          recipients: inbound.recipients,
-          inboundDomain
-        }
-      });
-      return reply.send({ ok: true });
-    }
-
-    if (!shouldAllowEmailSender({
-      senderPolicy: connector.senderPolicy,
-      trustedSenders: connector.trustedSenders,
-      senderEmail: inbound.fromEmail
-    })) {
-      await logInboundDebug({
-        eventType: "sender_blocked",
-        level: "warn",
-        message: "Inbound sender is blocked by workspace trusted sender policy.",
-        workspaceId: connector.workspaceId,
-        bindingId: connector.bindingId,
-        details: {
-          messageId: inbound.messageId,
-          recipient: matchedRecipient,
-          sender: inbound.fromEmail,
-          senderPolicy: connector.senderPolicy,
-          trustedSenderCount: connector.trustedSenders.length
-        }
-      });
-      return reply.send({ ok: true });
-    }
-
-    if (!adminSettings.brevoApiKey) {
-      await logInboundDebug({
-        eventType: "config_error",
-        level: "error",
-        message: "Brevo API key is missing; attachments cannot be downloaded and message cannot be processed.",
-        workspaceId: connector.workspaceId,
-        bindingId: connector.bindingId,
-        details: {
-          messageId: inbound.messageId
-        }
-      });
-      return reply.status(503).send({ error: "Brevo API key is not configured for inbound processing" });
-    }
-
-    const processed = await processInboundEmailForWorkspace({
-      connector,
-      inbound,
-      recipientAddress: matchedRecipient,
-      brevoApiKey: adminSettings.brevoApiKey,
-      debugLog: async (entry) => {
-        await logInboundDebug({
-          ...entry,
-          workspaceId: connector.workspaceId,
-          bindingId: connector.bindingId
-        });
-      }
-    });
-
-    if (!processed.processed) {
-      await logInboundDebug({
-        eventType: "message_skipped",
-        level: "warn",
-        message: "Inbound message was acknowledged but not processed.",
-        workspaceId: connector.workspaceId,
-        bindingId: connector.bindingId,
-        details: {
-          messageId: inbound.messageId,
-          reason: processed.reason ?? "unknown"
-        }
-      });
-      return reply.send({ ok: true });
-    }
-
-    await logInboundDebug({
-      eventType: "message_processed",
-      message: "Inbound message processed successfully.",
-      workspaceId: connector.workspaceId,
-      bindingId: connector.bindingId,
-      details: {
-        messageId: inbound.messageId,
-        taskId: processed.taskId,
-        environmentId: processed.environmentId,
-        action: processed.action
-      }
-    });
-
-    return reply.send({
-      ok: true,
-      taskId: processed.taskId,
-      environmentId: processed.environmentId,
-      action: processed.action
-    });
+    return reply.send(response);
   });
 };

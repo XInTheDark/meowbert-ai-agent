@@ -160,6 +160,7 @@ async function loadPendingEnvironmentMigrationCandidates(): Promise<Array<Enviro
             w.storage_backend_id
        FROM environments e
        JOIN workspaces w ON w.id = e.workspace_id
+      WHERE COALESCE(w.file_host->>'kind', 'server') <> 'device'
       ORDER BY e.created_at ASC, e.id ASC`
   );
 
@@ -250,6 +251,7 @@ async function loadLocalXfsQuotaWorkspaces(): Promise<XfsWorkspaceRow[]> {
     `SELECT id, root_path, storage_backend_id
        FROM workspaces
       WHERE storage_backend_id = ANY($1::text[])
+        AND COALESCE(file_host->>'kind', 'server') <> 'device'
       ORDER BY created_at ASC, id ASC`,
     [backendIds]
   );

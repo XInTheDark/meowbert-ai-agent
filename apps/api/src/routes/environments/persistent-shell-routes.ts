@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { queryBoolean } from "../../lib/query-boolean.js";
 import type { FastifyInstance } from "fastify";
 import {
   listPersistentShellSessions,
@@ -10,7 +11,7 @@ import { environmentParams } from "./shared.js";
 import { taskParams } from "../tasks/shared.js";
 
 const persistentShellQuery = z.object({
-  includeOutput: z.coerce.boolean().optional().default(false),
+  includeOutput: queryBoolean.optional().default(false),
   outputTailLines: z.coerce.number().int().min(1).max(2_000).optional()
 });
 

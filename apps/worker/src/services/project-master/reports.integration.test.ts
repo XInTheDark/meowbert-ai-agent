@@ -11,6 +11,7 @@ describe.skipIf(!databaseUrl)("Project Master reports in PostgreSQL", () => {
   const client = new Client({ connectionString: databaseUrl });
   const schema = `project_master_test_${randomUUID().replaceAll("-", "")}`;
   const environmentId = randomUUID();
+  const workspaceId = randomUUID();
   const masterTaskId = randomUUID();
 
   async function createTask(status = "queued"): Promise<string> {
@@ -53,10 +54,11 @@ describe.skipIf(!databaseUrl)("Project Master reports in PostgreSQL", () => {
     await client.query(`CREATE SCHEMA "${schema}"; SET search_path TO "${schema}"`);
     await client.query(`CREATE TABLE environments(id uuid PRIMARY KEY);
       CREATE TABLE users(id uuid PRIMARY KEY);
+      CREATE TABLE workspace_members(workspace_id uuid, user_id uuid REFERENCES users(id));
       CREATE TABLE tasks(id uuid PRIMARY KEY, environment_id uuid, title text, status text, updated_at timestamptz DEFAULT now(),
-        task_root_path text);
+        task_root_path text, workspace_id uuid);
       CREATE TABLE task_artifacts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), task_id uuid REFERENCES tasks(id), kind text,
-        relative_path text, created_at timestamptz DEFAULT now());
+        relative_path text, publication_state text DEFAULT 'available', created_at timestamptz DEFAULT now());
       CREATE TABLE task_runs(id uuid PRIMARY KEY, task_id uuid REFERENCES tasks(id), attempt_no integer, error_summary text,
         run_kind text NOT NULL DEFAULT 'default', started_at timestamptz NOT NULL DEFAULT clock_timestamp(), ended_at timestamptz);
       CREATE TABLE task_messages(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), task_id uuid REFERENCES tasks(id), role text,
@@ -66,6 +68,7 @@ describe.skipIf(!databaseUrl)("Project Master reports in PostgreSQL", () => {
     }
     await client.query("INSERT INTO environments VALUES ($1)", [environmentId]);
     await client.query("INSERT INTO tasks(id, environment_id, title, status) VALUES ($1, $2, 'Master', 'succeeded')", [masterTaskId, environmentId]);
+    await client.query("UPDATE tasks SET workspace_id = $2 WHERE id = $1", [masterTaskId, workspaceId]);
     await client.query("INSERT INTO project_masters(environment_id, task_id) VALUES ($1, $2)", [environmentId, masterTaskId]);
   });
 
@@ -174,6 +177,7 @@ describe.skipIf(!databaseUrl)("Project Master reports in PostgreSQL", () => {
     await client.query("DELETE FROM project_master_reports");
     const [alice, bob] = [randomUUID(), randomUUID()];
     await client.query("INSERT INTO users(id) VALUES ($1), ($2)", [alice, bob]);
+    await client.query("INSERT INTO workspace_members VALUES ($1, $2), ($1, $3)", [workspaceId, alice, bob]);
     const aliceTask = await createTask();
     const bobTask = await createTask();
     await client.query(
@@ -188,5 +192,24 @@ describe.skipIf(!databaseUrl)("Project Master reports in PostgreSQL", () => {
 
     expect(forAlice.map((report) => report.task_id)).toEqual([aliceTask]);
     expect(forBob.map((report) => report.task_id)).toEqual([bobTask]);
+  });
+
+  it("delivers departed requesters' reports through the fallback member without claiming another active member's report", async () => {
+    await client.query("DELETE FROM project_master_reports");
+    const [departed, active, fallback] = [randomUUID(), randomUUID(), randomUUID()];
+    await client.query("INSERT INTO users(id) VALUES ($1), ($2), ($3)", [departed, active, fallback]);
+    await client.query("INSERT INTO workspace_members VALUES ($1, $2), ($1, $3)", [workspaceId, active, fallback]);
+    const departedTask = await createTask();
+    const activeTask = await createTask();
+    await client.query(
+      "INSERT INTO project_master_listeners(task_id, master_task_id, requested_by_user_id) VALUES ($1, $3, $4), ($2, $3, $5)",
+      [departedTask, activeTask, masterTaskId, departed, active]
+    );
+    await finishRun(departedTask, "succeeded", "Departed member's result.");
+    await finishRun(activeTask, "succeeded", "Active member's result.");
+    const reports = await claimPendingMasterReports(client as unknown as PoolClient, masterTaskId, fallback);
+    expect(reports.map((report) => report.task_id)).toEqual([departedTask]);
+    expect(await pendingReports(departedTask)).toEqual([]);
+    expect(await pendingReports(activeTask)).toHaveLength(1);
   });
 });
