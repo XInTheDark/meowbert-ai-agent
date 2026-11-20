@@ -40,6 +40,7 @@ const {
     pendingUploads: [],
     uploadError: null,
     clearAttachments: vi.fn(),
+    setAttachments: vi.fn(),
     appendAttachments: vi.fn()
   })),
   useTaskDetailConversationMock: vi.fn((): UseTaskDetailConversationResult => ({

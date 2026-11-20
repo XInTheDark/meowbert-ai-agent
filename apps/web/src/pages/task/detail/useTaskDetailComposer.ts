@@ -254,7 +254,13 @@ export function useTaskDetailComposer(input: UseTaskDetailComposerInput) {
     attachments: uploads.attachments,
     editingMessageId: draft.editingMessageId
   });
-  return { ...draft, ...uploads, ...persistence, uploadPath, toAttachmentPath };
+  const cancelEditMessage = useCallback(() => {
+    const saved = readCurrentTaskConversationDraft(input.taskId);
+    draft.setEditingMessageId(null);
+    draft.setFollowUp(saved.message);
+    uploads.setAttachments(saved.attachments);
+  }, [input.taskId, draft.setEditingMessageId, draft.setFollowUp, uploads.setAttachments]);
+  return { ...draft, ...uploads, ...persistence, cancelEditMessage, uploadPath, toAttachmentPath };
 }
 
 export type TaskDetailComposer = ReturnType<typeof useTaskDetailComposer>;

@@ -245,7 +245,7 @@ function useTaskDetailEventPendingLiveEffects(
   state: TaskDetailEventsState
 ): void {
   useEffect(() => {
-    if (options.activeTab !== "events" || state.pendingLiveEvents.length === 0) {
+    if (options.activeTab !== "events" || !state.eventsNearBottomRef.current || state.pendingLiveEvents.length === 0) {
       return;
     }
 

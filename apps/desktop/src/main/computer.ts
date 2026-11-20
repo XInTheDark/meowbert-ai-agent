@@ -163,7 +163,7 @@ public static class NativeComputer {
   public static extern bool GetCursorPos(out POINT lpPoint);
 
   [DllImport("user32.dll")]
-  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
 
   [DllImport("user32.dll")]
   public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
@@ -309,43 +309,43 @@ function Get-VirtualKey([string]$keyName) {
 
 switch ($action.type) {
   "mouse_move" {
-    Move-Cursor([int]$action.x, [int]$action.y)
+    Move-Cursor ([int]$action.x) ([int]$action.y)
   }
   "left_click" {
-    Move-Cursor([int]$action.x, [int]$action.y)
-    Click-Button("left", [int]$action.clickCount)
+    Move-Cursor ([int]$action.x) ([int]$action.y)
+    Click-Button "left" ([int]$action.clickCount)
   }
   "right_click" {
-    Move-Cursor([int]$action.x, [int]$action.y)
-    Click-Button("right", 1)
+    Move-Cursor ([int]$action.x) ([int]$action.y)
+    Click-Button "right" 1
   }
   "middle_click" {
-    Move-Cursor([int]$action.x, [int]$action.y)
-    Click-Button("middle", 1)
+    Move-Cursor ([int]$action.x) ([int]$action.y)
+    Click-Button "middle" 1
   }
   "left_mouse_down" {
-    Move-Cursor([int]$action.x, [int]$action.y)
+    Move-Cursor ([int]$action.x) ([int]$action.y)
     [NativeComputer]::mouse_event($MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
   }
   "left_mouse_up" {
-    Move-Cursor([int]$action.x, [int]$action.y)
+    Move-Cursor ([int]$action.x) ([int]$action.y)
     [NativeComputer]::mouse_event($MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
   }
   "left_click_drag" {
-    Move-Cursor([int]$action.startX, [int]$action.startY)
+    Move-Cursor ([int]$action.startX) ([int]$action.startY)
     Start-Sleep -Milliseconds 40
     [NativeComputer]::mouse_event($MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 80
-    Move-Cursor([int]$action.endX, [int]$action.endY)
+    Move-Cursor ([int]$action.endX) ([int]$action.endY)
     Start-Sleep -Milliseconds 80
     [NativeComputer]::mouse_event($MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
   }
   "scroll" {
     if ($null -ne $action.deltaY -and [int]$action.deltaY -ne 0) {
-      [NativeComputer]::mouse_event($MOUSEEVENTF_WHEEL, 0, 0, [uint32]([int]$action.deltaY), [UIntPtr]::Zero)
+      [NativeComputer]::mouse_event($MOUSEEVENTF_WHEEL, 0, 0, ([int]$action.deltaY), [UIntPtr]::Zero)
     }
     if ($null -ne $action.deltaX -and [int]$action.deltaX -ne 0) {
-      [NativeComputer]::mouse_event($MOUSEEVENTF_HWHEEL, 0, 0, [uint32]([int]$action.deltaX), [UIntPtr]::Zero)
+      [NativeComputer]::mouse_event($MOUSEEVENTF_HWHEEL, 0, 0, ([int]$action.deltaX), [UIntPtr]::Zero)
     }
   }
   "type" {
@@ -723,7 +723,7 @@ function buildComputerStatus(reasonOverride?: string | null): DesktopComputerSta
 }
 
 async function runWindowsAction(action: Record<string, unknown>): Promise<void> {
-  const script = WINDOWS_COMPUTER_SCRIPT.replace("__ACTION_JSON__", escapePowerShellSingleQuoted(JSON.stringify(action)));
+  const script = WINDOWS_COMPUTER_SCRIPT.replace("__ACTION_JSON__", () => escapePowerShellSingleQuoted(JSON.stringify(action)));
   await execFileAsync("powershell.exe", [
     "-NoProfile",
     "-NonInteractive",
@@ -738,7 +738,7 @@ async function runWindowsAction(action: Record<string, unknown>): Promise<void> 
 }
 
 async function runMacAction(action: Record<string, unknown>): Promise<void> {
-  const script = MAC_COMPUTER_SCRIPT.replace("__ACTION_JSON__", JSON.stringify(JSON.stringify(action)));
+  const script = MAC_COMPUTER_SCRIPT.replace("__ACTION_JSON__", () => JSON.stringify(JSON.stringify(action)));
   await execFileAsync("osascript", ["-l", "JavaScript", "-e", script], {
     timeout: MAX_WAIT_MS
   });

@@ -122,3 +122,33 @@ it("retains Windows checks, background scheduling, and install-and-relaunch", as
   await vi.advanceTimersByTimeAsync(0);
   expect(mocks.electronUpdater.quitAndInstall).toHaveBeenCalledOnce();
 });
+
+
+it("waits for Windows executor shutdown before launching the installer", async () => {
+  vi.stubGlobal("process", { ...process, platform: "win32" });
+  createDesktopUpdater(options);
+  const downloaded = mocks.electronUpdater.on.mock.calls.find(([name]) => name === "update-downloaded")![1];
+  let finish!: () => void;
+  options.prepareForRelaunch.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
+  mocks.showMessageBox.mockResolvedValueOnce({ response: 0 });
+  downloaded({ version: "2026.11.5" });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(options.prepareForRelaunch).toHaveBeenCalledOnce();
+  expect(mocks.electronUpdater.quitAndInstall).not.toHaveBeenCalled();
+  finish();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(mocks.electronUpdater.quitAndInstall).toHaveBeenCalledOnce();
+});
+
+it("does not install when Windows executor shutdown fails", async () => {
+  vi.stubGlobal("process", { ...process, platform: "win32" });
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  createDesktopUpdater(options);
+  const downloaded = mocks.electronUpdater.on.mock.calls.find(([name]) => name === "update-downloaded")![1];
+  options.prepareForRelaunch.mockRejectedValueOnce(new Error("Unable to stop executor"));
+  mocks.showMessageBox.mockResolvedValueOnce({ response: 0 });
+  downloaded({ version: "2026.11.5" });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(mocks.electronUpdater.quitAndInstall).not.toHaveBeenCalled();
+  expect(mocks.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ detail: "Unable to stop executor" }));
+});

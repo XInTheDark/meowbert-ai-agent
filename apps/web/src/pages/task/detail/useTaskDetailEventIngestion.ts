@@ -194,7 +194,7 @@ function useTaskEventCatchUp(
         }
 
         const pageCursor = getNewestTaskEventCursor(page.items);
-        cursor = advanceTaskEventCursor(state.lastSeenEventCursorRef.current, pageCursor);
+        cursor = pageCursor;
         if (!page.hasMore) {
           return;
         }

@@ -262,7 +262,9 @@ export function useTaskDetailConversation(
   const conversationMessageCacheTotalItemsRef = useRef(0);
   const loadedTaskIdRef = useRef<string | null>(null);
   const loadedActiveLeafMessageIdRef = useRef<string | null>(null);
+  const requestedActiveLeafMessageIdRef = useRef<string | null>(null);
   const resetLoadInFlightRef = useRef(false);
+  const [resetLoadVersion, setResetLoadVersion] = useState(0);
   const refreshVersionRef = useRef(options.refreshVersion ?? 0);
   const lastAutoFilledBeforeIndexRef = useRef<number | null>(null);
   // Set while the reader is heading up, so each older page that lands near the top fetches the next one.
@@ -501,6 +503,7 @@ export function useTaskDetailConversation(
   useEffect(() => {
     loadedTaskIdRef.current = options.taskId || null;
     loadedActiveLeafMessageIdRef.current = null;
+    requestedActiveLeafMessageIdRef.current = options.activeLeafMessageId ?? null;
     refreshVersionRef.current = options.refreshVersion ?? 0;
     resetLoadInFlightRef.current = true;
     messagesRef.current = [];
@@ -533,6 +536,7 @@ export function useTaskDetailConversation(
     }).finally(() => {
       if (loadedTaskIdRef.current === options.taskId) {
         resetLoadInFlightRef.current = false;
+        setResetLoadVersion((current) => current + 1);
       }
     });
   }, [loadConversationPage, options.taskId, scroll]);
@@ -543,34 +547,20 @@ export function useTaskDetailConversation(
     }
 
     const nextActiveLeafMessageId = options.activeLeafMessageId ?? null;
-    if (loadedActiveLeafMessageIdRef.current === nextActiveLeafMessageId) {
+    const nextRefreshVersion = options.refreshVersion ?? 0;
+    if (requestedActiveLeafMessageIdRef.current === nextActiveLeafMessageId
+      && refreshVersionRef.current === nextRefreshVersion) {
       return;
     }
+    requestedActiveLeafMessageIdRef.current = nextActiveLeafMessageId;
+    refreshVersionRef.current = nextRefreshVersion;
 
     void loadConversationPage({
       activeLeafMessageId: nextActiveLeafMessageId,
       showBootstrap: false,
       resetContentCache: false
     });
-  }, [loadConversationPage, options.activeLeafMessageId, options.taskId]);
-
-  useEffect(() => {
-    const nextRefreshVersion = options.refreshVersion ?? 0;
-    if (refreshVersionRef.current === nextRefreshVersion) {
-      return;
-    }
-
-    refreshVersionRef.current = nextRefreshVersion;
-    if (!options.taskId || loadedTaskIdRef.current !== options.taskId || resetLoadInFlightRef.current) {
-      return;
-    }
-
-    void loadConversationPage({
-      activeLeafMessageId: options.activeLeafMessageId ?? null,
-      showBootstrap: false,
-      resetContentCache: false
-    });
-  }, [loadConversationPage, options.activeLeafMessageId, options.refreshVersion, options.taskId]);
+  }, [loadConversationPage, options.activeLeafMessageId, options.refreshVersion, options.taskId, resetLoadVersion]);
 
   useEffect(() => {
     if (options.isMobileViewport) {

@@ -93,6 +93,7 @@ export function App() {
   const [hasLoadedUserThemePreference, setHasLoadedUserThemePreference] = useState(false);
   const [flash, setFlash] = useState<FlashMessage | null>(null);
   const [isRuntimeBootstrapping, setIsRuntimeBootstrapping] = useState(true);
+  const [isRuntimeRefreshing, setIsRuntimeRefreshing] = useState(false);
   const [serverProfilesState, setServerProfilesState] = useState<ServerProfilesState>({
     profiles: [],
     activeProfileId: null
@@ -165,11 +166,15 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    async function bootstrapRuntime(): Promise<void> {
-      setIsRuntimeBootstrapping(true);
+    let bootstrapVersion = 0;
+    let bootstrapToken: string | null | undefined;
+    async function bootstrapRuntime(initial = false): Promise<void> {
+      const version = ++bootstrapVersion;
+      if (initial) setIsRuntimeBootstrapping(true);
+      setIsRuntimeRefreshing(true);
       try {
         const bootstrapData = await platform.getBootstrapData();
-        if (cancelled) {
+        if (cancelled || version !== bootstrapVersion) {
           return;
         }
 
@@ -179,17 +184,23 @@ export function App() {
         setServerProfilesState(bootstrapData.serverProfilesState);
         setShortcutPreferences(sanitizeDesktopShortcutPreferences(bootstrapData.shortcutPreferences));
         setActiveContext(sanitizeDesktopActiveContext(bootstrapData.activeContext));
-        setHasLoadedUserThemePreference(bootstrapData.token === null);
+        if (bootstrapToken !== bootstrapData.token) {
+          setHasLoadedUserThemePreference(bootstrapData.token === null);
+          bootstrapToken = bootstrapData.token;
+        }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && version === bootstrapVersion) {
           setIsRuntimeBootstrapping(false);
+          setIsRuntimeRefreshing(false);
         }
       }
     }
 
-    void bootstrapRuntime();
+    void bootstrapRuntime(true);
+    const unsubscribe = platform.onQuickAgentActivated(() => { void bootstrapRuntime(); });
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
@@ -355,7 +366,7 @@ export function App() {
         <Routes>
           <Route path="/servers" element={<ServerProfilesPage />} />
           <Route path="/desktop/preferences" element={<DesktopPreferencesPage />} />
-          <Route path="/desktop/quick-agent" element={<QuickAgentPage token={token} requiresServerSelection={requiresServerSelection} />} />
+          <Route path="/desktop/quick-agent" element={<QuickAgentPage key={`${activeServerProfile?.baseUrl ?? ""}:${token ?? ""}`} token={token} requiresServerSelection={requiresServerSelection} isRuntimeRefreshing={isRuntimeRefreshing} />} />
           <Route path="/changelog" element={guard(<ChangelogPage themeMode={themeMode} setThemeMode={setThemeMode} />)} />
           <Route path="/announcements" element={guard(<AnnouncementsPage themeMode={themeMode} setThemeMode={setThemeMode} />)} />
           <Route path="/share/tasks/:shareId" element={guard(<PublicTaskPage token={token} />)} />

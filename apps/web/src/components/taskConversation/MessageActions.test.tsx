@@ -1,11 +1,15 @@
+/** @vitest-environment jsdom */
 import { renderToStaticMarkup } from "react-dom/server";
-import { MemoryRouter } from "react-router-dom";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
+const mocks = vi.hoisted(() => ({ post: vi.fn() }));
 vi.mock("../../contexts/WorkspaceContext", () => ({
   useWorkspaceApp: () => ({
     api: {
-      post: vi.fn()
+      post: mocks.post
     }
   })
 }));
@@ -70,4 +74,24 @@ describe("MessageActions", () => {
     expect(html).toContain("data-tooltip=\"Retry response\"");
     expect(html).toContain("data-tooltip=\"Fork branch\"");
   });
+});
+
+
+it.each(["/app/ws/projects/project", "/app/ws/projects/project/tasks/master"])("navigates a fork from %s", async (pathname) => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  mocks.post.mockResolvedValue({ taskId: "forked-task" });
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  function Location() { return <span data-testid="location">{useLocation().pathname}</span>; }
+  try {
+    await act(async () => { root.render(<MemoryRouter initialEntries={[pathname]}>
+      <MessageActions taskId="master" message={{ id: "m", role: "assistant", content_json: { text: "Reply" }, parent_message_id: null, edited_from_message_id: null, created_at: "2026-11-20T00:00:00Z" }} />
+      <Location />
+    </MemoryRouter>); });
+    await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="Fork branch"]')!.click(); });
+    await act(async () => { document.querySelector<HTMLFormElement>(".task-fork-dialog")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    expect(container.querySelector('[data-testid="location"]')!.textContent).toBe("/app/ws/projects/project/tasks/forked-task");
+    expect(mocks.post).toHaveBeenCalledWith("/api/tasks/master/fork", { messageId: "m", copyTaskFiles: true });
+  } finally { await act(async () => { root.unmount(); }); container.remove(); }
 });

@@ -200,6 +200,27 @@ describe("useTaskDetailConversation", () => {
     vi.useRealTimers();
   });
 
+  it.each(["leaf", "refresh"])("catches up a %s update received during the first page load", async (update) => {
+    let resolveFirst!: (page: TaskConversationPageResponse) => void;
+    const api = buildApi([]);
+    const get = vi.mocked(api.get);
+    get.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve as typeof resolveFirst; }));
+    get.mockResolvedValue(buildConversationPageForLeaf([buildMessage("new-message")], update === "leaf" ? "new-leaf" : "old-leaf"));
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => { root!.render(<ConversationHarness api={api} activeLeafMessageId="old-leaf" />); });
+    await act(async () => {
+      root!.render(<ConversationHarness api={api} activeLeafMessageId={update === "leaf" ? "new-leaf" : "old-leaf"} refreshVersion={1} />);
+    });
+    await act(async () => {
+      resolveFirst(buildConversationPageForLeaf([buildMessage("old-message")], "old-leaf"));
+      await flushPromises();
+    });
+    expect(container.querySelector('[data-message-id="new-message"]')).not.toBeNull();
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
   it("scrolls when jumping to an already-rendered message", async () => {
     const messages = [buildMessage("message-1"), buildMessage("message-2"), buildMessage("message-3")];
     const api = buildApi(messages);

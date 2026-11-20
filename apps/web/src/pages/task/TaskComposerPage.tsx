@@ -205,16 +205,19 @@ export function TaskComposerPage() {
   const isInteractiveCanvasEnabled = selectedInteractiveCanvas !== null;
   const quickMode = currentDraft.quickMode && workflow.type === "standard";
   const effectiveQuickMode = quickMode && !isInteractiveCanvasEnabled;
-  const effectiveIncognitoMode = incognitoMode && workflow.type === "standard" && !isInteractiveCanvasEnabled;
+  const hasSchedule = workflow.type === "standard" && taskParameters.schedule.type !== "standard";
+  const effectiveIncognitoMode = incognitoMode && workflow.type === "standard" && !isInteractiveCanvasEnabled && !hasSchedule;
   // Read-only and no-network need the sandbox and a standard task; canvas work needs both writes and a browser.
   const isHostTarget = currentDraft.executionTarget.kind === "local" && currentDraft.executionTarget.mode === "host";
-  const restrictionsDisabledReason = isInteractiveCanvasEnabled
-    ? "Not available for canvas tasks."
-    : workflow.type !== "standard"
-      ? "Only available for standard tasks."
-      : isHostTarget
-        ? "Not available in Host mode."
-        : null;
+  const restrictionsDisabledReason = hasSchedule
+    ? "Not available for scheduled tasks."
+    : isInteractiveCanvasEnabled
+      ? "Not available for canvas tasks."
+      : workflow.type !== "standard"
+        ? "Only available for standard tasks."
+        : isHostTarget
+          ? "Not available in Host mode."
+          : null;
   const effectiveRestrictions = restrictionsDisabledReason ? DEFAULT_TASK_RESTRICTIONS : currentDraft.restrictions;
   const activeProject = environments?.find((environment) => environment.id === activeEnvironmentId);
   const networkAlreadyOff = (getSandboxNetworkEnabledOverride(activeProject?.json_payload) ?? workspaceSettings?.effectiveSandboxNetworkEnabled ?? true) === false;
@@ -356,6 +359,7 @@ export function TaskComposerPage() {
               ...(workflow.type === "agent_swarm"
                 ? {
                     ...(workflow.routerId !== undefined ? { routerId: workflow.routerId } : {}),
+                    spawnEffort: workflow.spawnEffort,
                     budgetsEnabled: workflow.budgetsEnabled === true,
                     tokenBudget: workflow.tokenBudget,
                     timeBudgetMinutes: workflow.timeBudgetMinutes,
@@ -435,8 +439,8 @@ export function TaskComposerPage() {
           className={`task-composer-mode-toggle${effectiveIncognitoMode ? " active incognito" : ""}`}
           aria-pressed={effectiveIncognitoMode}
           aria-label={incognitoMode ? "Turn off incognito chat" : "Turn on incognito chat"}
-          title={isInteractiveCanvasEnabled ? "Incognito chat is disabled for canvas tasks" : effectiveIncognitoMode ? "Incognito chat is on" : "Incognito chat"}
-          disabled={isSubmitting || workflow.type !== "standard" || isInteractiveCanvasEnabled}
+          title={hasSchedule ? "Incognito chat is disabled for scheduled tasks" : isInteractiveCanvasEnabled ? "Incognito chat is disabled for canvas tasks" : effectiveIncognitoMode ? "Incognito chat is on" : "Incognito chat"}
+          disabled={isSubmitting || workflow.type !== "standard" || isInteractiveCanvasEnabled || hasSchedule}
           onClick={() => setIncognitoMode((current) => !current)}
         >
           <EyeOff size={18} />

@@ -2,10 +2,11 @@
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "../../../lib/api";
 import type { TaskConversationMessagesProps } from "../../../components/taskConversation/TaskConversationMessages";
-import type { TaskDetail, TaskThreadSummary } from "../../../lib/types";
+import { buildTaskConversationDraftKey, getTaskConversationDraft, readTaskConversationDrafts, updateTaskConversationDraft, writeTaskConversationDrafts } from "../../../task/taskConversationDrafts";
+import type { TaskAttachment, TaskDetail, TaskThreadSummary } from "../../../lib/types";
 import type { UseTaskDetailEventsResult } from "./taskDetailEventTypes";
 import { TaskThreadSidebar, type TaskThreadSidebarPanel } from "./TaskThreadSidebar";
 
@@ -27,28 +28,22 @@ const { useTaskDetailEventsMock } = vi.hoisted(() => ({
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let lastThreadMessagesProps: TaskConversationMessagesProps | null = null;
+beforeEach(() => {
+  const storage = new Map<string, string>();
+  vi.stubGlobal("localStorage", { getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) });
+});
 
 vi.mock("./useTaskDetailEvents", () => ({
   useTaskDetailEvents: useTaskDetailEventsMock
 }));
 
-vi.mock("../../../hooks/useFileUpload", () => ({
-  useFileUpload: () => ({
-    attachments: [],
-    uploadFiles: vi.fn(),
-    removeAttachment: vi.fn(),
-    toggleAttachmentForceInclude: vi.fn(),
-    appendAttachments: vi.fn(),
-    isUploading: false,
-    pendingUploads: [],
-    uploadError: null,
-    clearAttachments: vi.fn()
-  })
-}));
 
 vi.mock("../../../components/taskConversation/ChatInput", () => ({
   ChatInput: (props: {
     placeholder: string;
+    value: string;
+    attachments: TaskAttachment[];
     isTaskRunning?: boolean;
     onStop?: () => void;
     onSubmit?: () => void;
@@ -57,6 +52,8 @@ vi.mock("../../../components/taskConversation/ChatInput", () => ({
   }) => (
     <div data-testid="chat-input">
       {props.placeholder}
+      <span data-testid="draft-text">{props.value}</span>
+      <span data-testid="draft-attachments">{props.attachments.map((item) => item.id).join(",")}</span>
       <span data-testid="selected-agent">{props.selectedAgentId}</span>
       <button type="button" data-testid="select-thread-agent" onClick={() => props.onAgentChange?.("agent-2")}>
         Select thread agent
@@ -252,6 +249,7 @@ describe("TaskThreadSidebar", () => {
     document.body.innerHTML = "";
     lastThreadMessagesProps = null;
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("uses the shared task status badge in thread list rows", async () => {
@@ -559,7 +557,12 @@ describe("TaskThreadSidebar", () => {
     });
   });
 
-  it("keeps a message agent while editing a thread and restores the reply agent on cancel", async () => {
+  it("restores the reply model, unsent draft, and attachments after cancelling a thread edit", async () => {
+    const key = buildTaskConversationDraftKey("thread-task");
+    const attachment: TaskAttachment = { id: "draft-attachment", kind: "note", label: "Draft note", content: "Keep this" };
+    writeTaskConversationDrafts(updateTaskConversationDraft({}, key, (draft) => ({
+      ...draft, message: "Unsent follow-up", attachments: [attachment]
+    })));
     const detail = createThreadTaskDetail("succeeded", "agent-1");
     const message = {
       id: "user-1",
@@ -589,12 +592,17 @@ describe("TaskThreadSidebar", () => {
       lastThreadMessagesProps?.onEditRequested?.(message);
     });
     expect(container.querySelector("[data-testid='selected-agent']")?.textContent).toBe("agent-2");
+    expect(container.querySelector("[data-testid='draft-text']")?.textContent).toBe("Original request");
+    expect(container.querySelector("[data-testid='draft-attachments']")?.textContent).toBe("");
 
     await act(async () => {
       Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
         .find((button) => button.textContent?.trim() === "Cancel edit")?.click();
     });
     expect(container.querySelector("[data-testid='selected-agent']")?.textContent).toBe("agent-1");
+    expect(container.querySelector("[data-testid='draft-text']")?.textContent).toBe("Unsent follow-up");
+    expect(container.querySelector("[data-testid='draft-attachments']")?.textContent).toBe("draft-attachment");
+    expect(getTaskConversationDraft(readTaskConversationDrafts(), key)).toMatchObject({ message: "Unsent follow-up", attachments: [attachment] });
 
     await act(async () => {
       lastThreadMessagesProps?.onEditRequested?.(message);

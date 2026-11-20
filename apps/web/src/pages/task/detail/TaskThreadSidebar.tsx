@@ -612,7 +612,8 @@ function ThreadConversationPanel(props: {
     isUploading,
     pendingUploads,
     uploadError,
-    clearAttachments
+    clearAttachments,
+    setAttachments
   } = useFileUpload(props.api, taskEnvironmentId, {
     destinationPath,
     createDirectories: true,
@@ -747,9 +748,10 @@ function ThreadConversationPanel(props: {
   }
 
   function cancelEditMessage(): void {
+    const draft = getTaskConversationDraft(readTaskConversationDrafts(), conversationDraftKey);
     setEditingMessageId(null);
-    setFollowUp("");
-    clearAttachments();
+    setFollowUp(draft.message);
+    setAttachments(draft.attachments);
   }
 
   function handleAgentChange(agentId: string | null): void {

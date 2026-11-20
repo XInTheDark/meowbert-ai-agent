@@ -72,7 +72,10 @@ export function MessageActions({
         messageId: message.id,
         copyTaskFiles: options.copyTaskFiles
       });
-      const nextPath = `${location.pathname.replace(/\/tasks\/[^/]+$/, `/tasks/${res.taskId}`)}${location.search}`;
+      const taskPath = location.pathname.replace(/\/tasks\/[^/]+$/, `/tasks/${res.taskId}`);
+      const nextPath = `${taskPath === location.pathname
+        ? location.pathname.replace(/(\/projects\/[^/]+)$/, `$1/tasks/${res.taskId}`)
+        : taskPath}${location.search}`;
       navigate(nextPath);
     } catch (err) {
       console.error(err);

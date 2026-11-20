@@ -294,6 +294,12 @@ function focusMainWindow(route?: string): void {
   }
 }
 
+function refreshQuickAgentState(): void {
+  if (quickAgentWindow && !quickAgentWindow.isDestroyed()) {
+    quickAgentWindow.webContents.send("desktop:quick-agent-activated");
+  }
+}
+
 function closeQuickAgentWindow(): void {
   if (!quickAgentWindow || quickAgentWindow.isDestroyed()) {
     return;
@@ -864,6 +870,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle("desktop:get-bootstrap-data", () => readBootstrapData());
   ipcMain.handle("desktop:save-auth-token", async (_event, token: string | null) => {
     await saveAuthToken(token);
+    refreshQuickAgentState();
     void startConfiguredLocalExecutor();
   });
   ipcMain.handle("desktop:save-local-execution-settings", async (_event, settings: DesktopLocalExecutionSettings) => {
@@ -896,6 +903,7 @@ function registerIpcHandlers(): void {
     "desktop:save-server-profiles-state",
     async (_event, state: DesktopServerProfilesState) => {
       const saved = await saveServerProfilesState(state);
+      refreshQuickAgentState();
       void startConfiguredLocalExecutor();
       return saved;
     }
@@ -926,7 +934,11 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle(
     "desktop:save-active-context",
-    (_event, state: DesktopActiveContext) => saveActiveContext(state)
+    async (_event, state: DesktopActiveContext) => {
+      const saved = await saveActiveContext(state);
+      refreshQuickAgentState();
+      return saved;
+    }
   );
   ipcMain.handle("desktop:get-notification-permission", () => (
     Notification.isSupported() ? "granted" : "unsupported"

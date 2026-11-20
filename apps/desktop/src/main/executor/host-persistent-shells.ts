@@ -7,7 +7,7 @@ import type { MachineHost, MachineSpec } from "@meowbert/run-executor/agent/port
 import type { PersistentShellRequest, PlatformToolHost } from "@meowbert/run-executor/agent/ports/platform-tools";
 
 type Session = { id: string; process: SandboxAttachedProcess; logPath: string; command: string; commandId: string | null;
-  status: string; exitCode: number | null; startedAt: string; expiresAt: string; timer: ReturnType<typeof setTimeout> };
+  pending: Promise<void>; status: string; exitCode: number | null; startedAt: string; expiresAt: string; timer: ReturnType<typeof setTimeout> };
 type Options = { machine: MachineHost; spec: MachineSpec; signal: AbortSignal };
 
 function describe(session: Session) {
@@ -26,21 +26,29 @@ async function startSession(options: Options, request: Extract<PersistentShellRe
     env: { ...options.spec.env, ...request.envOverrides }, tty: false, stdin: true });
   const lifetime = Math.min(1_209_600, Math.max(1, request.lifetimeSeconds ?? 43_200)) * 1000;
   const session: Session = { id, process: attached, logPath, command: "", commandId: null, status: "idle", exitCode: null,
-    startedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + lifetime).toISOString(),
+    pending: Promise.resolve(), startedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + lifetime).toISOString(),
     timer: setTimeout(() => { session.status = "stopped"; void attached.close(); }, lifetime) };
-  let pending: Promise<unknown> = Promise.resolve();
   let tail = "";
   const append = (chunk: Buffer) => {
-    pending = pending.then(() => fs.appendFile(logPath, chunk));
     tail = (tail + String(chunk)).slice(-8_192);
     const marker = session.commandId && new RegExp("MEOWBERT_" + session.commandId + "_(-?[0-9]+)");
     const match = marker && tail.match(marker);
-    if (match) { session.exitCode = Number(match[1]); session.status = "idle"; tail = ""; }
+    if (match) tail = "";
+    const commandId = session.commandId;
+    session.pending = session.pending.then(async () => {
+      await fs.appendFile(logPath, chunk);
+      if (match && session.status === "running" && session.commandId === commandId) {
+        session.exitCode = Number(match[1]); session.status = "idle";
+      }
+    });
+    void session.pending.catch(() => { session.status = "stopped"; });
   };
   attached.stdout.on("data", append);
   attached.stderr?.on("data", append);
   void attached.waitForExit().then(async (code) => {
-    await pending; session.status = "completed"; session.exitCode = code; clearTimeout(session.timer);
+    await session.pending;
+    if (session.status !== "stopped") { session.status = "completed"; session.exitCode = code; }
+    clearTimeout(session.timer);
   }).catch(() => { session.status = "stopped"; clearTimeout(session.timer); });
   return session;
 }
@@ -58,9 +66,10 @@ async function submit(session: Session, command: string) {
 export function createHostPersistentShells(options: Options): Pick<PlatformToolHost, "persistentShell" | "readShellSessionWaitState"> {
   const sessions = new Map<string, Session>();
   const requireSession = (id: string) => { const session = sessions.get(id); if (!session) throw new Error("Session does not belong to this run."); return session; };
-  const status = async (session: Session, request: { tailLines?: number | null; saveOutputPath?: string | null } = {}) => ({
-    ...describe(session), ...await readPersistentShellOutput({ ...request, logPath: session.logPath, taskDir: options.spec.taskDir })
-  });
+  const status = async (session: Session, request: { tailLines?: number | null; saveOutputPath?: string | null } = {}) => {
+    await session.pending;
+    return { ...describe(session), ...await readPersistentShellOutput({ ...request, logPath: session.logPath, taskDir: options.spec.taskDir }) };
+  };
   options.signal.addEventListener("abort", () => { for (const session of sessions.values()) clearTimeout(session.timer); }, { once: true });
   return {
     async persistentShell(request) {
@@ -76,7 +85,7 @@ export function createHostPersistentShells(options: Options): Pick<PlatformToolH
       if (request.action === "status") return status(session, request);
       if (request.action === "run") return submit(session, request.command);
       if (request.action === "stop" || request.control === "interrupt") {
-        clearTimeout(session.timer); await session.process.close(); session.status = "stopped"; return describe(session);
+        clearTimeout(session.timer); session.status = "stopped"; await session.process.close(); await session.pending; return describe(session);
       }
       if (request.control !== "input") throw new Error("Native shell sessions support input and interrupt; terminal resizing requires sandbox mode.");
       await new Promise<void>((resolve, reject) => session.process.stdin!.write(request.data ?? "", (error) => error ? reject(error) : resolve()));

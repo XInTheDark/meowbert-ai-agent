@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "../../../lib/api";
+import { buildTaskConversationDraftKey, getTaskConversationDraft, readTaskConversationDrafts, updateTaskConversationDraft, writeTaskConversationDrafts } from "../../../task/taskConversationDrafts";
 import type { TaskDetail } from "../../../lib/types";
 import { findCacheBreakingChanges } from "../../../task/cacheBreakingChanges";
 import { updateTaskInputDraftForProject, writeTaskInputDrafts } from "../../../task/taskInputDrafts";
@@ -83,4 +84,32 @@ describe("task follow-up setup", () => {
     expect(view.current().selectedAgentId).toBe("opus");
     expect(view.current().toolOptions).toMatchObject({ webSearch: false, computerUse: false });
   });
+});
+
+
+it("restores the saved follow-up and attachments after cancelling an edit", async () => {
+  vi.useFakeTimers();
+  const attachment = { id: "draft-note", kind: "note" as const, label: "Draft note", content: "Keep this" };
+  const key = buildTaskConversationDraftKey("task");
+  writeTaskConversationDrafts(updateTaskConversationDraft({}, key, (draft) => ({
+    ...draft, message: "Unsent follow-up", attachments: [attachment]
+  })));
+  const view = renderComposer(detail("m1"));
+  act(() => {
+    view.current().flushPendingConversationDraft();
+    view.current().beginEditMessage({ id: "old-message", content_json: { text: "Old text" } } as never);
+    view.current().setFollowUp("Edited text");
+    view.current().clearAttachments();
+  });
+  await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+  expect(getTaskConversationDraft(readTaskConversationDrafts(), key).message).toBe("Unsent follow-up");
+  act(() => view.current().cancelEditMessage());
+  expect(view.current().editingMessageId).toBeNull();
+  expect(view.current().followUp).toBe("Unsent follow-up");
+  expect(view.current().attachments).toEqual([attachment]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+  expect(getTaskConversationDraft(readTaskConversationDrafts(), key)).toMatchObject({
+    message: "Unsent follow-up", attachments: [attachment]
+  });
+  vi.useRealTimers();
 });

@@ -128,10 +128,8 @@ export function useTaskDetailLoadedController(context: TaskDetailPageContext) {
     view.layout.setIsMobileInputExpanded(true);
   }, [composer, controllers, view.layout]);
   const cancelEditMessage = useCallback(() => {
-    composer.setEditingMessageId(null);
-    composer.setFollowUp("");
+    composer.cancelEditMessage();
     controllers.threads.setQuotedFollowUpSelections([]);
-    composer.clearAttachments();
   }, [composer, controllers.threads]);
   const buildInlineArtifactUrl = useCallback((relativePath: string) => (
     context.data.inlineFileTicket && context.taskId

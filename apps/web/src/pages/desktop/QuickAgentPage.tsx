@@ -42,6 +42,7 @@ function QuickAgentWindowCard(props: {
 export function QuickAgentPage(props: {
   token: string | null;
   requiresServerSelection: boolean;
+  isRuntimeRefreshing?: boolean;
 }) {
   const { activeContext, capabilities, platform, saveActiveContext } = useAppRuntime();
   const api = useMemo(() => (props.token ? createApiClient(props.token) : null), [props.token]);
@@ -72,6 +73,11 @@ export function QuickAgentPage(props: {
   } = useTaskInputCatalog(api, selectedWorkspaceId, user?.is_super_admin === true);
 
   useEffect(() => platform.onQuickAgentActivated(() => setFocusToken((current) => current + 1)), [platform]);
+
+  useEffect(() => {
+    setSelectedWorkspaceId(activeContext.workspaceId);
+    setSelectedEnvironmentId(activeContext.environmentId);
+  }, [activeContext.workspaceId, activeContext.environmentId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -284,7 +290,7 @@ export function QuickAgentPage(props: {
   }, [selectedEnvironmentId, toolDefaults]);
 
   async function submitTask(): Promise<void> {
-    if (!api || !selectedWorkspaceId || !selectedEnvironmentId || (!prompt.trim() && attachments.length === 0)) {
+    if (props.isRuntimeRefreshing || !api || !selectedWorkspaceId || !selectedEnvironmentId || (!prompt.trim() && attachments.length === 0)) {
       return;
     }
 
@@ -447,7 +453,7 @@ export function QuickAgentPage(props: {
               onSubmit={() => {
                 void submitTask();
               }}
-              isSubmitting={isSubmitting}
+              isSubmitting={isSubmitting || props.isRuntimeRefreshing === true}
               attachments={attachments}
               onRemoveAttachment={removeAttachment}
               onToggleAttachmentForceInclude={toggleAttachmentForceInclude}

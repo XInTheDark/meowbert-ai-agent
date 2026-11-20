@@ -81,10 +81,17 @@ function registerWindowsUpdateEvents(
       title: "Update ready",
       message: `Meowbert ${updateDisplayVersion(info)} is ready to install.`,
       detail: "Choose Install and Relaunch to restart now, or Later to finish the update the next time you quit the app."
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.response === 0) {
+        await options.prepareForRelaunch();
         updater.quitAndInstall();
       }
+    }).catch((error: unknown) => {
+      console.error("Desktop update installation failed", error);
+      state.lastDownloadedVersionPrompted = null;
+      void showMessageBox({ type: "error", buttons: ["OK"], title: "Update installation failed",
+        message: "Meowbert could not prepare to install the update.",
+        detail: error instanceof Error ? error.message : String(error) });
     });
   });
 
