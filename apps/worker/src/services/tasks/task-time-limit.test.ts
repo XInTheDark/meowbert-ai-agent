@@ -74,6 +74,7 @@ describe("runTaskTimeLimitSweepOnce", () => {
     const cancelledScopeCount = await runTaskTimeLimitSweepOnce();
 
     expect(cancelledScopeCount).toBe(1);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("UPDATE task_run_dispatches"), [["run-queued"]]);
     expect(mockedGetJob).toHaveBeenCalledWith(expect.stringContaining("task-root"));
     expect(remove).toHaveBeenCalledTimes(1);
     expect(mockedEmitTaskEvent).toHaveBeenCalledWith("task-root", "status", { status: "cancelled" });

@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { LOCAL_RUN_MAX_PENDING_MS, normalizeAgentSwarmSettings } from "@meowbert/shared";
 import { buildUnsubmittedLaneResult } from "@meowbert/run-executor/agent-swarm/forced-submit";
+import { settleUnclaimedRunInterruptionsOnce } from "./unclaimed-run-interruptions.js";
 import { query, withTransaction } from "../../lib/db.js";
 import { wakeParentIfBarrierMetInTx } from "../agent-swarm/barrier.js";
 import { dropDiscardedResultInTx, loadLane, setLaneStatusInTx } from "../agent-swarm/lane-store.js";
@@ -24,7 +25,7 @@ async function recoverLocalRuns(input: {
   params: unknown[];
   update: string;
 }): Promise<number> {
-  const selection = `SELECT d.run_id, d.task_id, t.cancellation_requested, t.trashed_at
+  const selection = `SELECT d.run_id, d.task_id, t.cancellation_requested, t.resume_after_interrupt, t.trashed_at
     FROM task_run_dispatches d JOIN tasks t ON t.id = d.task_id
     JOIN task_runs tr ON tr.id = d.run_id AND tr.ended_at IS NULL
     WHERE d.payload_json->'executionTarget'->>'kind' = 'local'
@@ -74,7 +75,7 @@ async function settleRecoveredLaneInTx(client: PoolClient, taskId: string, statu
 /** Releases a local admission after the device has missed its claim window or lease grace, and
  * ends at once any run of a stopped task that no device holds. */
 export async function reclaimExpiredLocalRunLeasesOnce(): Promise<number> {
-  return recoverLocalRuns({
+  const recovered = await recoverLocalRuns({
     predicate: `(d.queue_state = 'admitted' AND d.admitted_at < now() - ($1::double precision * interval '1 millisecond'))
       OR (d.queue_state = 'running' AND COALESCE(d.lease_expires_at, d.started_at) < now() - ($2::double precision * interval '1 millisecond'))
       OR (d.queue_state IN ('pending', 'admitted') AND d.lease_device_id IS NULL
@@ -82,7 +83,7 @@ export async function reclaimExpiredLocalRunLeasesOnce(): Promise<number> {
     params: [LOCAL_CLAIM_WINDOW_MS, LOCAL_LEASE_RECLAIM_GRACE_MS],
     update: `released AS (
        UPDATE task_run_dispatches d SET
-         queue_state = CASE WHEN e.cancellation_requested OR e.trashed_at IS NOT NULL THEN 'cancelled' ELSE 'pending' END,
+         queue_state = CASE WHEN (e.cancellation_requested AND NOT e.resume_after_interrupt) OR e.trashed_at IS NOT NULL THEN 'cancelled' ELSE 'pending' END,
          lease_epoch = lease_epoch + 1, lease_device_id = NULL, lease_holder = NULL,
          lease_api_url = NULL, lease_expires_at = NULL, pending_reason = 'device_offline',
          admitted_at = NULL, started_at = NULL, eligible_at = now(), updated_at = now()
@@ -95,6 +96,7 @@ export async function reclaimExpiredLocalRunLeasesOnce(): Promise<number> {
        completed_at = CASE WHEN r.queue_state = 'cancelled' THEN now() ELSE t.completed_at END, updated_at = now()
        FROM released r WHERE t.id = r.task_id RETURNING t.status`
   });
+  return recovered + await settleUnclaimedRunInterruptionsOnce();
 }
 
 export async function expireUnavailableLocalRunsOnce(): Promise<number> {

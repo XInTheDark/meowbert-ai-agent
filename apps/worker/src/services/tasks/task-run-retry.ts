@@ -12,7 +12,6 @@ import { withTransaction } from "../../lib/db.js";
 import { taskQueue } from "../../lib/queue.js";
 import { emitTaskEvent } from "../runtime/events.js";
 import { insertTaskRunDispatchWithClient } from "./task-run-dispatch.js";
-import { handleCancelledRun } from "../run-host/run-cancellation.js";
 
 const RETRY_ELIGIBLE_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
   "queued",
@@ -87,7 +86,7 @@ type ScheduleTaskRunRetryResult =
     errorMessage: string;
   }
   | {
-    status: "noop";
+    status: "noop" | "cancelled";
     errorMessage: string;
   };
 
@@ -409,10 +408,6 @@ export async function scheduleTaskRunRetry(input: {
     } as const;
   });
 
-  if (prepared.status === "cancelled") {
-    await handleCancelledRun(input.job);
-    return { status: "noop", errorMessage };
-  }
   if (prepared.status !== "scheduled") {
     return prepared;
   }

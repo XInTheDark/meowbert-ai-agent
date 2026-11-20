@@ -14,6 +14,17 @@ export async function interruptSubagent(caller: SubagentCaller, targetId: string
        WHERE id IN (SELECT id FROM scope) AND status IN ('queued', 'starting', 'running', 'awaiting_input')`, [targetId]
     );
     await client.query(
+      `WITH RECURSIVE scope AS (SELECT id FROM tasks WHERE id = $1
+       UNION ALL SELECT t.id FROM tasks t JOIN scope s ON t.parent_task_id = s.id)
+       UPDATE task_subagent_mail SET wake = false
+       WHERE recipient_task_id IN (SELECT id FROM scope) AND delivered_at IS NULL`, [targetId]
+    );
+    await client.query(
+      `WITH RECURSIVE scope AS (SELECT id FROM tasks WHERE id = $1
+       UNION ALL SELECT t.id FROM tasks t JOIN scope s ON t.parent_task_id = s.id)
+       DELETE FROM task_subagent_waits WHERE task_id IN (SELECT id FROM scope)`, [targetId]
+    );
+    await client.query(
       `UPDATE task_runs SET ended_at = now(), exit_reason = 'cancelled' WHERE ended_at IS NULL
        AND task_id IN (SELECT id FROM tasks WHERE status = 'cancelled' AND cancellation_requested)
        AND task_id IN (SELECT task_id FROM task_subagent_sessions WHERE root_task_id = $1)`, [target.root_task_id]

@@ -17,6 +17,7 @@ import { startTaskRunRecoveryLoop } from "./services/tasks/task-run-recovery.js"
 import { startTaskScheduleLoop } from "./services/task-schedules/service.js";
 import { startTaskCleanupLoop } from "./services/tasks/task-cleanup.js";
 import { finalizeUnhandledRunFailure } from "./services/tasks/run-failure-fallback.js";
+import { handleCancelledRun } from "./services/run-host/run-cancellation.js";
 import { finishFailedLaneRun } from "./services/agent-swarm/run-finalize.js";
 import { isIdleCompactionRun } from "@meowbert/run-executor/agent/idle-compaction";
 import { settleFailedIdleCompaction } from "./services/idle-compaction/idle-compaction-failure.js";
@@ -176,6 +177,11 @@ async function start(): Promise<void> {
         job: job.data,
         error
       });
+      if (retryResult.status === "cancelled") {
+        await handleCancelledRun(job.data);
+        await finishFailedLaneRun(job.data, "cancelled", true);
+        return;
+      }
       if (retryResult.status === "scheduled" || retryResult.status === "noop") {
         return;
       }

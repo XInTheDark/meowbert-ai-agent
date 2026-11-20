@@ -149,13 +149,13 @@ describe("scheduleTaskRunRetry", () => {
       error: new Error("ordinary executor failure")
     });
 
-    expect(result.status).toBe("noop");
+    expect(result.status).toBe("cancelled");
     expect(task).toEqual({ status: "running", ...intent });
     expect(queryMock).toHaveBeenCalledTimes(2);
     expect(mockedQueueAdd).not.toHaveBeenCalled();
     expect(mockedInsertTaskRunDispatchWithClient).not.toHaveBeenCalled();
     expect(mockedEmitTaskEvent).not.toHaveBeenCalled();
-    expect(handleCancelledRun).toHaveBeenCalledWith(expect.objectContaining({ taskId: "task-1", runId: "run-1" }));
+    expect(handleCancelledRun).not.toHaveBeenCalled();
   });
 
   it("records the failed run as retrying, schedules the next run, and emits retry metadata", async () => {

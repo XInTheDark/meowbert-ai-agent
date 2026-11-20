@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { query } from "../../lib/db.js";
 import { searchProjectTasks } from "../../services/task-search/query.js";
 import { listProjectTasks } from "../../services/tasks/task-list.js";
+import { cancelTaskAndSchedules } from "../../services/tasks/task-cancellation.js";
 import {
   emptyEnvironmentTrash,
   resolveTaskCleanupExpirationDays,
@@ -62,35 +63,19 @@ export async function registerEnvironmentTaskRoutes(fastify: FastifyInstance): P
         }
 
         const cancelledRes = await query<{ id: string }>(
-          `WITH cancelled AS (
-             UPDATE tasks t
-                SET cancellation_requested = true,
-                    resume_after_interrupt = false,
-                    updated_at = now()
-               FROM workspace_members wm
-              WHERE t.environment_id = $1
-                AND t.parent_task_id IS NULL
-                AND wm.workspace_id = t.workspace_id
-                AND wm.user_id = $2
-                AND t.status IN ('queued', 'starting', 'running')
-                AND t.cancellation_requested = false
-                AND ($3::uuid[] IS NULL OR t.id = ANY($3::uuid[]))
-              RETURNING t.id
-           ),
-           cancelled_schedules AS (
-             UPDATE task_schedules ts
-                SET schedule_state = 'cancelled',
-                    next_run_at = NULL,
-                    pending_run = false,
-                    cancelled_at = now(),
-                    updated_at = now()
-               FROM cancelled c
-              WHERE ts.task_id = c.id
-              RETURNING ts.task_id
-           )
-           SELECT id FROM cancelled`,
+          `SELECT t.id FROM tasks t
+             JOIN workspace_members wm ON wm.workspace_id = t.workspace_id AND wm.user_id = $2
+            WHERE t.environment_id = $1
+              AND t.parent_task_id IS NULL
+              AND t.workflow_parent_task_id IS NULL
+              AND t.status IN ('queued', 'starting', 'running')
+              AND (t.cancellation_requested = false OR t.resume_after_interrupt = true)
+              AND ($3::uuid[] IS NULL OR t.id = ANY($3::uuid[]))`,
           [params.envId, request.user.id, body.taskIds ?? null]
         );
+        for (const task of cancelledRes.rows) {
+          await cancelTaskAndSchedules(task.id);
+        }
 
         return {
           cancelledCount: cancelledRes.rowCount ?? 0

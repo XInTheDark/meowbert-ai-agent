@@ -1,6 +1,7 @@
 import { withTransaction } from "../../lib/db.js";
 import { appendTaskEvent } from "../runtime/events.js";
 import { cancelUnclaimedLocalRunsInTx } from "./unclaimed-local-run-cancellation.js";
+import { expeditePendingTaskDispatchesInTx } from "./expedite-pending-dispatches.js";
 
 // Cancels a task and its schedule; swarm member tasks cancel the whole swarm.
 export async function cancelTaskAndSchedules(taskId: string): Promise<void> {
@@ -65,7 +66,9 @@ export async function cancelTaskAndSchedules(taskId: string): Promise<void> {
       [targetTaskId]
     );
 
-    return cancelUnclaimedLocalRunsInTx(client, flagged.rows.map((row) => row.id));
+    const flaggedTaskIds = flagged.rows.map((row) => row.id);
+    await expeditePendingTaskDispatchesInTx(client, flaggedTaskIds);
+    return cancelUnclaimedLocalRunsInTx(client, flaggedTaskIds);
   });
 
   for (const stoppedTaskId of stoppedTaskIds) {

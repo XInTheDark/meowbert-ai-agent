@@ -68,6 +68,12 @@ export async function failServerRun(job: TaskExecutionJob, failure: RunFailure):
     }
     return;
   }
+  if (retryResult.status === "cancelled") {
+    if (!idleCompaction) await appendPersistedAssistantItems(job, failure, leaf);
+    await handleCancelledRun(job);
+    await finishFailedLaneRun(job, "cancelled", true);
+    return;
+  }
   if (retryResult.status === "noop") {
     return;
   }

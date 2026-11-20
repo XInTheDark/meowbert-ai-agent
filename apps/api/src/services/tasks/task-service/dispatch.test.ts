@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveUserTriggeredRunModeInTx } from "./dispatch.js";
+import { decideTaskDispatchModeInTx, resolveUserTriggeredRunModeInTx } from "./dispatch.js";
 
 function buildRowsResult<Row extends object>(rows: Row[]) {
   return {
@@ -9,6 +9,20 @@ function buildRowsResult<Row extends object>(rows: Row[]) {
 }
 
 describe("resolveUserTriggeredRunModeInTx", () => {
+  it("expedites a delayed dispatch when a queued run is interrupted", async () => {
+    let eligibleAt = new Date("2099-01-01T00:00:00Z");
+    let cancelled = false;
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("SELECT status")) return buildRowsResult([{ status: "queued" }]);
+      if (sql.includes("FROM task_runs")) return buildRowsResult([{ id: "run-1" }]);
+      if (sql.includes("cancellation_requested = true")) cancelled = true;
+      if (sql.includes("eligible_at = LEAST")) eligibleAt = new Date();
+      return buildRowsResult([]);
+    });
+    expect(await decideTaskDispatchModeInTx({ query } as never, "task-1", { interruptQueued: true })).toBe("interrupting");
+    expect(cancelled).toBe(true);
+    expect(eligibleAt.getTime()).toBeLessThanOrEqual(Date.now());
+  });
   it("uses the dedicated mode for a Quality control reviewer", async () => {
     const query = vi.fn()
       .mockResolvedValueOnce(buildRowsResult([{

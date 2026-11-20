@@ -389,7 +389,8 @@ async function listPendingDispatchCandidates(settings: TaskSchedulerSettings): P
              SELECT 1 FROM task_subagent_sessions s WHERE s.task_id = t.id
              AND (SELECT count(*) FROM task_subagent_sessions sibling
                JOIN task_run_dispatches active ON active.task_id = sibling.task_id
-               WHERE sibling.root_task_id = s.root_task_id AND active.queue_state IN ('admitted', 'running')) >= 3
+               WHERE sibling.root_task_id = s.root_task_id AND active.queue_state IN ('admitted', 'running')
+                 AND EXISTS (SELECT 1 FROM task_runs open_run WHERE open_run.id = active.run_id AND open_run.ended_at IS NULL)) >= 3
            )
       )
       SELECT run_id,
@@ -492,6 +493,7 @@ async function listLocalDeviceDispatchStates(): Promise<Map<string, LocalDeviceD
          ON d.queue_state IN ('admitted', 'running')
         AND d.payload_json->'executionTarget'->>'kind' = 'local'
         AND d.payload_json->'executionTarget'->>'deviceId' = dv.id::text
+        AND EXISTS (SELECT 1 FROM task_runs open_run WHERE open_run.id = d.run_id AND open_run.ended_at IS NULL)
       GROUP BY dv.id`,
     []
   );
@@ -645,7 +647,8 @@ async function claimDispatchForAdmission(runId: string): Promise<TaskRunDispatch
              SELECT 1 FROM task_subagent_sessions s WHERE s.task_id = t.id
              AND (SELECT count(*) FROM task_subagent_sessions sibling
                JOIN task_run_dispatches active ON active.task_id = sibling.task_id
-               WHERE sibling.root_task_id = s.root_task_id AND active.queue_state IN ('admitted', 'running')) >= 3
+               WHERE sibling.root_task_id = s.root_task_id AND active.queue_state IN ('admitted', 'running')
+                 AND EXISTS (SELECT 1 FROM task_runs open_run WHERE open_run.id = active.run_id AND open_run.ended_at IS NULL)) >= 3
            )
         )
       RETURNING run_id,

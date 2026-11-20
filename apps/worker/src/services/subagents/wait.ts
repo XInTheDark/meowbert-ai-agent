@@ -26,10 +26,10 @@ export async function parkForSubagentMail(job: TaskExecutionJob, deadline: strin
 async function wakeTask(taskId: string): Promise<void> {
   await withTransaction(async (client) => {
     const taskRes = await client.query<{
-      workspace_id: string; environment_id: string; initiator_user_id: string | null; status: string;
-    }>("SELECT workspace_id, environment_id, initiator_user_id, status FROM tasks WHERE id = $1 FOR UPDATE", [taskId]);
+      workspace_id: string; environment_id: string; initiator_user_id: string | null; status: string; cancellation_requested: boolean;
+    }>("SELECT workspace_id, environment_id, initiator_user_id, status, cancellation_requested FROM tasks WHERE id = $1 FOR UPDATE", [taskId]);
     const task = taskRes.rows[0];
-    if (!task) return;
+    if (!task || task.status === "cancelled" || task.cancellation_requested) return;
     const open = await client.query("SELECT id FROM task_runs WHERE task_id = $1 AND ended_at IS NULL LIMIT 1", [taskId]);
     if (open.rowCount) return;
     const wait = (await client.query<SubagentWait>("SELECT * FROM task_subagent_waits WHERE task_id = $1", [taskId])).rows[0];
@@ -61,7 +61,7 @@ export async function wakeSubagentsOnce(): Promise<void> {
      JOIN tasks root ON root.id = COALESCE(s.root_task_id, t.id)
      LEFT JOIN task_subagent_waits w ON w.task_id = t.id
      WHERE root.status NOT IN ('succeeded', 'failed', 'cancelled') AND NOT root.cancellation_requested
-       AND t.trashed_at IS NULL
+       AND t.trashed_at IS NULL AND t.status <> 'cancelled' AND NOT t.cancellation_requested
        AND NOT EXISTS (SELECT 1 FROM task_runs r WHERE r.task_id = t.id AND r.ended_at IS NULL)
        AND (w.deadline_at <= now() OR EXISTS (
          SELECT 1 FROM task_subagent_mail m WHERE m.recipient_task_id = t.id AND m.delivered_at IS NULL

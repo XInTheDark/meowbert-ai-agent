@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import type { TaskWorkflowType, TaskExecutionJob } from "@meowbert/shared";
 import { assertNotLegacyAgentSwarmTaskInTx } from "../../agent-swarm/legacy.js";
+import { expeditePendingTaskDispatchesInTx } from "../expedite-pending-dispatches.js";
 
 class AgentSwarmLaneMessageError extends Error {
   readonly statusCode = 409;
@@ -58,6 +59,7 @@ export async function decideTaskDispatchModeInTx(
         WHERE id = $1`,
       [taskId]
     );
+    await expeditePendingTaskDispatchesInTx(client, [taskId]);
     return "interrupting";
   }
 

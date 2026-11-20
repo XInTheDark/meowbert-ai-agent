@@ -28,6 +28,7 @@ export async function streamDeviceRuns(deviceId: string, userId: string, reply: 
           "(dv.consent_json->'computerUse' = 'true'::jsonb) AS computer_use_allowed FROM task_run_dispatches " +
           "JOIN devices dv ON dv.id = $1::uuid " +
           "WHERE queue_state IN ('pending', 'admitted', 'running') AND payload_json->'executionTarget'->>'kind' = 'local' " +
+          "AND EXISTS (SELECT 1 FROM task_runs tr WHERE tr.id = task_run_dispatches.run_id AND tr.ended_at IS NULL) " +
           "AND payload_json->'executionTarget'->>'deviceId' = $1::text ORDER BY (queue_state = 'admitted') DESC, queued_at ASC LIMIT 20", [deviceId]
         )).rows.map(({ computer_use_allowed, ...run }) => ({ ...run,
           // Device consent caps task and preset requests before the executor builds model tools.

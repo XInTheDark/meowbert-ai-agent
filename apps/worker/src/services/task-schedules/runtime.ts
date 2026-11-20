@@ -88,7 +88,7 @@ async function processScheduledDueTask(taskId: string): Promise<PreparedRun | nu
       return null;
     }
 
-    if (taskStatus === "running" || taskStatus === "queued") {
+    if (taskStatus === "running" || taskStatus === "starting" || taskStatus === "queued") {
       await client.query(
         `UPDATE task_schedules
             SET pending_run = true,
@@ -180,7 +180,7 @@ async function processInfiniteDueTask(taskId: string): Promise<PreparedRun | nul
       return null;
     }
 
-    if (taskStatus === "running" || taskStatus === "queued") {
+    if (taskStatus === "running" || taskStatus === "starting" || taskStatus === "queued") {
       await client.query(
         `UPDATE task_schedules
             SET pending_run = true,
@@ -272,7 +272,7 @@ async function processPendingTask(taskId: string): Promise<PreparedRun | null> {
       return null;
     }
 
-    if (taskStatus === "running" || taskStatus === "queued") {
+    if (taskStatus === "running" || taskStatus === "starting" || taskStatus === "queued") {
       return null;
     }
 

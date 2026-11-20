@@ -129,6 +129,13 @@ async function cancelExpiredTaskScope(rootTaskId: string, nowMs: number): Promis
 
     if (openRunsToRemoveRes.rows.length > 0) {
       await client.query(
+        `UPDATE task_run_dispatches SET queue_state = 'cancelled', finished_at = now(),
+           lease_epoch = lease_epoch + 1, lease_device_id = NULL, lease_holder = NULL,
+           lease_api_url = NULL, lease_expires_at = NULL, updated_at = now()
+         WHERE run_id = ANY($1::uuid[])`,
+        [openRunsToRemoveRes.rows.map((row) => row.run_id)]
+      );
+      await client.query(
         `UPDATE task_runs
             SET ended_at = now(),
                 exit_reason = 'cancelled'

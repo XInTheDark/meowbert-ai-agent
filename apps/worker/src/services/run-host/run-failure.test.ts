@@ -23,6 +23,8 @@ vi.mock("./run-cancellation.js", () => ({ handleCancelledRun: vi.fn() }));
 vi.mock("../agent-swarm/run-finalize.js", () => ({ finishFailedLaneRun: vi.fn() }));
 
 import { failServerRun } from "./run-failure.js";
+import { handleCancelledRun } from "./run-cancellation.js";
+import { finishFailedLaneRun } from "../agent-swarm/run-finalize.js";
 
 const idleJob: TaskExecutionJob = {
   taskId: "task-1", runId: "run-1", workspaceId: "workspace-1", environmentId: "environment-1",
@@ -71,5 +73,18 @@ describe("failServerRun for other runs", () => {
     await failServerRun({ ...idleJob, mode: "default", contextAction: undefined, restoreStatus: undefined }, { ...failure, persistedItems: [] });
     expect(mocks.setTaskStatusForRun).toHaveBeenCalledWith("task-1", "run-1", "failed");
     expect(mocks.appendMessage).toHaveBeenCalled();
+  });
+
+  it("settles a stopped lane and retains its output when shutdown fails with a provider error", async () => {
+    mocks.scheduleTaskRunRetry.mockResolvedValue({ status: "cancelled", errorMessage: failure.errorMessage });
+    const laneJob = { ...idleJob, mode: "agent_swarm_lane" as const };
+    await failServerRun(laneJob, failure);
+    expect(mocks.appendMessage).toHaveBeenCalledWith("task-1", "assistant", {
+      text: "", response_items: failure.persistedItems
+    }, expect.anything());
+    expect(handleCancelledRun).toHaveBeenCalledWith(laneJob);
+    expect(finishFailedLaneRun).toHaveBeenCalledWith(laneJob, "cancelled", true);
+    expect(mocks.appendMessage.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(handleCancelledRun).mock.invocationCallOrder[0]);
+    expect(mocks.setTaskStatusForRun).not.toHaveBeenCalled();
   });
 });
