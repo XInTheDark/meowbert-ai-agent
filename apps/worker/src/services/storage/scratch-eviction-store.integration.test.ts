@@ -85,13 +85,37 @@ describe.skipIf(!url)("scratch eviction database and filesystem", () => {
     for (const status of ["starting", "running", "idle"]) {
       await state.pool!.query("INSERT INTO persistent_shell_sessions VALUES ($1,$2)", [await task(), status]);
     }
-    const root = await task("running");
-    await state.pool!.query("INSERT INTO task_swarm_lanes VALUES ($1,$2,'done')", [await task(), root]);
     const parked = await task("awaiting_input");
     await state.pool!.query("INSERT INTO task_swarm_lanes VALUES ($1,$2,'waiting')", [await task(), parked]);
     const client = await state.pool!.connect();
     try { expect((await listIdleScratchTasks(client, cutoff)).map((row) => row.id)).toEqual([safe]); }
     finally { client.release(); }
+  });
+
+  it("frees finished lanes of an open swarm but keeps its active lanes and the swarm itself", async () => {
+    const root = await task("queued");
+    const finished = [];
+    for (const status of ["done", "failed", "stopped", "expired"]) {
+      const lane = await task();
+      await state.pool!.query("INSERT INTO task_swarm_lanes VALUES ($1,$2,$3)", [lane, root, status]);
+      finished.push(lane);
+    }
+    for (const status of ["queued", "running", "waiting"]) {
+      await state.pool!.query("INSERT INTO task_swarm_lanes VALUES ($1,$2,$3)", [await task(), root, status]);
+    }
+    const laggingLane = await task();
+    await state.pool!.query("INSERT INTO task_swarm_lanes VALUES ($1,$2,'done')", [laggingLane, root]);
+    await state.pool!.query("INSERT INTO task_runs(task_id) VALUES ($1)", [laggingLane]);
+    const closedRoot = await task("awaiting_input");
+    await state.pool!.query("INSERT INTO task_swarm_lanes VALUES ($1,$2,'done')", [await task(), closedRoot]);
+    const client = await state.pool!.connect();
+    try {
+      const ids = (await listIdleScratchTasks(client, cutoff)).map((row) => row.id);
+      expect(ids).toEqual(expect.arrayContaining(finished));
+      expect(ids).not.toContain(root);
+      expect(ids).not.toContain(laggingLane);
+      expect(ids).toHaveLength(finished.length + 2);
+    } finally { client.release(); }
   });
 
   it("clears only scratch, keeps history, and recreates an evicted directory on its next run", async () => {

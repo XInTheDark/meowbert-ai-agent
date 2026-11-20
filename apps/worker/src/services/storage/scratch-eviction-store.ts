@@ -14,16 +14,17 @@ export interface ScratchTaskRow {
 }
 
 // Shared by candidate selection and the final locked recheck.
+// A swarm keeps its own scratch while any lane is active; a finished lane's scratch is free even if the swarm stays open.
 const ELIGIBLE_SCRATCH_SQL = `t.scratch_present
   AND t.status NOT IN ('queued', 'starting', 'running')
   AND GREATEST(t.updated_at, COALESCE((SELECT MAX(ended_at) FROM task_runs WHERE task_id = t.id), t.updated_at)) < $1::timestamptz
   AND NOT EXISTS (SELECT 1 FROM task_runs r WHERE r.task_id = t.id AND r.ended_at IS NULL)
   AND NOT EXISTS (SELECT 1 FROM persistent_shell_sessions s WHERE s.created_by_task_id = t.id AND s.status IN ('starting', 'running', 'idle'))
   AND NOT EXISTS (
-    SELECT 1 FROM task_swarm_lanes lane JOIN tasks root ON root.id = lane.swarm_task_id
+    SELECT 1 FROM task_swarm_lanes lane
     WHERE (lane.task_id = t.id OR lane.swarm_task_id = t.id)
-      AND (root.status IN ('queued', 'starting', 'running') OR lane.status IN ('queued', 'running', 'waiting')
-        OR EXISTS (SELECT 1 FROM task_runs r WHERE r.task_id = root.id AND r.ended_at IS NULL)))`;
+      AND (lane.status IN ('queued', 'running', 'waiting')
+        OR EXISTS (SELECT 1 FROM task_runs r WHERE r.task_id = lane.task_id AND r.ended_at IS NULL)))`;
 
 export async function listIdleScratchTasks(client: PoolClient, cutoff: string): Promise<ScratchTaskRow[]> {
   const result = await client.query<ScratchTaskRow>(
