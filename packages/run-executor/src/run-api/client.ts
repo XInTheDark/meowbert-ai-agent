@@ -122,7 +122,7 @@ export function createRunApiClient(options: RunApiClientOptions): RunApiClient {
     async model(request, signal) {
       const operation = { ...request, operationId: randomUUID() };
       const retries = options.retryDelaysMs ?? MODEL_RETRY_DELAYS_MS;
-      const signals = [signal, options.signal, AbortSignal.timeout(request.timeoutMs + 30_000)]
+      const signals = [signal, options.signal]
         .filter((value): value is AbortSignal => value !== undefined);
       const boundedSignal = AbortSignal.any(signals);
       let lastError: unknown;

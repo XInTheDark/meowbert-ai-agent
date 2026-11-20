@@ -12,6 +12,15 @@ import { createModelToolPolicy } from "./model-tool-policy.js";
 import { normalizeProviderRequestTools } from "@meowbert/run-executor/agent/provider-request-tools";
 import * as skillRegistry from "@meowbert/run-executor/agent/skill-registry";
 
+it.each(["host", "sandbox"] as const)("accepts send_message on ordinary local %s turns", async (mode) => {
+  const run = state();
+  run.job.executionTarget = { kind: "local", mode, deviceId: "11111111-1111-4111-8111-111111111111" };
+  const tools = buildResponseTools(options, [], { allowSendMessage: true, runShellMaxTimeoutSeconds: 600 });
+  const send = tools.find((tool) => tool.type === "function" && tool.name === "send_message");
+  expect(send).toBeDefined();
+  await expect(createModelToolPolicy(run, control, {})([send!], "turn")).resolves.toBeUndefined();
+});
+
 it.each(["local", "cloud"])("accepts Google-normalized builtin and auxiliary contracts for %s transport", async (target) => {
   const run = state();
   if (target === "cloud") run.job.executionTarget = { kind: "cloud" };

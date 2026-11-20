@@ -165,6 +165,29 @@ describe.skipIf(!databaseUrl)("message context boundaries in PostgreSQL", () => 
     expect(await loadContextHistoryWindow(next, state.windowId)).toHaveLength(1);
   });
 
+  it.each(["manual", "clear", "idle", "automatic"])("resumes a seeded %s rollover before another message was published", async (reason) => {
+    const { taskId, user, state } = await fixture();
+    await record(state, "user", "before rollover");
+    const checkpoint = await message(taskId, user);
+    const next = { taskId, ...await startNewContextWindowRecord(state, checkpoint, reason) };
+    await record(next, "user", "retained seed");
+    await note(next, "new window private work");
+    const interrupted = await openContextWindow(taskId, checkpoint);
+    expect(interrupted.windowId).toBe(next.windowId);
+    const followup = await message(taskId, checkpoint);
+    const resumed = { taskId, ...await openContextWindow(taskId, followup) };
+    expect(resumed.windowId).toBe(next.windowId);
+    expect((await openContextWindow(taskId, followup)).windowId).toBe(next.windowId);
+    const anotherFollowup = await message(taskId, followup);
+    expect((await openContextWindow(taskId, anotherFollowup)).windowId).toBe(next.windowId);
+    expect(await readContextNote(resumed, { path: "continuity.md" })).toMatchObject({ content: "new window private work" });
+    expect((await loadContextHistoryWindow(resumed, next.windowId)).map((row) => row.item)).toEqual([{ role: "user", content: "retained seed" }]);
+    const later = await message(taskId, followup);
+    await linkVisibleContextNode(resumed, later);
+    const rewind = await message(taskId, checkpoint);
+    expect((await openContextWindow(taskId, rewind)).windowId).not.toBe(next.windowId);
+  });
+
   it.each(["continuity.md", "notes/continuity.md"])("loads %s independently of the 50-file index", async (checkpointPath) => {
     const { taskId, state } = await fixture();
     await note(state, "Durable checkpoint", checkpointPath);

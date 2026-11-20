@@ -9,11 +9,24 @@ export type ParentTurnRequest = Omit<CreateModelResponseInput, "conversationItem
   sessionAffinityKey: string;
 };
 
-const FORK_SUMMARY_NOTE = "[System: " + [
+const FORK_SUMMARY_REQUEST = [
   "Part of this work is moving to a fresh context that will not see this conversation.",
-  "Write the handoff it will continue from: what the user wants, their recent requests in their own words, what is done, what you found, the files and commands that matter, and what is still open.",
-  "Reply with the handoff as plain text and call no tools. Nothing you write here reaches the user."
-].join(" ") + "]";
+  "Write the handoff it will continue from: what the user wants, their recent requests in their own words, what is done, what you found, the files and commands that matter, and what is still open."
+].join(" ");
+
+function readHandoffToolText(output: unknown[], toolName: string | undefined): string | null {
+  if (!toolName) return null;
+  for (const item of output) {
+    const call = item as { type?: string; name?: string; arguments?: string };
+    if (call.type !== "function_call" || call.name !== toolName || typeof call.arguments !== "string") continue;
+    try {
+      const args = JSON.parse(call.arguments);
+      const text = toolName === "submit" ? args.summary : args.response;
+      if (typeof text === "string" && text.trim()) return text.trim();
+    } catch { /* A malformed call is answered below, allowing the model to try again. */ }
+  }
+  return null;
+}
 
 function readAssistantText(output: unknown[]): string {
   return output.flatMap((item) => {
@@ -48,15 +61,27 @@ export async function summarizeFromParentTurn(
   parent: ParentTurnRequest,
   items: ResponseInputItem[]
 ): Promise<string | null> {
-  const conversationItems: ResponseInputItem[] = [...items, { role: "user", content: FORK_SUMMARY_NOTE }];
+  const required = parent.toolChoice !== undefined && parent.toolChoice !== "auto";
+  const handoffTool = required ? parent.tools.find((tool) => tool.type === "function"
+    && (tool.name === "submit" || tool.name === "final_response")
+    && (typeof parent.toolChoice !== "object" || tool.name === parent.toolChoice.name)) : undefined;
+  const handoffToolName = handoffTool?.type === "function" ? handoffTool.name : undefined;
+  const responseInstruction = handoffToolName
+    ? `Return the handoff in ${handoffToolName === "submit" ? "submit's summary" : "final_response's response"}. This call only collects text; it does not submit work or finish the original run.`
+    : "Reply with the handoff as plain text and call no tools.";
+  const note = `[System: ${FORK_SUMMARY_REQUEST} ${responseInstruction} Nothing you write here reaches the user.]`;
+  const conversationItems: ResponseInputItem[] = [...items, { role: "user", content: note }];
   const sessionAffinityKey = buildPromptCacheKey(parent.sessionAffinityKey, `fork-summary:${randomUUID()}`);
   for (let round = 0; round < MAX_HANDOFF_ROUNDS; round += 1) {
     const { response } = await createModelResponse({
       ...parent,
+      toolChoice: required && !handoffToolName ? "auto" : parent.toolChoice,
       conversationItems,
       sessionAffinityKey,
       forkSourceSessionKey: parent.sessionAffinityKey
     });
+    const handoff = readHandoffToolText(response.output, handoffToolName);
+    if (handoff) return handoff;
     const toolOutputs = answerToolCalls(response.output);
     if (toolOutputs.length === 0) {
       const text = readAssistantText(response.output);

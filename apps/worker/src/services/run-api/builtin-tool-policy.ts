@@ -29,7 +29,7 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
   const tools: Tool[] = [];
   for (const version of ["v1", "v2"] as const) for (const organization of [false, true]) {
     const ordinary = buildResponseTools(options, [], {
-      allowFinalResponse: true, allowWaitTool: snapshot.task.allow_waiting !== false, allowStopTask,
+      allowFinalResponse: true, allowSendMessage: true, allowWaitTool: snapshot.task.allow_waiting !== false, allowStopTask,
       allowScheduleTools: snapshot.task.read_only !== true, loadedToolGroups: [TASK_SCHEDULING_TOOL_GROUP_ID],
       allowSubtaskTools: !local, allowPdfFileTool: !host && !bootstrap.runtime.compatibilityModes.includes("disablePdfFile"),
       allowHistorySearch: bootstrap.embeddingFeatures?.historySearchEnabled === true,

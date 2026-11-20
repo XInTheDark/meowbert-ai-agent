@@ -72,6 +72,21 @@ async function callContextTool(execution: AgentExecutionContext, name: string, a
 }
 
 describe("V2 checkpoint interval", () => {
+  it("carries user instructions and portable receipts instead of foreign encrypted reasoning on fallback", async () => {
+    const { execution } = createFixture();
+    execution.state.dispatchState.conversationItems = [
+      { role: "user", content: "Keep doing this task" },
+      { type: "reasoning", summary: [], encrypted_content: "provider-private" },
+      { type: "function_call", name: "publish", call_id: "publish", arguments: "{}" },
+      { type: "function_call_output", call_id: "publish", output: JSON.stringify({ receipt: "published-once" }) }
+    ];
+    await resetV2ContextWindow(execution, "model_fallback");
+    const conversation = execution.state.dispatchState.conversationItems;
+    expect(JSON.stringify(conversation)).toContain("Keep doing this task");
+    expect(JSON.stringify(conversation)).toContain("published-once");
+    expect(JSON.stringify(conversation)).not.toContain("provider-private");
+    expect(conversation.some((item) => item.type === "function_call")).toBe(false);
+  });
   it("includes setup prompt deltas before the first provider usage sample", async () => {
     const { execution, usage, store } = createFixture();
     execution.prepared.maxContextTokens = 10_000;

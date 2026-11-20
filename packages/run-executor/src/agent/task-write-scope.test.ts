@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveWorkspaceStorageUnitRoot } from "@meowbert/shared";
+import { applyPatchOperationToWorkspace } from "./apply-patch.js";
 import {
   buildTaskSandboxMounts,
   resolveApplyPatchWritableRoots,
@@ -46,6 +47,28 @@ afterEach(() => {
 });
 
 describe("task write scope", () => {
+  it.each(["Meowbert", "root"])("keeps a device workspace named %s inside the chosen folder", async (name) => {
+    const parent = createTempDir("meowbert-device-scope-");
+    const workspaceRoot = path.join(parent, name);
+    const envRoot = path.join(workspaceRoot, "projects", "project-1");
+    fs.mkdirSync(envRoot, { recursive: true });
+    const taskDir = path.join(envRoot, ".meowbert", "task-runs", "task-1");
+    const input = { workspaceRoot, envRoot, workspaceRootIsStorageUnit: true,
+      taskDir, taskScratchDir, taskHistoryDir, readOnly: false, skillsRootDir: null };
+    expect(await buildTaskSandboxMounts(input)).toEqual([
+      { path: workspaceRoot }, { path: taskScratchDir }, { path: taskHistoryDir, readOnly: true }
+    ]);
+    expect(resolveApplyPatchWritableRoots(input)).toEqual([taskDir, taskScratchDir, envRoot, workspaceRoot]);
+    const writableRoots = resolveApplyPatchWritableRoots(input);
+    await expect(applyPatchOperationToWorkspace({ operation: { type: "create_file", path: path.join(parent, "outside.txt"), diff: "+outside" },
+      baseDir: taskDir, writableRoots })).rejects.toThrow("outside");
+    await applyPatchOperationToWorkspace({ operation: { type: "create_file", path: path.join(workspaceRoot, "allowed.txt"), diff: "+allowed" },
+      baseDir: taskDir, writableRoots });
+    expect(fs.readFileSync(path.join(workspaceRoot, "allowed.txt"), "utf8")).toBe("allowed\n");
+    expect(await buildTaskSandboxMounts({ ...input, readOnly: true })).toEqual([
+      { path: workspaceRoot, readOnly: true }, { path: taskScratchDir }, { path: taskHistoryDir, readOnly: true }
+    ]);
+  });
   it("mounts the workspace read-only for thread tasks", async () => {
     const { storageUnitRoot, envRoot, workspaceRoot } = createWorkspaceLayout("meowbert-write-scope-");
     const skillsRootDir = createTempDir("meowbert-write-scope-skills-");

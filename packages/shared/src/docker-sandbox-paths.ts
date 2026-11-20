@@ -25,7 +25,11 @@ export function fromSandboxPath(value: string, platform: string = process.platfo
 // rooted Windows paths without touching shell escapes elsewhere in the script.
 export function toSandboxText(value: string, platform: string = process.platform): string {
   if (platform !== "win32") return value;
-  return value.replace(/[a-z]:[\\/][^\n\r"'`<>]*/gi, (match) => toSandboxPath(match, platform))
-    .replace(/(^|[\s"'`])(\\{2,}[a-z0-9._-]+(?:\\+[^\\/\n\r"'`<>]+)+)/gi,
-      (_match, prefix: string, value: string) => prefix + toSandboxPath(value, platform));
+  // URI contents may themselves contain drive-looking paths (queries, file URLs).
+  // Leave each URI intact while translating native paths in the surrounding script.
+  return value.split(/(\b[a-z][a-z0-9+.-]+:\/\/[^\s"'`<>]*)/gi).map((part, index) => index % 2 ? part
+    : part.replace(/(^|[\s="'`(]|-(?:I|L|F|isystem|iquote|idirafter|include|imacros))[a-z]:[\\/][^\n\r"'`<>]*/gi,
+      (match, prefix: string) => prefix + toSandboxPath(match.slice(prefix.length), platform))
+      .replace(/(^|[\s"'`])(\\{2,}[a-z0-9._-]+(?:\\+[^\\/\n\r"'`<>]+)+)/gi,
+        (_match, prefix: string, nativePath: string) => prefix + toSandboxPath(nativePath, platform))).join("");
 }

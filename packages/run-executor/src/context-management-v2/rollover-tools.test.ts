@@ -13,6 +13,15 @@ function toolTurn(count: number, logSize: number): ResponseInputItem[] {
 }
 
 describe("unread tool outcomes during rollover", () => {
+  it("keeps provider-specific turns unchanged normally but carries portable receipts on model fallback", () => {
+    const items = [{ type: "reasoning", summary: [], encrypted_content: "private-signature" }, ...toolTurn(1, 20)];
+    expect(selectRolloverToolItems(items, "window")).toEqual(items);
+    const portable = selectRolloverToolItems(items, "window", true);
+    expect(portable).toHaveLength(1);
+    expect(portable[0]).toMatchObject({ role: "user" });
+    expect(JSON.stringify(portable)).toContain("receipt-0");
+    expect(JSON.stringify(portable)).not.toContain("private-signature");
+  });
   it("preserves a small tool turn with complete call/output pairing and exact receipts", () => {
     const items = toolTurn(2, 100);
     expect(selectRolloverToolItems(items, "previous-window")).toEqual(items);

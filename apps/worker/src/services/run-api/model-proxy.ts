@@ -135,9 +135,8 @@ export async function proxyModelRequest(
   const policy = session.policy();
   validateModelRequest(request, policy);
   return withModelOperation(session, request, deps.operations, signal, async (operationSignal, markStarted) => {
-    const boundedSignal = AbortSignal.any([operationSignal, AbortSignal.timeout(request.timeoutMs)]);
     const create = (admittedSignal: AbortSignal) => forwardModelRequest(session, request, policy, deps, admittedSignal, markStarted);
     return policy.requestUserId && deps.withUserSlot
-      ? await deps.withUserSlot(policy.requestUserId, boundedSignal, create) : await create(boundedSignal);
+      ? await deps.withUserSlot(policy.requestUserId, operationSignal, create) : await create(operationSignal);
   });
 }

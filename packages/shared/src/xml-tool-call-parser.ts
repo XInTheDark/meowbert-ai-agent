@@ -15,12 +15,8 @@ function sanitizeTagNames(xml: string): string {
   // Replace `=` in opening/closing tag names: <function=NAME> -> <fn_name>, </function=NAME> -> </fn_name>
   // Handles both `<function=NAME>` and `<function=NAME attr="val">`
   return xml.replace(
-    /<\/?([a-zA-Z_][a-zA-Z0-9_]*)=([a-zA-Z_][a-zA-Z0-9_]*)(?=[\s/>])/g,
-    (_match, prefix, suffix) => `<${prefix}_${suffix}`
-  ).replace(
-    // Also handle closing tags without attributes: </function=NAME>
-    /<\/([a-zA-Z_][a-zA-Z0-9_]*)=([a-zA-Z_][a-zA-Z0-9_]*)>/g,
-    (_match, prefix, suffix) => `</${prefix}_${suffix}>`
+    /<(\/?)([a-zA-Z_][a-zA-Z0-9_]*)=([a-zA-Z_][a-zA-Z0-9_]*)(?=[\s/>])/g,
+    (_match, closing, prefix, suffix) => `<${closing}${prefix}_${suffix}`
   );
 }
 

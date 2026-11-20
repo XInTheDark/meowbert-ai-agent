@@ -27,6 +27,16 @@ function fixture(memoryEnabled = true, readOnly = false) {
 const call = (extra = {}) => ({ type: "function_call" as const, name: "run_shell", call_id: "shell", arguments: JSON.stringify({ command: "edit", memory_write: true, ...extra }) });
 
 describe("coordinated Memory shell commands", () => {
+  it("preserves a timed run deadline during foreground shell cancellation", async () => {
+    const { ctx, state } = fixture();
+    const controller = new AbortController();
+    ctx.cancellationSignal = controller.signal;
+    vi.mocked(executeShellCommand).mockImplementationOnce(async () => {
+      controller.abort(new Error("RUN_TIME_LIMIT_REACHED"));
+      return { command: "edit", stdout: "", stderr: "", exitCode: null, timedOut: false, aborted: true };
+    });
+    await expect(handleRunShell(call({ memory_write: false }), ctx, state)).rejects.toThrow("RUN_TIME_LIMIT_REACHED");
+  });
   it("holds the shared lock while the direct shell edit runs, then releases it", async () => {
     const { ctx, state } = fixture();
     vi.mocked(executeShellCommand).mockImplementationOnce(async (input) => {

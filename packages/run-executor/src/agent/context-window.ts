@@ -31,7 +31,7 @@ export async function resetV2ContextWindow(
   if (context.version !== "v2") return;
   seedItems ??= [
     ...selectRolloverSeedItems(execution.state.dispatchState.conversationItems, { replies: false }),
-    ...selectRolloverToolItems(execution.state.dispatchState.conversationItems, context.windowId)
+    ...selectRolloverToolItems(execution.state.dispatchState.conversationItems, context.windowId, reason === "model_fallback")
   ];
   await persistRuntimeNotices(execution);
   const { control } = execution.prepared;

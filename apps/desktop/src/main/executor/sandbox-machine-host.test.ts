@@ -4,9 +4,9 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, it, vi } from "vitest";
-const calls = vi.hoisted(() => ({ create: vi.fn(), stop: vi.fn(), verifyFolders: vi.fn() }));
+const calls = vi.hoisted(() => ({ create: vi.fn(), stop: vi.fn(), verifyFolders: vi.fn(), buildMounts: vi.fn(async () => []) }));
 vi.mock("@meowbert/shared/docker-sandbox", () => ({ DockerSandboxManager: class { createPersistentSandbox = calls.create; } }));
-vi.mock("@meowbert/run-executor/agent/task-write-scope", () => ({ buildTaskSandboxMounts: async () => [] }));
+vi.mock("@meowbert/run-executor/agent/task-write-scope", () => ({ buildTaskSandboxMounts: calls.buildMounts }));
 vi.mock("../live-folders/sandbox-probe", () => ({ verifySandboxLiveFolders: calls.verifyFolders }));
 import { createDesktopSandboxMachineProvider } from "./sandbox-machine-host";
 const run = promisify(execFile);
@@ -43,7 +43,8 @@ it.each([false, true])("binds only the run folders and verifies visibility, read
     const provider = createDesktopSandboxMachineProvider({ image: "image", storageRoot: root, backendId: "backend", installId: "install",
       deviceId: "device", scratchRoot: root, skillsRootDir: "/skills", liveFolderPaths: ["/owned/mounts/attached"] });
     const taskDir = path.join(root, "task");
-    await provider.start({ taskDir, readOnly, resources: {}, log: vi.fn() } as never);
+    await provider.start({ taskDir, workspaceRootRelative: "", readOnly, resources: {}, log: vi.fn() } as never);
+    expect(calls.buildMounts).toHaveBeenCalledWith(expect.objectContaining({ workspaceRootIsStorageUnit: true }));
     expect(calls.create.mock.calls[1][0].mounts).toEqual([{ path: "/owned/mounts/attached", readOnly: readOnly }]);
     expect(calls.verifyFolders).toHaveBeenCalledExactlyOnceWith({ sandbox, paths: ["/owned/mounts/attached"], taskDir, readOnly: readOnly });
     calls.verifyFolders.mockRejectedValueOnce(new Error("mount unavailable"));

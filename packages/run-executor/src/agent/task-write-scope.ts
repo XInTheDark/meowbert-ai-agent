@@ -1,6 +1,6 @@
 import {
   resolveWorkspaceEnvironmentReadableMountPaths,
-  resolveWorkspaceStorageUnitRoot
+  resolveWorkspaceSandboxRoot
 } from "@meowbert/shared";
 import type { SandboxMountPath } from "@meowbert/shared/docker-sandbox";
 
@@ -9,6 +9,7 @@ export function resolveApplyPatchWritableRoots(input: {
   taskScratchDir: string;
   envRoot: string;
   workspaceRoot: string;
+  workspaceRootIsStorageUnit?: boolean;
   readOnly: boolean;
 }): string[] {
   if (!input.readOnly) {
@@ -16,7 +17,7 @@ export function resolveApplyPatchWritableRoots(input: {
       input.taskDir,
       input.taskScratchDir,
       input.envRoot,
-      resolveWorkspaceStorageUnitRoot(input.workspaceRoot)
+      resolveWorkspaceSandboxRoot(input.workspaceRoot, input.workspaceRootIsStorageUnit)
     ];
   }
 
@@ -26,16 +27,19 @@ export function resolveApplyPatchWritableRoots(input: {
 export async function resolveTaskReadableMountPaths(input: {
   envRoot: string;
   workspaceRoot: string;
+  workspaceRootIsStorageUnit?: boolean;
 }): Promise<string[]> {
   return resolveWorkspaceEnvironmentReadableMountPaths({
     envRoot: input.envRoot,
-    workspaceRoot: input.workspaceRoot
+    workspaceRoot: input.workspaceRoot,
+    workspaceRootIsStorageUnit: input.workspaceRootIsStorageUnit
   });
 }
 
 export async function buildTaskSandboxMounts(input: {
   envRoot: string;
   workspaceRoot: string;
+  workspaceRootIsStorageUnit?: boolean;
   taskScratchDir: string;
   taskHistoryDir: string;
   readOnly: boolean;
@@ -43,7 +47,8 @@ export async function buildTaskSandboxMounts(input: {
 }): Promise<SandboxMountPath[]> {
   const readableMountPaths = await resolveTaskReadableMountPaths({
     envRoot: input.envRoot,
-    workspaceRoot: input.workspaceRoot
+    workspaceRoot: input.workspaceRoot,
+    workspaceRootIsStorageUnit: input.workspaceRootIsStorageUnit
   });
 
   return [

@@ -134,7 +134,7 @@ async function runForegroundShellCommand(input: {
 
   const abortFromTaskCancellation = (): void => {
     if (!commandAbortController.signal.aborted) {
-      commandAbortController.abort(new Error("TASK_CANCELLED"));
+      commandAbortController.abort(input.ctx.cancellationSignal?.reason ?? new Error("TASK_CANCELLED"));
     }
   };
   if (input.ctx.cancellationSignal) {
@@ -343,6 +343,8 @@ async function handleForegroundShell(
   }
 
   if (result.shellResult.aborted && !result.interruptWasConsumed) {
+    await ctx.assertNotCancelled();
+    ctx.cancellationSignal?.throwIfAborted();
     throw new Error("TASK_CANCELLED");
   }
   await ctx.assertNotCancelled();

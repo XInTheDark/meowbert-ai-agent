@@ -160,6 +160,7 @@ export async function handleApplyPatch(
       taskScratchDir: ctx.taskScratchDir,
       envRoot: ctx.envRoot,
       workspaceRoot: ctx.workspaceRoot,
+      workspaceRootIsStorageUnit: ctx.workspaceRootIsStorageUnit,
       readOnly: ctx.readOnly
     });
 

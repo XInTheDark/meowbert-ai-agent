@@ -9,7 +9,7 @@ export function getErrorMessage(error: unknown): string {
 }
 
 export function rethrowIfTaskCancelled(error: unknown): void {
-  if (error instanceof Error && error.message === "TASK_CANCELLED") {
+  if (error instanceof Error && (error.message === "TASK_CANCELLED" || error.message === "RUN_TIME_LIMIT_REACHED")) {
     throw error;
   }
 }

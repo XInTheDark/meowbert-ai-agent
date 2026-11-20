@@ -49,6 +49,15 @@ it("accepts buffered JSON from an older server", async () => {
   await expect(test.client.model(request)).resolves.toEqual(result);
 });
 
+it("leaves active model streaming bounded by provider idleness and explicit cancellation", async () => {
+  const timeout = vi.spyOn(AbortSignal, "timeout");
+  try {
+    const test = fixture(Response.json(result));
+    await expect(test.client.model(request)).resolves.toEqual(result);
+    expect(timeout).not.toHaveBeenCalled();
+  } finally { timeout.mockRestore(); }
+});
+
 it.each(["fetch", "stream"])("rejoins the same operation after a lost %s response", async (lost) => {
   const fetch = vi.fn().mockResolvedValueOnce(Response.json(result));
   if (lost === "fetch") fetch.mockReset().mockRejectedValueOnce(new TypeError("fetch failed"));

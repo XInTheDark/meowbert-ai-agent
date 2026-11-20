@@ -137,9 +137,16 @@ export async function openContextWindow(taskId: string, branchLeafMessageId: str
     `${accessibleNodesCte(2)}
      SELECT context_window.id, context_window.context_node_id, context_window.parent_window_id, context_window.branch_leaf_message_id, context_window.ordinal
        FROM task_context_windows context_window
-       JOIN context_lineage ON context_lineage.id = context_window.context_node_id
+       JOIN task_context_nodes window_node ON window_node.id = context_window.context_node_id
+       JOIN context_lineage ON context_lineage.id = window_node.id
+         OR (context_lineage.id = window_node.parent_node_id
+             AND EXISTS (SELECT 1 FROM context_lineage head
+               WHERE head.visible_message_id = context_window.branch_leaf_message_id AND head.depth <= 1))
       WHERE context_window.task_id = $1 AND context_window.closed_at IS NULL
         AND (context_window.branch_leaf_message_id IS NOT DISTINCT FROM $3
+          OR (context_lineage.id = window_node.parent_node_id
+              AND EXISTS (SELECT 1 FROM context_lineage head
+                WHERE head.visible_message_id = context_window.branch_leaf_message_id AND head.depth <= 1))
           OR EXISTS (SELECT 1 FROM context_lineage head
                       WHERE head.visible_message_id = context_window.branch_leaf_message_id
                         AND head.snapshot_window_id = context_window.id

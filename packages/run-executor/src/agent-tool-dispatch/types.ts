@@ -46,6 +46,7 @@ export interface ToolDispatchContext {
   taskRootPath?: string;
   envRoot: string;
   workspaceRoot: string;
+  workspaceRootIsStorageUnit?: boolean;
   liveSyncFiles: TaskLiveSyncFileSummary[];
   sandbox: DockerSandboxHandle;
   shellEnvOverrides: Record<string, string>;
@@ -81,6 +82,7 @@ export interface ToolDispatchContext {
   refreshGitHubToken?: () => Promise<{ ok: boolean; login?: string; expiresAt?: string | null; error?: string }>;
   getCurrentLeafMessageId: () => string | null;
   setCurrentLeafMessageId: (messageId: string) => void;
+  publishMidRunMessages?: () => Promise<void>;
   cancellationSignal?: AbortSignal;
   assertNotCancelled: () => Promise<void>;
   workflowContext?: LoadedWorkflowRunContext | null;

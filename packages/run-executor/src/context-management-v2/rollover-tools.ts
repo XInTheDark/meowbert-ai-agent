@@ -29,7 +29,7 @@ function outputExcerpt(output: unknown, maxChars: number): string {
 // The latest model turn's outputs have not been consumed by another model turn.
 // Keep a complete paired turn when small; otherwise carry its outcomes and exact
 // history coordinates rather than silently replacing them with older notes.
-export function selectRolloverToolItems(items: ResponseInputItem[], windowId: string): ResponseInputItem[] {
+export function selectRolloverToolItems(items: ResponseInputItem[], windowId: string, portable = false): ResponseInputItem[] {
   const turn = segmentConversationTurns(items, collectCallNumbers(items)).at(-1);
   let handoffIndex = -1;
   for (let index = items.length - 1; index >= 0; index -= 1) {
@@ -44,7 +44,10 @@ export function selectRolloverToolItems(items: ResponseInputItem[], windowId: st
   const outputs = turnItems.filter(isToolOutputItem);
   if (outputs.length === 0) return [];
   const answered = new Set(outputs.map((item) => (item as { call_id: string }).call_id));
-  if (turn?.calls.length && turn.calls.every((call) => answered.has(call.callId)) && JSON.stringify(turnItems).length <= MAX_TURN_CHARS) return turnItems;
+  const providerSpecific = turnItems.some((item) => ["reasoning", "compaction", "web_search_call", "custom_tool_call", "apply_patch_call"]
+    .includes(String(item.type)));
+  if (turn?.calls.length && turn.calls.every((call) => answered.has(call.callId))
+    && (!portable || !providerSpecific) && JSON.stringify(turnItems).length <= MAX_TURN_CHARS) return turnItems;
   const maxOutputChars = Math.min(2_000, Math.max(100, Math.floor(12_000 / outputs.length)));
   const outcomes = outputs.slice(0, MAX_HANDOFF_OUTPUTS).map((item) => {
     const record = item as unknown as Record<string, unknown>;

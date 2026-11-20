@@ -418,7 +418,7 @@ describe("Model proxy", () => {
     expect(harness.memory.reservations.size).toBe(0);
   });
 
-  it("stops the upstream request and bills it once when the executor disconnects", async () => {
+  it("stops the upstream request and bills it once after a disconnected executor's reconnect grace", async () => {
     let upstreamSignal: AbortSignal | undefined;
     const models: ModelGateway = {
       create: vi.fn(async (request) => {
@@ -438,10 +438,13 @@ describe("Model proxy", () => {
     controller.abort();
     await pending;
 
-    await vi.waitFor(() => expect(upstreamSignal!.aborted).toBe(true));
+    // Disconnection allows five seconds for transport replay. A short model timeout must
+    // not masquerade as successful disconnect cancellation while that grace is still open.
+    expect(upstreamSignal!.aborted).toBe(false);
+    await vi.waitFor(() => expect(upstreamSignal!.aborted).toBe(true), { timeout: 7_000 });
     await vi.waitFor(() => expect(harness.chargeAbandoned).toHaveBeenCalledTimes(1));
     expect(harness.memory.reservations.size).toBe(0);
-  });
+  }, 10_000);
 });
 
 it("refuses server workflow and host tools for a device lease without applying a side effect", async () => {

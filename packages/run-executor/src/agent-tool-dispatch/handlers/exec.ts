@@ -94,6 +94,8 @@ export async function handleExec(
   });
 
   if (cancelledByTask || script.cancelled) {
+    await ctx.assertNotCancelled();
+    ctx.cancellationSignal?.throwIfAborted();
     throw new Error("TASK_CANCELLED");
   }
   await ctx.assertNotCancelled();

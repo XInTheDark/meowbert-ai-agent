@@ -679,6 +679,8 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     taskRootPath: execution.prepared.snapshot.task.task_root_path,
     envRoot: execution.prepared.envRoot,
     workspaceRoot: execution.prepared.workspaceRoot,
+    workspaceRootIsStorageUnit: execution.prepared.fileHost?.kind === "device",
+    publishMidRunMessages: () => publishMidRunMessages(execution),
     liveSyncFiles: execution.prepared.liveSyncFiles,
     sandbox: execution.prepared.sandbox,
     shellEnvOverrides: execution.prepared.shellEnvOverrides,

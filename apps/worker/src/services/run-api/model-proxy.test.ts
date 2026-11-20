@@ -53,6 +53,27 @@ it("never charges cancellation during tool validation as an abandoned provider r
   expect(test.deps.chargeAbandoned).not.toHaveBeenCalled();
 });
 
+it("lets a connected provider stream outlive the connection timeout", async () => {
+  const test = fixture();
+  test.request.timeoutMs = 1;
+  test.models.create.mockImplementationOnce(async ({ signal }) => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    signal.throwIfAborted();
+    return { response: { output: [] }, weightedTokens: 1 };
+  });
+  await expect(proxyModelRequest(test.session, test.request, test.deps, new AbortController().signal))
+    .resolves.toMatchObject({ weightedTokens: 1 });
+  expect(test.deps.chargeAbandoned).not.toHaveBeenCalled();
+});
+
+it("does not bill the reserved maximum when the provider's idle timeout fails", async () => {
+  const test = fixture();
+  test.models.create.mockRejectedValueOnce(new Error("Model stream idle timeout"));
+  await expect(proxyModelRequest(test.session, test.request, test.deps, new AbortController().signal)).rejects.toThrow();
+  expect(test.deps.chargeAbandoned).not.toHaveBeenCalled();
+  expect(test.deps.reservations.release).toHaveBeenCalledOnce();
+});
+
 it("includes string input and tool definitions in the usage reservation estimate", () => {
   const { request, policy } = fixture();
   const baseline = estimateMaximumUsage(request, policy).inputTokens;

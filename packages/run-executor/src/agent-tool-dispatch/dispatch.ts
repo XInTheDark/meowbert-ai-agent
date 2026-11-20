@@ -355,7 +355,7 @@ async function runRecordedToolCall<T>(
     return result;
   } catch (error) {
     // Other failures become the call's recorded output; a cancelled run never sees one.
-    if (!(error instanceof Error && error.message === "TASK_CANCELLED")) {
+    if (!(error instanceof Error && (error.message === "TASK_CANCELLED" || error.message === "RUN_TIME_LIMIT_REACHED"))) {
       await ctx.control.recordToolCallResult({ callId: call.callId, output: getErrorMessage(error) });
     }
     throw error;
@@ -486,7 +486,11 @@ export async function dispatchResponseOutput(
   let stopRequest: ToolDispatchResult["stopRequest"] = null;
   let workflowPause: ToolDispatchResult["workflowPause"] = null;
 
-  for (const rawOutputItem of effectiveItems) {
+  // Deliver updates before any blocking sibling call, retaining the provider's original
+  // response order in history for replay and prompt caching.
+  const isSendMessage = (item: ResponseOutputItem) => isFunctionCallItem(item) && item.name === SEND_MESSAGE_TOOL_NAME;
+  const dispatchItems = [...effectiveItems.filter(isSendMessage), ...effectiveItems.filter((item) => !isSendMessage(item))];
+  for (const rawOutputItem of dispatchItems) {
     const outputItem = rawOutputItem;
     await ctx.assertNotCancelled();
 
@@ -611,6 +615,9 @@ export async function dispatchResponseOutput(
       result = toolErrorResult(await reportUnhandledToolFailure(outputItem.name, outputItem.call_id, ctx, error));
     }
     await recordInContext(ctx, recordFunctionCallResult(state, outputItem.call_id, outputItem.name, result));
+    if (outputItem.name === SEND_MESSAGE_TOOL_NAME && state.pendingMidRunMessages?.length) {
+      await ctx.publishMidRunMessages?.();
+    }
     if (repeatedCallReminder) {
       const reminder = { role: "developer" as const, content: repeatedCallReminder };
       state.conversationItems.push(reminder);

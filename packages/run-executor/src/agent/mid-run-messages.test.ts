@@ -26,6 +26,16 @@ function executionWith(messages: string[]) {
 }
 
 describe("publishMidRunMessages", () => {
+  it("keeps later notes and history on the writable private node after publishing snapshots", async () => {
+    const { execution } = executionWith(["first", "second"]);
+    const context = { version: "v2", taskId: "task", windowId: "window", contextNodeId: "private" };
+    execution.state.contextManagement = context as never;
+    const linkVisibleMessage = vi.fn(async () => "visible-snapshot");
+    Object.assign(execution.prepared.control, { context: { linkVisibleMessage } });
+    await publishMidRunMessages(execution);
+    expect(linkVisibleMessage.mock.calls.map(([state]) => state.contextNodeId)).toEqual(["private", "private"]);
+    expect(execution.state.contextManagement).toMatchObject({ contextNodeId: "private", branchLeafMessageId: "message-2" });
+  });
   it("posts each message in order on the current branch and refreshes the conversation", async () => {
     const { execution, appendMessage, selectBranch, emitEvent, runPersistedItems } = executionWith(["first", "second"]);
 

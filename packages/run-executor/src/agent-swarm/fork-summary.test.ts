@@ -27,6 +27,19 @@ function parentRequest(...outputs: unknown[][]): { parent: ParentTurnRequest; re
 const conversation = [{ role: "user" as const, content: "Train the model" }];
 
 describe("summarizeFromParentTurn", () => {
+  it("collects a required submit handoff without changing the parent's cache inputs or executing the tool", async () => {
+    const { parent, requests } = parentRequest([
+      { type: "function_call", name: "submit", call_id: "handoff", arguments: JSON.stringify({ summary: "Handoff", files: [] }) }
+    ]);
+    parent.toolChoice = "required";
+    parent.tools.push({ type: "function", name: "submit", parameters: {}, strict: true });
+    await expect(summarizeFromParentTurn(parent, conversation)).resolves.toBe("Handoff");
+    expect(requests).toHaveLength(1);
+    expect(requests[0].body.tool_choice).toBe("required");
+    expect(requests[0].body.tools).toEqual(parent.tools);
+    expect((requests[0].body.input as unknown[]).slice(0, 2)).toEqual([...parent.prefixItems, ...conversation]);
+    expect(requests[0].body.prompt_cache_key).toBe(parent.promptCacheKey);
+  });
   it("replays the parent's request as a fork of its session so it reads the parent's cache", async () => {
     const { parent, requests } = parentRequest([
       { type: "message", role: "assistant", content: [{ type: "output_text", text: "Handoff" }] }

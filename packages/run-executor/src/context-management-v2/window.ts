@@ -4,6 +4,7 @@ import type { ContextHistoryRecord, RunContextStore } from "../agent/ports/run-c
 import { mergeContextSeedItems } from "./history.js";
 import { getProviderCallId, readOutputCallNumber } from "./call-numbers.js";
 import { applyContextEdits } from "./context-edits.js";
+import { interruptedToolOutputs } from "./interrupted-outputs.js";
 import { buildContextWindowPrompt, buildThreadHint, getContextBudgetPromptState } from "./prompts.js";
 import type { ContextManagementState, ContextManagementV2State } from "./types.js";
 
@@ -88,8 +89,10 @@ export async function resolveContextManagementState(store: RunContextStore, inpu
     return { state, conversationItems: [] };
   }
   const existing = await store.loadWindowItems(state.windowId);
+  const recovered = interruptedToolOutputs(existing, input.seedItems);
+  await recordContextItems(store, state, recovered);
   // Seeds hold the original calls, so they are merged with the window's unedited history first.
-  const merged = mergeContextSeedItems(existing, input.seedItems);
+  const merged = mergeContextSeedItems([...existing, ...recovered], input.seedItems);
   Object.assign(state, getContextBudgetPromptState(merged.conversationItems));
   await recordContextItems(store, state, merged.newItems);
   return { state, conversationItems: applyContextEdits(merged.conversationItems) };
@@ -129,7 +132,8 @@ export async function linkContextNodeToVisibleMessage(store: RunContextStore, in
   state: ContextManagementV2State;
   visibleMessageId: string;
 }): Promise<ContextManagementV2State> {
-  return { ...input.state, contextNodeId: await store.linkVisibleMessage(input.state, input.visibleMessageId) };
+  await store.linkVisibleMessage(input.state, input.visibleMessageId);
+  return { ...input.state, branchLeafMessageId: input.visibleMessageId };
 }
 
 export async function searchContextNotes(store: RunContextStore, state: ContextManagementV2State, input: {

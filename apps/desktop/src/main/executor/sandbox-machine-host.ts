@@ -49,6 +49,7 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
       await verifyDockerStorage(manager, options);
       await fs.mkdir(spec.taskDir, { recursive: true });
       const mounts = await buildTaskSandboxMounts({
+        workspaceRootIsStorageUnit: spec.workspaceRootRelative === "",
         envRoot: spec.envRoot,
         workspaceRoot: spec.workspaceRoot,
         taskScratchDir: spec.taskScratchDir,
