@@ -28,6 +28,7 @@ import type {
   TaskWorkflowComposerConfig
 } from "../../../lib/types";
 import type { SubscriptionUsageWarning } from "../../../subscription/usageLimits";
+import type { BridgeComposerControl } from "../../../task/useProjectExecutionTargets";
 
 interface TaskDetailConversationPaneProps {
   taskId: string;
@@ -116,6 +117,7 @@ interface TaskDetailConversationPaneProps {
   onSourceSetupRequested?: (source: WorkspaceSourceSummary) => void;
   onOpenSourceFiles?: (source: WorkspaceSourceSummary) => void;
   showAgentSwitcher: boolean;
+  bridgeControl?: BridgeComposerControl;
   errorText: string | null;
   hideComposer?: boolean;
   // Shown where the composer would be when this conversation cannot be continued.
@@ -367,6 +369,7 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
                 onSourceSetupRequested={props.onSourceSetupRequested}
                 onOpenSourceFiles={props.onOpenSourceFiles}
                 showAgentSwitcher={props.showAgentSwitcher}
+                bridgeControl={props.bridgeControl}
                 submitWithShiftEnter={props.submitWithShiftEnter}
                 subscriptionUsageWarning={props.subscriptionUsageWarning}
               />

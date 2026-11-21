@@ -1,3 +1,4 @@
+import type { TaskExecutionTarget } from "@meowbert/shared";
 import type { ApiClient } from "../../../lib/api";
 import type {
   TaskAttachment,
@@ -193,6 +194,17 @@ export async function runTaskScheduleAction(
     `/api/tasks/${taskId}/schedule/${action}`,
     {}
   );
+}
+
+export async function updateTaskExecutionTarget(
+  api: ApiClient,
+  taskId: string,
+  executionTarget: TaskExecutionTarget
+): Promise<TaskExecutionTarget> {
+  const result = await api.patch<{ ok: boolean; execution_target?: TaskExecutionTarget }>(`/api/tasks/${taskId}`, {
+    executionTarget
+  });
+  return result.execution_target ?? executionTarget;
 }
 
 export async function updateTaskParameters(

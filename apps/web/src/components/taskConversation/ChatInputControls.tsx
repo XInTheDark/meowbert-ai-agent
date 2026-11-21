@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { ListChecks, Square } from "lucide-react";
+import { ListChecks, Plug, Square } from "lucide-react";
 import { AttachFilesMenu } from "../files/AttachFilesMenu";
 import { ToolOptionsDropdown, type SkillSummary } from "../tasks/ToolOptionsDropdown";
 import { SourceOptionsDropdown } from "../tasks/SourceOptionsDropdown";
@@ -10,6 +10,7 @@ import { SubscriptionUsageWarningLink, type SubscriptionUsageWarning } from "../
 import type { TaskParameters, TaskToolOptions, TaskType, TaskWorkflowComposerConfig } from "../../lib/types";
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
 import type { ChatToolsPopoverPlacement } from "../tasks/useChatToolsDropdownPlacement";
+import type { BridgeComposerControl } from "../../task/useProjectExecutionTargets";
 import { ChatInputSendButton } from "./ChatInputSendButton";
 import { ConfirmStopButton } from "../tasks/ConfirmStopButton";
 
@@ -46,6 +47,7 @@ interface ChatInputControlsProps {
   onAgentChange?: (agentId: string) => void;
   masterTaskAgentPicker?: MasterTaskAgentPicker;
   shouldShowAgentSwitcher: boolean;
+  bridgeControl?: BridgeComposerControl;
   isTaskRunning?: boolean;
   onStop?: () => void;
   stopRunningSince?: string | null;
@@ -147,9 +149,23 @@ export function ChatInputControls(props: ChatInputControlsProps) {
                 props.onAgentChange?.(agentId);
               }
             }}
-            disabled={props.isSubmitting}
+            disabled={props.isSubmitting || props.bridgeControl?.active === true}
             popoverPlacement={props.popoverPlacement}
+            triggerTitle={props.bridgeControl?.active ? "Model (controlled by external MCP harness)" : undefined}
           />
+        ) : null}
+        {props.bridgeControl ? (
+          <button
+            type="button"
+            className={`icon-btn-subtle${props.bridgeControl.active ? " active" : ""}`}
+            aria-pressed={props.bridgeControl.active}
+            aria-label={props.bridgeControl.active ? "Disable Bridge mode" : "Enable Bridge mode"}
+            title={props.bridgeControl.title}
+            disabled={props.isSubmitting || props.bridgeControl.disabled}
+            onClick={props.bridgeControl.onToggle}
+          >
+            <Plug size={18} />
+          </button>
         ) : null}
         {props.shouldShowAgentSwitcher && props.masterTaskAgentPicker ? (
           <AgentDropdown

@@ -1,3 +1,4 @@
+import { isBridgeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared";
 import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
 import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +35,12 @@ import { resolveWorkflowForAgentChange } from "../../task/agentSwarmPresetWorkfl
 import type { WorkspaceSourceSummary } from "../../sources/sourceTypes";
 import { useSubscriptionUsageWarning } from "../../subscription/usageLimits";
 import { TaskExecutionSelector } from "../../task/TaskExecutionSelector";
+import {
+  formatBridgeControlTitle,
+  resolveBridgeToggleTarget,
+  useProjectExecutionTargets,
+  type BridgeComposerControl
+} from "../../task/useProjectExecutionTargets";
 import { TaskAdvancedOptions } from "../../task/TaskAdvancedOptions";
 import { buildCreateTaskRestrictionsPayload, DEFAULT_TASK_RESTRICTIONS } from "../../task/taskRestrictions";
 import { getSandboxNetworkEnabledOverride } from "@meowbert/shared/workspace-agent-settings";
@@ -221,6 +228,55 @@ export function TaskComposerPage() {
   const effectiveRestrictions = restrictionsDisabledReason ? DEFAULT_TASK_RESTRICTIONS : currentDraft.restrictions;
   const activeProject = environments?.find((environment) => environment.id === activeEnvironmentId);
   const networkAlreadyOff = (getSandboxNetworkEnabledOverride(activeProject?.json_payload) ?? workspaceSettings?.effectiveSandboxNetworkEnabled ?? true) === false;
+  const executionTargets = useProjectExecutionTargets(api, activeEnvironmentId, capabilities.isDesktop);
+  const previousNonBridgeTargetRef = useRef<TaskExecutionTarget | null>(null);
+  const isBridgeActive = isBridgeTaskExecutionTarget(currentDraft.executionTarget);
+  const bridgeDisabledReason = workflow.type !== "standard" || hasSchedule
+    ? "Bridge mode supports standard tasks without workflows or schedules"
+    : null;
+  const requireSandboxForBridge = effectiveRestrictions.readOnly || effectiveRestrictions.networkDisabled;
+  const bridgeControl = useMemo<BridgeComposerControl | undefined>(() => {
+    if (!capabilities.isDesktop) return undefined;
+    const canEnable = isBridgeActive || (executionTargets.enabled && executionTargets.devices.length > 0);
+    if (!canEnable) return undefined;
+    return {
+      active: isBridgeActive,
+      disabled: Boolean(bridgeDisabledReason),
+      title: formatBridgeControlTitle({
+        active: isBridgeActive,
+        target: currentDraft.executionTarget,
+        disabledReason: bridgeDisabledReason
+      }),
+      onToggle: () => {
+        if (bridgeDisabledReason) return;
+        const nextTarget = resolveBridgeToggleTarget({
+          currentTarget: currentDraft.executionTarget,
+          previousNonBridgeTarget: previousNonBridgeTargetRef.current,
+          targets: executionTargets,
+          requireSandbox: requireSandboxForBridge
+        });
+        if (!nextTarget) return;
+        if (!isBridgeActive) {
+          previousNonBridgeTargetRef.current = currentDraft.executionTarget;
+        }
+        updateDraft((draft) => ({
+          ...draft,
+          executionTarget: nextTarget,
+          toolOptions: isBridgeTaskExecutionTarget(nextTarget) && draft.toolOptions.subtasks
+            ? { ...draft.toolOptions, subtasks: false }
+            : draft.toolOptions
+        }));
+      }
+    };
+  }, [
+    bridgeDisabledReason,
+    capabilities.isDesktop,
+    currentDraft.executionTarget,
+    executionTargets,
+    isBridgeActive,
+    requireSandboxForBridge,
+    updateDraft
+  ]);
 
   useEffect(() => {
     writeTaskInputDrafts(draftsByEnvironment);
@@ -419,9 +475,12 @@ export function TaskComposerPage() {
             api={api}
             projectId={activeEnvironmentId}
             target={currentDraft.executionTarget}
+            targets={executionTargets}
             disabled={isSubmitting}
-            bridgeDisabled={workflow.type !== "standard" || hasSchedule}
-            onChange={(executionTarget) => updateDraft((draft) => ({ ...draft, executionTarget }))}
+            onChange={(executionTarget) => {
+              previousNonBridgeTargetRef.current = null;
+              updateDraft((draft) => ({ ...draft, executionTarget }));
+            }}
           />
         ) : null}
         <TaskAdvancedOptions
@@ -544,6 +603,7 @@ export function TaskComposerPage() {
             }}
             onOpenSourceFiles={(source) => setSelectedSource(source)}
             showAgentSwitcher={canSelectTaskModel(user)}
+            bridgeControl={bridgeControl}
             submitWithShiftEnter={taskUiPreferences.sendWithShiftEnter}
             subscriptionUsageWarning={subscriptionUsageWarning}
           />

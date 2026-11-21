@@ -224,4 +224,41 @@ describe("createThreadTask", () => {
       readOnly: true
     })).rejects.toThrow("Read-only threads require sandbox mode.");
   });
+
+  it("applies an explicit execution target override when creating a thread", async () => {
+    const bridgeTarget = {
+      kind: "local" as const,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      mode: "sandbox" as const,
+      bridge: true
+    };
+    const bridgeFake = useClient({ outline: null, executionTarget: { kind: "cloud" } });
+    await createThreadTask({
+      taskId: "thread-bridge",
+      parentTaskId: "parent-task",
+      parentMessageId: "source-assistant",
+      userId: "user-1",
+      message: "Run in bridge",
+      executionTarget: bridgeTarget
+    });
+    const bridgeInsert = bridgeFake.client.query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO tasks"));
+    expect(bridgeInsert?.[1]?.slice(-3)).toEqual([true, false, JSON.stringify(bridgeTarget)]);
+
+    const nonBridgeTarget = {
+      kind: "local" as const,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      mode: "sandbox" as const
+    };
+    const nonBridgeFake = useClient({ outline: null, executionTarget: bridgeTarget });
+    await createThreadTask({
+      taskId: "thread-no-bridge",
+      parentTaskId: "parent-task",
+      parentMessageId: "source-assistant",
+      userId: "user-1",
+      message: "Run without bridge",
+      executionTarget: nonBridgeTarget
+    });
+    const nonBridgeInsert = nonBridgeFake.client.query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO tasks"));
+    expect(nonBridgeInsert?.[1]?.slice(-3)).toEqual([true, false, JSON.stringify(nonBridgeTarget)]);
+  });
 });

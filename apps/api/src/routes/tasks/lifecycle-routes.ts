@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { TaskStatus } from "@meowbert/shared";
+import type { TaskExecutionTarget, TaskStatus } from "@meowbert/shared";
 import { z } from "zod";
 import { query, withTransaction } from "../../lib/db.js";
+import { validateProjectExecutionTarget } from "../../services/devices/execution-targets.js";
 import {
   permanentlyDeleteTasks,
   TaskDeletionConflictError
@@ -15,7 +16,54 @@ const contextActionBody = z.object({
   contextAction: z.enum(["compact", "clear"]).default("compact")
 });
 
-async function handlePatchTask(request: FastifyRequest) {
+async function validateTaskExecutionTargetPatch(input: {
+  taskId: string;
+  userId: string;
+  workspaceId: string;
+  environmentId: string;
+  executionTarget: TaskExecutionTarget;
+}): Promise<{ status: number; error: string } | null> {
+  const taskRes = await query<{
+    status: TaskStatus;
+    workflow_type: string | null;
+    workflow_internal_role: string | null;
+    read_only: boolean;
+    network_disabled: boolean;
+    is_project_master: boolean;
+    has_schedule: boolean;
+  }>(
+    `SELECT t.status,
+            t.workflow_type,
+            t.workflow_internal_role,
+            t.read_only,
+            t.network_disabled,
+            EXISTS (SELECT 1 FROM project_masters pm WHERE pm.task_id = t.id) AS is_project_master,
+            EXISTS (SELECT 1 FROM task_schedules ts WHERE ts.task_id = t.id AND ts.schedule_state <> 'cancelled') AS has_schedule
+       FROM tasks t
+      WHERE t.id = $1`,
+    [input.taskId]
+  );
+  const task = taskRes.rows[0];
+  if (!task) return { status: 404, error: "Task not found" };
+  if (task.status === "queued" || task.status === "starting" || task.status === "running") {
+    return { status: 409, error: "Stop or wait for the active run before changing execution mode." };
+  }
+  if (task.workflow_internal_role || task.is_project_master) {
+    return { status: 400, error: "Execution mode cannot be changed for this task." };
+  }
+  const targetError = await validateProjectExecutionTarget({
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+    projectId: input.environmentId,
+    executionTarget: input.executionTarget,
+    workflow: task.workflow_type ? { type: task.workflow_type } : undefined,
+    schedule: task.has_schedule ? { type: "scheduled" } : undefined,
+    restricted: task.read_only === true || task.network_disabled === true
+  });
+  return targetError ? { status: 400, error: targetError } : null;
+}
+
+async function handlePatchTask(request: FastifyRequest, reply: FastifyReply) {
   const params = taskParams.parse(request.params);
   const body = patchTaskBody.parse(request.body);
   const access = await assertTaskMember(params.taskId, request.user.id);
@@ -34,11 +82,23 @@ async function handlePatchTask(request: FastifyRequest) {
     }
   }
 
+  if (body.executionTarget) {
+    const targetError = await validateTaskExecutionTargetPatch({
+      taskId: params.taskId,
+      userId: request.user.id,
+      workspaceId: access.workspaceId,
+      environmentId: access.environmentId,
+      executionTarget: body.executionTarget
+    });
+    if (targetError) return reply.status(targetError.status).send({ error: targetError.error });
+  }
+
   await query(
     `UPDATE tasks
         SET title = CASE WHEN $2 THEN $3 ELSE title END,
             folder_id = CASE WHEN $4 THEN $5::uuid ELSE folder_id END,
             folder_sort_order = COALESCE($6, folder_sort_order),
+            execution_target = CASE WHEN $7 THEN $8::jsonb ELSE execution_target END,
             updated_at = now()
       WHERE id = $1`,
     [
@@ -47,11 +107,16 @@ async function handlePatchTask(request: FastifyRequest) {
       body.title ?? null,
       Object.hasOwn(body, "folderId"),
       body.folderId ?? null,
-      body.folderSortOrder ?? null
+      body.folderSortOrder ?? null,
+      Object.hasOwn(body, "executionTarget"),
+      body.executionTarget ? JSON.stringify(body.executionTarget) : null
     ]
   );
 
-  return { ok: true };
+  return {
+    ok: true,
+    ...(body.executionTarget ? { execution_target: body.executionTarget } : {})
+  };
 }
 
 async function handleTrashTask(request: FastifyRequest) {

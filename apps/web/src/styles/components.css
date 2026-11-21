@@ -639,9 +639,14 @@
   transition: all 0.2s;
 }
 
-.icon-btn-subtle:hover {
+.icon-btn-subtle:hover:not(:disabled) {
   background: var(--surface-soft);
   color: var(--text);
+}
+
+.icon-btn-subtle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .icon-btn-subtle.active {

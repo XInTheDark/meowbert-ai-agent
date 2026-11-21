@@ -3,6 +3,7 @@ import path from "node:path";
 import { normalizeWorkspaceFileHost, isWithinPath, isSupportedLocalExecutor, type TaskExecutionTarget } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import { query } from "../../lib/db.js";
+import { loadWorkspaceFileHost } from "../workspaces/workspace-file-host.js";
 import { listDevices } from "./device-service.js";
 
 // Agent Swarm runs locally like a standard task; other workflows and subagents are cloud-only.
@@ -57,6 +58,56 @@ export async function loadTaskExecutionTarget(taskId: string): Promise<TaskExecu
     "SELECT execution_target FROM tasks WHERE id = $1", [taskId]
   );
   return result.rows[0]?.execution_target ?? null;
+}
+
+export async function validateProjectExecutionTarget(input: {
+  userId: string;
+  workspaceId: string;
+  projectId: string;
+  executionTarget: TaskExecutionTarget;
+  workflow?: unknown;
+  schedule?: unknown;
+  tools?: { subtasks?: boolean; scheduleTask?: boolean; computerUse?: boolean };
+  restricted?: boolean;
+  thread?: boolean;
+  readOnly?: boolean;
+}): Promise<string | null> {
+  const fileHost = await loadWorkspaceFileHost(input.workspaceId);
+  if (fileHost.kind === "device") {
+    if (input.executionTarget.kind !== "local" || input.executionTarget.deviceId !== fileHost.deviceId) {
+      return "Tasks must run on the device that holds this workspace's files.";
+    }
+  }
+  if (input.executionTarget.kind !== "local") return null;
+  if (!config.localExecution.enabled || config.runApi === undefined) {
+    return "Local execution is disabled on this server.";
+  }
+  const featureError = localTaskFeatureError({
+    workflow: input.workflow,
+    schedule: input.schedule,
+    tools: input.tools,
+    bridge: input.executionTarget.bridge === true
+  });
+  if (featureError) return featureError;
+  if (input.thread && input.readOnly === true && input.executionTarget.mode === "host") {
+    return "Read-only threads require sandbox mode.";
+  }
+  if (input.restricted && input.executionTarget.mode === "host") {
+    return "Read-only and no-network tasks need the sandbox, not Host mode.";
+  }
+  const device = await query<{ id: string }>(
+    `SELECT id FROM devices WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND ((platform = 'darwin' AND architecture = 'arm64') OR (platform = 'win32' AND architecture IN ('x64', 'arm64'))) AND ($3 <> 'host' OR consent_json->>'hostMode' = 'true')`,
+    [input.executionTarget.deviceId, input.userId, input.executionTarget.mode]
+  );
+  if ((device.rowCount ?? 0) === 0) {
+    return "The selected local device is unavailable.";
+  }
+  try {
+    await loadLocalProjectStorage(input.projectId);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  return null;
 }
 
 export async function localTaskMutationError(taskId: string, _userId: string, input: {

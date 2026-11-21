@@ -74,6 +74,8 @@ interface TaskDetailRow {
   subtask_depth: number;
   task_root_path: string;
   execution_target: import("@meowbert/shared").TaskExecutionTarget;
+  read_only: boolean;
+  network_disabled: boolean;
   pending_reason: string | null;
   waiting_for_lanes: boolean;
   workflow_type: TaskWorkflowType | null;
@@ -568,6 +570,8 @@ async function loadTaskDetailRecord(taskId: string) {
           t.subtask_depth,
           t.task_root_path,
           t.execution_target,
+          t.read_only,
+          t.network_disabled,
           (SELECT d.pending_reason FROM task_run_dispatches d JOIN task_runs tr ON tr.id = d.run_id
             WHERE d.task_id = t.id AND tr.ended_at IS NULL ORDER BY tr.attempt_no DESC LIMIT 1) AS pending_reason,
           EXISTS (SELECT 1 FROM task_swarm_parks p WHERE p.task_id = t.id) AS waiting_for_lanes,

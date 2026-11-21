@@ -114,12 +114,16 @@ function buildThreadInitialMessageText(
   ].join("\n");
 }
 
-function resolveThreadExecutionOptions(parentTask: ParentTaskRow, requestedReadOnly?: boolean): {
+function resolveThreadExecutionOptions(
+  parentTask: ParentTaskRow,
+  requestedReadOnly?: boolean,
+  requestedExecutionTarget?: TaskExecutionTarget
+): {
   executionTarget: TaskExecutionTarget;
   readOnly: boolean;
   networkDisabled: boolean;
 } {
-  const executionTarget = parentTask.execution_target ?? { kind: "cloud" };
+  const executionTarget = requestedExecutionTarget ?? parentTask.execution_target ?? { kind: "cloud" };
   const isHostMode = executionTarget.kind === "local" && executionTarget.mode === "host";
   const readOnly = requestedReadOnly ?? !isHostMode;
   if (readOnly && isHostMode) {
@@ -337,6 +341,7 @@ export async function createThreadTask(input: {
   interactiveCanvasIntent?: ProjectCanvasIntent | null;
   includeFullHistory?: boolean;
   readOnly?: boolean;
+  executionTarget?: TaskExecutionTarget;
 }): Promise<{
   taskId: string;
   messageId: string;
@@ -371,7 +376,7 @@ export async function createThreadTask(input: {
     }
 
     const parentTask = await loadParentTaskOrThrow(client, input.parentTaskId);
-    const executionOptions = resolveThreadExecutionOptions(parentTask, input.readOnly);
+    const executionOptions = resolveThreadExecutionOptions(parentTask, input.readOnly, input.executionTarget);
     const lineageMessages = await loadOrderedSourceMessages(client, input.parentTaskId, lineageMessageIds);
     const sourceMessages = input.includeFullHistory
       ? lineageMessages

@@ -139,7 +139,8 @@ export const createTaskThreadBody = z.object({
   tools: taskToolOptionsSchema,
   agent: taskAgentSelectionSchema,
   includeFullHistory: z.boolean().optional(),
-  readOnly: z.boolean().optional()
+  readOnly: z.boolean().optional(),
+  executionTarget: taskExecutionTargetSchema.optional()
 });
 
 export const taskScheduleCreateSchema = z
@@ -272,7 +273,8 @@ export const postTaskMessageBody = z.object({
 export const patchTaskBody = z.object({
   title: z.string().max(240).nullable().optional(),
   folderId: z.string().uuid().nullable().optional(),
-  folderSortOrder: z.number().finite().optional()
+  folderSortOrder: z.number().finite().optional(),
+  executionTarget: taskExecutionTargetSchema.optional()
 }).strict();
 
 export const editTaskMessageBody = z

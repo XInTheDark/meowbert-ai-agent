@@ -1,4 +1,4 @@
-import { localTaskMutationError } from "../../services/devices/execution-targets.js";
+import { localTaskMutationError, validateProjectExecutionTarget } from "../../services/devices/execution-targets.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { getPromptEntitlementStatus, recordPromptUsageIfRequired } from "../../services/billing/entitlements.js";
 import { requireVisiblePlatformAgentSelectionForUser } from "../../services/platform/platform-agents.js";
@@ -30,11 +30,21 @@ async function handleCreateTaskThread(request: FastifyRequest, reply: FastifyRep
   const params = taskParams.parse(request.params);
   const body = createTaskThreadBody.parse(request.body ?? {});
   const access = await assertTaskMember(params.taskId, request.user.id);
-  const localError = await localTaskMutationError(params.taskId, request.user.id, {
-    thread: true,
-    readOnly: body.readOnly === true,
-    tools: body.tools
-  });
+  const localError = body.executionTarget
+    ? await validateProjectExecutionTarget({
+        userId: request.user.id,
+        workspaceId: access.workspaceId,
+        projectId: access.environmentId,
+        executionTarget: body.executionTarget,
+        thread: true,
+        readOnly: body.readOnly === true,
+        tools: body.tools
+      })
+    : await localTaskMutationError(params.taskId, request.user.id, {
+        thread: true,
+        readOnly: body.readOnly === true,
+        tools: body.tools
+      });
   if (localError) return reply.status(400).send({ error: localError });
   await ensureTaskHistoryWarm(params.taskId, { executionOnly: false });
   const entitlement = await getPromptEntitlementStatus(request.user.id);
@@ -64,6 +74,7 @@ async function handleCreateTaskThread(request: FastifyRequest, reply: FastifyRep
     agent: selectedAgent,
     includeFullHistory: body.includeFullHistory,
     readOnly: body.readOnly,
+    executionTarget: body.executionTarget,
     interactiveCanvasId: body.interactiveCanvasId ?? undefined,
     interactiveCanvasIntent: body.interactiveCanvasIntent ?? (body.interactiveCanvasId ? "update" : undefined)
   });

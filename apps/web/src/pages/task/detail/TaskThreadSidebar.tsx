@@ -26,8 +26,15 @@ import {
 } from "../../../task/taskFileDestinations";
 import { buildTaskRoutePath, resolveTaskRouteContext } from "../../../task/taskRouteContext";
 import { getTaskMessageAgentId } from "../../../task/taskModelSelection";
-import type { TaskExecutionTarget } from "@meowbert/shared";
+import { isBridgeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared";
 import { createTaskThread, listTaskThreads } from "../../../task/taskThreads";
+import {
+  formatBridgeControlTitle,
+  resolveBridgeToggleTarget,
+  useProjectExecutionTargets,
+  type BridgeComposerControl
+} from "../../../task/useProjectExecutionTargets";
+import { useTaskBridgeControl } from "./useTaskBridgeControl";
 import { useTaskDetailEvents } from "./useTaskDetailEvents";
 import { TaskDetailConversationPane } from "./TaskDetailConversationPane";
 import { ThreadComposerOptions } from "./ThreadComposerOptions";
@@ -338,10 +345,38 @@ function ThreadComposerPanel(props: {
   const [selectedTexts, setSelectedTexts] = useState<SelectedTextQuote[]>(() => (
     props.panel.selectedText ? [props.panel.selectedText] : []
   ));
-  const isHostTarget = props.parentExecutionTarget?.kind === "local" && props.parentExecutionTarget.mode === "host";
+  const [executionTargetOverride, setExecutionTargetOverride] = useState<TaskExecutionTarget | null>(null);
+  const previousNonBridgeTargetRef = useRef<TaskExecutionTarget | null>(null);
+  const effectiveExecutionTarget: TaskExecutionTarget = executionTargetOverride ?? props.parentExecutionTarget ?? { kind: "cloud" };
+  const isHostTarget = effectiveExecutionTarget.kind === "local" && effectiveExecutionTarget.mode === "host";
   const [readOnly, setReadOnly] = useState(() => !isHostTarget);
   const [includeFullHistory, setIncludeFullHistory] = useState(false);
   const effectiveReadOnly = isHostTarget ? false : readOnly;
+  const isDesktop = typeof window !== "undefined" && Boolean(window.meowbertDesktop);
+  const executionTargets = useProjectExecutionTargets(props.api, props.activeEnvironmentId, isDesktop);
+  const isBridgeActive = isBridgeTaskExecutionTarget(effectiveExecutionTarget);
+  const bridgeControl = useMemo<BridgeComposerControl | undefined>(() => {
+    if (!isDesktop) return undefined;
+    const canEnable = isBridgeActive || (executionTargets.enabled && executionTargets.devices.length > 0);
+    if (!canEnable) return undefined;
+    return {
+      active: isBridgeActive,
+      title: formatBridgeControlTitle({ active: isBridgeActive, target: effectiveExecutionTarget }),
+      onToggle: () => {
+        const nextTarget = resolveBridgeToggleTarget({
+          currentTarget: effectiveExecutionTarget,
+          previousNonBridgeTarget: previousNonBridgeTargetRef.current,
+          targets: executionTargets,
+          requireSandbox: effectiveReadOnly
+        });
+        if (!nextTarget) return;
+        if (!isBridgeActive) {
+          previousNonBridgeTargetRef.current = effectiveExecutionTarget;
+        }
+        setExecutionTargetOverride(nextTarget);
+      }
+    };
+  }, [effectiveExecutionTarget, effectiveReadOnly, executionTargets, isBridgeActive, isDesktop]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const subscriptionUsageWarning = useSubscriptionUsageWarning();
@@ -414,10 +449,13 @@ function ThreadComposerPanel(props: {
     setToolOptions(props.initialToolOptions);
     setSelectedAgentId(props.selectedAgentId);
     setSelectedTexts(props.panel.selectedText ? [props.panel.selectedText] : []);
-    setReadOnly(!isHostTarget);
+    setExecutionTargetOverride(null);
+    previousNonBridgeTargetRef.current = null;
+    const parentIsHost = props.parentExecutionTarget?.kind === "local" && props.parentExecutionTarget.mode === "host";
+    setReadOnly(!parentIsHost);
     setIncludeFullHistory(false);
     setError(null);
-  }, [isHostTarget, props.panel.pendingThreadTaskId, props.panel.selectedText, props.selectedAgentId]);
+  }, [props.parentExecutionTarget, props.panel.pendingThreadTaskId, props.panel.selectedText, props.selectedAgentId]);
 
   async function handleSubmit(): Promise<void> {
     const message = joinTaskMessage(followUp, attachments);
@@ -442,7 +480,8 @@ function ThreadComposerPanel(props: {
         allowComputerUse: props.allowComputerUse,
         selectedAgentId,
         includeFullHistory,
-        readOnly: effectiveReadOnly
+        readOnly: effectiveReadOnly,
+        ...(executionTargetOverride ? { executionTarget: executionTargetOverride } : {})
       });
       setFollowUp("");
       setDraftsByConversation(clearStoredTaskConversationDraft(conversationDraftKey));
@@ -508,6 +547,7 @@ function ThreadComposerPanel(props: {
           onSourceSetupRequested={props.onSourceSetupRequested}
           onOpenSourceFiles={(source) => setSelectedSource(source)}
           showAgentSwitcher={props.showAgentSwitcher}
+          bridgeControl={bridgeControl}
           autoFocus
           submitWithShiftEnter={props.submitWithShiftEnter}
           subscriptionUsageWarning={subscriptionUsageWarning}
@@ -742,6 +782,20 @@ function ThreadConversationPanel(props: {
   const displayStatus = taskDetail ? getThreadDisplayStatus(taskDetail) : null;
   const isThreadActive = isTaskActiveStatus(taskDetail?.task.status);
   const stopRunningSince = useRunningSince(isThreadActive, taskDetail?.task.active_run_started_at);
+  const threadBridgeControl = useTaskBridgeControl({
+    api: props.api,
+    projectId: taskEnvironmentId,
+    task: taskDetail?.task,
+    isTaskRunning: isThreadActive,
+    onTargetUpdated: (nextTarget) => {
+      setTaskDetail((current) => current ? {
+        ...current,
+        task: { ...current.task, execution_target: nextTarget }
+      } : current);
+      props.api.invalidateGet?.({ pathPrefix: `/api/tasks/${props.panel.taskId}` });
+    },
+    onError: setError
+  });
 
   useEffect(() => {
     void loadTask();
@@ -1002,6 +1056,7 @@ function ThreadConversationPanel(props: {
               onSourceSetupRequested={props.onSourceSetupRequested}
               onOpenSourceFiles={(source) => setSelectedSource(source)}
               showAgentSwitcher={props.showAgentSwitcher}
+              bridgeControl={threadBridgeControl}
               errorText={error || uploadError}
               submitWithShiftEnter={props.submitWithShiftEnter}
             />

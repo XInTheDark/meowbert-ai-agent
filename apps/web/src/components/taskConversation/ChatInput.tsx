@@ -14,6 +14,7 @@ import { useComposerCitations, type AttachFiles } from "./composer/useComposerCi
 import { useSkillMentionSync } from "./composer/useSkillMentionSync";
 import type { MasterTaskAgentPicker } from "./masterTaskAgentPicker";
 import type { ChatToolsPopoverPlacement } from "../tasks/useChatToolsDropdownPlacement";
+import type { BridgeComposerControl } from "../../task/useProjectExecutionTargets";
 
 export { filterToolsMenuSkills, matchesToolsMenuQuery } from "../tasks/ToolOptionsDropdown";
 
@@ -58,6 +59,7 @@ interface ChatInputProps {
   onSourceSetupRequested?: (source: WorkspaceSourceSummary) => void;
   onOpenSourceFiles?: (source: WorkspaceSourceSummary) => void;
   showAgentSwitcher?: boolean;
+  bridgeControl?: BridgeComposerControl;
   taskParameters?: TaskParameters;
   onTaskParametersChange?: (taskParameters: TaskParameters) => void | Promise<void>;
   taskParametersMode?: "create" | "edit";
@@ -190,6 +192,7 @@ export function ChatInput({
   onSourceSetupRequested,
   onOpenSourceFiles,
   showAgentSwitcher = true,
+  bridgeControl,
   taskParameters,
   onTaskParametersChange,
   taskParametersMode = "create",
@@ -431,6 +434,7 @@ export function ChatInput({
         onAgentChange={onAgentChange}
         masterTaskAgentPicker={masterTaskAgentPicker}
         shouldShowAgentSwitcher={shouldShowAgentSwitcher}
+        bridgeControl={bridgeControl}
         isTaskRunning={isTaskRunning}
         onStop={onStop}
         stopRunningSince={stopRunningSince}

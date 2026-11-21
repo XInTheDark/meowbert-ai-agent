@@ -232,6 +232,8 @@ export interface TaskDetail {
     subtask_depth?: number;
     task_root_path?: string;
     execution_target?: import("@meowbert/shared").TaskExecutionTarget;
+    read_only?: boolean;
+    network_disabled?: boolean;
     pending_reason?: string | null;
     waiting_for_lanes?: boolean;
     // When the run still going started, if one is.

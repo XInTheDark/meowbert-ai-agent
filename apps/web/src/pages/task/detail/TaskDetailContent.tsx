@@ -39,6 +39,7 @@ import { buildSwarmLaneGroups } from "./swarmLaneGroups";
 import type { TaskDetailLoadedController } from "./useTaskDetailLoadedController";
 import { useCanvasPanelWidth } from "./useCanvasPanelWidth";
 import { projectCanvasView } from "./useTaskCanvas";
+import { useTaskBridgeControl } from "./useTaskBridgeControl";
 
 type ModelProps = { model: TaskDetailLoadedController };
 
@@ -231,6 +232,23 @@ function TaskConversationMain({ model }: ModelProps) {
   const swarmLaneAccessories = useSwarmLaneAccessories(model);
   const isTaskRunning = ["running", "starting", "queued"].includes(task?.status ?? "");
   const stopRunningSince = useRunningSince(isTaskRunning, task?.active_run_started_at);
+  const bridgeControl = useTaskBridgeControl({
+    api: model.context.workspace.api,
+    projectId: model.context.taskProjectId,
+    task,
+    isTaskRunning,
+    onTargetUpdated: (nextTarget) => {
+      model.context.data.setTaskDetail((current) => current ? {
+        ...current,
+        task: { ...current.task, execution_target: nextTarget }
+      } : current);
+      if (nextTarget.kind === "local" && model.composer.toolOptions.subtasks) {
+        model.composer.handleToolOptionsChange({ ...model.composer.toolOptions, subtasks: false });
+      }
+      model.controllers.invalidateCurrentTaskCache();
+    },
+    onError: model.context.setError
+  });
   if (!task) return null;
   const conversation = model.controllers.conversation;
   const events = model.controllers.events;
@@ -308,6 +326,7 @@ function TaskConversationMain({ model }: ModelProps) {
         workflowConfig={model.composer.workflowConfig}
         showMemorySearch={model.context.workspaceMemoryEnabled}
         showComputerUse={model.context.runtime.capabilities.isDesktop}
+        allowSubtasksOption={task.execution_target?.kind !== "local"}
         onToolOptionsChange={model.composer.handleToolOptionsChange}
         onTaskParametersChange={model.actions.handleTaskParametersChange}
         onWorkflowConfigChange={model.actions.handleWorkflowChange}
@@ -332,6 +351,7 @@ function TaskConversationMain({ model }: ModelProps) {
         }}
         onOpenSourceFiles={model.view.setSelectedSource}
         showAgentSwitcher={canSelectTaskModel(model.context.workspace.user)}
+        bridgeControl={bridgeControl}
         errorText={model.context.error || model.composer.uploadError}
         submitWithShiftEnter={model.context.taskUiPreferences.sendWithShiftEnter}
         subscriptionUsageWarning={model.context.subscriptionUsageWarning}

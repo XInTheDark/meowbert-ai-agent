@@ -1,3 +1,4 @@
+import type { TaskExecutionTarget } from "@meowbert/shared";
 import type { ApiClient } from "../lib/api";
 import type { TaskAttachment, TaskThreadSummary, TaskToolOptions } from "../lib/types";
 import type { SelectedTextQuote } from "../components/taskConversation/selectedTextQuoteUtils";
@@ -42,6 +43,7 @@ export interface CreateTaskThreadInput {
   selectedAgentId: string | null;
   includeFullHistory?: boolean;
   readOnly?: boolean;
+  executionTarget?: TaskExecutionTarget;
 }
 
 export interface CreateTaskThreadResponse {
@@ -82,6 +84,7 @@ export async function createTaskThread(input: CreateTaskThreadInput): Promise<Cr
     ...(hasTools ? { tools: toolsPayload } : {}),
     ...(input.selectedAgentId ? { agent: { id: input.selectedAgentId } } : {}),
     ...(input.includeFullHistory ? { includeFullHistory: true } : {}),
-    ...(typeof input.readOnly === "boolean" ? { readOnly: input.readOnly } : {})
+    ...(typeof input.readOnly === "boolean" ? { readOnly: input.readOnly } : {}),
+    ...(input.executionTarget ? { executionTarget: input.executionTarget } : {})
   });
 }
