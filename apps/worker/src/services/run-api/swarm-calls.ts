@@ -178,9 +178,10 @@ export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
   }),
   "swarm.steerLane": refusable(async (session, args) => {
     assertRole(session, STEER_TOOL_NAME);
-    const { laneTaskId, message } = input<{ laneTaskId?: unknown; message?: unknown }>(args);
+    const { laneTaskId, message, urgent } = input<{ laneTaskId?: unknown; message?: unknown; urgent?: unknown }>(args);
     if (typeof laneTaskId !== "string" || typeof message !== "string") invalid("steer needs a lane and a message.");
-    await dbSwarmBackend.steerLane(runRef(session), { laneTaskId, message });
+    if (urgent !== undefined && typeof urgent !== "boolean") invalid("urgent must be a boolean.");
+    await dbSwarmBackend.steerLane(runRef(session), { laneTaskId, message, urgent: urgent === true });
   }),
   "swarm.stopLane": refusable(async (session, args) => {
     assertRole(session, STOP_LANE_TOOL_NAME);
@@ -197,7 +198,7 @@ export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
   }),
   "swarm.shareNote": refusable(async (session, args) => {
     assertRole(session, SHARE_TOOL_NAME);
-    const { text, scope, wakeParent } = input<{ text?: unknown; scope?: unknown; wakeParent?: unknown }>(args);
+    const { text, scope, wakeParent, urgent } = input<{ text?: unknown; scope?: unknown; wakeParent?: unknown; urgent?: unknown }>(args);
     if (typeof text !== "string" || text.length === 0 || text.length > 2_000) invalid("A note is up to 2,000 characters.");
     const parsedScope: ShareScope = scope === undefined
       ? "siblings"
@@ -205,8 +206,14 @@ export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
         ? scope
         : invalid("scope must be siblings, parent or all.");
     if (wakeParent !== undefined && typeof wakeParent !== "boolean") invalid("wakeParent must be a boolean.");
+    if (urgent !== undefined && typeof urgent !== "boolean") invalid("urgent must be a boolean.");
     if (parsedScope === "siblings" && wakeParent === true) invalid("wakeParent cannot be true when scope is siblings.");
-    await dbSwarmBackend.shareNote(runRef(session), { text, scope: parsedScope, wakeParent: wakeParent === true });
+    await dbSwarmBackend.shareNote(runRef(session), {
+      text,
+      scope: parsedScope,
+      wakeParent: wakeParent === true,
+      urgent: urgent === true
+    });
   }),
   "swarm.emitEvent": refusable(async (session, args) => {
     const { message } = input<{ message?: unknown }>(args);

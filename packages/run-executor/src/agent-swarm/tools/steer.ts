@@ -7,7 +7,16 @@ import { runSwarmToolCall, swarmRunRef } from "./swarm-tool-call.js";
 
 export async function handleSteer(backend: SwarmBackend, call: ResponseFunctionToolCall, ctx: ToolDispatchContext): Promise<ToolCallResult> {
   return runSwarmToolCall(call, ctx, steerArgumentsSchema, async (args) => {
-    await backend.steerLane(swarmRunRef(ctx), { laneTaskId: args.lane_id, message: args.message });
-    return { output: { steered: true, message: "The lane sees this at its next step." } };
+    const urgent = args.urgent === true;
+    await backend.steerLane(swarmRunRef(ctx), { laneTaskId: args.lane_id, message: args.message, urgent });
+    return {
+      output: {
+        steered: true,
+        urgent,
+        message: urgent
+          ? "Interrupt requested; the lane will resume with your message right away."
+          : "The lane sees this at its next step."
+      }
+    };
   });
 }

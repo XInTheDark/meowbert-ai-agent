@@ -9,6 +9,7 @@ vi.mock("../agent-swarm/db-backend.js", () => ({
   dbSwarmBackend: { startCheckLane: vi.fn(async () => ({ taskId: "check", label: "Check", title: "Check" })),
     forkLanes: vi.fn(async (_run: unknown, input: { lanes: Array<{ taskId: string; label: string; title: string }> }) =>
     input.lanes.map(({ taskId, label, title }) => ({ taskId, label, title }))),
+    steerLane: vi.fn(async () => {}),
     shareNote: vi.fn(async () => {}) }
 }));
 
@@ -110,13 +111,30 @@ describe("swarm calls from a device", () => {
       call: (method, args) => SWARM_CALL_HANDLERS[method as "swarm.shareNote"](laneSession, args),
       model: vi.fn()
     });
-    await backend.shareNote({} as never, { text: "Need direction.", scope: "parent", wakeParent: true });
-    expect(dbSwarmBackend.shareNote).toHaveBeenCalledWith(expect.anything(), { text: "Need direction.", scope: "parent", wakeParent: true });
+    await backend.shareNote({} as never, { text: "Need direction.", scope: "parent", wakeParent: true, urgent: true });
+    expect(dbSwarmBackend.shareNote).toHaveBeenCalledWith(expect.anything(), {
+      text: "Need direction.", scope: "parent", wakeParent: true, urgent: true
+    });
 
     await expect(SWARM_CALL_HANDLERS["swarm.shareNote"](laneSession, [{ text: "Note", scope: "invalid" }]))
       .rejects.toThrow("scope must be siblings, parent or all.");
     await expect(SWARM_CALL_HANDLERS["swarm.shareNote"](laneSession, [{ text: "Note", scope: "siblings", wakeParent: true }]))
       .rejects.toThrow("wakeParent cannot be true when scope is siblings.");
+    await expect(SWARM_CALL_HANDLERS["swarm.shareNote"](laneSession, [{ text: "Note", scope: "parent", urgent: "yes" }]))
+      .rejects.toThrow("urgent must be a boolean.");
+  });
+
+  it("forwards urgent steer calls through the desktop backend", async () => {
+    const backend = createHttpSwarmBackend({
+      call: (method, args) => SWARM_CALL_HANDLERS[method as "swarm.steerLane"](session(true), args),
+      model: vi.fn()
+    });
+    await backend.steerLane({} as never, { laneTaskId: "11111111-1111-4111-8111-111111111111", message: "Stop now.", urgent: true });
+    expect(dbSwarmBackend.steerLane).toHaveBeenCalledWith(expect.anything(), {
+      laneTaskId: "11111111-1111-4111-8111-111111111111", message: "Stop now.", urgent: true
+    });
+    await expect(SWARM_CALL_HANDLERS["swarm.steerLane"](session(true), [{ laneTaskId: "11111111-1111-4111-8111-111111111111", message: "Hi", urgent: 1 }]))
+      .rejects.toThrow("urgent must be a boolean.");
   });
 
   it("rejects swarm calls from a run outside a swarm", async () => {

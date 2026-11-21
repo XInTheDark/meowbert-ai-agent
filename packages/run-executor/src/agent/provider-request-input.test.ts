@@ -174,4 +174,36 @@ describe("normalizeProviderRequestInput", () => {
       { role: "user", content: "Task" }
     ]);
   });
+
+  it.each([
+    ["openai", []],
+    ["claude", []],
+    ["claude", ["noDeveloperMessages"]]
+  ] as const)("keeps the cached prefix identical across an urgent interrupt & resume for %s (%j)", (modelType, compatibility) => {
+    const prefix = [
+      { role: "developer", content: "System policy" },
+      { role: "system", content: "Swarm guide" }
+    ] as ResponseInputItem[];
+    const priorHistory = [
+      { role: "user", content: "Run training" },
+      { type: "function_call", call_id: "call_wait", name: "wait", arguments: "{\"seconds\":1200}" }
+    ] as ResponseInputItem[];
+    const resumedTail = [
+      { type: "function_call_output", call_id: "call_wait", output: "{\"error\":\"interrupted\"}" },
+      { role: "system", content: "[System: The previous run was interrupted while these tool calls were running.]" },
+      { role: "user", content: "[Message from your parent]\nStop training now." }
+    ] as ResponseInputItem[];
+
+    const before = normalizeProviderRequestInput([...prefix, ...priorHistory], modelType, [...compatibility], prefix.length);
+    const after = normalizeProviderRequestInput([...prefix, ...priorHistory, ...resumedTail], modelType, [...compatibility], prefix.length);
+
+    expect(after.slice(0, before.length)).toEqual(before);
+    if (modelType === "claude") {
+      // Interrupted notice must stay a user turn at the tail so Claude proxies never hoist it into the system prompt.
+      expect(after[before.length + 1]).toEqual({
+        role: "user",
+        content: "[System: The previous run was interrupted while these tool calls were running.]"
+      });
+    }
+  });
 });

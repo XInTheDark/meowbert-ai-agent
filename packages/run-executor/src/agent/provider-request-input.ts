@@ -230,7 +230,7 @@ export function normalizeProviderRequestInput(
     compatibleItems = mergeGoogleInstructionMessages(compatibleItems);
   } else if (hasCompatibilityMode(compatibilityModes, "noSystemMessages")) {
     compatibleItems = convertSystemMessagesToUserMessages(compatibleItems);
-  } else if (hasCompatibilityMode(compatibilityModes, "noDeveloperMessages")) {
+  } else if (modelType === "claude" || hasCompatibilityMode(compatibilityModes, "noDeveloperMessages")) {
     compatibleItems = sendLaterInstructionsAsUserTurns(compatibleItems, promptPrefixLength);
   }
 

@@ -130,6 +130,7 @@ export const dbSwarmBackend: SwarmBackend = {
   },
   async shareNote(run, input) {
     const lane = ownLane(run);
+    const urgent = input.urgent === true;
     await insertSwarmNote({
       swarmTaskId: lane.swarm_task_id,
       authorTaskId: lane.task_id,
@@ -137,7 +138,8 @@ export const dbSwarmBackend: SwarmBackend = {
       kind: "shared",
       content: input.text,
       notifySiblings: input.scope !== "parent",
-      notifyParent: input.scope === "siblings" ? "none" : input.wakeParent ? "wake" : "inbox"
+      notifyParent: input.scope === "siblings" ? "none" : (input.wakeParent || urgent) ? "wake" : "inbox",
+      urgent
     });
   },
   emitEvent: (run, message) => emitSwarmEvent(run.swarm.swarmTaskId, message),

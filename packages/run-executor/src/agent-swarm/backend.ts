@@ -76,10 +76,10 @@ export interface SwarmBackend {
     focus: string | null;
     modelRoute: ChosenModelRoute | null;
   }): Promise<CreatedLane>;
-  steerLane(run: SwarmRunRef, input: { laneTaskId: string; message: string }): Promise<void>;
+  steerLane(run: SwarmRunRef, input: { laneTaskId: string; message: string; urgent?: boolean }): Promise<void>;
   stopLane(run: SwarmRunRef, input: { laneTaskId: string; discard: boolean }): Promise<void>;
   resumeLane(run: SwarmRunRef, input: { laneTaskId: string; message: string; extraTokens: number | null }): Promise<{ title: string }>;
-  shareNote(run: SwarmRunRef, input: { text: string; scope: ShareScope; wakeParent: boolean }): Promise<void>;
+  shareNote(run: SwarmRunRef, input: { text: string; scope: ShareScope; wakeParent: boolean; urgent?: boolean }): Promise<void>;
   emitEvent(run: SwarmRunRef, message: string): Promise<void>;
   // Ends the run and keeps its job to resume once the barrier is met. A remote backend sends only the
   // branch; the server resumes the job it admitted.

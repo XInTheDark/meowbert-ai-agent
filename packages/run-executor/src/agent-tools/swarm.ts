@@ -70,7 +70,8 @@ export const checkArgumentsSchema = z.object({
 
 export const steerArgumentsSchema = z.object({
   lane_id: laneId,
-  message: z.string().trim().min(1).max(8_000)
+  message: z.string().trim().min(1).max(8_000),
+  urgent: z.boolean().nullable().optional()
 });
 
 export const stopLaneArgumentsSchema = z.object({
@@ -87,7 +88,8 @@ export const resumeArgumentsSchema = z.object({
 export const shareArgumentsSchema = z.object({
   text: z.string().trim().min(1).max(2_000),
   scope: z.enum(SHARE_SCOPES),
-  wake_parent: z.boolean().nullable().optional()
+  wake_parent: z.boolean().nullable().optional(),
+  urgent: z.boolean().nullable().optional()
 }).refine((value) => !(value.scope === "siblings" && value.wake_parent === true), {
   message: "wake_parent cannot be true when scope is \"siblings\"."
 });
@@ -181,9 +183,13 @@ function buildCheckTool(router: PlatformModelRouter | null): FunctionTool {
   });
 }
 
-const STEER_TOOL = tool(STEER_TOOL_NAME, "Send a message to one of your running lanes. It arrives at the lane's next step.", {
+const STEER_TOOL = tool(STEER_TOOL_NAME, "Send a message to one of your running lanes. By default it arrives at the lane's next step; pass urgent true to interrupt an in-flight wait, shell command, or model call so the lane sees it right away.", {
   lane_id: laneIdProperty,
-  message: { type: "string" }
+  message: { type: "string" },
+  urgent: {
+    type: ["boolean", "null"],
+    description: "Set true to interrupt the lane's in-flight wait, foreground shell command, or model call (or wake a lane waiting on sub-lanes) so it reads this immediately. Use sparingly because interrupting a foreground shell command kills it (persistent shell sessions stay alive when a wait is interrupted). Default false when null."
+  }
 });
 
 const STOP_LANE_TOOL = tool(STOP_LANE_TOOL_NAME, "Stop one of your lanes and its sub-lanes. With discard false it submits what it has now; with discard true it is cancelled and its result dropped.", {
@@ -207,6 +213,10 @@ const SHARE_TOOL = tool(SHARE_TOOL_NAME, "Lanes only. Share a short note with yo
   wake_parent: {
     type: ["boolean", "null"],
     description: "When scope is \"parent\" or \"all\", set true to wake a parked parent right away (use only for blockers or decisions your parent must act on now). Default false when null."
+  },
+  urgent: {
+    type: ["boolean", "null"],
+    description: "Set true to interrupt running recipients in scope (aborting an in-flight wait, foreground shell command, or model call so they resume with this note right away, and also waking a parked parent if scope includes parent). Use sparingly because interrupting a foreground shell command kills it. Default false when null."
   }
 });
 

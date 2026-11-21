@@ -5,7 +5,7 @@
 ### AI and agents
 
 - **Work alongside Agent Swarm lanes** — Leaders and parent lanes can now keep working in parallel after splitting off lanes (`wait: false`) instead of pausing immediately, receiving finished lane results between steps and pausing later with `wait` (`lanes: true`) when ready. Finishing early still waits for remaining lanes before delivering or submitting.
-- **Targeted lane notes and parent wakeups** — Lanes choose who receives each `share` note (`siblings`, `parent`, or `all`) so parent-only notes do not clutter sibling context, and can set `wake_parent: true` to wake a waiting parent right away when a blocker or plan change needs immediate attention.
+- **Targeted lane notes, parent wakeups, and urgent interrupts** — Lanes choose who receives each `share` note (`siblings`, `parent`, or `all`) so parent-only notes do not clutter sibling context, and can set `wake_parent: true` to wake a waiting parent right away. Both `share` and `steer` also support `urgent: true` to interrupt an in-flight `wait`, foreground shell command, or model call and immediately resume the recipient with the message (without breaking prompt caching on GPT or Claude models).
 - **Clearer swarm waiting status** — Tasks parked waiting for Agent Swarm lanes now show **Waiting for lanes** instead of **Queued** in the task header and task list.
 - **Lane details, context usage, and shared notes timeline** — Opening an Agent Swarm lane now shows its live context usage chip in the lane bar along with **Shared notes** (chronological timeline with per-lane and whole-swarm filtering plus audience/wakeup badges) and **Details** tabs.
 

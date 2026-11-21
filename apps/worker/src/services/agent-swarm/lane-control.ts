@@ -5,6 +5,7 @@ import type { SwarmRunContext } from "./config.js";
 import { isLaneResumableInTx } from "./dormancy.js";
 import { addResumeShareInTx } from "./budget-shares.js";
 import { buildUnsubmittedLaneResult } from "@meowbert/run-executor/agent-swarm/forced-submit";
+import { interruptRunningSwarmTasksInTx } from "./interrupt.js";
 import { insertLaneInboxInTx } from "./lane-inbox.js";
 import {
   ACTIVE_LANE_STATUSES,
@@ -32,12 +33,25 @@ async function loadOwnLaneInTx(client: PoolClient, swarm: SwarmRunContext, paren
   return lane;
 }
 
-export async function steerLane(input: { swarm: SwarmRunContext; parentTaskId: string; laneTaskId: string; message: string }): Promise<void> {
+export async function steerLane(input: {
+  swarm: SwarmRunContext;
+  parentTaskId: string;
+  laneTaskId: string;
+  message: string;
+  urgent?: boolean;
+}): Promise<void> {
   await withTransaction(async (client) => {
     const lane = await loadOwnLaneInTx(client, input.swarm, input.parentTaskId, input.laneTaskId);
     if (lane.status === "done") throw new SwarmToolError("This lane has submitted. Use resume to continue it.");
     if (!isActive(lane)) throw new SwarmToolError("This lane has ended.");
     await insertLaneInboxInTx(client, { laneTaskId: lane.task_id, swarmTaskId: lane.swarm_task_id, kind: "steer", body: input.message });
+    if (!input.urgent) return;
+    if (lane.status === "waiting") {
+      await client.query("UPDATE task_swarm_lanes SET status = 'queued', updated_at = now() WHERE task_id = $1", [lane.task_id]);
+      await startQueuedLanesInTx(client, input.swarm.swarmTaskId, input.swarm.settings.advanced.maxRunningLanes);
+    } else if (lane.status === "running") {
+      await interruptRunningSwarmTasksInTx(client, [lane.task_id]);
+    }
   });
 }
 

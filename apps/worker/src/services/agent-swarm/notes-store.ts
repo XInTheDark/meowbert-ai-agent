@@ -3,6 +3,7 @@ import { withTransaction } from "../../lib/db.js";
 import type { SwarmLaneRow } from "./lane-store.js";
 import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { emitSwarmEvent } from "./events.js";
+import { interruptRunningSwarmTasksInTx } from "./interrupt.js";
 import { lockSwarmInTx } from "./scheduler.js";
 import type { ParentShareNote, ShareNotifyMode, SwarmNote, SwarmNoteKind } from "@meowbert/run-executor/agent-swarm/lane-types";
 
@@ -20,25 +21,45 @@ export async function insertSwarmNote(note: {
   content: string;
   notifySiblings?: boolean;
   notifyParent?: ShareNotifyMode;
-}): Promise<{ parentWoken: boolean }> {
+  urgent?: boolean;
+}): Promise<{ parentWoken: boolean; interruptedTaskIds: string[] }> {
   const notifySiblings = note.notifySiblings ?? true;
-  const notifyParent: ShareNotifyMode = note.notifyParent ?? "none";
-  const parentWoken = await withTransaction(async (client) => {
+  const urgent = note.urgent === true;
+  const rawNotifyParent: ShareNotifyMode = note.notifyParent ?? "none";
+  const notifyParent: ShareNotifyMode = urgent && rawNotifyParent === "inbox" ? "wake" : rawNotifyParent;
+  const outcome = await withTransaction(async (client) => {
     await lockSwarmInTx(client, note.swarmTaskId);
     await client.query(
       `INSERT INTO task_swarm_notes (swarm_task_id, author_task_id, scope_parent_task_id, kind, content, notify_siblings, notify_parent)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [note.swarmTaskId, note.authorTaskId, note.scopeParentTaskId, note.kind, note.content, notifySiblings, notifyParent]
     );
-    return notifyParent === "wake" ? wakeParentIfBarrierMetInTx(client, note.scopeParentTaskId) : false;
+    const parentWoken = notifyParent === "wake" ? await wakeParentIfBarrierMetInTx(client, note.scopeParentTaskId) : false;
+    let interruptedTaskIds: string[] = [];
+    if (urgent) {
+      const targetIds: string[] = [];
+      if (notifyParent !== "none") targetIds.push(note.scopeParentTaskId);
+      if (notifySiblings) {
+        // Diverge lanes stay blind to sibling notes while siblings are active, so never interrupt them.
+        const runningSiblings = await client.query<{ task_id: string }>(
+          `SELECT task_id FROM task_swarm_lanes
+            WHERE parent_task_id = $1 AND task_id <> $2 AND status = 'running' AND kind <> 'diverge'`,
+          [note.scopeParentTaskId, note.authorTaskId]
+        );
+        targetIds.push(...runningSiblings.rows.map((row) => row.task_id));
+      }
+      interruptedTaskIds = await interruptRunningSwarmTasksInTx(client, targetIds);
+    }
+    return { parentWoken, interruptedTaskIds };
   });
   await emitSwarmEvent(note.swarmTaskId, note.content, {
     laneId: note.authorTaskId,
     noteKind: note.kind,
     ...(!notifySiblings ? { notifySiblings: false } : {}),
-    ...(notifyParent !== "none" ? { notifyParent } : {})
+    ...(notifyParent !== "none" ? { notifyParent } : {}),
+    ...(urgent ? { urgent: true } : {})
   });
-  return { parentWoken };
+  return outcome;
 }
 
 interface ScopedNote extends SwarmNote {

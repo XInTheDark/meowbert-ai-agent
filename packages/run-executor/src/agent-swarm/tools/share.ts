@@ -15,7 +15,8 @@ export async function handleShare(backend: SwarmBackend, call: ResponseFunctionT
     return toolErrorResult(`Invalid share arguments: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`);
   }
   const { text, scope } = parsed.data;
-  const wakeParent = parsed.data.wake_parent === true;
-  await backend.shareNote(swarmRunRef(ctx), { text, scope, wakeParent });
-  return { output: { shared: true, scope, wake_parent: wakeParent } };
+  const urgent = parsed.data.urgent === true;
+  const wakeParent = parsed.data.wake_parent === true || (urgent && scope !== "siblings");
+  await backend.shareNote(swarmRunRef(ctx), { text, scope, wakeParent, urgent });
+  return { output: { shared: true, scope, wake_parent: wakeParent, urgent } };
 }

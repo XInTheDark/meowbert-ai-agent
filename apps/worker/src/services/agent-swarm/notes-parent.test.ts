@@ -8,10 +8,12 @@ vi.mock("../../lib/db.js", () => ({
 }));
 vi.mock("./scheduler.js", () => ({ lockSwarmInTx: vi.fn(async () => ({ config_json: {} })) }));
 vi.mock("./barrier.js", () => ({ wakeParentIfBarrierMetInTx: vi.fn(async () => true) }));
+vi.mock("./interrupt.js", () => ({ interruptRunningSwarmTasksInTx: vi.fn(async (_c: unknown, ids: string[]) => ids) }));
 vi.mock("./events.js", () => ({ emitSwarmEvent: vi.fn(async () => {}) }));
 vi.mock("./lane-store.js", () => ({ countActiveChildrenInTx: vi.fn(async () => 2) }));
 
 const { wakeParentIfBarrierMetInTx } = await import("./barrier.js");
+const { interruptRunningSwarmTasksInTx } = await import("./interrupt.js");
 const { countActiveChildrenInTx } = await import("./lane-store.js");
 const { insertSwarmNote } = await import("./notes-store.js");
 const { claimParentShareNoteItemsInTx } = await import("./notes-delivery.js");
@@ -26,18 +28,34 @@ describe("parent share note inbox and wakeups", () => {
     await expect(insertSwarmNote({
       swarmTaskId: "swarm-1", authorTaskId: "lane-1", scopeParentTaskId: "parent-1",
       kind: "shared", content: "Parent-only FYI", notifySiblings: false, notifyParent: "inbox"
-    })).resolves.toEqual({ parentWoken: false });
+    })).resolves.toEqual({ parentWoken: false, interruptedTaskIds: [] });
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining("notify_siblings, notify_parent"),
       ["swarm-1", "lane-1", "parent-1", "shared", "Parent-only FYI", false, "inbox"]
     );
     expect(wakeParentIfBarrierMetInTx).not.toHaveBeenCalled();
+    expect(interruptRunningSwarmTasksInTx).not.toHaveBeenCalled();
 
     await expect(insertSwarmNote({
       swarmTaskId: "swarm-1", authorTaskId: "lane-1", scopeParentTaskId: "parent-1",
       kind: "shared", content: "Plan invalid", notifySiblings: true, notifyParent: "wake"
-    })).resolves.toEqual({ parentWoken: true });
+    })).resolves.toEqual({ parentWoken: true, interruptedTaskIds: [] });
     expect(wakeParentIfBarrierMetInTx).toHaveBeenCalledWith(mockClient, "parent-1");
+    expect(interruptRunningSwarmTasksInTx).not.toHaveBeenCalled();
+  });
+
+  it("interrupts running recipients in scope and upgrades inbox to wake when urgent is true", async () => {
+    mockClient.query
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ task_id: "sibling-2" }], rowCount: 1 });
+
+    await expect(insertSwarmNote({
+      swarmTaskId: "swarm-1", authorTaskId: "lane-1", scopeParentTaskId: "parent-1",
+      kind: "shared", content: "Stop now", notifySiblings: true, notifyParent: "inbox", urgent: true
+    })).resolves.toEqual({ parentWoken: true, interruptedTaskIds: ["parent-1", "sibling-2"] });
+
+    expect(wakeParentIfBarrierMetInTx).toHaveBeenCalledWith(mockClient, "parent-1");
+    expect(interruptRunningSwarmTasksInTx).toHaveBeenCalledWith(mockClient, ["parent-1", "sibling-2"]);
   });
 
   it("claims undelivered parent share notes once and includes wake guidance when lanes are active", async () => {
