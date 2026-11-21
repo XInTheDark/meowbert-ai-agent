@@ -421,6 +421,7 @@ function TaskThreadsSidebar({ model }: ModelProps) {
         }
       }}
       initialToolOptions={{ ...model.composer.toolOptions, scheduleTask: false, subtasks: false }}
+      parentExecutionTarget={model.context.data.taskDetail?.task.execution_target ?? null}
       assistantMessageDisplayPreferences={model.actions.messageDisplayPreferences}
       showMessageAuthors={model.showMessageAuthors}
       stack={threads.threadSidebarStack}

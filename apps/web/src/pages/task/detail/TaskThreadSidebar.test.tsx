@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TaskExecutionTarget } from "@meowbert/shared";
 import type { ApiClient } from "../../../lib/api";
 import type { TaskConversationMessagesProps } from "../../../components/taskConversation/TaskConversationMessages";
 import { buildTaskConversationDraftKey, getTaskConversationDraft, readTaskConversationDrafts, updateTaskConversationDraft, writeTaskConversationDrafts } from "../../../task/taskConversationDrafts";
@@ -38,11 +39,16 @@ vi.mock("./useTaskDetailEvents", () => ({
   useTaskDetailEvents: useTaskDetailEventsMock
 }));
 
+vi.mock("../../../subscription/usageLimits", () => ({
+  useSubscriptionUsageWarning: () => null
+}));
+
 
 vi.mock("../../../components/taskConversation/ChatInput", () => ({
   ChatInput: (props: {
     placeholder: string;
     value: string;
+    onChange?: (value: string) => void;
     attachments: TaskAttachment[];
     isTaskRunning?: boolean;
     onStop?: () => void;
@@ -55,6 +61,9 @@ vi.mock("../../../components/taskConversation/ChatInput", () => ({
       <span data-testid="draft-text">{props.value}</span>
       <span data-testid="draft-attachments">{props.attachments.map((item) => item.id).join(",")}</span>
       <span data-testid="selected-agent">{props.selectedAgentId}</span>
+      <button type="button" data-testid="type-thread-text" onClick={() => props.onChange?.("Check this work")}>
+        Type thread text
+      </button>
       <button type="button" data-testid="select-thread-agent" onClick={() => props.onAgentChange?.("agent-2")}>
         Select thread agent
       </button>
@@ -154,6 +163,7 @@ function renderSidebar(input: {
   stack: TaskThreadSidebarPanel[];
   availableAgents?: Array<{ id: string; name: string; description: string }>;
   selectedAgentId?: string | null;
+  parentExecutionTarget?: TaskExecutionTarget | null;
   initialToolOptions?: {
     webSearch: boolean;
     memorySearch: boolean;
@@ -207,6 +217,7 @@ function renderSidebar(input: {
         enableThreadSelectionPopup
         submitWithShiftEnter={false}
         initialToolOptions={nextInitialToolOptions}
+        parentExecutionTarget={input.parentExecutionTarget ?? null}
         assistantMessageDisplayPreferences={{
           showThoughts: true,
           renderMarkdown: true,
@@ -633,5 +644,97 @@ describe("TaskThreadSidebar", () => {
     act(() => {
       root.unmount();
     });
+  });
+
+  it("lets new threads toggle read-only and full task history", async () => {
+    const api = createApi({});
+    (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({
+      taskId: "thread-created",
+      messageId: "msg-1",
+      activeLeafMessageId: "msg-1",
+      runId: "run-1",
+      attemptNo: 1
+    });
+    const { container, root } = renderSidebar({
+      api,
+      stack: [{
+        kind: "compose",
+        taskId: "parent-task",
+        parentMessageId: "message-1",
+        parentTaskRootPath: ".meowbert/task-runs/parent-task",
+        selectedText: null,
+        pendingThreadTaskId: "pending-thread-1"
+      }]
+    });
+    await flushEffects();
+
+    const switches = Array.from(container.querySelectorAll<HTMLInputElement>("input[role='switch']"));
+    expect(switches).toHaveLength(2);
+    expect(switches[0].checked).toBe(true);
+    expect(switches[0].disabled).toBe(false);
+    expect(switches[1].checked).toBe(false);
+
+    await act(async () => {
+      switches[0].click();
+      switches[1].click();
+      container.querySelector<HTMLButtonElement>("[data-testid='type-thread-text']")?.click();
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-testid='submit-thread']")?.click();
+      await Promise.resolve();
+    });
+
+    expect(api.post).toHaveBeenCalledWith(
+      "/api/tasks/parent-task/threads",
+      expect.objectContaining({ readOnly: false, includeFullHistory: true })
+    );
+    act(() => root.unmount());
+  });
+
+  it("disables read-only and submits writable threads for Host mode parent tasks", async () => {
+    const api = createApi({});
+    (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({
+      taskId: "thread-host",
+      messageId: "msg-1",
+      activeLeafMessageId: "msg-1",
+      runId: "run-1",
+      attemptNo: 1
+    });
+    const { container, root } = renderSidebar({
+      api,
+      parentExecutionTarget: {
+        kind: "local",
+        deviceId: "11111111-1111-4111-8111-111111111111",
+        mode: "host"
+      },
+      stack: [{
+        kind: "compose",
+        taskId: "parent-task",
+        parentMessageId: "message-1",
+        parentTaskRootPath: ".meowbert/task-runs/parent-task",
+        selectedText: null,
+        pendingThreadTaskId: "pending-thread-host"
+      }]
+    });
+    await flushEffects();
+
+    const [readOnlySwitch] = Array.from(container.querySelectorAll<HTMLInputElement>("input[role='switch']"));
+    expect(readOnlySwitch.checked).toBe(false);
+    expect(readOnlySwitch.disabled).toBe(true);
+    expect(container.textContent).toContain("Requires sandbox mode");
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-testid='type-thread-text']")?.click();
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-testid='submit-thread']")?.click();
+      await Promise.resolve();
+    });
+
+    expect(api.post).toHaveBeenCalledWith(
+      "/api/tasks/parent-task/threads",
+      expect.objectContaining({ readOnly: false })
+    );
+    act(() => root.unmount());
   });
 });

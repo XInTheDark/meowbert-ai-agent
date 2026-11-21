@@ -30,7 +30,11 @@ async function handleCreateTaskThread(request: FastifyRequest, reply: FastifyRep
   const params = taskParams.parse(request.params);
   const body = createTaskThreadBody.parse(request.body ?? {});
   const access = await assertTaskMember(params.taskId, request.user.id);
-  const localError = await localTaskMutationError(params.taskId, request.user.id, { thread: true });
+  const localError = await localTaskMutationError(params.taskId, request.user.id, {
+    thread: true,
+    readOnly: body.readOnly === true,
+    tools: body.tools
+  });
   if (localError) return reply.status(400).send({ error: localError });
   await ensureTaskHistoryWarm(params.taskId, { executionOnly: false });
   const entitlement = await getPromptEntitlementStatus(request.user.id);
@@ -59,6 +63,7 @@ async function handleCreateTaskThread(request: FastifyRequest, reply: FastifyRep
     tools: body.tools,
     agent: selectedAgent,
     includeFullHistory: body.includeFullHistory,
+    readOnly: body.readOnly,
     interactiveCanvasId: body.interactiveCanvasId ?? undefined,
     interactiveCanvasIntent: body.interactiveCanvasIntent ?? (body.interactiveCanvasId ? "update" : undefined)
   });

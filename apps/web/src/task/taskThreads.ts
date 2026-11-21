@@ -41,6 +41,7 @@ export interface CreateTaskThreadInput {
   allowComputerUse: boolean;
   selectedAgentId: string | null;
   includeFullHistory?: boolean;
+  readOnly?: boolean;
 }
 
 export interface CreateTaskThreadResponse {
@@ -80,6 +81,7 @@ export async function createTaskThread(input: CreateTaskThreadInput): Promise<Cr
       : {}),
     ...(hasTools ? { tools: toolsPayload } : {}),
     ...(input.selectedAgentId ? { agent: { id: input.selectedAgentId } } : {}),
-    ...(input.includeFullHistory ? { includeFullHistory: true } : {})
+    ...(input.includeFullHistory ? { includeFullHistory: true } : {}),
+    ...(typeof input.readOnly === "boolean" ? { readOnly: input.readOnly } : {})
   });
 }

@@ -13,12 +13,16 @@ it("allows standard and Agent Swarm local tasks", () => {
 });
 it("enforces the feature guard on followups schedules and threads while leaving cloud unchanged", async () => {
   vi.mocked(query).mockResolvedValue({rows:[{execution_target:{kind:"local", mode:"host"}}]} as never);
-  for (const input of [{tools:{subtasks:true}},{workflow:{type:"long_horizon"}},{thread:true}]) {
+  for (const input of [{tools:{subtasks:true}},{workflow:{type:"long_horizon"}},{thread:true,readOnly:true}]) {
     expect(await localTaskMutationError("t","u",input)).toBeTruthy();
   }
+  expect(await localTaskMutationError("t","u",{thread:true})).toBeNull();
+  expect(await localTaskMutationError("t","u",{thread:true,readOnly:false})).toBeNull();
   expect(await localTaskMutationError("t","u",{tools:{subtasks:false}})).toBeNull();
+  vi.mocked(query).mockResolvedValue({rows:[{execution_target:{kind:"local", mode:"sandbox"}}]} as never);
+  expect(await localTaskMutationError("t","u",{thread:true,readOnly:true})).toBeNull();
   vi.mocked(query).mockResolvedValue({rows:[{execution_target:{kind:"cloud"}}]} as never);
-  expect(await localTaskMutationError("t","u",{thread:true,tools:{subtasks:true}})).toBeNull();
+  expect(await localTaskMutationError("t","u",{thread:true,readOnly:true,tools:{subtasks:true}})).toBeNull();
 });
 
 it("allows scheduling and consented device tool options", () => {

@@ -1,7 +1,6 @@
-import { cloneConversationSnapshots, copyTaskMediaBlobs } from "@meowbert/shared";
+import { cloneConversationSnapshots, copyTaskMediaBlobs, createTaskMessageMetadata, type TaskExecutionTarget } from "@meowbert/shared";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
-import { createTaskMessageMetadata } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { listTaskMessageLineageIds } from "./task-message-lineage.js";
 import {
@@ -24,6 +23,8 @@ interface ParentTaskRow {
   task_root_path: string;
   interactive_canvas_id: string | null;
   interactive_canvas_intent: ProjectCanvasIntent | null;
+  execution_target?: TaskExecutionTarget | null;
+  network_disabled?: boolean;
 }
 
 interface SourceMessageRow {
@@ -113,6 +114,24 @@ function buildThreadInitialMessageText(
   ].join("\n");
 }
 
+function resolveThreadExecutionOptions(parentTask: ParentTaskRow, requestedReadOnly?: boolean): {
+  executionTarget: TaskExecutionTarget;
+  readOnly: boolean;
+  networkDisabled: boolean;
+} {
+  const executionTarget = parentTask.execution_target ?? { kind: "cloud" };
+  const isHostMode = executionTarget.kind === "local" && executionTarget.mode === "host";
+  const readOnly = requestedReadOnly ?? !isHostMode;
+  if (readOnly && isHostMode) {
+    throw new Error("Read-only threads require sandbox mode.");
+  }
+  return {
+    executionTarget,
+    readOnly,
+    networkDisabled: isHostMode ? false : parentTask.network_disabled === true
+  };
+}
+
 async function loadParentTaskOrThrow(client: PoolClient, taskId: string): Promise<ParentTaskRow> {
   const taskRes = await client.query<ParentTaskRow>(
     `SELECT id,
@@ -122,7 +141,9 @@ async function loadParentTaskOrThrow(client: PoolClient, taskId: string): Promis
             subtask_depth,
             task_root_path,
             interactive_canvas_id,
-            interactive_canvas_intent
+            interactive_canvas_intent,
+            execution_target,
+            network_disabled
        FROM tasks
       WHERE id = $1`,
     [taskId]
@@ -315,6 +336,7 @@ export async function createThreadTask(input: {
   interactiveCanvasId?: string | null;
   interactiveCanvasIntent?: ProjectCanvasIntent | null;
   includeFullHistory?: boolean;
+  readOnly?: boolean;
 }): Promise<{
   taskId: string;
   messageId: string;
@@ -349,6 +371,7 @@ export async function createThreadTask(input: {
     }
 
     const parentTask = await loadParentTaskOrThrow(client, input.parentTaskId);
+    const executionOptions = resolveThreadExecutionOptions(parentTask, input.readOnly);
     const lineageMessages = await loadOrderedSourceMessages(client, input.parentTaskId, lineageMessageIds);
     const sourceMessages = input.includeFullHistory
       ? lineageMessages
@@ -370,9 +393,12 @@ export async function createThreadTask(input: {
         subtask_depth,
         task_root_path,
         interactive_canvas_id,
-        interactive_canvas_intent
+        interactive_canvas_intent,
+        read_only,
+        network_disabled,
+        execution_target
       )
-      VALUES ($1, $2, $3, NULL, 'queued', 'web', $4, $5, $6, $7, $8, $9, $10)`,
+      VALUES ($1, $2, $3, NULL, 'queued', 'web', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
       [
         taskId,
         parentTask.workspace_id,
@@ -383,7 +409,10 @@ export async function createThreadTask(input: {
         parentTask.subtask_depth + 1,
         taskRootPath,
         input.interactiveCanvasId ?? parentTask.interactive_canvas_id,
-        input.interactiveCanvasIntent ?? (input.interactiveCanvasId ? "update" : parentTask.interactive_canvas_intent)
+        input.interactiveCanvasIntent ?? (input.interactiveCanvasId ? "update" : parentTask.interactive_canvas_intent),
+        executionOptions.readOnly,
+        executionOptions.networkDisabled,
+        JSON.stringify(executionOptions.executionTarget)
       ]
     );
 

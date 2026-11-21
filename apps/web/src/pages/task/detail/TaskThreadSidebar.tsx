@@ -26,9 +26,11 @@ import {
 } from "../../../task/taskFileDestinations";
 import { buildTaskRoutePath, resolveTaskRouteContext } from "../../../task/taskRouteContext";
 import { getTaskMessageAgentId } from "../../../task/taskModelSelection";
+import type { TaskExecutionTarget } from "@meowbert/shared";
 import { createTaskThread, listTaskThreads } from "../../../task/taskThreads";
 import { useTaskDetailEvents } from "./useTaskDetailEvents";
 import { TaskDetailConversationPane } from "./TaskDetailConversationPane";
+import { ThreadComposerOptions } from "./ThreadComposerOptions";
 import type {
   TaskAssistantMessageDisplayPreferences,
   TaskDetail,
@@ -313,6 +315,7 @@ function ThreadComposerPanel(props: {
   showAgentSwitcher: boolean;
   submitWithShiftEnter: boolean;
   initialToolOptions: TaskToolOptions;
+  parentExecutionTarget?: TaskExecutionTarget | null;
   panel: Extract<TaskThreadSidebarPanel, { kind: "compose" }>;
   canGoBack: boolean;
   onBack: () => void;
@@ -335,7 +338,10 @@ function ThreadComposerPanel(props: {
   const [selectedTexts, setSelectedTexts] = useState<SelectedTextQuote[]>(() => (
     props.panel.selectedText ? [props.panel.selectedText] : []
   ));
+  const isHostTarget = props.parentExecutionTarget?.kind === "local" && props.parentExecutionTarget.mode === "host";
+  const [readOnly, setReadOnly] = useState(() => !isHostTarget);
   const [includeFullHistory, setIncludeFullHistory] = useState(false);
+  const effectiveReadOnly = isHostTarget ? false : readOnly;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const subscriptionUsageWarning = useSubscriptionUsageWarning();
@@ -408,9 +414,10 @@ function ThreadComposerPanel(props: {
     setToolOptions(props.initialToolOptions);
     setSelectedAgentId(props.selectedAgentId);
     setSelectedTexts(props.panel.selectedText ? [props.panel.selectedText] : []);
+    setReadOnly(!isHostTarget);
     setIncludeFullHistory(false);
     setError(null);
-  }, [props.panel.pendingThreadTaskId, props.panel.selectedText, props.selectedAgentId]);
+  }, [isHostTarget, props.panel.pendingThreadTaskId, props.panel.selectedText, props.selectedAgentId]);
 
   async function handleSubmit(): Promise<void> {
     const message = joinTaskMessage(followUp, attachments);
@@ -434,7 +441,8 @@ function ThreadComposerPanel(props: {
         workspaceMemoryEnabled: props.workspaceMemoryEnabled,
         allowComputerUse: props.allowComputerUse,
         selectedAgentId,
-        includeFullHistory
+        includeFullHistory,
+        readOnly: effectiveReadOnly
       });
       setFollowUp("");
       setDraftsByConversation(clearStoredTaskConversationDraft(conversationDraftKey));
@@ -504,15 +512,14 @@ function ThreadComposerPanel(props: {
           submitWithShiftEnter={props.submitWithShiftEnter}
           subscriptionUsageWarning={subscriptionUsageWarning}
         />
-        <label className="thread-composer-history-option" title="Include tool calls and results from the task, not just its messages">
-          <input
-            type="checkbox"
-            checked={includeFullHistory}
-            onChange={(event) => setIncludeFullHistory(event.target.checked)}
-            disabled={isSubmitting}
-          />
-          <span>Include full task history</span>
-        </label>
+        <ThreadComposerOptions
+          readOnly={effectiveReadOnly}
+          readOnlyDisabledReason={isHostTarget ? "Requires sandbox mode" : null}
+          includeFullHistory={includeFullHistory}
+          disabled={isSubmitting}
+          onReadOnlyChange={setReadOnly}
+          onIncludeFullHistoryChange={setIncludeFullHistory}
+        />
         {error || uploadError ? <p className="error-text">{error || uploadError}</p> : null}
         <SourceFilePickerModal
           api={props.api}
@@ -1037,6 +1044,7 @@ export function TaskThreadSidebar(props: {
   enableThreadSelectionPopup: boolean;
   submitWithShiftEnter: boolean;
   initialToolOptions: TaskToolOptions;
+  parentExecutionTarget?: TaskExecutionTarget | null;
   assistantMessageDisplayPreferences: TaskAssistantMessageDisplayPreferences;
   showMessageAuthors?: boolean;
   stack: TaskThreadSidebarPanel[];
@@ -1094,6 +1102,7 @@ export function TaskThreadSidebar(props: {
           showAgentSwitcher={props.showAgentSwitcher}
           submitWithShiftEnter={props.submitWithShiftEnter}
           initialToolOptions={props.initialToolOptions}
+          parentExecutionTarget={props.parentExecutionTarget}
           panel={panel}
           canGoBack={props.stack.length > 1}
           onBack={props.onBack}

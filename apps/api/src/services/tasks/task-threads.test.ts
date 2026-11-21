@@ -59,7 +59,11 @@ const SOURCE_MESSAGES = [
   sourceRow({ id: "source-assistant", role: "assistant", content_json: { text: "Answer", response_items: [{ type: "reasoning" }] }, parent_message_id: "source-tool" })
 ];
 
-function createFakeClient(options: { outline: string | null }) {
+function createFakeClient(options: {
+  outline: string | null;
+  executionTarget?: Record<string, unknown>;
+  networkDisabled?: boolean;
+}) {
   const inserted: Array<{ id: string; role: unknown; content: Record<string, unknown>; parentId: unknown }> = [];
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
     if (sql.includes("INSERT INTO task_messages")) {
@@ -81,7 +85,9 @@ function createFakeClient(options: { outline: string | null }) {
         subtask_depth: 0,
         task_root_path: ".meowbert/task-runs/parent-task",
         interactive_canvas_id: null,
-        interactive_canvas_intent: null
+        interactive_canvas_intent: null,
+        execution_target: options.executionTarget ?? { kind: "cloud" },
+        network_disabled: options.networkDisabled ?? false
       }]);
     }
     if (sql.includes("id = ANY($2::uuid[])")) return buildRowsResult(SOURCE_MESSAGES);
@@ -100,7 +106,11 @@ describe("createThreadTask", () => {
     mocks.enqueueRun.mockResolvedValue({ runId: "run-1", attemptNo: 1 });
   });
 
-  function useClient(options: { outline: string | null }) {
+  function useClient(options: {
+    outline: string | null;
+    executionTarget?: Record<string, unknown>;
+    networkDisabled?: boolean;
+  }) {
     const fake = createFakeClient(options);
     mocks.withTransaction.mockImplementation(async (callback) => callback(fake.client as never));
     return fake;
@@ -164,5 +174,54 @@ describe("createThreadTask", () => {
     expect(fake.inserted.map((row) => row.role)).toEqual(["user", "assistant", "tool", "assistant", "user"]);
     expect(fake.inserted[3].content).toHaveProperty("response_items");
     expect(fake.inserted[4].parentId).toBe("new-4");
+  });
+
+  it("defaults cloud threads to read-only and lets callers opt into writable threads", async () => {
+    const defaultFake = useClient({ outline: null, networkDisabled: true });
+    await createThreadTask({
+      taskId: "thread-ro",
+      parentTaskId: "parent-task",
+      parentMessageId: "source-assistant",
+      userId: "user-1",
+      message: "Inspect"
+    });
+    const defaultTaskInsert = defaultFake.client.query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO tasks"));
+    expect(defaultTaskInsert?.[1]?.slice(-3)).toEqual([true, true, JSON.stringify({ kind: "cloud" })]);
+
+    const writableFake = useClient({ outline: null });
+    await createThreadTask({
+      taskId: "thread-rw",
+      parentTaskId: "parent-task",
+      parentMessageId: "source-assistant",
+      userId: "user-1",
+      message: "Edit files",
+      readOnly: false
+    });
+    const writableTaskInsert = writableFake.client.query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO tasks"));
+    expect(writableTaskInsert?.[1]?.slice(-3)).toEqual([false, false, JSON.stringify({ kind: "cloud" })]);
+  });
+
+  it("inherits host execution target as writable and rejects read-only threads on host mode", async () => {
+    const hostTarget = { kind: "local", deviceId: "11111111-1111-4111-8111-111111111111", mode: "host" };
+    const hostFake = useClient({ outline: null, executionTarget: hostTarget });
+    await createThreadTask({
+      taskId: "thread-host",
+      parentTaskId: "parent-task",
+      parentMessageId: "source-assistant",
+      userId: "user-1",
+      message: "Review on host"
+    });
+    const hostTaskInsert = hostFake.client.query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO tasks"));
+    expect(hostTaskInsert?.[1]?.slice(-3)).toEqual([false, false, JSON.stringify(hostTarget)]);
+
+    useClient({ outline: null, executionTarget: hostTarget });
+    await expect(createThreadTask({
+      taskId: "thread-host-ro",
+      parentTaskId: "parent-task",
+      parentMessageId: "source-assistant",
+      userId: "user-1",
+      message: "Read-only on host",
+      readOnly: true
+    })).rejects.toThrow("Read-only threads require sandbox mode.");
   });
 });

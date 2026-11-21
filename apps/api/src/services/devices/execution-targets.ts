@@ -61,12 +61,12 @@ export async function loadTaskExecutionTarget(taskId: string): Promise<TaskExecu
 
 export async function localTaskMutationError(taskId: string, _userId: string, input: {
   tools?: { subtasks?: boolean; scheduleTask?: boolean; computerUse?: boolean };
-  workflow?: unknown; schedule?: unknown; thread?: boolean;
+  workflow?: unknown; schedule?: unknown; thread?: boolean; readOnly?: boolean;
 }): Promise<string | null> {
   const target = await loadTaskExecutionTarget(taskId);
   if (target?.kind !== "local") return null;
   if (!config.localExecution.enabled) return "Local execution is disabled on this server.";
-  if (input.thread && target.mode === "host") return "Read-only threads require sandbox mode.";
+  if (input.thread && input.readOnly === true && target.mode === "host") return "Read-only threads require sandbox mode.";
   const featureError = localTaskFeatureError({ ...input, bridge: target.bridge === true });
   if (featureError) return featureError;
   return null;
