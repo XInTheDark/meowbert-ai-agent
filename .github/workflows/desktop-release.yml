@@ -115,6 +115,7 @@ jobs:
             --title "Meowbert Desktop $DISPLAY_VERSION"
             --notes-file "${NOTES_FILE}"
             --target "${TARGET_RELEASE_COMMIT}"
+            --draft
           )
           if [[ "${APP_VERSION}" == *-* && ( "${TAG_NAME}" == "${EXPECTED_TAG}" || "${TAG_NAME}" == "${EXPECTED_V_TAG}" ) ]]; then
             args+=(--prerelease)
@@ -293,3 +294,54 @@ jobs:
             apps/desktop/dist-packages/*.blockmap
             apps/desktop/dist-packages/latest*.yml
             apps/desktop/dist-packages/appcast.xml
+
+  publish-release:
+    if: ${{ !inputs.build_only }}
+    name: Publish GitHub release
+    needs: [create-release, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Publish the verified GitHub release
+        env:
+          TAG_NAME: ${{ env.RELEASE_TAG }}
+          TARGET_GH_TOKEN: ${{ secrets.DESKTOP_RELEASES_GH_TOKEN }}
+          FALLBACK_GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET_REPOSITORY="$(node -e "const { resolveDesktopReleaseEnv } = require('./config/desktop-release.cjs'); process.stdout.write(resolveDesktopReleaseEnv().repository);")"
+          APP_VERSION="$(node -p "require('./apps/desktop/package.json').version")"
+          EXPECTED_TAG="desktop-${APP_VERSION}"
+          EXPECTED_V_TAG="desktop-v${APP_VERSION}"
+          if [[ -n "${TARGET_GH_TOKEN}" ]]; then
+            export GH_TOKEN="${TARGET_GH_TOKEN}"
+          elif [[ "${TARGET_REPOSITORY}" == "${GITHUB_REPOSITORY}" ]]; then
+            export GH_TOKEN="${FALLBACK_GH_TOKEN}"
+          else
+            echo "DESKTOP_RELEASES_GH_TOKEN is required to publish desktop releases to ${TARGET_REPOSITORY}" >&2
+            exit 1
+          fi
+
+          if [[ "${TAG_NAME}" == "${EXPECTED_TAG}" || "${TAG_NAME}" == "${EXPECTED_V_TAG}" ]]; then
+            gh release view "${TAG_NAME}" --repo "${TARGET_REPOSITORY}" --json assets | node -e '
+              const fs = require("node:fs");
+              const { assets } = JSON.parse(fs.readFileSync(0, "utf8"));
+              for (const name of [
+                "Meowbert-desktop-mac-universal.dmg",
+                "Meowbert-desktop-mac-universal.zip",
+                "Meowbert-desktop-win-x64.exe",
+                "Meowbert-desktop-win-x64.zip",
+                "latest.yml",
+                "latest-mac.yml",
+                "appcast.xml"
+              ]) {
+                if (!assets.some((asset) => asset.name === name && asset.size > 0)) {
+                  throw new Error(`Missing or empty release asset: ${name}`);
+                }
+              }
+            '
+          fi
+
+          gh release edit "${TAG_NAME}" --repo "${TARGET_REPOSITORY}" --draft=false
