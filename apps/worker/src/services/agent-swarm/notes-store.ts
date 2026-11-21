@@ -1,11 +1,12 @@
 import type { PoolClient } from "pg";
 import { withTransaction } from "../../lib/db.js";
 import type { SwarmLaneRow } from "./lane-store.js";
+import { wakeParentIfBarrierMetInTx } from "./barrier.js";
 import { emitSwarmEvent } from "./events.js";
 import { lockSwarmInTx } from "./scheduler.js";
-import type { SwarmNote, SwarmNoteKind } from "@meowbert/run-executor/agent-swarm/lane-types";
+import type { ParentShareNote, ShareNotifyMode, SwarmNote, SwarmNoteKind } from "@meowbert/run-executor/agent-swarm/lane-types";
 
-export type { SwarmNote, SwarmNoteKind } from "@meowbert/run-executor/agent-swarm/lane-types";
+export type { ParentShareNote, ShareNotifyMode, SwarmNote, SwarmNoteKind } from "@meowbert/run-executor/agent-swarm/lane-types";
 
 const MAX_NOTES_PER_DELIVERY = 50;
 
@@ -17,16 +18,27 @@ export async function insertSwarmNote(note: {
   scopeParentTaskId: string;
   kind: SwarmNoteKind;
   content: string;
-}): Promise<void> {
-  await withTransaction(async (client) => {
+  notifySiblings?: boolean;
+  notifyParent?: ShareNotifyMode;
+}): Promise<{ parentWoken: boolean }> {
+  const notifySiblings = note.notifySiblings ?? true;
+  const notifyParent: ShareNotifyMode = note.notifyParent ?? "none";
+  const parentWoken = await withTransaction(async (client) => {
     await lockSwarmInTx(client, note.swarmTaskId);
     await client.query(
-      `INSERT INTO task_swarm_notes (swarm_task_id, author_task_id, scope_parent_task_id, kind, content)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [note.swarmTaskId, note.authorTaskId, note.scopeParentTaskId, note.kind, note.content]
+      `INSERT INTO task_swarm_notes (swarm_task_id, author_task_id, scope_parent_task_id, kind, content, notify_siblings, notify_parent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [note.swarmTaskId, note.authorTaskId, note.scopeParentTaskId, note.kind, note.content, notifySiblings, notifyParent]
     );
+    return notifyParent === "wake" ? wakeParentIfBarrierMetInTx(client, note.scopeParentTaskId) : false;
   });
-  await emitSwarmEvent(note.swarmTaskId, note.content, { laneId: note.authorTaskId, noteKind: note.kind });
+  await emitSwarmEvent(note.swarmTaskId, note.content, {
+    laneId: note.authorTaskId,
+    noteKind: note.kind,
+    ...(!notifySiblings ? { notifySiblings: false } : {}),
+    ...(notifyParent !== "none" ? { notifyParent } : {})
+  });
+  return { parentWoken };
 }
 
 interface ScopedNote extends SwarmNote {
@@ -69,6 +81,7 @@ export async function claimLaneNotesInTx(
       WHERE note.swarm_task_id = $1
         AND note.seq > $2::bigint
         AND note.author_task_id <> $3
+        AND note.notify_siblings = true
         AND (note.scope_parent_task_id = $4 OR note.author_task_id = ANY($5::uuid[]))
       ORDER BY note.seq
       LIMIT $6`,
@@ -83,4 +96,31 @@ export async function claimLaneNotesInTx(
     ]);
   }
   return notes.map(({ author_task_id: _author, ...note }) => note);
+}
+
+// Explicit share notes addressed to this parent's inbox (notify = 'inbox' or 'wake'), claimed once
+// in sequence order inside the parent's inbox transaction.
+export async function claimParentShareNotesInTx(
+  client: PoolClient,
+  parentTaskId: string
+): Promise<ParentShareNote[]> {
+  const pending = await client.query<ParentShareNote>(
+    `SELECT note.seq::text AS seq, note.author_task_id, COALESCE(author.title, 'Lane') AS author_title,
+            note.content, note.notify_parent
+       FROM task_swarm_notes note
+       LEFT JOIN task_swarm_lanes author ON author.task_id = note.author_task_id
+      WHERE note.scope_parent_task_id = $1
+        AND note.notify_parent <> 'none'
+        AND note.parent_delivered_at IS NULL
+      ORDER BY note.seq
+      LIMIT $2
+      FOR UPDATE OF note`,
+    [parentTaskId, MAX_NOTES_PER_DELIVERY]
+  );
+  if (pending.rows.length === 0) return [];
+  await client.query(
+    "UPDATE task_swarm_notes SET parent_delivered_at = now() WHERE seq = ANY($1::bigint[])",
+    [pending.rows.map((row) => row.seq)]
+  );
+  return pending.rows;
 }

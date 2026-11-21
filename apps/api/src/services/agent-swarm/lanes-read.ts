@@ -99,15 +99,31 @@ export async function loadAgentSwarmView(swarmTaskId: string): Promise<AgentSwar
   };
 }
 
-export async function loadAgentSwarmNotes(swarmTaskId: string, afterSeq: string | null): Promise<AgentSwarmNoteView[]> {
-  const result = await query<{ seq: string; author_task_id: string; title: string | null; kind: "shared" | "auto"; content: string; created_at: string }>(
-    `SELECT note.seq::text AS seq, note.author_task_id, lane.title, note.kind, note.content, note.created_at
+export async function loadAgentSwarmNotes(
+  swarmTaskId: string,
+  afterSeq: string | null,
+  kind: "shared" | "auto" | null = null
+): Promise<AgentSwarmNoteView[]> {
+  const result = await query<{
+    seq: string;
+    author_task_id: string;
+    title: string | null;
+    kind: "shared" | "auto";
+    content: string;
+    created_at: string;
+    notify_siblings: boolean;
+    notify_parent: "none" | "inbox" | "wake";
+  }>(
+    `SELECT note.seq::text AS seq, note.author_task_id, lane.title, note.kind, note.content, note.created_at,
+            note.notify_siblings, note.notify_parent
        FROM task_swarm_notes note
        LEFT JOIN task_swarm_lanes lane ON lane.task_id = note.author_task_id
-      WHERE note.swarm_task_id = $1 AND note.seq > $2::bigint
+      WHERE note.swarm_task_id = $1
+        AND note.seq > $2::bigint
+        AND ($3::text IS NULL OR note.kind = $3)
       ORDER BY note.seq
-      LIMIT $3`,
-    [swarmTaskId, afterSeq ?? "0", MAX_NOTES_PER_PAGE]
+      LIMIT $4`,
+    [swarmTaskId, afterSeq ?? "0", kind, MAX_NOTES_PER_PAGE]
   );
   return result.rows.map((note) => ({
     seq: note.seq,
@@ -115,6 +131,8 @@ export async function loadAgentSwarmNotes(swarmTaskId: string, afterSeq: string 
     laneTitle: note.title ?? "Leader",
     kind: note.kind,
     content: note.content,
-    createdAt: note.created_at
+    createdAt: note.created_at,
+    notifySiblings: note.notify_siblings,
+    notifyParent: note.notify_parent
   }));
 }

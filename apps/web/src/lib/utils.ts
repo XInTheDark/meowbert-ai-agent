@@ -351,6 +351,7 @@ export function badgeClass(status: string): string {
     status === "running"
     || status === "starting"
     || status === "queued"
+    || status === "waiting_for_lanes"
     || status === "paused"
     || status === "awaiting_input"
     || status === "interrupting"

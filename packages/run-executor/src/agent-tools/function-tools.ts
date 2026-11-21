@@ -1139,51 +1139,68 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
       additionalProperties: false
     }
   },
-  {
+  buildWaitFunctionTool(false)
+];
+
+export function buildWaitFunctionTool(includeSwarmLanes = false): FunctionTool {
+  const properties: Record<string, unknown> = {
+    seconds: {
+      type: includeSwarmLanes ? ["integer", "null"] : "integer",
+      minimum: 1,
+      maximum: 604800,
+      description: includeSwarmLanes
+        ? "Maximum wait in seconds. Required for time and shell waits (1 to 3600, or up to 21600 with shell_sessions; 60 to 604800 for infinite recurring time-only waits). Use null when lanes is true."
+        : "Required maximum wait. In-run waits take 1 to 3600 seconds, or up to 21600 when shell_sessions are set, so a long job can wake you when it finishes. Infinite recurring time-only waits use 60 to 604800 seconds. Never unlimited."
+    },
+    shell_sessions: {
+      type: ["array", "null"],
+      minItems: 1,
+      maxItems: 8,
+      description: "Optional shell conditions, all combined with OR alongside seconds. Null waits only for time. Requires persistent project shells. New output is measured from the first status observation in this wait; an existing non-null exit code wakes immediately.",
+      items: {
+        type: "object",
+        properties: {
+          session_id: { type: "string", description: "Existing shell session ID from shell_session or run_shell." },
+          on_output: { type: "boolean", description: "Wake when the raw output log changes after the initial observation." },
+          on_exit: { type: "boolean", description: "Wake when exit_code is not null, including zero. Enable at least one condition." }
+        },
+        required: ["session_id", "on_output", "on_exit"],
+        additionalProperties: false
+      }
+    },
+    ...(includeSwarmLanes
+      ? {
+          lanes: {
+            type: ["boolean", "null"],
+            description: "Set true to end your turn now and resume once all active lanes have finished (use null for seconds and shell_sessions). Use null or false for timed or shell waits."
+          }
+        }
+      : {}),
+    response: {
+      type: ["string", "null"],
+      description: "Required update for infinite recurring time-only waits. Use null for in-run waits."
+    },
+    notify: {
+      type: ["boolean", "null"],
+      description: "Whether to notify user channels for infinite recurring time-only waits (default true). Use null for in-run waits."
+    }
+  };
+
+  return {
     type: "function",
     name: WAIT_TOOL_NAME,
-    description:
-      "Use only when you actually have to wait, such as for a shell command to finish. Never use this to delay the task or postpone work you can do now. Wait in the current run until the timeout or any enabled shell-session condition is met, whichever happens first. In infinite recurring auto-runs only, a wait without shell_sessions instead ends the cycle and schedules the next run.",
+    description: includeSwarmLanes
+      ? "Use only when you actually have to wait, such as for a shell command or active lanes to finish. Never use this to delay the task or postpone work you can do now. With lanes true, ends your turn and resumes once all active lanes have finished. Otherwise waits in the current run until the timeout or any enabled shell-session condition is met, whichever happens first. In infinite recurring auto-runs only, a wait without shell_sessions or lanes instead ends the cycle and schedules the next run."
+      : "Use only when you actually have to wait, such as for a shell command to finish. Never use this to delay the task or postpone work you can do now. Wait in the current run until the timeout or any enabled shell-session condition is met, whichever happens first. In infinite recurring auto-runs only, a wait without shell_sessions instead ends the cycle and schedules the next run.",
     strict: true,
     parameters: {
       type: "object",
-      properties: {
-        seconds: {
-          type: "integer",
-          minimum: 1,
-          maximum: 604800,
-          description: "Required maximum wait. In-run waits take 1 to 3600 seconds, or up to 21600 when shell_sessions are set, so a long job can wake you when it finishes. Infinite recurring time-only waits use 60 to 604800 seconds. Never unlimited."
-        },
-        shell_sessions: {
-          type: ["array", "null"],
-          minItems: 1,
-          maxItems: 8,
-          description: "Optional shell conditions, all combined with OR alongside seconds. Null waits only for time. Requires persistent project shells. New output is measured from the first status observation in this wait; an existing non-null exit code wakes immediately.",
-          items: {
-            type: "object",
-            properties: {
-              session_id: { type: "string", description: "Existing shell session ID from shell_session or run_shell." },
-              on_output: { type: "boolean", description: "Wake when the raw output log changes after the initial observation." },
-              on_exit: { type: "boolean", description: "Wake when exit_code is not null, including zero. Enable at least one condition." }
-            },
-            required: ["session_id", "on_output", "on_exit"],
-            additionalProperties: false
-          }
-        },
-        response: {
-          type: ["string", "null"],
-          description: "Required update for infinite recurring time-only waits. Use null for in-run waits."
-        },
-        notify: {
-          type: ["boolean", "null"],
-          description: "Whether to notify user channels for infinite recurring time-only waits (default true). Use null for in-run waits."
-        }
-      },
-      required: ["seconds", "shell_sessions", "response", "notify"],
+      properties,
+      required: Object.keys(properties),
       additionalProperties: false
     }
-  }
-];
+  };
+}
 
 export const TASK_TITLE_FUNCTION_TOOL: FunctionTool = {
   type: "function",

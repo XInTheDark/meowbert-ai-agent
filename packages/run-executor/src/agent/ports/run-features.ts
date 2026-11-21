@@ -42,6 +42,7 @@ export interface RunFeatures {
   interceptFinalResponse(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult | null>;
 
   finalizeSwarmRun(execution: AgentExecutionContext, appendAssistantMessage: AppendAssistantMessage): Promise<boolean>;
+  hasActiveSwarmLanes(ctx: ToolDispatchContext): Promise<boolean>;
   parkLeaderIfLanesActive(execution: AgentExecutionContext): Promise<boolean>;
   parkForSubagentMail(job: TaskExecutionJob, deadline: string): Promise<void>;
 }
@@ -64,6 +65,7 @@ export const noRunFeatures: RunFeatures = {
   assertSubagentsFinished: async () => {},
   interceptFinalResponse: async () => null,
   finalizeSwarmRun: async () => false,
+  hasActiveSwarmLanes: async () => false,
   parkLeaderIfLanesActive: async () => false,
   parkForSubagentMail: async () => unavailable("Subagents")
 };

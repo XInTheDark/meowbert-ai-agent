@@ -5,6 +5,7 @@ import { buildDefaultTaskAssistantMessageDisplayPreferences } from "../../../tas
 import type { TaskDetail } from "../../../lib/types";
 import { badgeClass, formatRelative, getEffectiveTaskStatus } from "../../../lib/utils";
 import { TaskDetailConversationPane } from "./TaskDetailConversationPane";
+import { getUsageSummary, TaskDetailUsageChip } from "./TaskDetailUsageChip";
 
 const WORKER_POLL_INTERVAL_MS = 3000;
 
@@ -14,13 +15,17 @@ interface TaskWorkflowWorkerPanelProps {
   slotIndex: number;
   workerTitle: string | null;
   status: string;
+  onTaskDetailChange?: (detail: TaskDetail | null) => void;
 }
 
 export function TaskWorkflowWorkerPanel(props: TaskWorkflowWorkerPanelProps) {
   const [taskDetail, setTaskDetail] = useState<TaskDetail | null>(null);
+  const [contextChipExpanded, setContextChipExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const chatFeedRef = useRef<HTMLDivElement>(null);
+  const onTaskDetailChangeRef = useRef(props.onTaskDetailChange);
+  onTaskDetailChangeRef.current = props.onTaskDetailChange;
 
   useEffect(() => {
     let cancelled = false;
@@ -33,10 +38,12 @@ export function TaskWorkflowWorkerPanel(props: TaskWorkflowWorkerPanelProps) {
         );
         if (cancelled) return;
         setTaskDetail(response);
+        onTaskDetailChangeRef.current?.(response);
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : String(loadError));
           setTaskDetail(null);
+          onTaskDetailChangeRef.current?.(null);
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -67,11 +74,22 @@ export function TaskWorkflowWorkerPanel(props: TaskWorkflowWorkerPanelProps) {
     }),
     [props.status, taskDetail?.task.cancellation_requested, taskDetail?.task.status, taskDetail?.workflow]
   );
+  const usage = useMemo(() => getUsageSummary(taskDetail?.latest_context_usage ?? null), [taskDetail?.latest_context_usage]);
 
   return (
     <div className="workflow-worker-sidebar-pane">
       <div className="workflow-worker-meta-bar">
-        <span className={`${badgeClass(displayStatus)} task-recurring-pill`}>{displayStatus}</span>
+        <div className="workflow-worker-meta-left">
+          <span className={`${badgeClass(displayStatus)} task-recurring-pill`}>{displayStatus}</span>
+          <TaskDetailUsageChip
+            taskId={props.workerTaskId}
+            usage={usage}
+            lastIdleCompactionAt={taskDetail?.last_idle_compaction_at ?? null}
+            expanded={contextChipExpanded}
+            onExpandedChange={setContextChipExpanded}
+            align="left"
+          />
+        </div>
         {taskDetail?.task.updated_at ? (
           <span className="muted-text">Updated {formatRelative(taskDetail.task.updated_at)}</span>
         ) : null}

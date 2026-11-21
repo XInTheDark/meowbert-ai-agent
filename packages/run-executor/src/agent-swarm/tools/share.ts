@@ -11,7 +11,11 @@ export async function handleShare(backend: SwarmBackend, call: ResponseFunctionT
   const roleError = checkSwarmToolRole(SHARE_TOOL_NAME, ctx.swarm?.run);
   if (roleError) return toolErrorResult(roleError);
   const parsed = shareArgumentsSchema.safeParse(JSON.parse(call.arguments));
-  if (!parsed.success) return toolErrorResult("share needs a short text of up to 2,000 characters.");
-  await backend.shareNote(swarmRunRef(ctx), parsed.data.text);
-  return { output: { shared: true } };
+  if (!parsed.success) {
+    return toolErrorResult(`Invalid share arguments: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`);
+  }
+  const { text, scope } = parsed.data;
+  const wakeParent = parsed.data.wake_parent === true;
+  await backend.shareNote(swarmRunRef(ctx), { text, scope, wakeParent });
+  return { output: { shared: true, scope, wake_parent: wakeParent } };
 }

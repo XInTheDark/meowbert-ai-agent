@@ -8,7 +8,8 @@ vi.mock("../agent-swarm/park.js", () => ({ clearSwarmPark: vi.fn() }));
 vi.mock("../agent-swarm/db-backend.js", () => ({
   dbSwarmBackend: { startCheckLane: vi.fn(async () => ({ taskId: "check", label: "Check", title: "Check" })),
     forkLanes: vi.fn(async (_run: unknown, input: { lanes: Array<{ taskId: string; label: string; title: string }> }) =>
-    input.lanes.map(({ taskId, label, title }) => ({ taskId, label, title }))) }
+    input.lanes.map(({ taskId, label, title }) => ({ taskId, label, title }))),
+    shareNote: vi.fn(async () => {}) }
 }));
 
 const { dbSwarmBackend } = await import("../agent-swarm/db-backend.js");
@@ -92,6 +93,30 @@ describe("swarm calls from a device", () => {
     await expect(SWARM_CALL_HANDLERS["swarm.startCheckLane"](session(true), [{ reviewEffort: "high" }]))
       .rejects.toThrow("Review effort must be standard or thorough.");
     expect(dbSwarmBackend.startCheckLane).not.toHaveBeenCalled();
+  });
+
+  it("forwards share scope and wakeParent through the desktop backend and rejects invalid values", async () => {
+    const laneSession = {
+      ...session(true) as Record<string, unknown>,
+      swarm: {
+        ...(session(true) as { swarm: Record<string, unknown> }).swarm,
+        context: {
+          ...(session(true) as { swarm: { context: Record<string, unknown> } }).swarm.context,
+          lane: { task_id: "lane-1", swarm_task_id: "leader", parent_task_id: "leader", depth: 1, kind: "split" }
+        }
+      }
+    } as never;
+    const backend = createHttpSwarmBackend({
+      call: (method, args) => SWARM_CALL_HANDLERS[method as "swarm.shareNote"](laneSession, args),
+      model: vi.fn()
+    });
+    await backend.shareNote({} as never, { text: "Need direction.", scope: "parent", wakeParent: true });
+    expect(dbSwarmBackend.shareNote).toHaveBeenCalledWith(expect.anything(), { text: "Need direction.", scope: "parent", wakeParent: true });
+
+    await expect(SWARM_CALL_HANDLERS["swarm.shareNote"](laneSession, [{ text: "Note", scope: "invalid" }]))
+      .rejects.toThrow("scope must be siblings, parent or all.");
+    await expect(SWARM_CALL_HANDLERS["swarm.shareNote"](laneSession, [{ text: "Note", scope: "siblings", wakeParent: true }]))
+      .rejects.toThrow("wakeParent cannot be true when scope is siblings.");
   });
 
   it("rejects swarm calls from a run outside a swarm", async () => {

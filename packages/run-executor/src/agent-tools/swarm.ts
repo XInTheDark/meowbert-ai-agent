@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { CHOSEN_MODEL_ROUTE_EFFORTS, REVIEW_EFFORT_LEVELS, REVIEW_PRIORITIES, reviewEffortSchema, reviewFindingSchema, type PlatformModelRouter } from "@meowbert/shared";
+import { SHARE_SCOPES } from "../agent-swarm/lane-types.js";
 
 // Every forked swarm agent, leader and lanes alike, is offered the same swarm tools so a fork's tools
 // array matches its parent's; who may call what is checked when the call is dispatched. Check lanes
@@ -46,7 +47,8 @@ export const splitArgumentsSchema = z.object({
     weight: z.number().positive().nullable(),
     ...laneModel
   })).min(1),
-  spine_path: z.string().trim().min(1).nullable()
+  spine_path: z.string().trim().min(1).nullable(),
+  wait: z.boolean().nullable().optional()
 });
 
 export const divergeArgumentsSchema = z.object({
@@ -83,7 +85,11 @@ export const resumeArgumentsSchema = z.object({
 });
 
 export const shareArgumentsSchema = z.object({
-  text: z.string().trim().min(1).max(2_000)
+  text: z.string().trim().min(1).max(2_000),
+  scope: z.enum(SHARE_SCOPES),
+  wake_parent: z.boolean().nullable().optional()
+}).refine((value) => !(value.scope === "siblings" && value.wake_parent === true), {
+  message: "wake_parent cannot be true when scope is \"siblings\"."
 });
 
 export const submitArgumentsSchema = z.object({
@@ -131,7 +137,7 @@ function modelChoiceProperties(router: PlatformModelRouter | null): Record<strin
 }
 
 function buildSplitTool(router: PlatformModelRouter | null): FunctionTool {
-  return tool(SPLIT_TOOL_NAME, "Fork copies of yourself (lanes) that each take a different, concrete part of the work. Lanes start with everything you know. Must be your last tool call; your turn ends and you resume with their summaries once all have submitted.", {
+  return tool(SPLIT_TOOL_NAME, "Fork copies of yourself (lanes) that each take a different, concrete part of the work. Lanes start with everything you know. Must be your last tool call in the response. By default (wait true or null) your turn ends and you resume once all lanes submit; pass wait false to keep working while they run.", {
     lanes: {
       type: "array",
       minItems: 1,
@@ -142,7 +148,8 @@ function buildSplitTool(router: PlatformModelRouter | null): FunctionTool {
         ...modelChoiceProperties(router)
       })
     },
-    spine_path: { type: ["string", "null"], description: "Path of the spine file you wrote for a split deliverable; null when there is none." }
+    spine_path: { type: ["string", "null"], description: "Path of the spine file you wrote for a split deliverable; null when there is none." },
+    wait: { type: ["boolean", "null"], description: "Whether to pause your turn now until your lanes finish (default true when null). Pass false to keep working in parallel while they run; finished lane results arrive between your steps, or call wait with lanes true to pause for them later." }
   });
 }
 
@@ -190,8 +197,17 @@ const RESUME_TOOL = tool(RESUME_TOOL_NAME, "Continue one of your dormant lanes w
   extra_tokens: { type: ["integer", "null"], description: "Budget to add to the lane's share when budgets are on; otherwise null." }
 });
 
-const SHARE_TOOL = tool(SHARE_TOOL_NAME, "Lanes only. Share a short note with your sibling lanes: a finding, decision or warning that would change how they act. They see it at their next step.", {
-  text: { type: "string", description: "One or two lines." }
+const SHARE_TOOL = tool(SHARE_TOOL_NAME, "Lanes only. Share a short note with your sibling lanes, your parent's inbox, or both: a finding, decision or warning that would change how they act. Recipients see it at their next step.", {
+  text: { type: "string", description: "One or two lines." },
+  scope: {
+    type: "string",
+    enum: [...SHARE_SCOPES],
+    description: "Who receives this note: \"siblings\" (sibling lanes only), \"parent\" (your parent's inbox only), or \"all\" (both siblings and your parent)."
+  },
+  wake_parent: {
+    type: ["boolean", "null"],
+    description: "When scope is \"parent\" or \"all\", set true to wake a parked parent right away (use only for blockers or decisions your parent must act on now). Default false when null."
+  }
 });
 
 const SUBMIT_TOOL = tool(SUBMIT_TOOL_NAME, "Lanes only. Finish your part and report to your parent. The parent reads the summary, not your reasoning.", {

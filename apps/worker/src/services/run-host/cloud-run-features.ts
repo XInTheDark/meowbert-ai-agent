@@ -99,6 +99,7 @@ export const cloudRunFeatures: RunFeatures = {
   assertSubagentsFinished,
   interceptFinalResponse: swarmFeatures.interceptFinalResponse,
   finalizeSwarmRun: swarmFeatures.finalizeSwarmRun,
+  hasActiveSwarmLanes: swarmFeatures.hasActiveSwarmLanes,
   parkLeaderIfLanesActive: swarmFeatures.parkLeaderIfLanesActive,
   parkForSubagentMail
 };

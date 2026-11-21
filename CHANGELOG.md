@@ -1,5 +1,18 @@
 # Changelog
 
+## Nov 21, 2026
+
+### AI and agents
+
+- **Work alongside Agent Swarm lanes** — Leaders and parent lanes can now keep working in parallel after splitting off lanes (`wait: false`) instead of pausing immediately, receiving finished lane results between steps and pausing later with `wait` (`lanes: true`) when ready. Finishing early still waits for remaining lanes before delivering or submitting.
+- **Targeted lane notes and parent wakeups** — Lanes choose who receives each `share` note (`siblings`, `parent`, or `all`) so parent-only notes do not clutter sibling context, and can set `wake_parent: true` to wake a waiting parent right away when a blocker or plan change needs immediate attention.
+- **Clearer swarm waiting status** — Tasks parked waiting for Agent Swarm lanes now show **Waiting for lanes** instead of **Queued** in the task header and task list.
+- **Lane details, context usage, and shared notes timeline** — Opening an Agent Swarm lane now shows its live context usage chip in the lane bar along with **Shared notes** (chronological timeline with per-lane and whole-swarm filtering plus audience/wakeup badges) and **Details** tabs.
+
+### Self-hosting
+
+- **Swarm share inbox migration** — Run `npm run migrate` for migration 168 (`168_agent_swarm_parent_share_inbox.sql`) when running from source; Docker installs apply migrations when the API starts.
+
 ## Nov 16, 2026
 
 ### Tasks

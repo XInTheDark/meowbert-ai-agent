@@ -3,10 +3,12 @@ import path from "node:path";
 import { fromSandboxPath } from "@meowbert/shared/docker-sandbox";
 import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { SUBMIT_TOOL_NAME, submitArgumentsSchema } from "../../agent-tools/swarm.js";
+import type { SwarmBackend } from "../backend.js";
 import type { SwarmLaneFile } from "../lane-types.js";
 import { toolErrorResult, type ToolCallResult } from "../../agent-tool-dispatch/tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../../agent-tool-dispatch/types.js";
 import { checkSwarmToolRole } from "./role-gate.js";
+import { swarmRunRef } from "./swarm-tool-call.js";
 
 // About four characters per token; the summary goes into the parent's context, so it stays short.
 const CHARS_PER_TOKEN = 4;
@@ -25,12 +27,22 @@ async function describeFiles(paths: string[], taskDir: string): Promise<SwarmLan
   }));
 }
 
-export async function handleSubmit(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
+export async function handleSubmit(backend: SwarmBackend, call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
   const roleError = checkSwarmToolRole(SUBMIT_TOOL_NAME, ctx.swarm?.run);
   if (roleError) return toolErrorResult(roleError);
   if (ctx.codeModeParentCallId) return toolErrorResult("Call submit directly, not from exec.");
   const parsed = submitArgumentsSchema.safeParse(JSON.parse(call.arguments));
   if (!parsed.success) return toolErrorResult(`Invalid submit arguments: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`);
+  if (!ctx.swarm!.run.forcedSubmitReason && await backend.hasActiveLanes(swarmRunRef(ctx))) {
+    state.swarmPark = { reason: "lanes" };
+    return {
+      output: {
+        submitted: false,
+        waiting_for_lanes: true,
+        message: "Your sub-lanes are still running, so your submission is held. Your turn ends now; you resume once they finish to incorporate their results and call submit."
+      }
+    };
+  }
   state.swarmSubmit = {
     summary: truncateLaneSummary(parsed.data.summary, ctx.swarm!.run.settings.advanced.laneSummaryMaxTokens),
     decisions: parsed.data.decisions,

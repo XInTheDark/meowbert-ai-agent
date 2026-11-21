@@ -3,7 +3,7 @@ import type { ChosenModelRoute, PlatformModelRouter, ReviewEffort, TaskExecution
 import type { TaskRow } from "../agent/types.js";
 import type { SwarmBudgetState } from "./budget.js";
 import type { ForkSeed, ForkSeedCapabilities } from "./fork-types.js";
-import type { SwarmLaneResult, SwarmParkReason } from "./lane-types.js";
+import type { ShareScope, SwarmLaneResult, SwarmParkReason } from "./lane-types.js";
 import type { SwarmRunContext } from "./run-context.js";
 
 // The run a swarm call is made for. A backend outside the control plane ignores it: the server acts
@@ -79,7 +79,7 @@ export interface SwarmBackend {
   steerLane(run: SwarmRunRef, input: { laneTaskId: string; message: string }): Promise<void>;
   stopLane(run: SwarmRunRef, input: { laneTaskId: string; discard: boolean }): Promise<void>;
   resumeLane(run: SwarmRunRef, input: { laneTaskId: string; message: string; extraTokens: number | null }): Promise<{ title: string }>;
-  shareNote(run: SwarmRunRef, text: string): Promise<void>;
+  shareNote(run: SwarmRunRef, input: { text: string; scope: ShareScope; wakeParent: boolean }): Promise<void>;
   emitEvent(run: SwarmRunRef, message: string): Promise<void>;
   // Ends the run and keeps its job to resume once the barrier is met. A remote backend sends only the
   // branch; the server resumes the job it admitted.

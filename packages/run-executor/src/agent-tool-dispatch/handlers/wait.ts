@@ -7,6 +7,33 @@ import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
 
+async function handleSwarmLaneWait(
+  ctx: ToolDispatchContext,
+  state: ToolDispatchState,
+  execution: Awaited<ReturnType<typeof startBuiltinToolExecution>>
+): Promise<ToolCallResult> {
+  if (!ctx.swarm) {
+    throw new Error("Waiting on lanes is only available in Agent Swarm runs.");
+  }
+  if (ctx.codeModeParentCallId) {
+    throw new Error("Call wait with lanes directly, not from exec.");
+  }
+  const hasActive = await ctx.features.hasActiveSwarmLanes(ctx);
+  if (hasActive) {
+    state.swarmPark = { reason: "lanes" };
+    return finishBuiltinToolSuccess(ctx, execution, {
+      waiting: true,
+      reason: "lanes",
+      message: "Your turn ends now; you resume with your lanes' results once every active lane has finished."
+    });
+  }
+  return finishBuiltinToolSuccess(ctx, execution, {
+    waiting: false,
+    reason: "no_active_lanes",
+    message: "No active lanes are running. Any completed lane results will arrive on your next step."
+  });
+}
+
 export async function handleWaitTool(
   outputItem: ResponseFunctionToolCall,
   ctx: ToolDispatchContext,
@@ -19,26 +46,33 @@ export async function handleWaitTool(
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Wait",
-    inputText: summarizeToolEventValue(parsed.value) ?? `${parsed.value.seconds}s`
+    inputText: summarizeToolEventValue(parsed.value) ?? (parsed.value.lanes ? "lanes" : `${parsed.value.seconds}s`)
   });
   try {
+    if (parsed.value.lanes === true) {
+      return await handleSwarmLaneWait(ctx, state, execution);
+    }
+    const seconds = parsed.value.seconds;
+    if (typeof seconds !== "number") {
+      throw new Error("Waiting requires seconds or lanes: true.");
+    }
     const shellSessions = parsed.value.shell_sessions ?? [];
     if (ctx.runMode === "infinite_auto" && shellSessions.length === 0) {
-      if (parsed.value.seconds < 60 || !parsed.value.response?.trim()) {
+      if (seconds < 60 || !parsed.value.response?.trim()) {
         throw new Error("Infinite recurring time-only waits require seconds between 60 and 604800 and a response.");
       }
-      const nextRunAt = await ctx.control.platform.applyInfiniteWait(parsed.value.seconds);
+      const nextRunAt = await ctx.control.platform.applyInfiniteWait(seconds);
       const finished = await finishBuiltinToolSuccess(ctx, execution, {
         acknowledged: true,
-        seconds: parsed.value.seconds,
+        seconds,
         next_run_at: nextRunAt
-      }, { eventPayload: { waitSeconds: parsed.value.seconds, nextRunAt } });
+      }, { eventPayload: { waitSeconds: seconds, nextRunAt } });
       return {
         ...finished,
         waitRequest: {
           response: parsed.value.response.trim(),
           notify: parsed.value.notify ?? true,
-          seconds: parsed.value.seconds,
+          seconds,
           nextRunAt
         }
       };
@@ -47,7 +81,7 @@ export async function handleWaitTool(
       throw new Error("Waiting on shell sessions requires persistent project shells and an authenticated user.");
     }
     const result = await waitForConditions({
-      seconds: parsed.value.seconds,
+      seconds,
       shellSessions,
       readSession: (sessionId) => ctx.control.platform.readShellSessionWaitState({ sessionId }),
       signal: ctx.cancellationSignal,

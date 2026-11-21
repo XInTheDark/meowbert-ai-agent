@@ -13,6 +13,7 @@ import { COMPUTER_LOCAL_SHELL_TOOL_NAME, COMPUTER_RESPONSE_FUNCTION_TOOLS } from
 import {
   INIT_SANDBOX_TOOL,
   buildRunShellFunctionTool,
+  buildWaitFunctionTool,
   CONTEXT_V2_FUNCTION_TOOLS,
   RESPONSE_FUNCTION_TOOLS,
   SEARCH_WEB_TOOL,
@@ -255,6 +256,7 @@ export function buildResponseTools(
   }
 
   const runShellTool = buildRunShellFunctionTool(availability.runShellMaxTimeoutSeconds);
+  const waitTool = buildWaitFunctionTool(availability.swarmTools === "all");
   const tools: Tool[] = [
     ...(availability.newMessageOrganizationEnabled ? ORGANIZATION_TOOLS : []),
     ...RESPONSE_FUNCTION_TOOLS
@@ -264,6 +266,9 @@ export function buildResponseTools(
         if (availability.newMessageOrganizationEnabled && tool.name === VIEW_TASK_HISTORY_TOOL_NAME) return withOrganizationHistory(tool);
         if (tool.name === RUN_SHELL_TOOL_NAME) {
           return runShellTool;
+        }
+        if (tool.name === WAIT_TOOL_NAME) {
+          return waitTool;
         }
         return tool;
       }),

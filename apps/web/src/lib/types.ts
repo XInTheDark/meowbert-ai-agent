@@ -138,6 +138,7 @@ export interface TaskSummary {
   completed_at?: string | null;
   trashed_at?: string | null;
   is_publicly_shared?: boolean;
+  waiting_for_lanes?: boolean;
   task_type?: TaskType;
   schedule_state?: "active" | "paused" | "cancelled" | null;
   schedule_next_run_at?: string | null;
@@ -232,6 +233,7 @@ export interface TaskDetail {
     task_root_path?: string;
     execution_target?: import("@meowbert/shared").TaskExecutionTarget;
     pending_reason?: string | null;
+    waiting_for_lanes?: boolean;
     // When the run still going started, if one is.
     active_run_started_at?: string | null;
     is_thread?: boolean;

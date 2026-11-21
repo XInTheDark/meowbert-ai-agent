@@ -5,10 +5,9 @@ import { countActiveChildrenInTx } from "./lane-store.js";
 import { normalizeAgentSwarmSettings } from "@meowbert/shared";
 import { startQueuedLanesInTx } from "./scheduler.js";
 
-// A parent's barrier is met once none of its direct lanes is queued, running or waiting. It is checked
-// in the transaction that changes a child's status, so nothing polls. When it is met and the parent is
-// parked, the parent's stored resume job is enqueued; its run then receives the merge message.
-// Caller holds the swarm lock.
+// A parent wakes when none of its direct lanes is queued, running or waiting, OR when a child shared
+// an urgent wake note that has not been delivered to the parent yet. Checked in the transaction that
+// changes child state or inserts the wake note, so nothing polls. Caller holds the swarm lock.
 export async function wakeParentIfBarrierMetInTx(client: PoolClient, parentTaskId: string): Promise<boolean> {
   const parent = await client.query<{ cancellation_requested: boolean; status: string }>(
     "SELECT cancellation_requested, status FROM tasks WHERE id = $1 FOR UPDATE",
@@ -16,7 +15,13 @@ export async function wakeParentIfBarrierMetInTx(client: PoolClient, parentTaskI
   );
   // Waking re-queues the parent, which would clear a cancellation; a cancelled parent stays put.
   if (!parent.rows[0] || parent.rows[0].cancellation_requested || parent.rows[0].status === "cancelled") return false;
-  if (await countActiveChildrenInTx(client, parentTaskId) > 0) return false;
+  const wakeNote = await client.query(
+    `SELECT 1 FROM task_swarm_notes
+      WHERE scope_parent_task_id = $1 AND notify_parent = 'wake' AND parent_delivered_at IS NULL
+      LIMIT 1`,
+    [parentTaskId]
+  );
+  if ((wakeNote.rowCount ?? 0) === 0 && await countActiveChildrenInTx(client, parentTaskId) > 0) return false;
   const park = await client.query<{ resume_job_json: TaskExecutionJob }>(
     "SELECT resume_job_json FROM task_swarm_parks WHERE task_id = $1",
     [parentTaskId]

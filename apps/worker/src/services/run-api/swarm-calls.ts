@@ -2,7 +2,7 @@ import type { ResponseInputItem } from "openai/resources/responses/responses";
 import { normalizeReviewEffort, reasoningScoreForEffort, reviewEffortSchema, type ChosenModelRoute, type RunApiMethod } from "@meowbert/shared";
 import type { PreparedForkLane, SwarmRunRef } from "@meowbert/run-executor/agent-swarm/backend";
 import type { ForkSeed, ForkSeedCapabilities } from "@meowbert/run-executor/agent-swarm/fork-types";
-import type { SwarmLaneResult } from "@meowbert/run-executor/agent-swarm/lane-types";
+import type { ShareScope, SwarmLaneResult } from "@meowbert/run-executor/agent-swarm/lane-types";
 import { checkSwarmToolRole } from "@meowbert/run-executor/agent-swarm/tools/role-gate";
 import { SwarmToolError } from "@meowbert/run-executor/agent-swarm/tool-error";
 import {
@@ -197,9 +197,16 @@ export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
   }),
   "swarm.shareNote": refusable(async (session, args) => {
     assertRole(session, SHARE_TOOL_NAME);
-    const { text } = input<{ text?: unknown }>(args);
+    const { text, scope, wakeParent } = input<{ text?: unknown; scope?: unknown; wakeParent?: unknown }>(args);
     if (typeof text !== "string" || text.length === 0 || text.length > 2_000) invalid("A note is up to 2,000 characters.");
-    await dbSwarmBackend.shareNote(runRef(session), text);
+    const parsedScope: ShareScope = scope === undefined
+      ? "siblings"
+      : scope === "siblings" || scope === "parent" || scope === "all"
+        ? scope
+        : invalid("scope must be siblings, parent or all.");
+    if (wakeParent !== undefined && typeof wakeParent !== "boolean") invalid("wakeParent must be a boolean.");
+    if (parsedScope === "siblings" && wakeParent === true) invalid("wakeParent cannot be true when scope is siblings.");
+    await dbSwarmBackend.shareNote(runRef(session), { text, scope: parsedScope, wakeParent: wakeParent === true });
   }),
   "swarm.emitEvent": refusable(async (session, args) => {
     const { message } = input<{ message?: unknown }>(args);

@@ -10,7 +10,7 @@ function setup() {
   const backend = {
     loadCheckInputs: vi.fn(async () => ({ userMessages: ["Create a slide."], spinePath: null })),
     startCheckLane: vi.fn(async () => ({ taskId: "reviewer", label: "Check", title: "Check" })),
-    emitEvent: vi.fn(), hasOwnLanes: vi.fn(async () => false), loadAutoCheckFiles: vi.fn(async () => [])
+    emitEvent: vi.fn(), hasOwnLanes: vi.fn(async () => false), hasActiveLanes: vi.fn(async () => false), loadAutoCheckFiles: vi.fn(async () => [])
   } satisfies Partial<SwarmBackend>;
   const ctx = {
     taskId: "root", envRoot: "/project", assertNotCancelled: vi.fn(), getCurrentLeafMessageId: () => "leaf",
@@ -53,6 +53,15 @@ describe("Check review effort", () => {
     expect(held).toHaveProperty("output.held_for_check", true);
     expect(backend.startCheckLane).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reviewEffort: "standard" }));
     expect(state.swarmPark).toEqual({ reason: "check" });
+  });
+
+  it("skips automatic check while lanes are still active", async () => {
+    const { backend, ctx, state } = setup();
+    backend.hasActiveLanes.mockResolvedValue(true);
+    await expect(interceptFinalResponseForCheck(backend as unknown as SwarmBackend,
+      call("final_response", { response: "Working on my part while lanes run." }), ctx, state)).resolves.toBeNull();
+    expect(backend.startCheckLane).not.toHaveBeenCalled();
+    expect(state.swarmPark).toBeUndefined();
   });
 
   it("keeps leaf lanes from starting either review level", async () => {

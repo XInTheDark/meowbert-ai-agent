@@ -6,7 +6,10 @@ import { loadAgentSwarmNotes, loadAgentSwarmView } from "../../services/agent-sw
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { taskParams } from "./shared.js";
 
-const notesQuery = z.object({ after: z.string().regex(/^\d+$/).optional() });
+const notesQuery = z.object({
+  after: z.string().regex(/^\d+$/).optional(),
+  kind: z.enum(["shared", "auto"]).optional()
+});
 const laneParams = taskParams.extend({ laneId: z.string().uuid() });
 const stopBody = z.object({ discard: z.boolean() });
 
@@ -18,9 +21,9 @@ async function handleGetSwarm(request: FastifyRequest): Promise<{ swarm: AgentSw
 
 async function handleGetSwarmNotes(request: FastifyRequest): Promise<{ notes: AgentSwarmNoteView[] }> {
   const params = taskParams.parse(request.params);
-  const { after } = notesQuery.parse(request.query ?? {});
+  const { after, kind } = notesQuery.parse(request.query ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  return { notes: await loadAgentSwarmNotes(params.taskId, after ?? null) };
+  return { notes: await loadAgentSwarmNotes(params.taskId, after ?? null, kind ?? null) };
 }
 
 // The same as the stop tool, for the user; steering goes through the leader as a normal message.

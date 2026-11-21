@@ -47,10 +47,22 @@ export interface SwarmLaneRow {
 export type SwarmParkReason = "lanes" | "check" | "resume";
 
 export type SwarmNoteKind = "shared" | "auto";
+export const SHARE_SCOPES = ["siblings", "parent", "all"] as const;
+export type ShareScope = (typeof SHARE_SCOPES)[number];
+export const SHARE_NOTIFY_MODES = ["none", "inbox", "wake"] as const;
+export type ShareNotifyMode = (typeof SHARE_NOTIFY_MODES)[number];
 
 export interface SwarmNote {
   seq: string;
   kind: SwarmNoteKind;
   content: string;
   author_title: string;
+}
+
+export interface ParentShareNote {
+  seq: string;
+  author_task_id: string;
+  author_title: string;
+  content: string;
+  notify_parent: Exclude<ShareNotifyMode, "none">;
 }

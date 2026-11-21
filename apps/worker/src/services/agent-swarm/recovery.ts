@@ -19,8 +19,14 @@ async function wakeParkedParents(): Promise<void> {
        JOIN tasks task ON task.id = park.task_id
       WHERE NOT task.cancellation_requested AND task.trashed_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM task_runs run WHERE run.task_id = park.task_id AND run.ended_at IS NULL)
-        AND NOT EXISTS (SELECT 1 FROM task_swarm_lanes lane
-                         WHERE lane.parent_task_id = park.task_id AND lane.status IN ('queued', 'running', 'waiting'))
+        AND (
+          NOT EXISTS (SELECT 1 FROM task_swarm_lanes lane
+                       WHERE lane.parent_task_id = park.task_id AND lane.status IN ('queued', 'running', 'waiting'))
+          OR EXISTS (SELECT 1 FROM task_swarm_notes note
+                      WHERE note.scope_parent_task_id = park.task_id
+                        AND note.notify_parent = 'wake'
+                        AND note.parent_delivered_at IS NULL)
+        )
       ORDER BY park.created_at
       LIMIT $1`,
     [RECOVERY_BATCH_SIZE]

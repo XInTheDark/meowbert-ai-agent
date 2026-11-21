@@ -271,7 +271,10 @@ export function TaskTreeList(props: TaskTreeListProps) {
               </ExplorerCell>
 
               <ExplorerCell className="task-status-cell-wrapper">
-                <TaskStatusBadge status={task.status} className="task-status-cell" />
+                <TaskStatusBadge
+                  status={task.status === "queued" && task.waiting_for_lanes === true ? "waiting_for_lanes" : task.status}
+                  className="task-status-cell"
+                />
               </ExplorerCell>
               <time className="task-updated-cell muted-text" dateTime={task.updated_at} title={updatedAtTitle}>
                 {formatRelative(task.updated_at)}

@@ -451,8 +451,15 @@ function TaskWorkflowRightSidebar({ model }: ModelProps) {
 
 function TaskSwarmLaneSidebar({ model }: ModelProps) {
   const lane = model.swarm.openLane;
-  if (!lane || model.controllers.inspectorSelection) return null;
-  return <SwarmLaneSidebar api={model.context.workspace.api} lane={lane} onClose={() => model.swarm.setOpenLaneId(null)} />;
+  if (!lane || !model.context.taskId || model.controllers.inspectorSelection) return null;
+  return (
+    <SwarmLaneSidebar
+      api={model.context.workspace.api}
+      swarmTaskId={model.context.taskId}
+      lane={lane}
+      onClose={() => model.swarm.setOpenLaneId(null)}
+    />
+  );
 }
 
 function TaskCanvasSidebar({ model }: ModelProps) {

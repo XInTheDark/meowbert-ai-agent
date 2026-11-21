@@ -178,6 +178,328 @@
   font-size: 0.8rem;
 }
 
+.workflow-worker-meta-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.swarm-lane-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.swarm-lane-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.swarm-lane-tab:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+}
+
+.swarm-lane-tab.active {
+  color: var(--text);
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
+.swarm-lane-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.32rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface-muted));
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.swarm-lane-tab-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.swarm-lane-tab-pane.is-hidden {
+  display: none;
+}
+
+.swarm-lane-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.swarm-lane-panel-message {
+  padding: 0.75rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.swarm-shared-notes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+.swarm-shared-notes-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--surface-muted) 55%, transparent);
+}
+
+.swarm-shared-notes-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.55rem;
+  border: 0;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.73rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.swarm-shared-notes-filter-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.swarm-shared-notes-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.9rem 0.9rem 1.2rem;
+}
+
+.swarm-shared-notes-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 2.2rem 1rem;
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.swarm-shared-notes-empty p {
+  margin: 0;
+}
+
+.swarm-shared-notes-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 0.9rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.swarm-shared-notes-timeline::before {
+  content: "";
+  position: absolute;
+  left: 0.32rem;
+  top: 0.65rem;
+  bottom: 0.65rem;
+  width: 1px;
+  background: color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.swarm-shared-note-item {
+  position: relative;
+}
+
+.swarm-shared-note-dot {
+  position: absolute;
+  left: -0.82rem;
+  top: 0.72rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--brand);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+.swarm-shared-note-item.is-urgent .swarm-shared-note-dot {
+  background: var(--warning);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 55%, transparent);
+}
+
+.swarm-shared-note-card {
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface-muted) 42%, var(--surface));
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.swarm-shared-note-item.is-urgent .swarm-shared-note-card {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+}
+
+.swarm-shared-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.swarm-shared-note-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.swarm-shared-note-author {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.swarm-shared-note-author.is-current {
+  color: var(--brand);
+}
+
+.swarm-shared-note-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  color: var(--text-muted);
+  font-size: 0.67rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.swarm-shared-note-pill.is-wake {
+  border-color: color-mix(in srgb, var(--warning) 50%, var(--border));
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.swarm-shared-note-time {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.swarm-shared-note-body {
+  font-size: 0.82rem;
+  line-height: 1.48;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.swarm-lane-details-panel {
+  overflow-y: auto;
+  padding: 0.9rem;
+  gap: 1rem;
+}
+
+.swarm-lane-details-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.swarm-lane-details-section h4 {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.swarm-lane-details-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.swarm-lane-details-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.75rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface-muted) 38%, var(--surface));
+}
+
+.swarm-lane-details-grid dt {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 0.12rem;
+}
+
+.swarm-lane-details-grid dd {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.swarm-lane-details-text {
+  padding: 0.7rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface-muted) 35%, var(--surface));
+  font-size: 0.81rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .workflow-worker-feed-container {
   flex: 1 1 auto;
   min-height: 0;
@@ -658,6 +980,11 @@
   backdrop-filter: blur(12px);
   display: grid;
   gap: 0.55rem;
+}
+
+.task-detail-usage-popover.align-right {
+  left: auto;
+  right: 0;
 }
 
 .task-detail-usage-popover .context-usage-label {

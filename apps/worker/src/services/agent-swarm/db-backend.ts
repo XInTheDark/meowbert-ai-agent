@@ -14,7 +14,7 @@ import { resumeLane, steerLane, stopLane } from "./lane-control.js";
 import { claimLaneInboxInTx } from "./lane-inbox.js";
 import { countActiveChildrenInTx, hasOwnLanes } from "./lane-store.js";
 import { claimMergeItemsInTx } from "./merge-message.js";
-import { claimNoteItemsInTx } from "./notes-delivery.js";
+import { claimNoteItemsInTx, claimParentShareNoteItemsInTx } from "./notes-delivery.js";
 import { insertSwarmNote } from "./notes-store.js";
 import { recordLaneStep } from "./outcomes.js";
 import { clearSwarmPark, parkSwarmRun } from "./park.js";
@@ -47,6 +47,7 @@ export const dbSwarmBackend: SwarmBackend = {
       const sources: ResponseInputItem[][] = [
         await claimMergeItemsInTx(client, run.taskId, swarm.settings),
         request.includeTurnNotes && !lane ? await claimTurnNoteItemsInTx(client, run.taskId, swarm) : [],
+        await claimParentShareNoteItemsInTx(client, run.taskId),
         await claimNoteItemsInTx(client, swarm)
       ];
       const laneInbox = lane ? await claimLaneInboxInTx(client, lane.task_id) : { items: [], stopped: false };
@@ -127,25 +128,27 @@ export const dbSwarmBackend: SwarmBackend = {
     const lane = await resumeLane({ swarm: run.swarm, parentTaskId: run.taskId, ...input });
     return { title: lane.title };
   },
-  async shareNote(run, text) {
+  async shareNote(run, input) {
     const lane = ownLane(run);
     await insertSwarmNote({
       swarmTaskId: lane.swarm_task_id,
       authorTaskId: lane.task_id,
       scopeParentTaskId: lane.parent_task_id,
       kind: "shared",
-      content: text
+      content: input.text,
+      notifySiblings: input.scope !== "parent",
+      notifyParent: input.scope === "siblings" ? "none" : input.wakeParent ? "wake" : "inbox"
     });
   },
   emitEvent: (run, message) => emitSwarmEvent(run.swarm.swarmTaskId, message),
   async park(run, input) {
-    await parkSwarmRun({
+    const { wokeImmediately } = await parkSwarmRun({
       job: input.job,
       swarmTaskId: run.swarm.swarmTaskId,
       maxRunningLanes: run.swarm.settings.advanced.maxRunningLanes,
       reason: input.reason
     });
-    await emitTaskEvent(run.taskId, "status", { status: "queued", waitingForLanes: true });
+    await emitTaskEvent(run.taskId, "status", { status: "queued", waitingForLanes: !wokeImmediately });
   },
   async finishLane(run, input) {
     await finishLaneRun({

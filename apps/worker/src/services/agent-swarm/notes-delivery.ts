@@ -3,8 +3,9 @@ import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { AgentExecutionContext } from "@meowbert/run-executor/agent/execution-types";
 import { appendRunInboxItems } from "../agent/run-inbox.js";
 import type { SwarmRunContext } from "./config.js";
-import { claimLaneNotesInTx } from "./notes-store.js";
-import { buildNotesBlock } from "@meowbert/run-executor/agent-swarm/prompt";
+import { countActiveChildrenInTx } from "./lane-store.js";
+import { claimLaneNotesInTx, claimParentShareNotesInTx } from "./notes-store.js";
+import { buildNotesBlock, buildParentShareNotesBlock } from "@meowbert/run-executor/agent-swarm/prompt";
 
 // Before each model request, new notes in the lane's scope are appended as one block at the end of
 // its conversation, so its cached prefix is never disturbed. Nothing is appended when nothing is new.
@@ -14,6 +15,14 @@ export async function claimNoteItemsInTx(client: PoolClient, swarm: SwarmRunCont
   if (!lane || lane.kind === "check") return [];
   const notes = await claimLaneNotesInTx(client, lane, swarm.ancestorLaneIds);
   return notes.length > 0 ? [{ role: "user", content: buildNotesBlock(notes) }] : [];
+}
+
+// Explicit share notes from direct child lanes that opted into parent delivery ('inbox' or 'wake').
+export async function claimParentShareNoteItemsInTx(client: PoolClient, parentTaskId: string): Promise<ResponseInputItem[]> {
+  const notes = await claimParentShareNotesInTx(client, parentTaskId);
+  if (notes.length === 0) return [];
+  const hasActiveLanes = await countActiveChildrenInTx(client, parentTaskId) > 0;
+  return [{ role: "user", content: buildParentShareNotesBlock(notes, hasActiveLanes) }];
 }
 
 export async function appendSwarmNotes(execution: AgentExecutionContext, swarm: SwarmRunContext | null): Promise<void> {

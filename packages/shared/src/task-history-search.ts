@@ -74,6 +74,7 @@ export interface TaskHistorySearchPageRow {
   id: string | null;
   title: string | null;
   status: string | null;
+  waiting_for_lanes?: boolean | null;
   created_at: string | null;
   updated_at: string | null;
   completed_at: string | null;

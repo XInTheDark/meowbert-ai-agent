@@ -8,7 +8,7 @@ import { interceptFinalResponseForCheck } from "./tools/check.js";
 import { handleSwarmTool } from "./tools/index.js";
 
 export type SwarmRunFeatures = Pick<RunFeatures,
-  "loadSwarm" | "prepareLaneRun" | "afterModelTurn" | "interceptFinalResponse" | "finalizeSwarmRun" | "parkLeaderIfLanesActive"
+  "loadSwarm" | "prepareLaneRun" | "afterModelTurn" | "interceptFinalResponse" | "finalizeSwarmRun" | "hasActiveSwarmLanes" | "parkLeaderIfLanesActive"
 > & {
   beforeStep: RunFeatures["beforeStep"];
   handleToolCall: RunFeatures["handleToolCall"];
@@ -27,6 +27,7 @@ export function createSwarmRunFeatures(backend: SwarmBackend): SwarmRunFeatures 
     handleToolCall: (call, ctx, state) => isSwarmToolName(call.name) ? handleSwarmTool(backend, call, ctx, state) : null,
     interceptFinalResponse: (call, ctx, state) => interceptFinalResponseForCheck(backend, call, ctx, state),
     finalizeSwarmRun: (execution, appendAssistantMessage) => finalizeSwarmRun(execution, backend, appendAssistantMessage),
+    hasActiveSwarmLanes: (ctx) => ctx.swarm ? backend.hasActiveLanes({ taskId: ctx.taskId, swarm: ctx.swarm.run }) : Promise.resolve(false),
     parkLeaderIfLanesActive: (execution) => parkLeaderIfLanesActive(execution, backend)
   };
 }

@@ -87,7 +87,9 @@ export async function interceptFinalResponseForCheck(
   // Partial replies are progress updates, not the deliverable; malformed calls get the usual error.
   const draft = typeof args?.response === "string" ? args.response.trim() : "";
   if (!draft || args?.partial === true) return null;
-  const files = await backend.loadAutoCheckFiles(swarmRunRef(ctx));
+  const run = swarmRunRef(ctx);
+  if (await backend.hasActiveLanes(run)) return null;
+  const files = await backend.loadAutoCheckFiles(run);
   if (!files) return null;
   try {
     const result = await startCheck(backend, ctx, state, {

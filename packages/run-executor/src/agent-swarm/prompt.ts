@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { ReviewEffort } from "@meowbert/shared";
 import { buildQualityReviewPrompt } from "../quality-review-prompt.js";
 import { REVIEW_PRIORITY_GUIDANCE } from "../review-priority-guidance.js";
-import type { SwarmNote } from "./lane-types.js";
+import type { ParentShareNote, SwarmNote } from "./lane-types.js";
 
 // prompt-texts ships in the worker image next to apps/, the same way as the personality prompts.
 const PROMPT_DIRECTORY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../prompt-texts/agent-swarm");
@@ -91,10 +91,12 @@ export function buildCheckBrief(input: {
   ].filter((line): line is string => line !== null).join("\n\n");
 }
 
-export function buildSplitStartedMessage(lanes: Array<{ label: string; title: string }>): string {
+export function buildSplitStartedMessage(lanes: Array<{ label: string; title: string }>, wait = true): string {
   return [
     `Started ${lanes.length} lane${lanes.length === 1 ? "" : "s"}: ${lanes.map((lane) => `${lane.label} (${lane.title})`).join(", ")}.`,
-    "Your turn ends now; you resume with their results once every lane has submitted."
+    wait
+      ? "Your turn ends now; you resume with their results once every lane has submitted."
+      : "They are running while you keep working. Finished lane results arrive between your steps, or call wait with lanes true to pause until all active lanes finish."
   ].join(" ");
 }
 
@@ -102,6 +104,17 @@ export function buildNotesBlock(notes: SwarmNote[]): string {
   return [
     "[Swarm notes]",
     ...notes.map((note) => `- ${note.kind === "auto" ? "(auto) " : ""}${note.author_title}: ${note.content}`)
+  ].join("\n");
+}
+
+export function buildParentShareNotesBlock(notes: ParentShareNote[], hasActiveLanes: boolean): string {
+  const woke = notes.some((note) => note.notify_parent === "wake");
+  const header = woke && hasActiveLanes
+    ? "[Swarm notes from your lanes — a lane woke you while lanes are still running. Steer, stop, split, or reply if needed, or call wait with lanes true to keep waiting.]"
+    : "[Swarm notes from your lanes]";
+  return [
+    header,
+    ...notes.map((note) => `- ${note.author_title} (lane_id ${note.author_task_id})${note.notify_parent === "wake" ? " [urgent]" : ""}: ${note.content}`)
   ].join("\n");
 }
 

@@ -104,8 +104,9 @@ function useTaskLiveEventIngestion(
 
     if (event.type === "status" && typeof event.payload.status === "string") {
       const nextStatus = event.payload.status;
+      const nextWaitingForLanes = nextStatus === "queued" && event.payload.waitingForLanes === true;
       options.setTaskDetail((current) => {
-        if (!current || current.task.status === nextStatus) {
+        if (!current || (current.task.status === nextStatus && Boolean(current.task.waiting_for_lanes) === nextWaitingForLanes)) {
           return current;
         }
 
@@ -114,6 +115,7 @@ function useTaskLiveEventIngestion(
           task: {
             ...current.task,
             status: nextStatus,
+            waiting_for_lanes: nextWaitingForLanes,
             updated_at: event.createdAt
           }
         };

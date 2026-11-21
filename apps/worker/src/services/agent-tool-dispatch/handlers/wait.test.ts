@@ -95,4 +95,35 @@ describe("handleWaitTool", () => {
     expect(waitForConditions).not.toHaveBeenCalled();
     expect(applyInfiniteWait).not.toHaveBeenCalled();
   });
+
+  it("parks a swarm run when wait is called with lanes true and active lanes exist", async () => {
+    const runState = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as ToolDispatchState;
+    const ctx = context({
+      swarm: {} as ToolDispatchContext["swarm"],
+      features: { hasActiveSwarmLanes: vi.fn(async () => true) } as unknown as ToolDispatchContext["features"]
+    });
+    const result = await handleWaitTool(call({ seconds: null, shell_sessions: null, lanes: true, response: null, notify: null }), ctx, runState);
+    expect(result).toMatchObject({ output: { waiting: true, reason: "lanes" } });
+    expect(runState.swarmPark).toEqual({ reason: "lanes" });
+    expect(waitForConditions).not.toHaveBeenCalled();
+  });
+
+  it("returns without parking when wait is called with lanes true and no lanes are active", async () => {
+    const runState = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as ToolDispatchState;
+    const ctx = context({
+      swarm: {} as ToolDispatchContext["swarm"],
+      features: { hasActiveSwarmLanes: vi.fn(async () => false) } as unknown as ToolDispatchContext["features"]
+    });
+    const result = await handleWaitTool(call({ seconds: null, shell_sessions: null, lanes: true, response: null, notify: null }), ctx, runState);
+    expect(result).toMatchObject({ output: { waiting: false, reason: "no_active_lanes" } });
+    expect(runState.swarmPark).toBeUndefined();
+    expect(waitForConditions).not.toHaveBeenCalled();
+  });
+
+  it("rejects waiting on lanes outside Agent Swarm runs", async () => {
+    const runState = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as ToolDispatchState;
+    await handleWaitTool(call({ seconds: null, lanes: true }), context(), runState);
+    expect(finishBuiltinToolFailure).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.stringContaining("only available in Agent Swarm runs"));
+    expect(runState.swarmPark).toBeUndefined();
+  });
 });

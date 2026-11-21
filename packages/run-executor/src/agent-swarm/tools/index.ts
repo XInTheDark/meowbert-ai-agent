@@ -30,7 +30,7 @@ export async function handleSwarmTool(backend: SwarmBackend, call: ResponseFunct
     case STOP_LANE_TOOL_NAME: return handleStopLane(backend, call, ctx);
     case RESUME_TOOL_NAME: return handleResume(backend, call, ctx, state);
     case SHARE_TOOL_NAME: return handleShare(backend, call, ctx);
-    case SUBMIT_TOOL_NAME: return handleSubmit(call, ctx, state);
+    case SUBMIT_TOOL_NAME: return handleSubmit(backend, call, ctx, state);
     default: return toolErrorResult(`Unknown swarm tool: ${call.name}`);
   }
 }

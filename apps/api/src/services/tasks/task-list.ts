@@ -33,6 +33,7 @@ export async function listProjectTasks(input: {
       SELECT t.id,
              t.title,
              t.status,
+             EXISTS (SELECT 1 FROM task_swarm_parks p WHERE p.task_id = t.id) AS waiting_for_lanes,
              t.created_at,
              t.updated_at,
              t.completed_at,

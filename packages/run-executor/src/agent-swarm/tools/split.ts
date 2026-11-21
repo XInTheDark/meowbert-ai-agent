@@ -31,6 +31,7 @@ export async function handleSplit(backend: SwarmBackend, call: ResponseFunctionT
       kind: "split",
       lanes,
       spinePath,
+      wait: args.wait !== false,
       buildBrief: (lane) => buildLaneBrief({
         label: lane.label,
         title: lane.title,

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { createPortal } from "react-dom";
 import {
   Activity,
   Bell,
@@ -24,11 +23,9 @@ import { badgeClass, formatDateTime, formatRelative, formatTaskTypeLabel } from 
 import { TaskStatusBadge } from "../../../components/tasks/TaskStatusBadge";
 import type { TaskDetailTab } from "./taskDetailConstants";
 import { TaskDetailDisplaySettingsDropdown } from "./TaskDetailDisplaySettingsDropdown";
-import { formatTokenCount } from "./taskDetailUtils";
-import { TaskUsageModal } from "./TaskUsageModal";
+import { getUsageSummary, TaskDetailUsageChip } from "./TaskDetailUsageChip";
 import { MenuSheet } from "../../../components/mobile/MenuSheet";
 import { SubscriptionUsageWarningLink, type SubscriptionUsageWarning } from "../../../subscription/usageLimits";
-import { calculateContextUsagePercent } from "@meowbert/shared/context-usage";
 
 interface TaskDetailTopbarProps {
   task: TaskDetail["task"];
@@ -83,16 +80,6 @@ interface TaskDetailTopbarProps {
   canvasesMenu?: ReactNode;
 }
 
-interface UsageSummary {
-  usageTokens: number;
-  usageMaxTokens: number;
-  usagePercent: number;
-  cacheHitPercent: number | null;
-  cachedTokens: number | null;
-  promptRevision: string | null;
-  prefixHash: string | null;
-}
-
 function TaskMessageOutlineToggleIcon() {
   return (
     <svg
@@ -113,163 +100,14 @@ function TaskMessageOutlineToggleIcon() {
 }
 
 function getDisplayStatus(task: TaskDetail["task"]): string {
-  return task.cancellation_requested === true
-    && (task.status === "queued" || task.status === "starting" || task.status === "running")
-    ? "interrupting"
-    : task.status;
-}
-
-function getUsageSummary(latestUsagePayload: TaskDetail["latest_context_usage"]): UsageSummary | null {
-  const usageTokens =
-    latestUsagePayload && typeof latestUsagePayload.usedTokens === "number"
-      ? latestUsagePayload.usedTokens
-      : null;
-  const usageMaxTokens =
-    latestUsagePayload && typeof latestUsagePayload.maxContextTokens === "number"
-      ? latestUsagePayload.maxContextTokens
-      : null;
-
-  if (usageTokens === null || usageMaxTokens === null || usageMaxTokens <= 0) {
-    return null;
+  if (task.cancellation_requested === true
+    && (task.status === "queued" || task.status === "starting" || task.status === "running")) {
+    return "interrupting";
   }
-
-  const usagePercent = calculateContextUsagePercent(usageTokens, usageMaxTokens);
-  const cachedTokens =
-    latestUsagePayload && typeof latestUsagePayload.cachedTokens === "number"
-      ? latestUsagePayload.cachedTokens
-      : null;
-  const cacheHitRatio =
-    latestUsagePayload && typeof latestUsagePayload.cacheHitRatio === "number"
-      ? latestUsagePayload.cacheHitRatio
-      : cachedTokens !== null && usageTokens > 0
-        ? Math.min(1, Math.max(0, cachedTokens / usageTokens))
-        : null;
-
-  return {
-    usageTokens,
-    usageMaxTokens,
-    usagePercent,
-    cacheHitPercent: cacheHitRatio !== null ? Math.round(cacheHitRatio * 100) : null,
-    cachedTokens,
-    promptRevision:
-      latestUsagePayload && typeof latestUsagePayload.promptRevision === "string"
-        ? latestUsagePayload.promptRevision
-        : null,
-    prefixHash:
-      latestUsagePayload && typeof latestUsagePayload.prefixHash === "string"
-        ? latestUsagePayload.prefixHash
-        : null
-  };
-}
-
-function TaskDetailUsageChip(props: {
-  taskId: string;
-  usage: UsageSummary | null;
-  lastIdleCompactionAt: string | null;
-  expanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
-}) {
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const [usageModalOpen, setUsageModalOpen] = useState(false);
-  const isExpanded = props.usage !== null && props.expanded;
-  useDismissable(isExpanded, () => props.onExpandedChange(false), popoverRef);
-
-  if (props.usage === null) {
-    return (
-      <span
-        className="context-usage-pill unavailable"
-        title="Context usage will appear after the provider reports input-token usage."
-        aria-label="Context usage unavailable"
-      >
-        Context —
-      </span>
-    );
+  if (task.status === "queued" && task.waiting_for_lanes === true) {
+    return "waiting_for_lanes";
   }
-
-  const usage = props.usage;
-  // The usage shown is from before the compaction; the next turn starts from the notes.
-  const idleCompactionLabel = props.lastIdleCompactionAt
-    ? `Compacted while idle ${formatRelative(props.lastIdleCompactionAt)}`
-    : null;
-
-  const title = [
-    `Context ${formatTokenCount(usage.usageTokens)} / ${formatTokenCount(usage.usageMaxTokens)} (${usage.usagePercent}%)`,
-    usage.cacheHitPercent !== null && usage.cachedTokens !== null
-      ? `Cache hit ${usage.cacheHitPercent}% (${formatTokenCount(usage.cachedTokens)} cached)`
-      : null,
-    usage.promptRevision ? `Revision ${usage.promptRevision}` : null,
-    usage.prefixHash ? `Prefix ${usage.prefixHash}` : null,
-    idleCompactionLabel
-  ]
-    .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
-    .join(" • ");
-
-  const isWarning = usage.usagePercent >= 80;
-  const isCritical = usage.usagePercent >= 95;
-
-  return (
-    <div className="task-detail-usage-container" ref={popoverRef}>
-      <button
-        type="button"
-        className={`context-usage-pill ${isCritical ? "critical" : isWarning ? "warning" : ""} ${isExpanded ? "expanded" : ""}`}
-        onClick={() => props.onExpandedChange(!isExpanded)}
-        title={title}
-        aria-expanded={isExpanded}
-      >
-        <span className="context-usage-pill-meter" aria-hidden="true">
-          <span
-            className="context-usage-pill-fill"
-            style={{ width: `${Math.min(100, Math.max(0, usage.usagePercent))}%` }}
-          />
-        </span>
-        <span className="context-usage-pill-text">Context {usage.usagePercent}%</span>
-        {idleCompactionLabel ? <Minimize2 size={11} className="context-usage-pill-idle" aria-label={idleCompactionLabel} /> : null}
-      </button>
-
-      {isExpanded ? (
-        <div className="context-usage-chip task-detail-usage-popover" role="dialog" aria-label="Context usage details">
-          <div className="context-usage-label">
-            Context {formatTokenCount(usage.usageTokens)} / {formatTokenCount(usage.usageMaxTokens)} ({usage.usagePercent}%)
-          </div>
-          {usage.cacheHitPercent !== null && usage.cachedTokens !== null ? (
-            <div className="muted-text" style={{ fontSize: "0.75rem" }}>
-              Cache hit {usage.cacheHitPercent}% ({formatTokenCount(usage.cachedTokens)} cached)
-              {usage.promptRevision ? ` · ${usage.promptRevision}` : ""}
-              {usage.prefixHash ? ` · ${usage.prefixHash}` : ""}
-            </div>
-          ) : null}
-          {idleCompactionLabel ? (
-            <div className="muted-text" style={{ fontSize: "0.75rem" }}>{idleCompactionLabel}</div>
-          ) : null}
-          <div className="context-usage-meter">
-            <span
-              style={{
-                width: `${Math.min(100, Math.max(0, usage.usagePercent))}%`,
-                background: isCritical
-                  ? "var(--danger)"
-                  : isWarning
-                    ? "var(--warning)"
-                    : "var(--brand)"
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            className="task-detail-usage-popover-link"
-            onClick={() => {
-              props.onExpandedChange(false);
-              setUsageModalOpen(true);
-            }}
-          >
-            View usage for this task
-          </button>
-        </div>
-      ) : null}
-      {usageModalOpen
-        ? createPortal(<TaskUsageModal taskId={props.taskId} onClose={() => setUsageModalOpen(false)} />, document.body)
-        : null}
-    </div>
-  );
+  return task.status;
 }
 
 function TaskDetailActionsMenu(props: {

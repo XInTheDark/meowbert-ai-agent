@@ -374,3 +374,19 @@ it("shows a local task's pending reason next to its queued status", () => {
   props.task = { ...props.task, status: "queued", execution_target: {kind:"local",deviceId:"11111111-1111-4111-8111-111111111111",mode:"sandbox"}, pending_reason:"docker_unavailable" };
   expect(renderTopbar(props).textContent).toContain("Waiting for Docker");
 });
+
+it("shows Waiting for lanes instead of Queued when a swarm task is parked on lanes", () => {
+  const props = buildProps();
+  props.task = { ...props.task, status: "queued", waiting_for_lanes: true };
+  const content = renderTopbar(props).textContent ?? "";
+  expect(content).toContain("Waiting for lanes");
+  expect(content).not.toContain("Queued");
+});
+
+it("still shows Interrupting when cancellation is requested while waiting for lanes", () => {
+  const props = buildProps();
+  props.task = { ...props.task, status: "queued", waiting_for_lanes: true, cancellation_requested: true };
+  const content = renderTopbar(props).textContent ?? "";
+  expect(content).toContain("Interrupting");
+  expect(content).not.toContain("Waiting for lanes");
+});

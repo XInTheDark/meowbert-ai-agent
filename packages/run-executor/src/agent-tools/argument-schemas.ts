@@ -335,7 +335,7 @@ export const startSubtaskArgumentsSchema = z.object({
 });
 
 export const waitArgumentsSchema = z.object({
-  seconds: z.number().int().min(1).max(604800),
+  seconds: z.number().int().min(1).max(604800).nullable().optional(),
   shell_sessions: z.array(z.object({
     session_id: z.string().uuid(),
     on_output: z.boolean(),
@@ -343,9 +343,14 @@ export const waitArgumentsSchema = z.object({
   }).strict().refine((condition) => condition.on_output || condition.on_exit, {
     message: "Each shell session must enable on_output or on_exit."
   })).min(1).max(8).nullable().optional(),
+  lanes: z.boolean().nullable().optional(),
   response: z.string().min(1).nullable().optional(),
   notify: z.boolean().nullable().optional()
-}).strict();
+}).strict().refine((value) => value.lanes === true || typeof value.seconds === "number", {
+  message: "Provide seconds or set lanes to true."
+}).refine((value) => !(value.lanes === true && (value.shell_sessions?.length ?? 0) > 0), {
+  message: "Cannot combine lanes with shell_sessions in wait."
+});
 
 export const stopTaskArgumentsSchema = z.object({
   response: z.string().min(1),

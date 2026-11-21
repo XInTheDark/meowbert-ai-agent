@@ -99,8 +99,8 @@ function logForkPrefix(ctx: ToolDispatchContext, swarm: SwarmDispatchContext, cr
   }));
 }
 
-// Forks the lanes of a split or diverge call and parks the caller. Each lane's own result for this call
-// is its brief; the caller's result lists the lanes it started.
+// Forks the lanes of a split or diverge call and parks the caller when waiting. Each lane's own result
+// for this call is its brief; the caller's result lists the lanes it started.
 export async function forkLanesFromCall(backend: SwarmBackend, input: {
   call: ResponseFunctionToolCall;
   ctx: ToolDispatchContext;
@@ -108,9 +108,11 @@ export async function forkLanesFromCall(backend: SwarmBackend, input: {
   kind: "split" | "diverge";
   lanes: NewLane[];
   spinePath: string | null;
+  wait?: boolean;
   buildBrief: (lane: NewLane & { laneDir: string }) => string;
 }): Promise<ToolCallResult> {
   const { call, ctx, state } = input;
+  const wait = input.wait !== false;
   const swarm = ctx.swarm!;
   await ctx.assertNotCancelled();
   const seed = await captureSeed(swarm, state, input.spinePath);
@@ -135,13 +137,14 @@ export async function forkLanesFromCall(backend: SwarmBackend, input: {
     if (error instanceof SwarmToolError) return toolErrorResult(error.message);
     throw error;
   }
-  state.swarmPark = { reason: "lanes" };
+  if (wait) state.swarmPark = { reason: "lanes" };
   logForkPrefix(ctx, swarm, created);
   await backend.emitEvent(run, `Started ${created.length} ${input.kind} lane${created.length === 1 ? "" : "s"}.`);
   return {
     output: {
       lanes: created.map((lane) => ({ lane_id: lane.taskId, label: lane.label, title: lane.title })),
-      message: buildSplitStartedMessage(created)
+      waiting: wait,
+      message: buildSplitStartedMessage(created, wait)
     }
   };
 }

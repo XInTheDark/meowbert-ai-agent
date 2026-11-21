@@ -110,7 +110,7 @@ An Agent Swarm is one agent, the **leader**, that can make copies of itself. You
 
 ### What the leader can do
 
-- **Split.** The leader hands different parts of the work to **lanes**, copies of itself that start with everything it knows. Lanes work at the same time, and lanes building one thing share short notes with each other so they stay consistent. For example, a lane researching EU grants that finds a rule ruling out your company shares it, and the other lanes take it into account at their next step.
+- **Split.** The leader hands different parts of the work to **lanes**, copies of itself that start with everything it knows. By default the leader pauses until its lanes finish, or it can keep working on its own part in parallel while finished lane results arrive between steps. Lanes share short notes directed to their siblings, their parent, or both—and can wake a waiting parent when a finding or blocker needs immediate action. For example, a lane researching EU grants that finds a rule ruling out your company shares it so the other lanes and the leader take it into account.
 - **Diverge.** For a judgment call, the leader asks several lanes the same question. They answer without seeing each other, so they don't just agree with the first idea. The leader then compares their reasoning: where they agree, where they disagree, and ideas only one lane had. It builds its answer from the strongest one.
 - **Check.** Before a reply that used lanes is delivered, a fresh reviewer that has seen none of the leader's reasoning reads what you asked and the draft, and looks for what is wrong. The leader fixes what it finds and then replies.
 
@@ -181,9 +181,9 @@ Whatever tools you enable in the composer apply to the swarm too. If you enable 
 
 ### What you see in Task Detail
 
-Under the leader message that started lanes, a compact block shows one row per lane: what it owns, its status, its latest note and its steps. Sub-lanes are listed under their lane. Open a lane to read its own conversation in the side panel, or stop it to make it report what it has now.
+Under the leader message that started lanes, a compact block shows one row per lane: what it owns, its status, its latest note and its steps. Sub-lanes are listed under their lane. Open a lane to inspect its conversation and live context usage in the side panel, switch to **Shared notes** for a chronological timeline of shared notes (for that lane or the whole swarm), open **Details** for its model, token spend, timing, and direction, or stop it to make it report what it has now.
 
-The header shows how many lanes are working, budget use when budgets are on, and the dormant lanes with a one-line summary each.
+The header shows **Waiting for lanes** while the leader is paused on active lanes, along with how many lanes are working, budget use when budgets are on, and the dormant lanes with a one-line summary each.
 
 In the conversation, once the leader delivers its final answer, the work leading up to it, lane blocks included, folds into one **Worked for…** row above the answer. Files and any error notices stay visible.
 

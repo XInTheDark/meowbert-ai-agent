@@ -28,6 +28,8 @@ export function getTaskStatusDisplay(status: string): TaskStatusDisplay {
   switch (status) {
     case "queued":
       return { icon: Clock3, label: "Queued" };
+    case "waiting_for_lanes":
+      return { icon: LoaderCircle, label: "Waiting for lanes", spin: true };
     case "starting":
       return { icon: LoaderCircle, label: "Starting", spin: true };
     case "running":

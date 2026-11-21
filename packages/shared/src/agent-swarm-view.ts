@@ -46,6 +46,8 @@ export interface AgentSwarmNoteView {
   kind: "shared" | "auto";
   content: string;
   createdAt: string;
+  notifySiblings?: boolean;
+  notifyParent?: "none" | "inbox" | "wake";
 }
 
 // Admin outcome view: how leaders on each model use lanes.
