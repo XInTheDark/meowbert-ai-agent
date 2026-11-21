@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isBridgeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared";
+import { isBridgeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared/task-execution-target";
 import type { ApiClient } from "../../../lib/api";
 import type { TaskDetail } from "../../../lib/types";
 import {

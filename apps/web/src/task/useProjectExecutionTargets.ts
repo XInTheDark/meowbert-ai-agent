@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import {
   isBridgeTaskExecutionTarget,
   type LocalExecutionMode,
-  type TaskExecutionTarget,
-  type WorkspaceFileHost
-} from "@meowbert/shared";
+  type TaskExecutionTarget
+} from "@meowbert/shared/task-execution-target";
+import type { WorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import type { ApiClient } from "../lib/api";
 
 export interface LocalDeviceOption {

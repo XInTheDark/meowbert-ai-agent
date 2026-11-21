@@ -26,7 +26,7 @@ import {
 } from "../../../task/taskFileDestinations";
 import { buildTaskRoutePath, resolveTaskRouteContext } from "../../../task/taskRouteContext";
 import { getTaskMessageAgentId } from "../../../task/taskModelSelection";
-import { isBridgeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared";
+import { isBridgeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared/task-execution-target";
 import { createTaskThread, listTaskThreads } from "../../../task/taskThreads";
 import {
   formatBridgeControlTitle,

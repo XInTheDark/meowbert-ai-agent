@@ -1,4 +1,4 @@
-import { isBridgeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared";
+import { isBridgeTaskExecutionTarget, type TaskExecutionTarget } from "@meowbert/shared/task-execution-target";
 import { workspaceFileFeatures } from "@meowbert/shared/workspace-file-features";
 import { normalizeWorkspaceFileHost } from "@meowbert/shared/workspace-file-host";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
