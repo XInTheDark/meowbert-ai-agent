@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { MessageActions } from "./MessageActions";
 import { buildTaskMessageExpansionKey } from "../../task/taskMessageExpansionPreferences";
 import type {
@@ -28,6 +28,11 @@ import { HistoricalActivityGroup } from "./HistoricalActivityGroup";
 import { buildConversationRenderItems, type ConversationEntryItem } from "./conversationTurnFolds";
 import { TurnWorkFoldBubble } from "./TurnWorkFoldBubble";
 import { insertMessageAccessories, type ConversationMessageAccessory } from "./conversationMessageAccessories";
+import {
+  buildConversationTurnFooterPlan,
+  isUserRenderItem,
+  type TurnFallbackFooter
+} from "./conversationTurnFooters";
 
 export interface HistoricalConversationItemsProps {
   messages: TaskMessage[];
@@ -250,6 +255,7 @@ function StandardMessageBubble(props: {
   onConversationChanged?: () => void;
   onEditRequested?: (message: TaskMessage) => void;
   renderBranchSwitcher?: (message: TaskMessage) => ReactNode;
+  extraBranchCandidates?: TaskMessage[];
   threadCountsByParentMessageId?: Record<string, number>;
   threadSummaries?: TaskThreadSummary[];
   onThreadComposerRequested?: (message: TaskMessage, selectedText?: MessageSelectedTextQuote | null) => void;
@@ -277,6 +283,12 @@ function StandardMessageBubble(props: {
     resolvedAssistantMessageDisplayPreferences
   } = props;
   const content = contentOverride ?? getMessageText(message);
+  const extraBranchSwitchers = renderBranchSwitcher && props.extraBranchCandidates?.length
+    ? props.extraBranchCandidates.flatMap((candidate) => {
+      const node = renderBranchSwitcher(candidate);
+      return node ? [<Fragment key={candidate.id}>{node}</Fragment>] : [];
+    })
+    : [];
   const branchSwitcher = renderBranchSwitcher?.(message);
   const canRenderMessageActions = showMessageActions && Boolean(taskId);
   const actionTaskId = canRenderMessageActions ? taskId : undefined;
@@ -292,7 +304,7 @@ function StandardMessageBubble(props: {
   const threadCount = props.threadCountsByParentMessageId?.[message.id] ?? 0;
   const canStartThread = message.role === "assistant" && typeof props.onThreadComposerRequested === "function";
   const canOpenThreadList = message.role === "assistant" && threadCount > 0 && typeof props.onThreadListRequested === "function";
-  const hasFooterActions = Boolean(branchSwitcher) || Boolean(actionTaskId);
+  const hasFooterActions = extraBranchSwitchers.length > 0 || Boolean(branchSwitcher) || Boolean(actionTaskId);
   const hasFooterActionsOrMeta = hasFooterActions;
   const authorLabel = resolveMessageAuthorLabel(message, props.showMessageAuthors ?? false);
   const [isMessageActionsVisible, setIsMessageActionsVisible] = useState(false);
@@ -372,6 +384,7 @@ function StandardMessageBubble(props: {
         </span>
         {hasFooterActionsOrMeta ? (
           <div className="bubble-footer-actions">
+            {extraBranchSwitchers}
             {branchSwitcher}
             {actionTaskId ? (
               <MessageActions
@@ -393,6 +406,7 @@ function StandardMessageBubble(props: {
 
 function HistoricalMessageItem(props: HistoricalConversationItemsProps & {
   entry: Extract<ConversationDisplayEntry, { kind: "message" }>;
+  extraBranchCandidates?: TaskMessage[];
 }): JSX.Element {
   const { entry } = props;
   const { message } = entry;
@@ -422,6 +436,7 @@ function HistoricalMessageItem(props: HistoricalConversationItemsProps & {
       onConversationChanged={entry.showActions ? props.onConversationChanged : undefined}
       onEditRequested={entry.showActions ? props.onEditRequested : undefined}
       renderBranchSwitcher={entry.showActions ? props.renderBranchSwitcher : undefined}
+      extraBranchCandidates={entry.showActions ? props.extraBranchCandidates : undefined}
       threadCountsByParentMessageId={entry.showActions ? props.threadCountsByParentMessageId : undefined}
       threadSummaries={props.threadSummariesByParentMessageId?.[message.id]}
       onThreadListRequested={entry.showActions ? props.onThreadListRequested : undefined}
@@ -429,7 +444,61 @@ function HistoricalMessageItem(props: HistoricalConversationItemsProps & {
   );
 }
 
-function renderEntryItem(props: HistoricalConversationItemsProps, item: ConversationEntryItem, entryCount: number): JSX.Element {
+function renderEmptyResponseFooter(
+  props: HistoricalConversationItemsProps,
+  footer: TurnFallbackFooter
+): JSX.Element | null {
+  const branchSwitchers = props.renderBranchSwitcher
+    ? footer.branchCandidates.flatMap((candidate) => {
+      const node = props.renderBranchSwitcher?.(candidate);
+      return node ? [<Fragment key={candidate.id}>{node}</Fragment>] : [];
+    })
+    : [];
+  const isTurnComplete = !props.isTaskRunning || !footer.isTrailingTurn;
+  const actionTaskId = isTurnComplete && props.showMessageActions && props.taskId ? props.taskId : undefined;
+  if (branchSwitchers.length === 0 && !actionTaskId) {
+    return null;
+  }
+
+  const message = footer.anchorMessage;
+  const threadCount = props.threadCountsByParentMessageId?.[message.id] ?? 0;
+  const canStartThread = message.role === "assistant" && typeof props.onThreadComposerRequested === "function";
+  const canOpenThreadList = message.role === "assistant" && threadCount > 0 && typeof props.onThreadListRequested === "function";
+
+  return (
+    <div
+      key={footer.key}
+      className="chat-bubble assistant assistant-footer-only"
+      data-message-id={message.id}
+    >
+      <div className="bubble-footer">
+        <span className="muted-text" style={{ fontSize: "0.75rem", padding: "0 0.5rem" }}>
+          {formatRelative(message.created_at)}
+        </span>
+        <div className="bubble-footer-actions">
+          {branchSwitchers}
+          {actionTaskId ? (
+            <MessageActions
+              taskId={actionTaskId}
+              message={message}
+              onConversationChanged={props.onConversationChanged}
+              threadCount={threadCount}
+              onThreadRequested={canStartThread ? (nextMessage) => props.onThreadComposerRequested?.(nextMessage, null) : undefined}
+              onThreadListRequested={canOpenThreadList ? props.onThreadListRequested : undefined}
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderEntryItem(
+  props: HistoricalConversationItemsProps,
+  item: ConversationEntryItem,
+  entryCount: number,
+  extraBranchCandidatesByMessageId: Map<string, TaskMessage[]>
+): JSX.Element {
   const { entry, index } = item;
   if (entry.kind === "activity") {
     const key = props.historicalToolGroupDescriptorsByStartIndex.get(entry.startIndex)?.key ?? entry.key;
@@ -451,20 +520,44 @@ function renderEntryItem(props: HistoricalConversationItemsProps, item: Conversa
   if (entry.kind === "accessory") {
     return <div key={entry.key} className="conversation-accessory-entry">{entry.node}</div>;
   }
-  return <HistoricalMessageItem key={entry.key} {...props} entry={entry} />;
+  return (
+    <HistoricalMessageItem
+      key={entry.key}
+      {...props}
+      entry={entry}
+      extraBranchCandidates={extraBranchCandidatesByMessageId.get(entry.message.id)}
+    />
+  );
 }
 
 export function HistoricalConversationItems(props: HistoricalConversationItemsProps): JSX.Element[] {
   const entries = insertMessageAccessories(buildConversationDisplayEntries(props.messages), props.messageAccessories);
+  const footerPlan = buildConversationTurnFooterPlan(props.messages, entries);
   const items = buildConversationRenderItems(entries, {
     foldFinishedTurns: props.foldFinishedTurns ?? false,
     isTaskRunning: props.isTaskRunning ?? false
   });
   const searchMessageIds = new Set([...(props.searchForceExpandedMessageIds ?? []),
     ...(props.searchSelectedMessageId ? [props.searchSelectedMessageId] : [])]);
-  return items.map((item) => item.kind === "fold" ? (
-    <TurnWorkFoldBubble key={item.fold.key} fold={item.fold} searchMessageIds={searchMessageIds}
-      expansionKey={props.taskId ? buildTaskMessageExpansionKey(props.taskId, item.fold.key) : undefined}
-      renderItem={(foldedItem) => renderEntryItem(props, foldedItem, entries.length)} />
-  ) : renderEntryItem(props, item, entries.length));
+  const rendered: JSX.Element[] = [];
+  let spanIndex = 0;
+  const pushFallbackFooter = (index: number): void => {
+    const footer = footerPlan.fallbackFootersBySpan.get(index);
+    if (!footer) return;
+    const node = renderEmptyResponseFooter(props, footer);
+    if (node) rendered.push(node);
+  };
+  for (const item of items) {
+    if (isUserRenderItem(item)) {
+      pushFallbackFooter(spanIndex);
+      spanIndex += 1;
+    }
+    rendered.push(item.kind === "fold" ? (
+      <TurnWorkFoldBubble key={item.fold.key} fold={item.fold} searchMessageIds={searchMessageIds}
+        expansionKey={props.taskId ? buildTaskMessageExpansionKey(props.taskId, item.fold.key) : undefined}
+        renderItem={(foldedItem) => renderEntryItem(props, foldedItem, entries.length, footerPlan.extraBranchCandidatesByMessageId)} />
+    ) : renderEntryItem(props, item, entries.length, footerPlan.extraBranchCandidatesByMessageId));
+  }
+  pushFallbackFooter(spanIndex);
+  return rendered;
 }

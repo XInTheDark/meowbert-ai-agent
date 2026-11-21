@@ -46,6 +46,8 @@ export function MessageActions({
 
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
+  const canRetry = isUser || isAssistant || message.role === "tool";
+  const hasCopyableText = getMessageText(message).trim().length > 0;
   const hasThreads = threadCount > 0;
 
   const handleCopy = useCallback(async () => {
@@ -115,17 +117,19 @@ export function MessageActions({
 
   return (
     <div className="message-actions" role="toolbar" aria-label="Message actions">
-      <button
-        className={`action-btn msg-action-btn ${isCopied ? "copied" : ""}`}
-        onClick={handleCopy}
-        title={isCopied ? "Copied!" : "Copy"}
-        data-tooltip={isCopied ? "Copied!" : "Copy message"}
-        aria-label={isCopied ? "Copied" : "Copy message"}
-        disabled={isBusy}
-        type="button"
-      >
-        {isCopied ? <Check size={14} className="copy-success-icon" /> : <Copy size={14} />}
-      </button>
+      {hasCopyableText ? (
+        <button
+          className={`action-btn msg-action-btn ${isCopied ? "copied" : ""}`}
+          onClick={handleCopy}
+          title={isCopied ? "Copied!" : "Copy"}
+          data-tooltip={isCopied ? "Copied!" : "Copy message"}
+          aria-label={isCopied ? "Copied" : "Copy message"}
+          disabled={isBusy}
+          type="button"
+        >
+          {isCopied ? <Check size={14} className="copy-success-icon" /> : <Copy size={14} />}
+        </button>
+      ) : null}
 
       <button
         className="action-btn msg-action-btn"
@@ -167,7 +171,7 @@ export function MessageActions({
         </button>
       )}
 
-      {(isUser || isAssistant) && (
+      {canRetry && (
         <button
           className="action-btn msg-action-btn"
           onClick={handleRetry}

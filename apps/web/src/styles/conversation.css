@@ -3842,7 +3842,23 @@ a.citation-pill:hover {
 }
 
 .chat-bubble:hover .branch-switcher,
-.chat-bubble:focus-within .branch-switcher {
+.chat-bubble:focus-within .branch-switcher,
+.chat-bubble.message-actions-visible .branch-switcher {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.chat-bubble.assistant-footer-only {
+  gap: 0;
+}
+
+.chat-bubble.assistant-footer-only .bubble-footer {
+  margin-top: 0;
+}
+
+.chat-bubble.assistant-footer-only .branch-switcher,
+.chat-bubble.assistant-footer-only .message-actions {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
