@@ -45,6 +45,16 @@ import {
   supportsSecureAuthStorage
 } from "./state";
 import { startConfiguredLocalExecutor, stopLocalExecutor, getLocalExecutionStatus, checkLocalExecutionUpdates, onLocalExecutionStatusChanged, confirmHostExecutionSettings } from "./executor/lifecycle";
+import {
+  getBridgeServerStatus,
+  getTaskBridgeHandoff,
+  listActiveBridgeSessions,
+  onBridgeSessionsChanged,
+  parkBridgeRun,
+  regenerateBridgeToken,
+  setBridgeToolMode,
+  stopBridgeServer
+} from "./bridge/bridge-service";
 import { createDesktopUpdater, type DesktopUpdater } from "./updater";
 import {
   getComputerUseStatus,
@@ -855,6 +865,11 @@ function registerIpcHandlers(): void {
       if (!window.isDestroyed()) window.webContents.send("desktop:local-execution-status-changed", status);
     }
   });
+  onBridgeSessionsChanged((sessions) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send("desktop:bridge-sessions-changed", sessions);
+    }
+  });
   if (ipcRegistered) {
     return;
   }
@@ -882,6 +897,12 @@ function registerIpcHandlers(): void {
   ipcMain.handle("desktop:get-local-execution-status", () => getLocalExecutionStatus());
   ipcMain.handle("desktop:retry-local-execution", () => checkLocalExecutionUpdates());
   ipcMain.handle("desktop:check-sandbox-updates", () => checkLocalExecutionUpdates());
+  ipcMain.handle("desktop:get-bridge-status", () => getBridgeServerStatus());
+  ipcMain.handle("desktop:regenerate-bridge-token", () => regenerateBridgeToken());
+  ipcMain.handle("desktop:set-bridge-tool-mode", (_event, toolMode: "standard" | "compact") => setBridgeToolMode(toolMode));
+  ipcMain.handle("desktop:list-bridge-sessions", () => listActiveBridgeSessions());
+  ipcMain.handle("desktop:get-task-bridge-handoff", (_event, taskId: string) => getTaskBridgeHandoff(taskId));
+  ipcMain.handle("desktop:park-bridge-run", (_event, runId: string) => parkBridgeRun(runId));
   ipcMain.handle("desktop:get-computer-status", () => getComputerUseStatus());
   ipcMain.handle("desktop:request-accessibility-permission", () => requestAccessibilityPermission());
   ipcMain.handle("desktop:open-screen-recording-settings", () => openScreenRecordingSettings());
@@ -1158,7 +1179,7 @@ let localShutdownComplete = false;
 app.on("before-quit", (event) => {
   if (localShutdownComplete) return;
   event.preventDefault();
-  void stopLocalExecutor().catch((error) => console.error("Local executor shutdown failed", error)).finally(() => {
+  void Promise.all([stopLocalExecutor(), stopBridgeServer()]).catch((error) => console.error("Local executor shutdown failed", error)).finally(() => {
     localShutdownComplete = true; app.quit();
   });
 });

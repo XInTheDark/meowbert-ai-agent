@@ -19,6 +19,13 @@ describe("task execution targets", () => {
       deviceId,
       mode: "sandbox"
     });
+    expect(taskExecutionTargetSchema.parse({ kind: "local", deviceId, mode: "host", bridge: true })).toEqual({
+      kind: "local",
+      deviceId,
+      mode: "host",
+      bridge: true
+    });
+    expect(taskExecutionTargetSchema.safeParse({ kind: "cloud", bridge: true }).success).toBe(false);
     expect(DEFAULT_LOCAL_DEVICE_CAPACITY).toBe(2);
   });
 

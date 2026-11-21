@@ -1,5 +1,5 @@
 import type { Tool } from "openai/resources/responses/responses";
-import { buildResponseTools, TASK_SCHEDULING_TOOL_GROUP_ID, TASK_TITLE_FUNCTION_TOOL } from "@meowbert/run-executor/agent-tools/index";
+import { buildResponseTools, TASK_SCHEDULING_TOOL_GROUP_ID, TASK_TITLE_FUNCTION_TOOL, WEB_SEARCH_TOOL } from "@meowbert/run-executor/agent-tools/index";
 import { buildCodeModeToolSet } from "@meowbert/run-executor/code-mode/code-mode-tools";
 import { resolveRunToolOptions } from "@meowbert/run-executor/agent/runtime";
 import { COMPACTION_TOOL_NAME, COMPACTION_OUTPUT_SCHEMA } from "@meowbert/run-executor/context-compaction/shared";
@@ -55,9 +55,10 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
   return tools;
 }
 
-export function auxiliaryTools(purpose: string): Tool[] {
+export function auxiliaryTools(purpose: string, options?: { allowBridgeHostedWebSearch?: boolean }): Tool[] {
   if (purpose === "title") return [TASK_TITLE_FUNCTION_TOOL];
   if (purpose === "compaction") return [{ type: "function", name: COMPACTION_TOOL_NAME, strict: true,
     parameters: COMPACTION_OUTPUT_SCHEMA, description: "" }];
+  if (purpose === "web_search" && options?.allowBridgeHostedWebSearch) return [WEB_SEARCH_TOOL];
   return [];
 }

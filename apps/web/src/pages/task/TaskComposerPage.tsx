@@ -323,7 +323,11 @@ export function TaskComposerPage() {
         ...effectiveRestrictions,
         networkDisabled: effectiveRestrictions.networkDisabled && !networkAlreadyOff
       });
-      const executionTarget = capabilities.isDesktop ? currentDraft.executionTarget : { kind: "cloud" } as const;
+      const rawExecutionTarget = capabilities.isDesktop ? currentDraft.executionTarget : { kind: "cloud" } as const;
+      const bridgeAllowed = workflow.type === "standard" && !hasSchedule && !toolOptions.subtasks;
+      const executionTarget = rawExecutionTarget.kind === "local" && rawExecutionTarget.bridge && !bridgeAllowed
+        ? { kind: "local" as const, deviceId: rawExecutionTarget.deviceId, mode: rawExecutionTarget.mode }
+        : rawExecutionTarget;
       if (isLocalTarget && ((workflow.type !== "standard" && workflow.type !== "agent_swarm") || toolOptions.subtasks)) {
         throw new Error("Local tasks support standard and Agent Swarm runs without other workflows or subtasks.");
       }
@@ -410,7 +414,16 @@ export function TaskComposerPage() {
   return (
     <div className="chat-layout task-composer-page" style={{ alignItems: "center", justifyContent: "center", display: "flex", flexDirection: "column" }}>
       <div className="task-composer-mode-toggles">
-        {capabilities.isDesktop ? <TaskExecutionSelector api={api} projectId={activeEnvironmentId} target={currentDraft.executionTarget} disabled={isSubmitting} onChange={(executionTarget) => updateDraft((draft) => ({ ...draft, executionTarget }))} /> : null}
+        {capabilities.isDesktop ? (
+          <TaskExecutionSelector
+            api={api}
+            projectId={activeEnvironmentId}
+            target={currentDraft.executionTarget}
+            disabled={isSubmitting}
+            bridgeDisabled={workflow.type !== "standard" || hasSchedule}
+            onChange={(executionTarget) => updateDraft((draft) => ({ ...draft, executionTarget }))}
+          />
+        ) : null}
         <TaskAdvancedOptions
           value={currentDraft.restrictions}
           onChange={(restrictions) => updateDraft((draft) => ({ ...draft, restrictions }))}

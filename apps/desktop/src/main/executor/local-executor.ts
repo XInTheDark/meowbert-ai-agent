@@ -1,5 +1,6 @@
 import type { LocalLiveFolder } from "@meowbert/shared";
 import type { LiveFolderManager } from "../live-folders/manager";
+import type { BridgeRegistry } from "../bridge/bridge-registry";
 import { stopDesktopContainers } from "../sandbox-image/resources";
 import { LocalExecutionReadiness } from "./local-readiness";
 import path from "node:path";
@@ -25,6 +26,8 @@ export interface DesktopLocalExecutorOptions extends DeviceApiOptions {
   scratchRoot: string; resourcesRoot: string; downloadConsent: boolean;
   workspaceRoots?: Record<string, string>;
   runsRoot?: string; hostSkillsRoot?: string; hostConsent?: boolean; hostShellEnabled?: boolean; computerUseEnabled?: boolean; hostBrowserEnabled?: boolean;
+  bridgeRegistry?: BridgeRegistry;
+  ensureBridgeServerStarted?: () => Promise<unknown>;
   onSandboxDownloadRequired?: (image: SandboxImageReference, unavailableReason?: string) => Promise<boolean>;
   onPendingReason?: (reason: string, run?: { taskId: string; runId: string }) => void;
   onRunStarted?: (taskId: string) => void;

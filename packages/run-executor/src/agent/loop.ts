@@ -1,4 +1,6 @@
-import { normalizeWorkspaceFileHost, parseRetryDeadlineMs, workspaceFileFeatures } from "@meowbert/shared";
+import { BRIDGE_MAX_RUN_SHELL_TIMEOUT_SECONDS, normalizeWorkspaceFileHost, parseRetryDeadlineMs, workspaceFileFeatures } from "@meowbert/shared";
+import { BridgeSessionError } from "../bridge/bridge-session.js";
+import { runBridgeWebSearch } from "../bridge/bridge-web-search.js";
 import { getVisiblePlatformAgentPresets, resolveCodeModeForModel } from "@meowbert/shared";
 import { getSandboxNetworkEnabled, WORKSPACE_DEFAULT_TOOLSET_CANVAS_SKILL_ID as CANVAS_SKILL_ID } from "@meowbert/shared";
 import { resolvePersistentRuntimeEnabled } from "./runtime.js";
@@ -37,7 +39,6 @@ import { prepareWindowTurnRequest } from "./window-request.js";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "./prompt-envelope.js";
 import { appendQueuedPromptDeltas } from "./queued-prompt-deltas.js";
-import { runClaudeWebSearch } from "./claude-web-search.js";
 import { buildCompactionRunFields } from "./compaction-input.js";
 import { buildTimedRunFinalizationMessage } from "../tasks/recurring-run-utils.js";
 import type { AgentExecutionContext, AgentStepAvailability } from "./execution-types.js";
@@ -322,8 +323,13 @@ interface ModelTurnResult {
   weightedTokens: number | null;
 }
 
+function isBridgeMode(execution: AgentExecutionContext): boolean {
+  return execution.prepared.settings.bridgeMode === true;
+}
+
 // Code mode is a workspace experiment that each model can opt out of; the Master never uses it.
 function isCodeModeEnabled(execution: AgentExecutionContext): boolean {
+  if (isBridgeMode(execution)) return false;
   return execution.prepared.snapshot.code_mode_enabled === true
     && execution.prepared.isProjectMaster !== true
     && resolveCodeModeForModel(execution.prepared.runtimeModel, execution.prepared.snapshot.platform_model_metadata);
@@ -476,14 +482,16 @@ async function requestModelTurn(input: {
       allowRequestClarification: execution.workflow.allowWorkflowRequestClarification,
       allowSubmitResponse: execution.workflow.allowWorkflowSubmitResponse,
       allowSubmitReview: execution.workflow.allowWorkflowSubmitReview,
-      runShellMaxTimeoutSeconds: execution.prepared.runShellMaxTimeoutSeconds,
+      runShellMaxTimeoutSeconds: isBridgeMode(execution)
+        ? Math.min(execution.prepared.runShellMaxTimeoutSeconds, BRIDGE_MAX_RUN_SHELL_TIMEOUT_SECONDS)
+        : execution.prepared.runShellMaxTimeoutSeconds,
       quickModeActive: availability.quickModeActive,
       contextManagementVersion: execution.state.contextManagement.version,
       contextRecoveryPhase: execution.state.contextManagement.version === "v2"
         ? execution.state.contextManagement.recoveryPhase
         : undefined,
       allowPersistentShellSessions: resolvePersistentRuntimeEnabled(execution.prepared.snapshot.task, execution.prepared.runtimeEnvironmentPayload),
-      useClaudeWebSearch: execution.prepared.runtimeModelType === "claude",
+      useClaudeWebSearch: execution.prepared.runtimeModelType === "claude" || isBridgeMode(execution),
       swarmTools: execution.swarm ? (execution.swarm.lane?.kind === "check" ? "check" : "all") : undefined,
       swarmRouter: execution.swarm?.router ?? null
     },
@@ -657,11 +665,12 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     taskId: execution.job.taskId,
     compatibilityModes: execution.prepared.runtimeCompatibilityModes,
     modelType: execution.prepared.runtimeModelType,
-    ...(execution.prepared.runtimeModelType === "claude"
+    ...(execution.prepared.runtimeModelType === "claude" || isBridgeMode(execution)
       ? {
-        searchWeb: (query: string) => runClaudeWebSearch({
+        searchWeb: (query: string) => runBridgeWebSearch({
           models: execution.prepared.models,
           chatGptCodex: execution.prepared.chatGptCodex,
+          modelType: execution.prepared.runtimeModelType,
           query,
           abortSignal: execution.runTiming.runAbortSignal
         })
@@ -980,7 +989,7 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
     return "break";
   }
 
-  if (shouldCompactExpiredCache(execution, Date.now())) await clearExpiredCacheWindow(execution);
+  if (!isBridgeMode(execution) && shouldCompactExpiredCache(execution, Date.now())) await clearExpiredCacheWindow(execution);
   const availability = resolveStepAvailability(execution, step);
   // An idle notes turn takes no new work: inboxes wait for the work to resume, and it has no answer to wind down to.
   if (!isNotesOnlyTurn(execution)) {
@@ -988,7 +997,9 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
     maybeAppendWindingDownNotice(execution, availability);
   }
   await persistRuntimeNotices(execution);
-  await maybeRunAutoCompaction(execution, step);
+  if (!isBridgeMode(execution)) {
+    await maybeRunAutoCompaction(execution, step);
+  }
   const computerAvailability = await appendComputerAvailabilityPrompt(execution);
   const turn = await requestModelTurnWithRecovery({
     execution,
@@ -1005,6 +1016,10 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
 function handleStepError(execution: AgentExecutionContext, error: unknown): "continue" | "break" | "throw" {
   if (execution.prepared.cancellationMonitor.signal.aborted || (error instanceof Error && error.message === "TASK_CANCELLED")) {
     return "throw";
+  }
+  if (error instanceof BridgeSessionError && error.code === "bridge_parked") {
+    execution.state.bridgeParkedReason = error.message;
+    return "break";
   }
   if (execution.runTiming.runTimedOut && execution.runTiming.isTimedInfiniteRun) {
     if (!execution.runTiming.timedRunFinalizing) {

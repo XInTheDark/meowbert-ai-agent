@@ -5,6 +5,11 @@ import type { ExecutorSettings } from "./executor-settings.js";
 import type { RunFeatures } from "./run-features.js";
 import type { startMcpServer } from "../mcp-client.js";
 
+export interface RunFinishedOutcome {
+  status: "completed" | "parked" | "failed" | "cancelled";
+  message?: string;
+}
+
 // What an executor needs from wherever it runs: the control plane, the model, and a machine.
 export interface RunEnvironment {
   control: RunControl;
@@ -13,4 +18,5 @@ export interface RunEnvironment {
   settings: ExecutorSettings;
   features: RunFeatures;
   connectSkill?: typeof startMcpServer;
+  onRunFinished?: (outcome: RunFinishedOutcome) => void;
 }

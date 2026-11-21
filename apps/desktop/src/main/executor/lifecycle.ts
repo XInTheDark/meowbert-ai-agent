@@ -10,6 +10,7 @@ import { stopDesktopContainers } from "../sandbox-image/resources";
 import { cleanupHostProcesses } from "./host-processes";
 import { readSandboxHistory } from "../sandbox-image/history";
 import { sandboxDownloadSize } from "../sandbox-image/download-size";
+import { bridgeRegistry, ensureBridgeServerStarted } from "../bridge/bridge-service";
 import { startDesktopLocalExecutor } from "./local-executor";
 
 let executor: Awaited<ReturnType<typeof startDesktopLocalExecutor>> | null = null;
@@ -62,6 +63,7 @@ export function startConfiguredLocalExecutor(): Promise<DesktopLocalExecutionSta
       onLiveFolderConsent: (folder) => confirmLiveFolderConsent(settings.serverBaseUrl!, settings.deviceId, folder),
       hostConsent: settings.hostConsent, hostShellEnabled: settings.hostShellEnabled,
       computerUseEnabled: settings.computerUseEnabled, hostBrowserEnabled: settings.hostBrowserEnabled,
+      bridgeRegistry, ensureBridgeServerStarted,
       runsRoot: path.join(app.getPath("userData"), "runs"),
       hostSkillsRoot: app.isPackaged ? path.join(process.resourcesPath, "host-skills") : path.join(app.getAppPath(), "dist/host-skills"),
       scratchRoot: path.join(app.getPath("userData"), "scratch"),

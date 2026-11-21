@@ -15,6 +15,7 @@ export interface RunModelPolicy {
   // The route's own request fields, which a request may repeat but not change.
   modelPayload: Record<string, unknown>;
   allowHostedWebSearch: boolean;
+  allowBridgeWebSearch?: boolean;
 }
 
 // A run whose executor reaches it over the Run API. The session lives in the worker that claimed

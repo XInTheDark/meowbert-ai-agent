@@ -71,6 +71,7 @@ export interface AgentExecutionState {
   stopRequest: FinalResponseRequest | null;
   workflowPauseRequest: WorkflowPauseRequest | null;
   workflowAssistantPauseResponse: string | null;
+  bridgeParkedReason?: string | null;
   notificationRequested: boolean;
   quickModeActive: boolean;
   // Model turns taken in this run.

@@ -1,4 +1,6 @@
 import type { Tool } from "openai/resources/responses/responses";
+import { isBridgeTaskExecutionTarget } from "@meowbert/shared";
+import { resolveRunToolOptions } from "@meowbert/run-executor/agent/runtime";
 import { canonicalizeModelPayload } from "@meowbert/run-executor/agent/model";
 import { normalizeProviderRequestTools } from "@meowbert/run-executor/agent/provider-request-tools";
 import type { RunControl } from "@meowbert/run-executor/agent/ports/run-control";
@@ -18,12 +20,16 @@ export function createModelToolPolicy(state: ServerRunState, control: RunControl
   const skills = createSkillToolPolicy(state, control, consent);
   let builtinModel: string | null = null;
   let builtin: Tool[] = [];
+  const allowBridgeHostedWebSearch = isBridgeTaskExecutionTarget(state.job.executionTarget)
+    && resolveRunToolOptions(state.snapshot, state.job, state.bootstrap.memoryEnabled).webSearch === true;
   return async (tools: Tool[], purpose: string): Promise<void> => {
     if (builtinModel !== state.bootstrap.runtime.model) {
       builtin = normalize(builtinRunTools(state, consent, swarm));
       builtinModel = state.bootstrap.runtime.model;
     }
-    const allowed = purpose === "turn" ? builtin : normalize(auxiliaryTools(purpose));
+    const allowed = purpose === "turn"
+      ? builtin
+      : normalize(auxiliaryTools(purpose, { allowBridgeHostedWebSearch }));
     const seen = new Set<string>();
     for (const tool of tools) {
       if ((tool.type === "function" || tool.type === "custom") && typeof tool.name !== "string") {

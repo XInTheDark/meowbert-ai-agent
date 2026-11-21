@@ -1,4 +1,7 @@
 import type {
+  BridgeHandoffInfo,
+  BridgeServerStatus,
+  BridgeToolMode,
   ComputerToolName,
   DesktopComputerExecutorResult,
   DesktopComputerStatus
@@ -141,6 +144,13 @@ interface DesktopBridge {
   retryLocalExecution: () => Promise<DesktopLocalExecutionStatus>;
   checkSandboxUpdates: () => Promise<DesktopLocalExecutionStatus>;
   onLocalExecutionStatusChanged: (callback: (status: DesktopLocalExecutionStatus) => void) => () => void;
+  getBridgeStatus?: () => Promise<BridgeServerStatus>;
+  regenerateBridgeToken?: () => Promise<BridgeServerStatus>;
+  setBridgeToolMode?: (toolMode: BridgeToolMode) => Promise<BridgeServerStatus>;
+  listBridgeSessions?: () => Promise<BridgeHandoffInfo[]>;
+  getTaskBridgeHandoff?: (taskId: string) => Promise<BridgeHandoffInfo | null>;
+  parkBridgeRun?: (runId: string) => Promise<boolean>;
+  onBridgeSessionsChanged?: (callback: (sessions: BridgeHandoffInfo[]) => void) => () => void;
   saveServerProfilesState: (state: ServerProfilesState) => Promise<ServerProfilesState>;
   saveShortcutPreferences: (state: DesktopShortcutPreferences) => Promise<DesktopShortcutPreferences>;
   saveActiveContext: (state: DesktopActiveContext) => Promise<DesktopActiveContext>;
@@ -179,6 +189,13 @@ export interface PlatformAdapter {
   retryLocalExecution: () => Promise<DesktopLocalExecutionStatus>;
   checkSandboxUpdates: () => Promise<DesktopLocalExecutionStatus>;
   onLocalExecutionStatusChanged: (callback: (status: DesktopLocalExecutionStatus) => void) => () => void;
+  getBridgeStatus: () => Promise<BridgeServerStatus>;
+  regenerateBridgeToken: () => Promise<BridgeServerStatus>;
+  setBridgeToolMode: (toolMode: BridgeToolMode) => Promise<BridgeServerStatus>;
+  listBridgeSessions: () => Promise<BridgeHandoffInfo[]>;
+  getTaskBridgeHandoff: (taskId: string) => Promise<BridgeHandoffInfo | null>;
+  parkBridgeRun: (runId: string) => Promise<boolean>;
+  onBridgeSessionsChanged: (callback: (sessions: BridgeHandoffInfo[]) => void) => () => void;
   saveServerProfilesState: (state: ServerProfilesState) => Promise<ServerProfilesState>;
   saveShortcutPreferences: (state: DesktopShortcutPreferences) => Promise<DesktopShortcutPreferences>;
   saveActiveContext: (state: DesktopActiveContext) => Promise<DesktopActiveContext>;
@@ -410,6 +427,19 @@ function createWebPlatform(): PlatformAdapter {
       return { state: "disabled", message: "Local execution is only available in Meowbert Desktop." };
     },
     onLocalExecutionStatusChanged: () => () => {},
+    async getBridgeStatus(): Promise<BridgeServerStatus> {
+      return { running: false, endpointUrl: null, port: null, bearerToken: "", toolMode: "standard", error: "Bridge mode requires Meowbert Desktop." };
+    },
+    async regenerateBridgeToken(): Promise<BridgeServerStatus> {
+      return { running: false, endpointUrl: null, port: null, bearerToken: "", toolMode: "standard", error: "Bridge mode requires Meowbert Desktop." };
+    },
+    async setBridgeToolMode(toolMode: BridgeToolMode): Promise<BridgeServerStatus> {
+      return { running: false, endpointUrl: null, port: null, bearerToken: "", toolMode, error: "Bridge mode requires Meowbert Desktop." };
+    },
+    async listBridgeSessions(): Promise<BridgeHandoffInfo[]> { return []; },
+    async getTaskBridgeHandoff(): Promise<BridgeHandoffInfo | null> { return null; },
+    async parkBridgeRun(): Promise<boolean> { return false; },
+    onBridgeSessionsChanged: () => () => {},
     async saveServerProfilesState(state: ServerProfilesState): Promise<ServerProfilesState> {
       return writeLocalStorageServerProfilesState(state);
     },
@@ -530,6 +560,13 @@ function createDesktopPlatform(bridge: DesktopBridge): PlatformAdapter {
     retryLocalExecution: bridge.retryLocalExecution,
     checkSandboxUpdates: bridge.checkSandboxUpdates ?? (async () => ({ state: "error", message: "Update Meowbert Desktop to check sandbox updates safely." })),
     onLocalExecutionStatusChanged: bridge.onLocalExecutionStatusChanged ?? (() => () => {}),
+    getBridgeStatus: bridge.getBridgeStatus ?? (async () => ({ running: false, endpointUrl: null, port: null, bearerToken: "", toolMode: "standard", error: "Update Meowbert Desktop to use Bridge mode." })),
+    regenerateBridgeToken: bridge.regenerateBridgeToken ?? (async () => ({ running: false, endpointUrl: null, port: null, bearerToken: "", toolMode: "standard", error: "Update Meowbert Desktop to use Bridge mode." })),
+    setBridgeToolMode: bridge.setBridgeToolMode ?? (async (toolMode) => ({ running: false, endpointUrl: null, port: null, bearerToken: "", toolMode, error: "Update Meowbert Desktop to use Bridge mode." })),
+    listBridgeSessions: bridge.listBridgeSessions ?? (async () => []),
+    getTaskBridgeHandoff: bridge.getTaskBridgeHandoff ?? (async () => null),
+    parkBridgeRun: bridge.parkBridgeRun ?? (async () => false),
+    onBridgeSessionsChanged: bridge.onBridgeSessionsChanged ?? (() => () => {}),
     async saveServerProfilesState(state: ServerProfilesState): Promise<ServerProfilesState> {
       const saved = await bridge.saveServerProfilesState(sanitizeServerProfilesState(state));
       return sanitizeServerProfilesState(saved);

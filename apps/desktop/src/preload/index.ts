@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+  BridgeHandoffInfo,
+  BridgeServerStatus,
+  BridgeToolMode,
   DesktopActiveContext,
   DesktopComputerActionInput,
   DesktopComputerActionResult,
@@ -37,6 +40,19 @@ contextBridge.exposeInMainWorld("meowbertDesktop", {
     const listener = (_event: Electron.IpcRendererEvent, status: DesktopLocalExecutionStatus) => callback(status);
     ipcRenderer.on("desktop:local-execution-status-changed", listener);
     return () => { ipcRenderer.removeListener("desktop:local-execution-status-changed", listener); };
+  },
+  getBridgeStatus: (): Promise<BridgeServerStatus> => ipcRenderer.invoke("desktop:get-bridge-status"),
+  regenerateBridgeToken: (): Promise<BridgeServerStatus> => ipcRenderer.invoke("desktop:regenerate-bridge-token"),
+  setBridgeToolMode: (toolMode: BridgeToolMode): Promise<BridgeServerStatus> =>
+    ipcRenderer.invoke("desktop:set-bridge-tool-mode", toolMode),
+  listBridgeSessions: (): Promise<BridgeHandoffInfo[]> => ipcRenderer.invoke("desktop:list-bridge-sessions"),
+  getTaskBridgeHandoff: (taskId: string): Promise<BridgeHandoffInfo | null> =>
+    ipcRenderer.invoke("desktop:get-task-bridge-handoff", taskId),
+  parkBridgeRun: (runId: string): Promise<boolean> => ipcRenderer.invoke("desktop:park-bridge-run", runId),
+  onBridgeSessionsChanged: (callback: (sessions: BridgeHandoffInfo[]) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessions: BridgeHandoffInfo[]) => callback(sessions);
+    ipcRenderer.on("desktop:bridge-sessions-changed", listener);
+    return () => { ipcRenderer.removeListener("desktop:bridge-sessions-changed", listener); };
   },
   saveServerProfilesState: (state: DesktopServerProfilesState): Promise<DesktopServerProfilesState> =>
     ipcRenderer.invoke("desktop:save-server-profiles-state", state),

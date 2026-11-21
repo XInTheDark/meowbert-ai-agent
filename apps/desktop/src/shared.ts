@@ -1,8 +1,13 @@
 import type {
+  BridgeHandoffInfo,
+  BridgeServerStatus,
+  BridgeToolMode,
   ComputerToolName,
   DesktopComputerExecutorResult,
   DesktopComputerStatus
 } from "@meowbert/shared";
+
+export type { BridgeHandoffInfo, BridgeServerStatus, BridgeToolMode };
 
 export interface DesktopCapabilities {
   isDesktop: boolean;

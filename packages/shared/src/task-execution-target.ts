@@ -6,7 +6,8 @@ export const taskExecutionTargetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("local"),
     deviceId: z.string().uuid(),
-    mode: z.enum(["sandbox", "host"])
+    mode: z.enum(["sandbox", "host"]),
+    bridge: z.boolean().optional()
   }).strict()
 ]);
 
@@ -61,6 +62,10 @@ export const LOCAL_RUN_MAX_PENDING_MS = 24 * 60 * 60 * 1_000;
 
 export function isLocalTaskExecutionTarget(value: TaskExecutionTarget): value is Extract<TaskExecutionTarget, { kind: "local" }> {
   return value.kind === "local";
+}
+
+export function isBridgeTaskExecutionTarget(value: TaskExecutionTarget | undefined | null): boolean {
+  return value?.kind === "local" && value.bridge === true;
 }
 
 export function normalizeTaskExecutionTarget(value: unknown): TaskExecutionTarget {

@@ -82,6 +82,7 @@ export * from "./project-map-changes.js";
 export * from "./run-api.js";
 export * from "./retry-policy.js";
 export * from "./task-execution-target.js";
+export * from "./bridge-types.js";
 export * from "./workspace-file-host.js";
 export * from "./storage-marker.js";
 

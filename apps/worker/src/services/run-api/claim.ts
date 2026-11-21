@@ -1,8 +1,7 @@
 import { createModelToolPolicy } from "./model-tool-policy.js";
 import type { DeviceToolConsent } from "./builtin-tool-policy.js";
 import { query } from "../../lib/db.js";
-import type { TaskExecutionJob } from "@meowbert/shared";
-import { RUN_LEASE_TTL_MS } from "@meowbert/shared";
+import { isBridgeTaskExecutionTarget, RUN_LEASE_TTL_MS, type TaskExecutionJob } from "@meowbert/shared";
 import { signRunLeaseToken } from "@meowbert/shared/run-lease-token";
 import { resolveRunToolOptions } from "@meowbert/run-executor/agent/runtime";
 import type { ServerRunState } from "../run-host/bootstrap.js";
@@ -19,6 +18,7 @@ export interface RunClaim {
 
 function modelPolicy(state: ServerRunState): RunModelPolicy {
   const { runtime } = state.bootstrap;
+  const allowHostedWebSearch = resolveRunToolOptions(state.snapshot, state.job, state.bootstrap.memoryEnabled).webSearch === true;
   return {
     requestUserId: state.billing?.userId ?? state.bootstrap.runActorUserId,
     billing: state.billing,
@@ -26,7 +26,8 @@ function modelPolicy(state: ServerRunState): RunModelPolicy {
     model: (purpose) => resolvePurposeModel(state, purpose),
     maxContextTokens: runtime.maxContextTokens,
     modelPayload: runtime.modelPayload,
-    allowHostedWebSearch: resolveRunToolOptions(state.snapshot, state.job, state.bootstrap.memoryEnabled).webSearch === true
+    allowHostedWebSearch,
+    allowBridgeWebSearch: isBridgeTaskExecutionTarget(state.job.executionTarget) && allowHostedWebSearch
   };
 }
 

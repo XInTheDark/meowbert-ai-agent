@@ -328,6 +328,16 @@ export async function finalizeAgentRun(execution: AgentExecutionContext): Promis
     await execution.prepared.control.emitEvent("status", { status: "queued", waitingForSubagents: true });
     return;
   }
+  if (execution.state.bridgeParkedReason) {
+    await assertRunCanFinalize(execution);
+    const parkedMessage = execution.state.bridgeParkedReason.trim();
+    if (parkedMessage) {
+      execution.prepared.runPersistedItems.push(buildAssistantHistoryItem(parkedMessage));
+    }
+    await appendAssistantRunMessage(execution, parkedMessage, "");
+    await completeRunWithTaskStatus(execution, "awaiting_input");
+    return;
+  }
   execution.state.notificationRequested = resolveNotificationRequested(execution);
   let finalResponse = resolveFinalResponse(execution).response;
   const isRecurringRunMode =

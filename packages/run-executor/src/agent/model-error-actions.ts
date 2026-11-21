@@ -98,7 +98,7 @@ export function parseRejectedInputIndex(error: unknown): number | null {
 
 export function isTerminalModelError(error: unknown): boolean {
   if (!error || typeof error !== "object" || !("code" in error)) return false;
-  return ["lease_lost", "outcome_unknown", "operation_conflict", "unauthorized", "quota_exceeded"].includes(String(error.code));
+  return ["lease_lost", "outcome_unknown", "operation_conflict", "unauthorized", "quota_exceeded", "bridge_parked"].includes(String(error.code));
 }
 
 export type MissingToolOutputCallKind = "function_call" | "custom_tool_call" | "apply_patch_call";

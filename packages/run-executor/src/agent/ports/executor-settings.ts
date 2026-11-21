@@ -7,6 +7,7 @@ export interface ExecutorSettings {
   maxCommandOutputKb: number;
   shell: string;
   hostMode?: boolean;
+  bridgeMode?: boolean;
   hostBrowserEnabled?: boolean;
   workspaceRelocationNote?: string;
   sharedDependenciesDirectory?: string;

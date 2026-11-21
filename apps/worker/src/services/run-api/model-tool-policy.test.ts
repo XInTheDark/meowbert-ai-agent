@@ -90,6 +90,12 @@ it("scopes auxiliary schemas to their purpose and hosted search to enabled runs"
   const search = buildResponseTools({ ...options, webSearch: true }, []).find((tool) => tool.type === "web_search")!;
   await expect(validate([search], "turn")).resolves.toBeUndefined();
   await expect(validate([search], "web_search")).rejects.toMatchObject({ code: "invalid_request" });
+  const bridged = state(true);
+  bridged.job.executionTarget = { kind: "local", mode: "host", deviceId: "11111111-1111-4111-8111-111111111111", bridge: true };
+  await expect(createModelToolPolicy(bridged, control, {})([search], "web_search")).resolves.toBeUndefined();
+  const bridgedNoSearch = state(false);
+  bridgedNoSearch.job.executionTarget = { kind: "local", mode: "host", deviceId: "11111111-1111-4111-8111-111111111111", bridge: true };
+  await expect(createModelToolPolicy(bridgedNoSearch, control, {})([search], "web_search")).rejects.toMatchObject({ code: "invalid_request" });
   await expect(createModelToolPolicy(state(), control, {})([search], "turn")).rejects.toMatchObject({ code: "invalid_request" });
 });
 

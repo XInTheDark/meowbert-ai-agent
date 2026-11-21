@@ -10,10 +10,11 @@ import { computerUseService } from "../computer-use/service";
 import { getHostBrowser } from "../browser-use/runtime";
 import type { ExecutorSettings } from "@meowbert/run-executor/agent/ports/executor-settings";
 import { runAgentJob } from "@meowbert/run-executor/agent/index";
+import { BridgeSession } from "@meowbert/run-executor/bridge/bridge-session";
 import { createRunApiClient } from "@meowbert/run-executor/run-api/client";
 import { createHttpRunControl } from "@meowbert/run-executor/run-api/http-run-control";
 import type { MachineHost } from "@meowbert/run-executor/agent/ports/machine-host";
-import type { TaskExecutionJob } from "@meowbert/shared";
+import { isBridgeTaskExecutionTarget, type TaskExecutionJob } from "@meowbert/shared";
 import { resolveVerifiedStoragePath, verifyMountedStorage } from "../storage/roots";
 import { probeDesktopSandboxStorage } from "./sandbox-machine-host";
 import type { DesktopLocalExecutorOptions } from "./local-executor";
@@ -22,6 +23,39 @@ import path from "node:path";
 import { StorageNotReadyError } from "../storage/storage-not-ready";
 
 export interface DeviceRunNotice { admitted_at?: string | null; run_id: string; queue_state: string; payload_json: TaskExecutionJob }
+
+async function attachBridgeSession(input: {
+  options: DesktopLocalExecutorOptions;
+  remote: ReturnType<typeof createHttpRunControl>;
+  runId: string;
+  taskId: string;
+  host: boolean;
+}): Promise<BridgeSession> {
+  await input.options.ensureBridgeServerStarted?.();
+  const session = new BridgeSession({
+    onStatusChange: (status) => {
+      input.options.bridgeRegistry?.notifyStatusChanged(input.runId, status);
+      const message = status === "connected"
+        ? "External harness connected via Meowbert Bridge."
+        : status === "parked"
+          ? "Meowbert Bridge session paused."
+          : status === "completed"
+            ? "Meowbert Bridge session completed."
+            : null;
+      if (message) void input.remote.emitEvent("log", { stage: "bridge.status", phase: status, message }).catch(() => undefined);
+    }
+  });
+  const handoff = input.options.bridgeRegistry?.register({
+    runId: input.runId, taskId: input.taskId, mode: input.host ? "host" : "sandbox", session
+  });
+  void input.remote.emitEvent("log", {
+    stage: "bridge.status", phase: "waiting_for_start",
+    ...(handoff ? { sessionCode: handoff.sessionCode } : {}),
+    message: "Waiting for external harness to connect via Meowbert Bridge."
+  }).catch(() => undefined);
+  return session;
+}
+
 export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceApi, notice: DeviceRunNotice, image: string, skillsRootDir: string, settings: ExecutorSettings, installId: string) {
   const workspaceRoot = options.workspaceRoots?.[notice.payload_json.workspaceId];
   if (workspaceRoot) options = { ...options, storageRoot: workspaceRoot, storageBackendId: "workspace:" + notice.payload_json.workspaceId };
@@ -29,12 +63,16 @@ export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceA
   const folderConsumer = notice.run_id + ":" + randomUUID();
   const runIdentity = { taskId: notice.payload_json.taskId, runId: notice.run_id };
   const host = notice.payload_json.executionTarget?.kind === "local" && notice.payload_json.executionTarget.mode === "host";
+  const bridged = isBridgeTaskExecutionTarget(notice.payload_json.executionTarget);
   const runsRoot = options.runsRoot ?? path.join(options.scratchRoot, "../runs");
   const hostProcesses = new HostProcesses(path.join(runsRoot, notice.run_id + "-tools.pids"));
   let machine: MachineHost | null = null;
   let control: ReturnType<typeof createHttpRunControl> | null = null;
+  let bridgeSession: BridgeSession | null = null;
   const fence = async () => {
     abort.abort();
+    bridgeSession?.cancel();
+    options.bridgeRegistry?.unregister(notice.run_id);
     control?.stop();
     computerUseService.release(notice.payload_json.taskId);
     try { await Promise.all([machine?.stop(), hostProcesses.stop(), getHostBrowser(options.resourcesRoot).release(notice.payload_json.taskId)]); }
@@ -81,9 +119,13 @@ export function startLocalRun(options: DesktopLocalExecutorOptions, api: DeviceA
       const workspaceRelocationNote = await localRunRelocationNote(path.resolve(envRoot, bootstrap.snapshot.task.task_root_path), { workspaceRoot, envRoot });
       configureLocalRunPlatform({ platform, options, taskId: notice.payload_json.taskId, signal: abort.signal,
         hostProcesses, envRoot, bootstrap, settings, liveSyncFiles });
+      if (bridged) {
+        bridgeSession = await attachBridgeSession({ options, remote, runId: notice.run_id, taskId: notice.payload_json.taskId, host });
+      }
       executing = true;
       await runAgentJob(notice.payload_json, localRunEnvironment({ options, taskId: notice.payload_json.taskId, host,
         image, skillsRootDir, settings, installId, signal: abort.signal, platform, client, remote, workspaceRelocationNote,
+        bridgeSession: bridgeSession ?? undefined,
         bootstrap: { ...bootstrap, liveSyncFiles, roots: { ...bootstrap.roots, workspaceRoot, envRoot } },
         onMachine: (value) => { machine = value; } }));
     } catch (error) {

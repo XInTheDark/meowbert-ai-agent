@@ -24,3 +24,11 @@ it("enforces the feature guard on followups schedules and threads while leaving 
 it("allows scheduling and consented device tool options", () => {
   expect(localTaskFeatureError({schedule:{mode:"infinite"},tools:{computerUse:true,scheduleTask:true}})).toBeNull();
 });
+
+it("restricts bridge mode to standard local tasks without workflows, schedules, or subtasks", () => {
+  expect(localTaskFeatureError({ bridge: true })).toBeNull();
+  expect(localTaskFeatureError({ bridge: true, workflow: { type: "standard" } })).toBeNull();
+  expect(localTaskFeatureError({ bridge: true, workflow: { type: "agent_swarm" } })).toBeTruthy();
+  expect(localTaskFeatureError({ bridge: true, schedule: { mode: "infinite" } })).toBeTruthy();
+  expect(localTaskFeatureError({ bridge: true, tools: { subtasks: true } })).toBeTruthy();
+});

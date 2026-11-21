@@ -1,14 +1,27 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { app, safeStorage } from "electron";
 import type {
+  BridgeToolMode,
   DesktopActiveContext,
   DesktopBootstrapData,
   DesktopLocalExecutionSettings,
   DesktopServerProfilesState,
   DesktopShortcutPreferences
 } from "../shared";
+
+interface PersistedBridgeSettings {
+  bearerToken?: PersistedTokenEnvelope;
+  toolMode?: BridgeToolMode;
+  preferredPort?: number;
+}
+
+export interface DesktopBridgeSettings {
+  bearerToken: string;
+  toolMode: BridgeToolMode;
+  preferredPort: number;
+}
 
 interface PersistedTokenEnvelope {
   mode: "none" | "plain" | "safe-storage";
@@ -21,6 +34,7 @@ interface PersistedDesktopState {
   shortcutPreferences?: DesktopShortcutPreferences;
   activeContext?: DesktopActiveContext;
   localExecutionSettingsByServer?: Record<string, DesktopLocalExecutionSettings>;
+  bridgeSettings?: PersistedBridgeSettings;
 }
 
 const DEFAULT_SERVER_PROFILES_STATE: DesktopServerProfilesState = {
@@ -246,4 +260,56 @@ export async function listLocalExecutionDeviceIds(): Promise<string[]> {
   await pendingStateWrite;
   const state = await readPersistedState();
   return [...new Set(Object.values(state.localExecutionSettingsByServer ?? {}).map((settings) => settings.deviceId))];
+}
+
+const DEFAULT_BRIDGE_PORT = 38471;
+
+function generateBridgeToken(): string {
+  return `mbt_${randomBytes(24).toString("hex")}`;
+}
+
+export async function readBridgeSettings(): Promise<DesktopBridgeSettings> {
+  return updateState((state) => {
+    const existing = state.bridgeSettings;
+    const decoded = decodeToken(existing?.bearerToken);
+    const bearerToken = decoded && decoded.trim().length > 0 ? decoded.trim() : generateBridgeToken();
+    const toolMode: BridgeToolMode = existing?.toolMode === "compact" ? "compact" : "standard";
+    const preferredPort = typeof existing?.preferredPort === "number" && existing.preferredPort >= 1024 && existing.preferredPort <= 65535
+      ? Math.floor(existing.preferredPort)
+      : DEFAULT_BRIDGE_PORT;
+    if (!decoded) {
+      state.bridgeSettings = {
+        bearerToken: encodeToken(bearerToken),
+        toolMode,
+        preferredPort
+      };
+    }
+    return { bearerToken, toolMode, preferredPort };
+  });
+}
+
+export async function saveBridgeSettings(patch: Partial<DesktopBridgeSettings>): Promise<DesktopBridgeSettings> {
+  return updateState((state) => {
+    const existing = state.bridgeSettings;
+    const decoded = decodeToken(existing?.bearerToken);
+    const bearerToken = typeof patch.bearerToken === "string" && patch.bearerToken.trim().length > 0
+      ? patch.bearerToken.trim()
+      : (decoded && decoded.trim().length > 0 ? decoded.trim() : generateBridgeToken());
+    const toolMode: BridgeToolMode = patch.toolMode === "compact" || patch.toolMode === "standard"
+      ? patch.toolMode
+      : (existing?.toolMode === "compact" ? "compact" : "standard");
+    const preferredPort = typeof patch.preferredPort === "number" && patch.preferredPort >= 1024 && patch.preferredPort <= 65535
+      ? Math.floor(patch.preferredPort)
+      : (typeof existing?.preferredPort === "number" ? existing.preferredPort : DEFAULT_BRIDGE_PORT);
+    state.bridgeSettings = {
+      bearerToken: encodeToken(bearerToken),
+      toolMode,
+      preferredPort
+    };
+    return { bearerToken, toolMode, preferredPort };
+  });
+}
+
+export async function regenerateBridgeBearerToken(): Promise<DesktopBridgeSettings> {
+  return saveBridgeSettings({ bearerToken: generateBridgeToken() });
 }

@@ -9,6 +9,10 @@
 - **Clearer swarm waiting status** — Tasks parked waiting for Agent Swarm lanes now show **Waiting for lanes** instead of **Queued** in the task header and task list.
 - **Lane details, context usage, and shared notes timeline** — Opening an Agent Swarm lane now shows its live context usage chip in the lane bar along with **Shared notes** (chronological timeline with per-lane and whole-swarm filtering plus audience/wakeup badges) and **Details** tabs.
 
+### Desktop
+
+- **External harness bridge (MCP)** — Drive local Meowbert tasks (both **Sandbox** and **Host** modes) using models from an external MCP-capable harness such as Antigravity, Claude Code, or Cursor while Meowbert keeps full ownership of the filesystem, tools, live streaming, artifacts, and conversation history. Configure Meowbert Desktop's localhost MCP server once under **Preferences → Local execution → External harness bridge (MCP)** (with **Standard** and **Compact (3 tools)** modes), toggle **Bridge** in the task composer, and paste the generated handoff prompt into your harness. Bridged runs park cleanly as awaiting input if disconnected or idle for 15 minutes.
+
 ### Self-hosting
 
 - **Swarm share inbox migration** — Run `npm run migrate` for migration 168 (`168_agent_swarm_parent_share_inbox.sql`) when running from source; Docker installs apply migrations when the API starts.

@@ -1,6 +1,7 @@
 import { FolderOpen, RotateCcw } from "lucide-react";
 import type { DesktopLocalExecutionSettings } from "../../desktop/platform";
 import { DesktopPreferenceRow, DesktopPreferenceSection, DesktopPreferenceSwitch } from "./DesktopPreferenceFields";
+import { BridgePreferencesSection } from "./BridgePreferencesSection";
 import { LocalExecutionAccessPreferences } from "./LocalExecutionAccessPreferences";
 import { LocalSandboxStatus } from "./LocalSandboxStatus";
 import { useLocalExecutionPreferences } from "./useLocalExecutionPreferences";
@@ -47,6 +48,7 @@ export function LocalExecutionPreferences() {
         </DesktopPreferenceSection>
         <LocalExecutionStoragePreferences settings={settings} updateSettings={updateSettings} pickRoot={preferences.pickRoot} />
         <LocalExecutionAccessPreferences settings={settings} updateSettings={updateSettings} />
+        <BridgePreferencesSection />
       </fieldset>
       <footer className="desktop-preferences-save-bar">
         <div aria-live="polite">

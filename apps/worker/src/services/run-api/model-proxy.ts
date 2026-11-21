@@ -44,7 +44,10 @@ function validateTools(tools: unknown, request: RunApiModelRequest, policy: RunM
     const type = (tool as { type?: unknown } | null)?.type;
     if (typeof type === "string" && CLIENT_TOOL_TYPES.has(type)) continue;
     // Provider-hosted search is billed by the provider, so only runs allowed to search get it.
-    if (type === "web_search" && request.purpose === "turn" && policy.allowHostedWebSearch) continue;
+    if (type === "web_search" && (
+      (request.purpose === "turn" && policy.allowHostedWebSearch)
+      || (request.purpose === "web_search" && policy.allowBridgeWebSearch === true)
+    )) continue;
     reject(`Tool type ${String(type)} is not allowed.`);
   }
 }

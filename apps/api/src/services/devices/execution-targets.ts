@@ -10,8 +10,15 @@ export function localTaskFeatureError(input: {
   workflow?: unknown;
   schedule?: unknown;
   tools?: { subtasks?: boolean; scheduleTask?: boolean; computerUse?: boolean };
+  bridge?: boolean;
 }): string | null {
   const workflow = input.workflow as { type?: string } | undefined;
+  if (input.bridge === true) {
+    if ((workflow && workflow.type !== "standard") || input.schedule || input.tools?.subtasks) {
+      return "Bridge mode supports standard local tasks without workflows, schedules, or subtasks.";
+    }
+    return null;
+  }
   return (workflow && workflow.type !== "standard" && workflow.type !== "agent_swarm") || input.tools?.subtasks
     ? "Local tasks support standard and Agent Swarm runs without other workflows or subtasks."
     : null;
@@ -60,7 +67,7 @@ export async function localTaskMutationError(taskId: string, _userId: string, in
   if (target?.kind !== "local") return null;
   if (!config.localExecution.enabled) return "Local execution is disabled on this server.";
   if (input.thread && target.mode === "host") return "Read-only threads require sandbox mode.";
-  const featureError = localTaskFeatureError(input);
+  const featureError = localTaskFeatureError({ ...input, bridge: target.bridge === true });
   if (featureError) return featureError;
   return null;
 }

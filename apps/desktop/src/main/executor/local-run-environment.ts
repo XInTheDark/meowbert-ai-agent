@@ -8,6 +8,8 @@ import type { PlatformToolHost } from "@meowbert/run-executor/agent/ports/platfo
 import type { RunApiClient } from "@meowbert/run-executor/run-api/client";
 import type { createHttpRunControl } from "@meowbert/run-executor/run-api/http-run-control";
 import { createProxyModelGateway } from "@meowbert/run-executor/run-api/proxy-model-gateway";
+import { createBridgeModelGateway } from "@meowbert/run-executor/bridge/bridge-model-gateway";
+import type { BridgeSession } from "@meowbert/run-executor/bridge/bridge-session";
 import { noRunFeatures } from "@meowbert/run-executor/agent/ports/run-features";
 import { createSwarmRunFeatures } from "@meowbert/run-executor/agent-swarm/features";
 import { createHttpSwarmBackend } from "@meowbert/run-executor/run-api/http-swarm-backend";
@@ -24,9 +26,11 @@ export function localRunEnvironment(input: {
   options: DesktopLocalExecutorOptions; taskId: string; host: boolean; image: string; skillsRootDir: string;
   settings: ExecutorSettings; installId: string; signal: AbortSignal; bootstrap: RunBootstrap; platform: PlatformToolHost;
   client: RunApiClient; remote: ReturnType<typeof createHttpRunControl>; onMachine: (machine: MachineHost) => void;
-  workspaceRelocationNote?: string;
+  workspaceRelocationNote?: string; bridgeSession?: BridgeSession;
 }): RunEnvironment {
-  const { options, host, image, skillsRootDir, settings, installId, signal, platform } = input;
+  const { options, host, image, skillsRootDir, settings, installId, signal, platform, bridgeSession } = input;
+  const proxyModels = createProxyModelGateway(input.client);
+  const models = bridgeSession ? createBridgeModelGateway({ session: bridgeSession, fallback: proxyModels }) : proxyModels;
   const machines = host ? createHostMachineProvider({ scratchRoot: options.scratchRoot,
     runsRoot: options.runsRoot ?? path.join(options.scratchRoot, "../runs"), consent: options.hostConsent === true })
     : createDesktopSandboxMachineProvider({ image, scratchRoot: options.scratchRoot, skillsRootDir,
@@ -37,7 +41,8 @@ export function localRunEnvironment(input: {
       const accepted = await input.remote.setTaskStatus(status);
       if (accepted && status === "running") options.onRunStarted?.(input.taskId);
       return accepted;
-    } }, models: createProxyModelGateway(input.client),
+    } }, models,
+    ...(bridgeSession ? { onRunFinished: (outcome) => bridgeSession.onRunEnded(outcome) } : {}),
     machines: { ...machines, start: async (spec) => {
       signal.throwIfAborted();
       const machine = await machines.start(spec);
@@ -56,7 +61,7 @@ export function localRunEnvironment(input: {
       }
       return startMcpServer(manifest, dir, sandbox, timeout, env);
     },
-    settings: { ...settings, hostMode: host, hostBrowserEnabled: options.hostBrowserEnabled, workspaceRelocationNote: input.workspaceRelocationNote,
+    settings: { ...settings, hostMode: host, bridgeMode: Boolean(bridgeSession), hostBrowserEnabled: options.hostBrowserEnabled, workspaceRelocationNote: input.workspaceRelocationNote,
       shell: host ? (process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "/bin/zsh") : settings.shell,
       sharedDependenciesDirectory: host ? ".meowbert/shared-" + os.platform() + "-" + os.arch() : sharedSandboxDependencies(),
       sandboxPdfPreparation: !host, sandboxSkillsRootDir: !host && process.platform === "win32" ? "/app/skills" : undefined,

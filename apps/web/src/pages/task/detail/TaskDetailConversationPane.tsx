@@ -14,6 +14,7 @@ import type { WorkspaceSourceSummary } from "../../../sources/sourceTypes";
 import { TaskConversationMessages } from "../../../components/taskConversation/TaskConversationMessages";
 import type { ToolInspectorSelection } from "../../../components/taskConversation/ToolActivityInspectorPanel";
 import { PendingFollowUpBubble } from "../../../components/taskConversation/PendingFollowUpBubble";
+import { BridgeHandoffCard } from "./BridgeHandoffCard";
 import type {
   LiveToolCall,
   TaskAssistantMessageDisplayPreferences,
@@ -257,6 +258,8 @@ export function TaskDetailConversationPane(props: TaskDetailConversationPaneProp
           </button>
         ) : null}
       </div>
+
+      <BridgeHandoffCard taskId={props.taskId} />
 
       {hideComposer ? (
         props.composerNotice ? <p className="chat-input-notice muted-text">{props.composerNotice}</p> : null

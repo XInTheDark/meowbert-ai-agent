@@ -178,3 +178,24 @@ it("aborts immediately on server cancellation instead of waiting for reconnect g
   expect(test.deps.reservations.release).toHaveBeenCalledOnce();
   expect(stopWatching).toHaveBeenCalledOnce();
 });
+
+it("allows hosted web_search on purpose=web_search only when allowBridgeWebSearch is enabled", async () => {
+  const blocked = fixture();
+  blocked.policy.allowHostedWebSearch = true;
+  await expect(proxyModelRequest(
+    blocked.session,
+    { ...blocked.request, purpose: "web_search", body: { input: [], tools: [{ type: "web_search" }], max_output_tokens: 100 } },
+    blocked.deps,
+    new AbortController().signal
+  )).rejects.toMatchObject({ code: "invalid_request" });
+
+  const allowed = fixture();
+  allowed.policy.allowHostedWebSearch = true;
+  allowed.policy.allowBridgeWebSearch = true;
+  await expect(proxyModelRequest(
+    allowed.session,
+    { ...allowed.request, purpose: "web_search", body: { input: [], tools: [{ type: "web_search" }], max_output_tokens: 100 } },
+    allowed.deps,
+    new AbortController().signal
+  )).resolves.toMatchObject({ weightedTokens: 1 });
+});

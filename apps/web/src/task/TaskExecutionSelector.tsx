@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Plug } from "lucide-react";
 import type { WorkspaceFileHost, TaskExecutionTarget } from "@meowbert/shared";
 import type { ApiClient } from "../lib/api";
 
@@ -9,6 +10,7 @@ export function TaskExecutionSelector(props: {
   projectId: string | null;
   target: TaskExecutionTarget;
   disabled: boolean;
+  bridgeDisabled?: boolean;
   onChange: (target: TaskExecutionTarget) => void;
 }) {
   const [devices, setDevices] = useState<LocalDeviceOption[]>([]);
@@ -49,6 +51,24 @@ export function TaskExecutionSelector(props: {
     {props.target.kind === "local" ? <select aria-label="Local machine mode" className="btn ghost" value={props.target.mode} disabled={props.disabled} onChange={(event) => { if (props.target.kind === "local") props.onChange({ ...props.target, mode: event.target.value as "sandbox" | "host" }); }}>
       <option value="sandbox">Sandbox</option><option value="host" disabled={!devices.find((device) => device.id === selectedDeviceId)?.hostMode}>Host</option>
     </select> : null}
+    {props.target.kind === "local" ? (
+      <button
+        type="button"
+        className={`btn ${props.target.bridge ? "primary" : "ghost"}`}
+        aria-pressed={props.target.bridge === true}
+        aria-label={props.target.bridge ? "Disable Bridge mode" : "Enable Bridge mode"}
+        title={props.bridgeDisabled ? "Bridge mode supports standard local tasks only" : "Drive this task from an external MCP harness"}
+        disabled={props.disabled || props.bridgeDisabled}
+        onClick={() => {
+          if (props.target.kind !== "local") return;
+          const next = { kind: "local" as const, deviceId: props.target.deviceId, mode: props.target.mode };
+          props.onChange(props.target.bridge ? next : { ...next, bridge: true });
+        }}
+      >
+        <Plug size={14} />
+        Bridge
+      </button>
+    ) : null}
     </>
   );
 }
