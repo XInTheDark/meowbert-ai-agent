@@ -7,7 +7,7 @@ import { ACTIVE_SWARM_LANE_STATUSES } from "./swarmLaneGroups";
 import { SwarmLaneDetailsPanel } from "./SwarmLaneDetailsPanel";
 import { SwarmSharedNotesPanel } from "./SwarmSharedNotesPanel";
 import { TaskWorkflowWorkerPanel } from "./TaskWorkflowWorkerPanel";
-import { useSwarmSharedNotes } from "./useSwarmSharedNotes";
+import { useSwarmSharedNotes, type SwarmNotesFilter } from "./useSwarmSharedNotes";
 
 interface SwarmLaneSidebarProps {
   api: ApiClient;
@@ -28,10 +28,13 @@ const LANE_KIND_LABELS: Record<AgentSwarmLaneView["kind"], string> = {
 export function SwarmLaneSidebar(props: SwarmLaneSidebarProps) {
   const { lane } = props;
   const [activeTab, setActiveTab] = useState<LaneSidebarTab>("chat");
+  const [notesFilter, setNotesFilter] = useState<SwarmNotesFilter>("lane");
   const [laneTaskDetail, setLaneTaskDetail] = useState<TaskDetail | null>(null);
   const sharedNotes = useSwarmSharedNotes({
     api: props.api,
     swarmTaskId: props.swarmTaskId,
+    laneId: lane.id,
+    filter: notesFilter,
     active: ACTIVE_SWARM_LANE_STATUSES.has(lane.status)
   });
 
@@ -39,9 +42,7 @@ export function SwarmLaneSidebar(props: SwarmLaneSidebarProps) {
     setLaneTaskDetail(null);
   }, [lane.id]);
 
-  const laneSharedCount = sharedNotes.notes.filter((note) => note.laneId === lane.id).length;
-  const totalSharedCount = sharedNotes.notes.length;
-  const notesBadgeCount = laneSharedCount > 0 ? laneSharedCount : totalSharedCount;
+  const notesBadgeCount = sharedNotes.laneCount > 0 ? sharedNotes.laneCount : sharedNotes.totalCount;
 
   return (
     <aside className="thread-sidebar workflow-sidebar" aria-label="Lane">
@@ -109,8 +110,15 @@ export function SwarmLaneSidebar(props: SwarmLaneSidebarProps) {
         {activeTab === "notes" ? (
           <SwarmSharedNotesPanel
             laneId={lane.id}
+            filter={notesFilter}
+            onFilterChange={setNotesFilter}
             notes={sharedNotes.notes}
+            laneCount={sharedNotes.laneCount}
+            totalCount={sharedNotes.totalCount}
+            hasOlder={sharedNotes.hasOlder}
             isLoading={sharedNotes.isLoading}
+            isLoadingOlder={sharedNotes.isLoadingOlder}
+            onLoadOlder={() => void sharedNotes.loadOlder()}
             error={sharedNotes.error}
           />
         ) : null}

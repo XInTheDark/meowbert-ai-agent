@@ -2,7 +2,7 @@ import { expect, it, vi } from "vitest";
 
 vi.mock("../../lib/db.js", () => ({ query: vi.fn() }));
 import { query } from "../../lib/db.js";
-import { loadAgentSwarmView } from "./lanes-read.js";
+import { loadAgentSwarmNotes, loadAgentSwarmView } from "./lanes-read.js";
 
 it("advertises failed lanes for resume with the same expiry rules as submitted lanes", async () => {
   const lane = { task_id: "failed", parent_task_id: "leader", fork_seed_id: "seed", depth: 1,
@@ -36,4 +36,28 @@ it("shows persisted Check effort and defaults older lanes to standard", async ()
   expect(view?.lanes.map(({ id, reviewEffort }) => ({ id, reviewEffort }))).toEqual([
     { id: "reviewer", reviewEffort: "standard" }, { id: "thorough", reviewEffort: "thorough" }, { id: "split", reviewEffort: null }
   ]);
+});
+
+it("loads the most recent shared notes in chronological order with hasOlder and counts", async () => {
+  const rows = Array.from({ length: 201 }, (_, index) => ({
+    seq: String(500 - index),
+    author_task_id: "lane-1",
+    title: "TRAIN",
+    kind: "shared" as const,
+    content: `note-${500 - index}`,
+    created_at: "2026-11-21T01:00:00Z",
+    notify_siblings: true,
+    notify_parent: "inbox" as const
+  }));
+  vi.mocked(query)
+    .mockResolvedValueOnce({ rows } as never)
+    .mockResolvedValueOnce({ rows: [{ total_count: 500, lane_count: 25 }] } as never);
+
+  const page = await loadAgentSwarmNotes("swarm-1", { kind: "shared", laneId: "lane-1" });
+  expect(page.hasOlder).toBe(true);
+  expect(page.totalCount).toBe(500);
+  expect(page.laneCount).toBe(25);
+  expect(page.notes).toHaveLength(200);
+  expect(page.notes[0].seq).toBe("301");
+  expect(page.notes[199].seq).toBe("500");
 });

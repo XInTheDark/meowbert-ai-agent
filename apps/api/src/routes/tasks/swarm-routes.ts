@@ -1,14 +1,17 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { AgentSwarmNoteView, AgentSwarmView } from "@meowbert/shared";
+import type { AgentSwarmView } from "@meowbert/shared";
 import { requestAgentSwarmLaneStop } from "../../services/agent-swarm/lane-stop.js";
-import { loadAgentSwarmNotes, loadAgentSwarmView } from "../../services/agent-swarm/lanes-read.js";
+import { loadAgentSwarmNotes, loadAgentSwarmView, type AgentSwarmNotesPage } from "../../services/agent-swarm/lanes-read.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { taskParams } from "./shared.js";
 
 const notesQuery = z.object({
   after: z.string().regex(/^\d+$/).optional(),
-  kind: z.enum(["shared", "auto"]).optional()
+  before: z.string().regex(/^\d+$/).optional(),
+  kind: z.enum(["shared", "auto"]).optional(),
+  laneId: z.string().uuid().optional(),
+  countLaneId: z.string().uuid().optional()
 });
 const laneParams = taskParams.extend({ laneId: z.string().uuid() });
 const stopBody = z.object({ discard: z.boolean() });
@@ -19,11 +22,17 @@ async function handleGetSwarm(request: FastifyRequest): Promise<{ swarm: AgentSw
   return { swarm: await loadAgentSwarmView(params.taskId) };
 }
 
-async function handleGetSwarmNotes(request: FastifyRequest): Promise<{ notes: AgentSwarmNoteView[] }> {
+async function handleGetSwarmNotes(request: FastifyRequest): Promise<AgentSwarmNotesPage> {
   const params = taskParams.parse(request.params);
-  const { after, kind } = notesQuery.parse(request.query ?? {});
+  const { after, before, kind, laneId, countLaneId } = notesQuery.parse(request.query ?? {});
   await assertTaskMember(params.taskId, request.user.id);
-  return { notes: await loadAgentSwarmNotes(params.taskId, after ?? null, kind ?? null) };
+  return loadAgentSwarmNotes(params.taskId, {
+    afterSeq: after ?? null,
+    beforeSeq: before ?? null,
+    kind: kind ?? null,
+    laneId: laneId ?? null,
+    countLaneId: countLaneId ?? null
+  });
 }
 
 // The same as the stop tool, for the user; steering goes through the leader as a normal message.

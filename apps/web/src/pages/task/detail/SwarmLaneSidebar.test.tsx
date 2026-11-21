@@ -155,4 +155,64 @@ describe("SwarmLaneSidebar", () => {
     expect(container.textContent).toContain("Run step-24 gate and share milestones.");
     expect(container.textContent).toContain("Context 32%");
   });
+
+  it("scrolls to the newest note on open and loads earlier notes on demand", async () => {
+    const getMock = vi.fn(async (url: string) => {
+      if (url.includes("/swarm/notes") && url.includes("before=201")) {
+        return {
+          notes: [{ ...NOTES[0], seq: "200", content: "Older note #200" }],
+          hasOlder: false,
+          totalCount: 250,
+          laneCount: 2
+        };
+      }
+      if (url.includes("/swarm/notes")) {
+        return {
+          notes: [{ ...NOTES[2], seq: "201", content: "Newest note #201" }],
+          hasOlder: true,
+          totalCount: 250,
+          laneCount: 2
+        };
+      }
+      return {
+        task: { id: "lane-1", title: LANE.title, status: "done", created_at: LANE.createdAt, updated_at: LANE.createdAt, source: "web" },
+        messages: [],
+        latest_context_usage: null,
+        last_idle_compaction_at: null,
+        workflow: null
+      };
+    });
+    const api = { get: getMock } as unknown as ApiClient;
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<SwarmLaneSidebar api={api} swarmTaskId="swarm-1" lane={{ ...LANE, status: "done" }} onClose={() => {}} />);
+    });
+
+    const notesTab = Array.from(container.querySelectorAll<HTMLButtonElement>("[role='tab']"))
+      .find((button) => button.textContent?.includes("Shared notes"));
+    await act(async () => {
+      notesTab?.click();
+    });
+
+    const scrollEl = container.querySelector<HTMLDivElement>(".swarm-shared-notes-scroll");
+    expect(scrollEl).not.toBeNull();
+    Object.defineProperty(scrollEl!, "scrollHeight", { configurable: true, value: 900 });
+
+    const loadOlderBtn = container.querySelector<HTMLButtonElement>(".conversation-load-older");
+    expect(loadOlderBtn?.textContent).toContain("Load earlier notes");
+    expect(container.textContent).toContain("250");
+
+    await act(async () => {
+      loadOlderBtn?.click();
+    });
+
+    const items = Array.from(container.querySelectorAll(".swarm-shared-note-body")).map((el) => el.textContent);
+    expect(items).toEqual(["Older note #200", "Newest note #201"]);
+    expect(container.querySelector(".conversation-load-older")).toBeNull();
+    expect(getMock).toHaveBeenCalledWith("/api/tasks/swarm-1/swarm/notes?kind=shared&laneId=lane-1");
+    expect(getMock).toHaveBeenCalledWith("/api/tasks/swarm-1/swarm/notes?kind=shared&laneId=lane-1&before=201");
+  });
 });

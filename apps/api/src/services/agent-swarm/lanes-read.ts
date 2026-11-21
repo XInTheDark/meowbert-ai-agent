@@ -99,33 +99,34 @@ export async function loadAgentSwarmView(swarmTaskId: string): Promise<AgentSwar
   };
 }
 
-export async function loadAgentSwarmNotes(
-  swarmTaskId: string,
-  afterSeq: string | null,
-  kind: "shared" | "auto" | null = null
-): Promise<AgentSwarmNoteView[]> {
-  const result = await query<{
-    seq: string;
-    author_task_id: string;
-    title: string | null;
-    kind: "shared" | "auto";
-    content: string;
-    created_at: string;
-    notify_siblings: boolean;
-    notify_parent: "none" | "inbox" | "wake";
-  }>(
-    `SELECT note.seq::text AS seq, note.author_task_id, lane.title, note.kind, note.content, note.created_at,
-            note.notify_siblings, note.notify_parent
-       FROM task_swarm_notes note
-       LEFT JOIN task_swarm_lanes lane ON lane.task_id = note.author_task_id
-      WHERE note.swarm_task_id = $1
-        AND note.seq > $2::bigint
-        AND ($3::text IS NULL OR note.kind = $3)
-      ORDER BY note.seq
-      LIMIT $4`,
-    [swarmTaskId, afterSeq ?? "0", kind, MAX_NOTES_PER_PAGE]
-  );
-  return result.rows.map((note) => ({
+interface NoteRow {
+  seq: string;
+  author_task_id: string;
+  title: string | null;
+  kind: "shared" | "auto";
+  content: string;
+  created_at: string;
+  notify_siblings: boolean;
+  notify_parent: "none" | "inbox" | "wake";
+}
+
+export interface LoadAgentSwarmNotesOptions {
+  afterSeq?: string | null;
+  beforeSeq?: string | null;
+  kind?: "shared" | "auto" | null;
+  laneId?: string | null;
+  countLaneId?: string | null;
+}
+
+export interface AgentSwarmNotesPage {
+  notes: AgentSwarmNoteView[];
+  hasOlder: boolean;
+  totalCount: number;
+  laneCount?: number;
+}
+
+function toNoteView(note: NoteRow): AgentSwarmNoteView {
+  return {
     seq: note.seq,
     laneId: note.author_task_id,
     laneTitle: note.title ?? "Leader",
@@ -134,5 +135,66 @@ export async function loadAgentSwarmNotes(
     createdAt: note.created_at,
     notifySiblings: note.notify_siblings,
     notifyParent: note.notify_parent
-  }));
+  };
+}
+
+// Defaults to the most recent page in chronological order; `beforeSeq` walks backward and `afterSeq` catches up forward.
+export async function loadAgentSwarmNotes(
+  swarmTaskId: string,
+  options: LoadAgentSwarmNotesOptions = {}
+): Promise<AgentSwarmNotesPage> {
+  const kind = options.kind ?? null;
+  const laneId = options.laneId ?? null;
+  const countLaneId = options.countLaneId ?? laneId;
+  const isForward = Boolean(options.afterSeq);
+
+  const [rowsRes, countsRes] = await Promise.all([
+    isForward
+      ? query<NoteRow>(
+          `SELECT note.seq::text AS seq, note.author_task_id, lane.title, note.kind, note.content, note.created_at,
+                  note.notify_siblings, note.notify_parent
+             FROM task_swarm_notes note
+             LEFT JOIN task_swarm_lanes lane ON lane.task_id = note.author_task_id
+            WHERE note.swarm_task_id = $1
+              AND note.seq > $2::bigint
+              AND ($3::text IS NULL OR note.kind = $3)
+              AND ($4::uuid IS NULL OR note.author_task_id = $4)
+            ORDER BY note.seq ASC
+            LIMIT $5`,
+          [swarmTaskId, options.afterSeq, kind, laneId, MAX_NOTES_PER_PAGE]
+        )
+      : query<NoteRow>(
+          `SELECT note.seq::text AS seq, note.author_task_id, lane.title, note.kind, note.content, note.created_at,
+                  note.notify_siblings, note.notify_parent
+             FROM task_swarm_notes note
+             LEFT JOIN task_swarm_lanes lane ON lane.task_id = note.author_task_id
+            WHERE note.swarm_task_id = $1
+              AND ($2::bigint IS NULL OR note.seq < $2::bigint)
+              AND ($3::text IS NULL OR note.kind = $3)
+              AND ($4::uuid IS NULL OR note.author_task_id = $4)
+            ORDER BY note.seq DESC
+            LIMIT $5`,
+          [swarmTaskId, options.beforeSeq ?? null, kind, laneId, MAX_NOTES_PER_PAGE + 1]
+        ),
+    query<{ total_count: number; lane_count: number }>(
+      `SELECT COUNT(*)::int AS total_count,
+              COUNT(*) FILTER (WHERE $3::uuid IS NOT NULL AND author_task_id = $3::uuid)::int AS lane_count
+         FROM task_swarm_notes
+        WHERE swarm_task_id = $1
+          AND ($2::text IS NULL OR kind = $2)`,
+      [swarmTaskId, kind, countLaneId]
+    )
+  ]);
+
+  const hasOlder = !isForward && rowsRes.rows.length > MAX_NOTES_PER_PAGE;
+  const orderedRows = isForward
+    ? rowsRes.rows
+    : rowsRes.rows.slice(0, MAX_NOTES_PER_PAGE).reverse();
+  const counts = countsRes.rows[0];
+  return {
+    notes: orderedRows.map(toNoteView),
+    hasOlder,
+    totalCount: counts?.total_count ?? orderedRows.length,
+    ...(countLaneId ? { laneCount: counts?.lane_count ?? 0 } : {})
+  };
 }
