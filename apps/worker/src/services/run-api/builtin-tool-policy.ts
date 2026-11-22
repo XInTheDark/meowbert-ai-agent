@@ -1,5 +1,5 @@
 import type { Tool } from "openai/resources/responses/responses";
-import { buildResponseTools, TASK_SCHEDULING_TOOL_GROUP_ID, TASK_TITLE_FUNCTION_TOOL, WEB_SEARCH_TOOL } from "@meowbert/run-executor/agent-tools/index";
+import { buildResponseTools, HARNESS_SETTINGS_TOOL_GROUP_ID, TASK_SCHEDULING_TOOL_GROUP_ID, TASK_TITLE_FUNCTION_TOOL, WEB_SEARCH_TOOL } from "@meowbert/run-executor/agent-tools/index";
 import { buildCodeModeToolSet } from "@meowbert/run-executor/code-mode/code-mode-tools";
 import { resolveRunToolOptions } from "@meowbert/run-executor/agent/runtime";
 import { COMPACTION_TOOL_NAME, COMPACTION_OUTPUT_SCHEMA } from "@meowbert/run-executor/context-compaction/shared";
@@ -30,7 +30,8 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
   for (const version of ["v1", "v2"] as const) for (const organization of [false, true]) {
     const ordinary = buildResponseTools(options, [], {
       allowFinalResponse: true, allowSendMessage: true, allowWaitTool: snapshot.task.allow_waiting !== false, allowStopTask,
-      allowScheduleTools: snapshot.task.read_only !== true, loadedToolGroups: [TASK_SCHEDULING_TOOL_GROUP_ID],
+      allowScheduleTools: snapshot.task.read_only !== true, loadedToolGroups: [TASK_SCHEDULING_TOOL_GROUP_ID, HARNESS_SETTINGS_TOOL_GROUP_ID],
+      allowHarnessSettings: snapshot.task.read_only !== true && bootstrap.harness?.agentMayChange === true,
       allowSubtaskTools: !local, allowPdfFileTool: !host && !bootstrap.runtime.compatibilityModes.includes("disablePdfFile"),
       allowHistorySearch: bootstrap.embeddingFeatures?.historySearchEnabled === true,
       newMessageOrganizationEnabled: organization, allowTaskHistoryTools: bootstrap.memoryEnabled,

@@ -19,6 +19,8 @@ import {
   pauseRecurringSchedule
 } from "../task-schedules/service.js";
 import { createSubtaskFromTool, startSubtasksFromTool } from "../tasks/subtasks.js";
+import { updateHarnessSettings } from "../harness-settings/service.js";
+import { scheduleNextKeepAliveCycle } from "../harness-settings/keep-alive-cycles.js";
 import {
   fetchTaskLiveSyncStatus,
   pullTaskLiveSyncFile,
@@ -280,6 +282,15 @@ export function createDbPlatformToolHost(requireRun: () => ServerRunState): Plat
     editCurrentTaskSchedule: (input) => editCurrentTaskSchedule({ taskId: scope().taskId, repeat: input.repeat, timezone: input.timezone, enabledTools: input.enabledTools }),
     pauseRecurringSchedule: () => pauseRecurringSchedule(scope().taskId),
     applyInfiniteWait: (seconds) => applyInfiniteWait(scope().taskId, seconds),
+    updateHarnessSettings: (change) => {
+      const { run, taskId } = scope();
+      return updateHarnessSettings({ taskId, actor: "agent", actorUserId: run.bootstrap.runActorUserId, change });
+    },
+    scheduleKeepAliveCycle: ({ idle, budgetExhausted }) => scheduleNextKeepAliveCycle(scope().taskId, { idle, budgetExhausted }),
+    async addTaskSpentTokens(tokens) {
+      if (!Number.isFinite(tokens) || tokens <= 0) return;
+      await query("UPDATE tasks SET spent_tokens = spent_tokens + $2 WHERE id = $1", [scope().taskId, Math.floor(tokens)]);
+    },
     createSubtask: (input) => {
       const { taskId, workspaceId, environmentId } = scope();
       return createSubtaskFromTool({ ...input, parentTaskId: taskId, workspaceId, environmentId });

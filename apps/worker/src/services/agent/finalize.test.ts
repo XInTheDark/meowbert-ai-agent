@@ -33,6 +33,7 @@ import { completeTaskRun } from "../tasks/complete-task-run.js";
 import { applyInfiniteWait, pauseTimedScheduleAfterCompletion } from "../task-schedules/service.js";
 import { createTestRunControl } from "../run-host/test-run-environment.test-fixtures.js";
 import { cloudRunFeatures } from "../run-host/cloud-run-features.js";
+import { createHarnessRunState } from "@meowbert/run-executor/agent/harness-run-state";
 
 function createExecution() {
   const cancellationMonitor = {
@@ -81,6 +82,7 @@ function createExecution() {
         phase: "working"
       }
     },
+    harness: createHarnessRunState(null),
     runTiming: {
       isTimedInfiniteRun: false,
       reachedMaxRunSteps: false,

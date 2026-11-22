@@ -10,6 +10,7 @@ import { listTaskQueuedMessages, resolveActiveLeafMessageId } from "../../servic
 import { getAdminSettings } from "../../services/admin/admin-settings.js";
 import { assertTaskMember } from "../../services/workspaces/workspace-access.js";
 import { getTaskWorkflowOverview } from "../../services/tasks/task-workflows.js";
+import { loadTaskHarnessSettings } from "../../services/tasks/task-harness-settings.js";
 import { legacyAgentSwarmTaskSql } from "../../services/agent-swarm/legacy.js";
 import { readTaskPayloads } from "../../services/tasks/task-history-reader.js";
 import {
@@ -615,7 +616,7 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
   const queryInput = taskDetailQuery.parse(request.query ?? {});
   await assertTaskMember(params.taskId, request.user.id);
 
-  const [taskRes, messages, contextUsageRes, lastIdleCompactionAt, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow, queuedMessages] = await Promise.all([
+  const [taskRes, messages, contextUsageRes, lastIdleCompactionAt, activeLeafMessageId, subtasksRes, threadCounts, adminSettings, workflow, queuedMessages, harness] = await Promise.all([
     loadTaskDetailRecord(params.taskId),
     loadTaskMessages(params.taskId, queryInput.messageDetail),
     query<ContextUsageRow>(
@@ -649,7 +650,8 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
     listTaskThreadCounts(params.taskId),
     getAdminSettings(),
     getTaskWorkflowOverview(params.taskId),
-    listTaskQueuedMessages(params.taskId)
+    listTaskQueuedMessages(params.taskId),
+    loadTaskHarnessSettings({ query }, params.taskId)
   ]);
 
   if ((taskRes.rowCount ?? 0) === 0) {
@@ -689,7 +691,8 @@ async function handleGetTaskDetail(request: FastifyRequest, reply: FastifyReply)
       : null,
     last_idle_compaction_at: lastIdleCompactionAt,
     workflow,
-    queued_messages: queuedMessages
+    queued_messages: queuedMessages,
+    harness
   };
 }
 

@@ -22,6 +22,7 @@ import {
   SHOW_CANVAS_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
+  HARNESS_SETTINGS_TOOL_NAME,
   ENABLE_SKILL_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
@@ -977,6 +978,57 @@ export const RESPONSE_FUNCTION_TOOLS: FunctionTool[] = [
         }
       },
       required: ["repeat", "timezone", "enabled_tools"],
+      additionalProperties: false
+    }
+  },
+  {
+    type: "function",
+    name: HARNESS_SETTINGS_TOOL_NAME,
+    description:
+      "Change how the harness runs this task between your runs: keep it running until a deadline, wake it on an interval, require a check before it finishes, cap its tokens, choose notifications, or keep its sandbox warm. Every key is required; null leaves a setting unchanged. Call with all nulls to read the current settings.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        keep_alive_minutes: {
+          type: ["integer", "null"],
+          description: "Keep this task running until this many minutes from now. 0 ends keep-alive. null leaves it unchanged."
+        },
+        wake_interval_seconds: {
+          type: ["integer", "null"],
+          description: "During keep-alive, wait this long between cycles (60 to 86400). 0 clears it. null leaves it unchanged."
+        },
+        stop_check_command: {
+          type: ["string", "null"],
+          description: "Shell command that must exit 0 before the task can finish. Empty string clears it. null leaves it unchanged."
+        },
+        stop_check_timeout_seconds: {
+          type: ["integer", "null"],
+          description: "Timeout for the stop check (10 to 3600). null keeps the current value, or 600 for a new check."
+        },
+        token_budget: {
+          type: ["integer", "null"],
+          description: "Lower the task's token budget to this many tokens, or set one if there is none. null leaves it unchanged."
+        },
+        notify: {
+          type: ["string", "null"],
+          enum: ["on_finish", "on_failure", "never", null],
+          description: "When the user is notified. null leaves it unchanged."
+        },
+        sandbox_keep_warm_minutes: {
+          type: ["integer", "null"],
+          description: "Keep this task's sandbox running this many minutes after each run so the next run reuses it. 0 clears it. null leaves it unchanged."
+        }
+      },
+      required: [
+        "keep_alive_minutes",
+        "wake_interval_seconds",
+        "stop_check_command",
+        "stop_check_timeout_seconds",
+        "token_budget",
+        "notify",
+        "sandbox_keep_warm_minutes"
+      ],
       additionalProperties: false
     }
   },

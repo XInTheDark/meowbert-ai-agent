@@ -146,7 +146,8 @@ export function TaskWorkflowWorkerPanel(props: TaskWorkflowWorkerPanelProps) {
               schedule: { type: "standard", repeat: null, timezone: null, timeLimitSeconds: null },
               maxSteps: null,
               timeLimitSeconds: null,
-              allowWaiting: true
+              allowWaiting: true,
+              harness: { stopCheckCommand: null, tokenBudget: null, sandboxKeepWarmMinutes: null }
             }}
             taskType={taskDetail.task.task_type}
             showMemorySearch={false}

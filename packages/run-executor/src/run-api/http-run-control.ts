@@ -12,7 +12,7 @@ const CONTEXT_METHODS = [
 
 const PLATFORM_METHODS = [
   "queryTasks", "viewTaskHistory", "readTaskEvidence", "readOrganizedTaskHistory", "searchMemory", "createRecurringTask",
-  "editCurrentTaskSchedule", "pauseRecurringSchedule", "applyInfiniteWait", "createSubtask", "startSubtasks",
+  "editCurrentTaskSchedule", "pauseRecurringSchedule", "applyInfiniteWait", "updateHarnessSettings", "scheduleKeepAliveCycle", "addTaskSpentTokens", "createSubtask", "startSubtasks",
   "liveSyncStatus", "liveSyncTransfer", "liveSyncFolderSearch", "liveSyncFileVersions", "liveSyncFileVersionContent", "createProjectCanvas", "recordProjectCanvasEntry",
   "markArtifacts", "unmarkArtifacts", "refreshGitHubToken", "issueSourceAccess", "getDesktopComputerPresence",
   "requestDesktopComputerAction", "persistentShell", "readShellSessionWaitState"

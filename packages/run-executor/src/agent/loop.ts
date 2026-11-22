@@ -15,6 +15,7 @@ import {
 } from "../context-compaction/index.js";
 import { checkpointAndTrimContext, persistContextCheckpoint } from "../context-management/index.js";
 import { getResponseTotalTokens } from "../context-management-v2/token-usage.js";
+import { appendHarnessStepNotices, recordHarnessTurnTokens } from "./harness-run-steps.js";
 import { maybeAdvanceV2ContextWindow, prepareV2ContextWindowUsage } from "./context-window-budget.js";
 import { resetV2ContextWindow, withoutWindowSetupItems } from "./context-window.js";
 import { applyPendingContextEdits } from "./context-edits.js";
@@ -81,6 +82,14 @@ function isSwarmLane(execution: AgentExecutionContext): boolean {
   return Boolean(execution.swarm?.lane);
 }
 
+// Infinite cycles end with wait; keep-alive (Timed) cycles end with final_response like any run.
+function isFinalResponseEligible(execution: AgentExecutionContext): boolean {
+  if (execution.workflow.workflowContext) {
+    return execution.workflow.allowWorkflowFinalResponse && !execution.runTiming.timedRunFinalizing;
+  }
+  return execution.job.mode !== "infinite_auto" || execution.runTiming.timedRunFinalizing || execution.runTiming.isTimedInfiniteRun;
+}
+
 function resolveStepAvailability(execution: AgentExecutionContext, step: number): AgentStepAvailability {
   if (isSwarmLane(execution)) {
     // Lanes finish only with submit; their tools are the ones they were forked with.
@@ -95,9 +104,7 @@ function resolveStepAvailability(execution: AgentExecutionContext, step: number)
     };
   }
   return {
-    allowFinalResponseTool: execution.workflow.workflowContext
-      ? (execution.workflow.allowWorkflowFinalResponse && !execution.runTiming.timedRunFinalizing)
-      : (execution.job.mode !== "infinite_auto" || execution.runTiming.timedRunFinalizing),
+    allowFinalResponseTool: isFinalResponseEligible(execution),
     allowWaitTool: execution.prepared.snapshot.task.allow_waiting !== false
       && !execution.runTiming.timedRunFinalizing
       && !execution.workflow.workflowContext,
@@ -458,6 +465,7 @@ async function requestModelTurn(input: {
       allowSendMessage: !execution.workflow.workflowContext && !execution.prepared.isSubtask
         && !execution.prepared.snapshot.task.read_only && !isIdleCompactionRun(execution.job),
       allowScheduleTools: execution.allowScheduleTools,
+      allowHarnessSettings: execution.allowHarnessSettings,
       loadedToolGroups: [...execution.loadedToolGroups],
       allowSubtaskTools: execution.allowSubtaskTools,
       allowPdfFileTool: !execution.prepared.settings.hostMode && !execution.prepared.runtimeCompatibilityModes.includes("disablePdfFile"),
@@ -702,9 +710,7 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     defaultTimezone: execution.prepared.snapshot.task.default_timezone || "UTC",
     runMode: execution.job.mode ?? "default",
     completionEligibility: {
-      finalResponse: execution.workflow.workflowContext
-        ? execution.workflow.allowWorkflowFinalResponse && !execution.runTiming.timedRunFinalizing
-        : execution.job.mode !== "infinite_auto" || execution.runTiming.timedRunFinalizing,
+      finalResponse: isFinalResponseEligible(execution),
       wait: execution.prepared.snapshot.task.allow_waiting !== false
         && !execution.runTiming.timedRunFinalizing && !execution.workflow.workflowContext,
       stop: execution.allowStopTask && !execution.runTiming.timedRunFinalizing
@@ -739,7 +745,8 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
       ? execution.prepared.cancellationMonitor.signal
       : execution.runTiming.runAbortSignal,
     assertNotCancelled: () => assertStepNotAborted(execution),
-    initializeSandbox: execution.initializeQuickModeSandbox
+    initializeSandbox: execution.initializeQuickModeSandbox,
+    harness: execution.harness
   };
 }
 
@@ -897,6 +904,7 @@ async function processModelTurnResult(
   );
   await publishMidRunMessages(execution);
   await execution.prepared.features.afterModelTurn(execution, turn.weightedTokens);
+  await recordHarnessTurnTokens(execution, { weightedTokens: turn.weightedTokens, usage: response.usage });
   if (isIdleCompactionRun(execution.job)) return continueIdleCompaction(execution, response);
   if (execution.state.dispatchState.swarmPark || execution.state.dispatchState.swarmSubmit) return "break";
   if (execution.state.dispatchState.pendingContextV2Reset) {
@@ -996,6 +1004,7 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
   // An idle notes turn takes no new work: inboxes wait for the work to resume, and it has no answer to wind down to.
   if (!isNotesOnlyTurn(execution)) {
     await execution.prepared.features.beforeStep(execution);
+    appendHarnessStepNotices(execution, step);
     maybeAppendWindingDownNotice(execution, availability);
   }
   await persistRuntimeNotices(execution);

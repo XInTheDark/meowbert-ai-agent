@@ -27,6 +27,7 @@ import {
   SHOW_CANVAS_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
+  HARNESS_SETTINGS_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
   GET_LIVE_SYNC_STATUS_TOOL_NAME,
@@ -202,6 +203,10 @@ function isToolEnabled(
 
   if (tool.name === SCHEDULE_TASK_TOOL_NAME || tool.name === EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME) {
     return options.scheduleTask === true && availability.allowScheduleTools === true;
+  }
+
+  if (tool.name === HARNESS_SETTINGS_TOOL_NAME) {
+    return availability.allowHarnessSettings === true;
   }
 
   if (tool.name === CREATE_SUBTASK_TOOL_NAME || tool.name === START_SUBTASK_TOOL_NAME) {

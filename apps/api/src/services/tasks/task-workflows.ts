@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import {
   createTaskMessageMetadata,
+  type HarnessUserPatch,
   type TaskExecutionTarget,
   type TaskWorkflowType
 } from "@meowbert/shared";
@@ -18,6 +19,7 @@ import {
 import { ensureDispatchedRun } from "./task-service/runs.js";
 import type { ProjectCanvasIntent } from "../canvases/project-canvases.js";
 import { activateTaskTimeLimitInTx } from "./task-service/time-limit.js";
+import { applyUserHarnessPatchInTx } from "./task-harness-settings.js";
 
 type WorkflowPhase =
   | "clarify"
@@ -41,6 +43,7 @@ export interface BaseCreateWorkflowInput {
   maxStepsOverride?: number | null;
   allowWaiting?: boolean | null;
   timeLimitSeconds?: number | null;
+  harness?: HarnessUserPatch;
   interactiveCanvasId?: string | null;
   interactiveCanvasIntent?: ProjectCanvasIntent | null;
   // Where the task runs; only Agent Swarm tasks can run on a device.
@@ -417,6 +420,7 @@ async function createLongHorizonWorkflowRecords(
     if (input.timeLimitSeconds !== null && input.timeLimitSeconds !== undefined) {
       await activateTaskTimeLimitInTx(client, taskId, input.sendAt ?? parent.userMessageCreatedAt);
     }
+    await applyUserHarnessPatchInTx(client, { taskId, userId: input.initiatorUserId, patch: input.harness });
 
     return parent;
   });

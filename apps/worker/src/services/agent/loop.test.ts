@@ -118,6 +118,7 @@ import { exhaustedModelRequest } from "@meowbert/run-executor/agent/model-reques
 import { cloudRunFeatures } from "../run-host/cloud-run-features.js";
 import { appendPromptEnvelopeDelta, sealPromptEnvelope } from "@meowbert/run-executor/agent/prompt-envelope";
 import { appendQueuedPromptDeltas } from "@meowbert/run-executor/agent/queued-prompt-deltas";
+import { createHarnessRunState } from "@meowbert/run-executor/agent/harness-run-state";
 
 function createExecutionContext() {
   const abortController = new AbortController();
@@ -218,6 +219,7 @@ function createExecutionContext() {
     },
     systemPrompt: "system prompt",
     promptEnvelope: {},
+    harness: createHarnessRunState(null),
     runTiming: {
       isTimedInfiniteRun: false,
       runDeadlineAtMs: null,

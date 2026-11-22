@@ -1,6 +1,7 @@
 import type { ManagedSandboxContainerSummary } from "@meowbert/shared/docker-sandbox";
 import { query } from "../../lib/db.js";
 import { workerSandboxManager } from "../runtime/sandbox.js";
+import { listWarmSandboxContainerIds } from "../run-host/warm-sandboxes.js";
 
 const SANDBOX_ORPHAN_CLEANUP_INTERVAL_MS = 60_000;
 // shell-exec containers list a skill's tools and stop within seconds; one this old was leaked.
@@ -60,6 +61,7 @@ function shouldRemoveWorkerSandbox(input: {
   activePersistentSessionLookup: Set<string>;
   currentParentContainerId: string | null;
   isParentGone: (parentContainerId: string | null) => boolean;
+  warmContainerIds: Set<string>;
   nowMs: number;
 }): boolean {
   const { container, activeRunLookup, activePersistentSessionLookup, currentParentContainerId } = input;
@@ -71,6 +73,11 @@ function shouldRemoveWorkerSandbox(input: {
   // Only the process that created a sandbox holds its handle, so once that process is gone nothing can use it.
   if (input.isParentGone(container.parentContainerId)) {
     return true;
+  }
+
+  // A task's warm sandbox outlives its run until the warm window ends.
+  if (container.state === "running" && [...input.warmContainerIds].some((id) => isSameContainerId(id, container.containerId))) {
+    return false;
   }
 
   const isTaskBound = isTaskBoundSandbox(container);
@@ -124,7 +131,8 @@ async function buildActivePersistentSessionLookup(): Promise<Set<string>> {
 }
 
 export async function cleanupSandboxOrphansOnce(
-  manager: SandboxCleanupManager = workerSandboxManager
+  manager: SandboxCleanupManager = workerSandboxManager,
+  listWarmContainerIds: () => Promise<Set<string>> = listWarmSandboxContainerIds
 ): Promise<number> {
   const [activeRunLookup, activePersistentSessionLookup, containers, runningContainerIds] = await Promise.all([
     buildActiveTaskRunLookup(),
@@ -132,6 +140,7 @@ export async function cleanupSandboxOrphansOnce(
     manager.listManagedContainers(),
     manager.listRunningContainerIds()
   ]);
+  const warmContainerIds = await listWarmContainerIds().catch(() => new Set<string>());
   const currentParentContainerId = manager.getCurrentContainerId();
   const isParentGone = buildParentGoneCheck(runningContainerIds, currentParentContainerId);
   const nowMs = Date.now();
@@ -141,6 +150,7 @@ export async function cleanupSandboxOrphansOnce(
     activePersistentSessionLookup,
     currentParentContainerId,
     isParentGone,
+    warmContainerIds,
     nowMs
   }));
 

@@ -29,7 +29,7 @@ import {
   type TaskScheduleAction
 } from "./taskDetailMutations";
 import type { PendingFollowUpControls } from "./usePendingFollowUp";
-import { buildDefaultTaskParameters, taskScheduleMatches } from "../../../task/taskParameters";
+import { buildDefaultTaskParameters, buildHarnessPatch, taskScheduleMatches } from "../../../task/taskParameters";
 import { findCacheBreakingChanges, type CacheBreakingChange, type FollowUpSetup } from "../../../task/cacheBreakingChanges";
 import type { TaskMessageSetup } from "../../../task/taskMessageSetup";
 
@@ -319,7 +319,8 @@ function useTaskParameterAction(input: UseTaskDetailActionsInput) {
       timeLimitSeconds: next.timeLimitSeconds,
       allowWaiting: next.allowWaiting,
       ...(scheduleChanged ? { schedule: next.schedule } : {}),
-      ...(shouldSeedTools ? { tools: input.toolOptions } : {})
+      ...(shouldSeedTools ? { tools: input.toolOptions } : {}),
+      harness: buildHarnessPatch(input.taskParameters.harness, next.harness)
     });
     input.invalidateCurrentTaskCache();
     input.setTaskDetail((current) => current ? {
@@ -333,7 +334,8 @@ function useTaskParameterAction(input: UseTaskDetailActionsInput) {
         task_type: updated.task_type,
         schedule: updated.schedule
       },
-      workflow: updated.workflow
+      workflow: updated.workflow,
+      harness: updated.harness
     } : current);
   }
 
@@ -361,7 +363,8 @@ function useTaskParameterAction(input: UseTaskDetailActionsInput) {
         task_type: updated.task_type,
         schedule: updated.schedule
       },
-      workflow: updated.workflow
+      workflow: updated.workflow,
+      harness: updated.harness
     } : current);
   }
 

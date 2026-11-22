@@ -212,4 +212,17 @@ describe("sandbox orphan cleanup", () => {
 
     expect(removedIds(manager)).toEqual(["old-shell-exec"]);
   });
+
+  it("keeps a warm sandbox after its run ends, until its worker is gone", async () => {
+    mockActiveRows();
+    const manager = managerWith([
+      sandbox("warm-live-parent", { taskId: "task-done", runId: "run-done", parentContainerId: "worker-1" }),
+      sandbox("warm-dead-parent", { taskId: "task-done-2", runId: "run-done-2", parentContainerId: "dead-worker" }),
+      sandbox("not-warm", { taskId: "task-done-3", runId: "run-done-3", parentContainerId: "worker-1" })
+    ], ["worker-1"]);
+
+    await cleanupSandboxOrphansOnce(manager, async () => new Set(["warm-live-parent", "warm-dead-parent"]));
+
+    expect(removedIds(manager)).toEqual(["not-warm", "warm-dead-parent"]);
+  });
 });

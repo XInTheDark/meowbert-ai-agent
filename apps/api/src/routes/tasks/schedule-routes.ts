@@ -21,6 +21,7 @@ import {
   clearTaskWorkflowInTx
 } from "../../services/tasks/task-workflow-transitions.js";
 import { getTaskWorkflowOverview } from "../../services/tasks/task-workflows.js";
+import { applyUserHarnessPatchInTx, loadTaskHarnessSettings } from "../../services/tasks/task-harness-settings.js";
 import {
   assertRecurringTaskLimits,
   buildEntitlementExceededPayload,
@@ -161,6 +162,7 @@ async function updateExistingSchedule(input: {
             enabled_tools_json = $7::jsonb,
             run_timeout_seconds = $8,
             run_deadline_at = $9,
+            keep_alive_set_by = CASE WHEN $8::integer IS NULL THEN NULL ELSE 'user' END,
             updated_at = now()
       WHERE task_id = $1`,
     [
@@ -378,8 +380,10 @@ async function patchTaskParameters(taskId: string, userId: string, body: TaskPar
     }
 
     await updateTaskCoreParameters({ body, client, taskId });
+    await applyUserHarnessPatchInTx(client, { taskId, userId, patch: body.harness });
+    const parameters = await loadFinalParameters(client, taskId);
     return {
-      parameters: await loadFinalParameters(client, taskId),
+      parameters: parameters && { ...parameters, harness: await loadTaskHarnessSettings(client, taskId) },
       cleanup,
       environmentId: task.environment_id,
       workspaceId: task.workspace_id,
@@ -423,7 +427,8 @@ async function handlePatchTaskParameters(request: FastifyRequest, reply: Fastify
     default_timezone: updated.default_timezone,
     task_type: updated.task_type,
     schedule: buildTaskScheduleResponse(updated),
-    workflow: await getTaskWorkflowOverview(params.taskId)
+    workflow: await getTaskWorkflowOverview(params.taskId),
+    harness: updated.harness
   };
 }
 

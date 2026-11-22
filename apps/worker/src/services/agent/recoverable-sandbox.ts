@@ -9,6 +9,9 @@ type PersistentSandbox = DockerSandboxHandle;
 export interface SandboxController {
   sandbox: PersistentSandbox;
   initializeSandbox: () => Promise<{ alreadyInitialized: boolean }>;
+  // Ends the controller without stopping its container and hands the container over; null when
+  // no container was ever started or it is still starting.
+  detach: () => PersistentSandbox | null;
 }
 
 interface SandboxRecovery {
@@ -136,6 +139,13 @@ export function createRecoverableSandboxController(input: {
     initializeSandbox: async () => {
       const { alreadyInitialized } = await ensureSandbox();
       return { alreadyInitialized };
+    },
+    detach: () => {
+      if (stopped || createPromise) return null;
+      stopped = true;
+      const detached = current;
+      current = null;
+      return detached;
     }
   };
 }

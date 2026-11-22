@@ -12,6 +12,8 @@ vi.mock("../agent/live-sync-client.js", () => ({ searchTaskLiveSyncFolder: vi.fn
 vi.mock("../agent/artifacts.js", () => ({}));
 vi.mock("../computer/computer-use.js", () => ({ requestDesktopComputerAction: vi.fn() }));
 vi.mock("../runtime/persistent-shell-sessions.js", () => ({}));
+vi.mock("../harness-settings/service.js", () => ({ updateHarnessSettings: vi.fn() }));
+vi.mock("../harness-settings/keep-alive-cycles.js", () => ({ scheduleNextKeepAliveCycle: vi.fn() }));
 import { config } from "../../lib/config.js";
 import { searchMemoryIndex } from "../memory/index.js";
 import { readTaskEvidence } from "../memory-synthesis/evidence.js";

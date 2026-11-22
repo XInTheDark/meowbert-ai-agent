@@ -38,6 +38,38 @@ describe("waitForSandboxSlot", () => {
     expect(result).toEqual({ waitedMs: 2_000 });
   });
 
+  it("stops a warm sandbox instead of waiting when one can be freed", async () => {
+    const clock = fakeClock();
+    let active = 16;
+    const relieve = vi.fn(async () => {
+      active -= 1;
+      return true;
+    });
+    const onWaiting = vi.fn();
+
+    await expect(waitForSandboxSlot({ limit: 16, countActive: async () => active, relieve, onWaiting, ...clock }))
+      .resolves.toEqual({ waitedMs: 0 });
+    expect(relieve).toHaveBeenCalledTimes(1);
+    expect(onWaiting).not.toHaveBeenCalled();
+  });
+
+  it("waits as usual when nothing can be freed", async () => {
+    const clock = fakeClock();
+    const counts = [16, 15];
+    const relieve = vi.fn(async () => false);
+
+    const result = await waitForSandboxSlot({
+      limit: 16,
+      countActive: async () => counts.shift() ?? 0,
+      relieve,
+      pollIntervalMs: 1_000,
+      ...clock
+    });
+
+    expect(relieve).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ waitedMs: 1_000 });
+  });
+
   it("fails the run once the host stays full past the timeout", async () => {
     const clock = fakeClock();
 

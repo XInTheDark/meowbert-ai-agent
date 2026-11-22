@@ -85,6 +85,14 @@
       "types": "./dist/idle-compaction-settings.d.ts",
       "default": "./dist/idle-compaction-settings.js"
     },
+    "./harness-settings": {
+      "types": "./dist/harness-settings.d.ts",
+      "default": "./dist/harness-settings.js"
+    },
+    "./harness-settings-store": {
+      "types": "./dist/harness-settings-store.d.ts",
+      "default": "./dist/harness-settings-store.js"
+    },
     "./agent-swarm-config": {
       "types": "./dist/agent-swarm-config.d.ts",
       "default": "./dist/agent-swarm-config.js"

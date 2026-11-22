@@ -19,6 +19,7 @@ import type { RunFeatures } from "../agent/ports/run-features.js";
 import type { ProjectMasterTaskAgent } from "../project-master/task-agent.js";
 import type { SwarmDispatchContext } from "../agent-swarm/dispatch-context.js";
 import type { SwarmLaneResult, SwarmParkReason } from "../agent-swarm/lane-types.js";
+import type { HarnessRunState } from "../agent/harness-run-state.js";
 
 export interface ToolDispatchContext {
   control: RunControl;
@@ -86,6 +87,8 @@ export interface ToolDispatchContext {
   cancellationSignal?: AbortSignal;
   assertNotCancelled: () => Promise<void>;
   workflowContext?: LoadedWorkflowRunContext | null;
+  // The task's harness settings for this run; handlers update it when the agent changes them.
+  harness?: HarnessRunState;
   // Set for every run of an Agent Swarm task (leader and lanes).
   swarm?: SwarmDispatchContext | null;
   workflowActions?: {

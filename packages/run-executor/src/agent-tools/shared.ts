@@ -36,6 +36,7 @@ export const LIST_SKILLS_TOOL_NAME = "list_skills";
 export const ENABLE_SKILL_TOOL_NAME = "enable_skill";
 export const SCHEDULE_TASK_TOOL_NAME = "schedule_task";
 export const EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME = "edit_current_task_schedule";
+export const HARNESS_SETTINGS_TOOL_NAME = "harness_settings";
 export const CREATE_SUBTASK_TOOL_NAME = "create_subtask";
 export const START_SUBTASK_TOOL_NAME = "start_subtask";
 export const STOP_TASK_TOOL_NAME = "stop_task";
@@ -85,6 +86,8 @@ export interface ResponseToolAvailability {
   newMessageOrganizationEnabled?: boolean;
   allowFinalResponse?: boolean;
   allowScheduleTools?: boolean;
+  // Root runs whose task lets the agent change its own harness settings.
+  allowHarnessSettings?: boolean;
   // On-demand built-in tool groups the agent has loaded this run (see tool-groups.ts).
   loadedToolGroups?: string[];
   allowSubtaskTools?: boolean;

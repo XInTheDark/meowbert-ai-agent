@@ -5,6 +5,8 @@ export interface SandboxSlotWaitInput {
   limit: number;
   countActive: () => Promise<number>;
   onWaiting?: (active: number) => Promise<void> | void;
+  // Frees a slot when it can, such as by stopping an idle warm sandbox; true when it freed one.
+  relieve?: () => Promise<boolean>;
   pollIntervalMs?: number;
   timeoutMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -27,6 +29,9 @@ export async function waitForSandboxSlot(input: SandboxSlotWaitInput): Promise<{
   const startedAt = now();
 
   let active = await input.countActive();
+  while (active >= input.limit && (await input.relieve?.()) === true) {
+    active = await input.countActive();
+  }
   if (active < input.limit) {
     return { waitedMs: 0 };
   }

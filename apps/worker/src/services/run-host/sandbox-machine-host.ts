@@ -3,7 +3,9 @@ import { workerSandboxManager } from "../runtime/sandbox.js";
 import { buildTaskSandboxMounts } from "@meowbert/run-executor/agent/task-write-scope";
 import { ensureTaskSourceMounts, releaseTaskSourceMounts } from "../agent/live-sync-client.js";
 import { prepareTaskSourceMounts, verifyTaskSourceMounts } from "../agent/live-sync-mounts.js";
-import { createRecoverableSandboxController } from "../agent/recoverable-sandbox.js";
+import { createRecoverableSandboxController, type SandboxController } from "../agent/recoverable-sandbox.js";
+import { resolvePersistentRuntimeLimit } from "../runtime/persistent-shell-credits.js";
+import { adoptWarmSandbox, loadSandboxKeepWarmMinutes, parkWarmSandbox, type WarmSandboxFingerprint } from "./warm-sandboxes.js";
 import { ensureTaskHistoryDir, ensureTaskScratchDir } from "../tasks/task-scratch.js";
 import type { MachineHost, MachineProvider, MachineSpec } from "@meowbert/run-executor/agent/ports/machine-host";
 
@@ -86,6 +88,36 @@ async function createLoggedSandbox(spec: MachineSpec): Promise<DockerSandboxHand
   }
 }
 
+function warmFingerprint(spec: MachineSpec): WarmSandboxFingerprint {
+  return { actorUserId: spec.actorUserId, networkEnabled: spec.networkEnabled, runAsRoot: spec.runAsRoot, readOnly: spec.readOnly };
+}
+
+// Parks the run's sandbox when the task keeps it warm; otherwise the caller stops it.
+async function maybeParkSandbox(spec: MachineSpec, controller: SandboxController, releaseSourceMounts: () => Promise<void>): Promise<boolean> {
+  const minutes = await loadSandboxKeepWarmMinutes(spec.taskId).catch(() => null);
+  if (!minutes) return false;
+  const sandbox = controller.detach();
+  if (!sandbox) return false;
+  const runtimeLimit = spec.actorUserId ? await resolvePersistentRuntimeLimit(spec.actorUserId).catch(() => 0) : null;
+  const parked = await parkWarmSandbox({
+    taskId: spec.taskId,
+    userId: spec.actorUserId,
+    runtimeLimit,
+    sandbox,
+    fingerprint: warmFingerprint(spec),
+    minutes,
+    release: releaseSourceMounts
+  }).catch(() => false);
+  if (parked) {
+    await spec.log("Kept the task sandbox warm for the next run.", { stage: "sandbox.warm", phase: "success", minutes });
+    return true;
+  }
+  await spec.log("Stopped the task sandbox: the persistent runtime limit is reached.", { stage: "sandbox.warm", phase: "warn" });
+  await sandbox.stop();
+  await releaseSourceMounts();
+  return true;
+}
+
 async function startSandboxMachine(spec: MachineSpec): Promise<MachineHost> {
   const releaseSourceMounts = () => releaseTaskSourceMounts({
     userId: spec.actorUserId,
@@ -94,8 +126,11 @@ async function startSandboxMachine(spec: MachineSpec): Promise<MachineHost> {
   }).catch(() => undefined);
   const create = () => createLoggedSandbox(spec);
   try {
+    const warm = await adoptWarmSandbox({ taskId: spec.taskId, runId: spec.runId, fingerprint: warmFingerprint(spec) });
+    if (warm) await spec.log("Reused the task's warm sandbox.", { stage: "sandbox.warm", phase: "success" });
     const controller = createRecoverableSandboxController({
       create,
+      initial: warm,
       warmUp: spec.startEagerly,
       onRecovered: (recovery) => spec.log("Replaced crashed task sandbox.", {
         stage: "sandbox.recovery",
@@ -107,6 +142,7 @@ async function startSandboxMachine(spec: MachineSpec): Promise<MachineHost> {
       sandbox: controller.sandbox,
       initialize: controller.initializeSandbox,
       stop: async () => {
+        if (await maybeParkSandbox(spec, controller, releaseSourceMounts)) return;
         await controller.sandbox.stop();
         await releaseSourceMounts();
       }

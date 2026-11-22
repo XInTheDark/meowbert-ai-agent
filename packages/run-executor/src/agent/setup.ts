@@ -19,7 +19,9 @@ import { buildV2WindowDeveloperItems, recordContextItems, resolveContextManageme
 import { appendPromptEnvelopeDelta, createPromptEnvelope } from "./prompt-envelope.js";
 import { ensureRecurringTaskStateFile } from "./recurring-state-file.js";
 import { enableRunCapabilities, resolveOnDemandCapabilities } from "./run-capabilities.js";
-import { TASK_SCHEDULING_TOOL_GROUP_ID, withToolGroups } from "../agent-tools/index.js";
+import { withToolGroups } from "../agent-tools/index.js";
+import { createHarnessRunState } from "./harness-run-state.js";
+import { resolveRunToolGroups } from "./run-tool-groups.js";
 import { resolveAgentTaskInputDir } from "./task-input-dir.js";
 import {
   buildWorkflowPromptContext,
@@ -100,6 +102,11 @@ function startTitleGeneration(job: AgentExecutionContext["job"], prepared: Prepa
     requestTimeoutMs: prepared.snapshot.model_request_timeout_ms,
     abortSignal: prepared.cancellationMonitor.signal
   }).catch(() => {});
+}
+
+// A Timed schedule is keep-alive: its cycles end with final_response, unlike an Infinite task's.
+function isTimedSchedule(scheduleInfo: AgentExecutionContext["scheduleInfo"]): boolean {
+  return scheduleInfo?.mode === "infinite" && (scheduleInfo.runTimeoutSeconds ?? 0) > 0;
 }
 
 function createRunTiming(
@@ -209,7 +216,7 @@ function buildRunSystemPrompt(input: {
 }): string {
   const allowFinalResponseInPrompt = input.workflow.workflowContext
     ? input.workflow.allowWorkflowFinalResponse
-    : input.job.mode !== "infinite_auto";
+    : input.job.mode !== "infinite_auto" || isTimedSchedule(input.scheduleInfo);
   const allowWaitInPrompt = input.prepared.snapshot.task.allow_waiting !== false
     && !input.workflow.workflowContext;
   const interactiveCanvas = input.prepared.snapshot.interactive_canvas;
@@ -432,14 +439,19 @@ export async function initializeAgentExecution(
     scheduleState: scheduleInfo?.scheduleState ?? null
   });
   const runTiming = createRunTiming(job, prepared, scheduleInfo);
-  const allowScheduleTools = prepared.snapshot.task.read_only !== true && prepared.runToolOptions.scheduleTask === true;
-  // A task that already has a schedule keeps its scheduling tools loaded; others load them on demand.
-  const loadedToolGroups = new Set<string>(allowScheduleTools && scheduleInfo !== null ? [TASK_SCHEDULING_TOOL_GROUP_ID] : []);
-  const onDemandCapabilities = resolveOnDemandCapabilities(
-    prepared,
-    allowScheduleTools && scheduleInfo === null ? [TASK_SCHEDULING_TOOL_GROUP_ID] : []
-  );
-  const enableSkillById = withToolGroups(prepared.enableSkillById, allowScheduleTools ? [TASK_SCHEDULING_TOOL_GROUP_ID] : [], loadedToolGroups);
+  const harness = createHarnessRunState(prepared.harness);
+  // A task already using a tool group keeps it loaded; others load it on demand.
+  const toolGroups = resolveRunToolGroups({
+    readOnly: prepared.snapshot.task.read_only === true,
+    scheduleTaskEnabled: prepared.runToolOptions.scheduleTask === true,
+    isProjectMaster: prepared.isProjectMaster === true,
+    scheduleInfo,
+    harness
+  });
+  const { allowScheduleTools } = toolGroups;
+  const loadedToolGroups = new Set<string>(toolGroups.loaded);
+  const onDemandCapabilities = resolveOnDemandCapabilities(prepared, toolGroups.onDemand);
+  const enableSkillById = withToolGroups(prepared.enableSkillById, toolGroups.allowed, loadedToolGroups);
   const allowSubtaskTools = prepared.snapshot.task.read_only !== true && prepared.runToolOptions.subtasks === true;
   const allowStopTask = shouldExposeStopTaskForRecurringRun({
     hasSchedule: scheduleInfo !== null,
@@ -646,6 +658,8 @@ export async function initializeAgentExecution(
     taskInputDir,
     scheduleInfo,
     allowScheduleTools,
+    allowHarnessSettings: toolGroups.allowHarnessSettings,
+    harness,
     loadedToolGroups,
     enableSkillById,
     onDemandCapabilities,

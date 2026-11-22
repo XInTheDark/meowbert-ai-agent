@@ -27,6 +27,10 @@ vi.mock("../../services/tasks/task-workflows.js", () => ({
   getTaskWorkflowOverview: vi.fn(async () => null)
 }));
 
+vi.mock("../../services/tasks/task-harness-settings.js", () => ({
+  loadTaskHarnessSettings: vi.fn(async () => null)
+}));
+
 vi.mock("../../services/tasks/task-history-reader.js", () => ({
   readTaskPayloads: vi.fn(async (_taskId, _kind, rows) => rows)
 }));

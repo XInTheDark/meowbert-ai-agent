@@ -31,7 +31,8 @@ describe("buildTaskParametersFromTask", () => {
       },
       maxSteps: 12,
       timeLimitSeconds: null,
-      allowWaiting: true
+      allowWaiting: true,
+      harness: { stopCheckCommand: null, tokenBudget: null, sandboxKeepWarmMinutes: null }
     });
   });
 

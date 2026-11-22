@@ -275,6 +275,9 @@ function GeneralParametersForm({ controller }: ControllerProps) {
     controller.draft.setMaxSteps("");
     controller.draft.setTaskTimeLimitMinutes("");
     controller.draft.setAllowWaiting(true);
+    controller.draft.setStopCheckCommand("");
+    controller.draft.setHarnessTokenBudget("");
+    controller.draft.setSandboxKeepWarmMinutes("");
     void controller.schedule.clearParameters();
   };
   return (
@@ -300,6 +303,7 @@ function GeneralParametersForm({ controller }: ControllerProps) {
       <p className="task-parameters-help">
         Hard-cancels the task if it is still unfinished after this much time from the latest sent user message.
       </p>
+      <HarnessParameterFields controller={controller} />
       {controller.applyError ? <p className="error-text task-parameters-error">{controller.applyError}</p> : null}
       <div className="task-parameters-actions">
         <button type="button" className="btn ghost" onClick={clear} disabled={controller.isApplying}>Clear</button>
@@ -307,6 +311,32 @@ function GeneralParametersForm({ controller }: ControllerProps) {
           disabled={controller.isApplying}>Save</button>
       </div>
     </div>
+  );
+}
+
+function HarnessParameterFields({ controller }: ControllerProps) {
+  const { draft, isApplying } = controller;
+  return (
+    <>
+      <label className="task-parameters-field">
+        <span>Stop check</span>
+        <input type="text" value={draft.stopCheckCommand} spellCheck={false}
+          onChange={(event) => draft.setStopCheckCommand(event.target.value)}
+          placeholder="Command that must pass to finish" disabled={isApplying} />
+      </label>
+      <label className="task-parameters-field">
+        <span>Token budget</span>
+        <input type="number" min="1" step="1" value={draft.harnessTokenBudget}
+          onChange={(event) => draft.setHarnessTokenBudget(event.target.value)}
+          placeholder="No budget" disabled={isApplying} />
+      </label>
+      <label className="task-parameters-field">
+        <span>Keep sandbox warm (minutes)</span>
+        <input type="number" min="1" step="1" value={draft.sandboxKeepWarmMinutes}
+          onChange={(event) => draft.setSandboxKeepWarmMinutes(event.target.value)}
+          placeholder="Off" disabled={isApplying} />
+      </label>
+    </>
   );
 }
 

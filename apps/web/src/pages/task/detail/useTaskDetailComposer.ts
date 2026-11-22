@@ -121,8 +121,10 @@ function useTaskComposerDraftState(input: UseTaskDetailComposerInput) {
     maxStepsOverride: input.taskDetail?.task.max_steps_override ?? null,
     timeLimitSeconds: input.taskDetail?.task.time_limit_seconds ?? null,
     allowWaiting: input.taskDetail?.task.allow_waiting,
-    schedule: input.taskDetail?.task.schedule ?? null
+    schedule: input.taskDetail?.task.schedule ?? null,
+    harness: input.taskDetail?.harness ?? null
   }), [
+    input.taskDetail?.harness,
     input.taskDetail?.task.allow_waiting,
     input.taskDetail?.task.max_steps_override,
     input.taskDetail?.task.schedule,

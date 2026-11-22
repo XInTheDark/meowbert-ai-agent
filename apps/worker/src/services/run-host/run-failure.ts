@@ -13,6 +13,8 @@ import { scheduleTaskRunRetry } from "../tasks/task-run-retry.js";
 import { pauseInfiniteScheduleAfterCheckin } from "../task-schedules/service.js";
 import { handleCancelledRun } from "./run-cancellation.js";
 import { finishFailedLaneRun } from "../agent-swarm/run-finalize.js";
+import { scheduleKeepAliveAfterFailure } from "../harness-settings/keep-alive-cycles.js";
+import { notifyHarnessFailure } from "../harness-settings/failure-notifications.js";
 import type { TaskExecutionJob } from "@meowbert/shared";
 import type { RunFailure } from "@meowbert/run-executor/agent/ports/run-control";
 
@@ -103,4 +105,25 @@ export async function failServerRun(job: TaskExecutionJob, failure: RunFailure):
     return;
   }
   await emitTaskEvent(job.taskId, "error", { message: failure.errorMessage });
+  if (job.mode === "agent_swarm_lane") return;
+  const stoppedMessage = await continueKeepAliveAfterFailure(job);
+  await notifyHarnessFailure(job, stoppedMessage
+    ? { kind: "keep_alive_stopped", message: stoppedMessage }
+    : { kind: "run_failed", message: failureText }
+  ).catch((error) => console.error("Unable to send a failure notification", error));
+}
+
+// A failed cycle doesn't end keep-alive: the next one retries later, until too many fail in a row.
+// Returns the message when keep-alive stopped.
+async function continueKeepAliveAfterFailure(job: TaskExecutionJob): Promise<string | null> {
+  try {
+    const outcome = await scheduleKeepAliveAfterFailure(job.taskId);
+    if (outcome.kind !== "paused") return null;
+    const message = `Keep-alive stopped after ${outcome.failedCycles} failed cycles in a row.`;
+    await emitTaskEvent(job.taskId, "error", { message });
+    return message;
+  } catch (error) {
+    console.error("Unable to schedule a keep-alive cycle after a failed run", error);
+    return null;
+  }
 }

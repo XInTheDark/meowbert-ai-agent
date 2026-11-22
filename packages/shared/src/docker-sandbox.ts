@@ -490,11 +490,17 @@ export class DockerSandboxManager {
   private currentContainerMounts: MountedPathInfo[] | null = null;
   private readonly nestedMountMirrorPaths = new Map<string, string>();
   private readonly capacityGate = createSerialGate();
+  private capacityReliever: (() => Promise<boolean>) | null = null;
 
   constructor(config: SandboxConfig) {
     this.config = config;
     this.docker = createDockerClient(config.dockerHost);
     this.currentContainerId = detectCurrentContainerId();
+  }
+
+  // Called when the host is out of sandbox slots, before waiting for one to free up.
+  setCapacityReliever(reliever: (() => Promise<boolean>) | null): void {
+    this.capacityReliever = reliever;
   }
 
   getCurrentContainerId(): string | null {
@@ -992,6 +998,7 @@ export class DockerSandboxManager {
       const { waitedMs } = await waitForSandboxSlot({
         limit,
         countActive: () => this.countActiveSandboxes(),
+        relieve: this.capacityReliever ?? undefined,
         onWaiting: (active) => emitSandboxLifecycleEvent(options, {
           stage: "sandbox.capacity",
           phase: "start",

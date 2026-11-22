@@ -6,6 +6,9 @@ import {
   shouldPauseTimedScheduleAfterCompletion
 } from "../tasks/recurring-run-utils.js";
 import type { AgentExecutionContext } from "./execution-types.js";
+import { shouldNotifyForHarnessEvent } from "@meowbert/shared";
+import { isHarnessKeepAliveOn, isIdleHarnessCycle } from "./harness-run-state.js";
+import { saveHarnessTokens } from "./harness-run-steps.js";
 import { countPreservedReasoningContentItems } from "./reasoning-content-count.js";
 import { adoptVisibleMessage } from "./visible-message.js";
 
@@ -130,6 +133,7 @@ function resolveNotificationRequested(execution: AgentExecutionContext): boolean
     notificationRequested = execution.state.finalResponseFromTool.notify;
   }
 
+  if (!shouldNotifyForHarnessEvent(execution.harness.settings.notify?.value ?? null, "finish")) notificationRequested = false;
   return execution.prepared.isSubtask ? false : notificationRequested;
 }
 
@@ -204,7 +208,28 @@ async function assertRunCanFinalize(execution: AgentExecutionContext): Promise<v
   });
 }
 
+// A keep-alive cycle that ended without an explicit wait: the harness times the next one.
+async function maybeScheduleKeepAliveCycle(execution: AgentExecutionContext): Promise<boolean> {
+  if (execution.swarm?.lane || execution.workflow.workflowContext) return false;
+  if (!isHarnessKeepAliveOn(execution.harness)) return false;
+  if (execution.state.waitRequest || execution.state.stopRequest || execution.runTiming.timedRunFinalizing) return true;
+  try {
+    await execution.prepared.control.platform.scheduleKeepAliveCycle({
+      idle: isIdleHarnessCycle(execution.harness),
+      budgetExhausted: execution.harness.budgetExhausted
+    });
+  } catch (error) {
+    await execution.debugLogger.log("Unable to schedule the next keep-alive cycle.", {
+      stage: "run.finalize.keep_alive",
+      phase: "warn",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+  return true;
+}
+
 async function maybeAutoApplyRecurringWait(execution: AgentExecutionContext): Promise<void> {
+  if (await maybeScheduleKeepAliveCycle(execution)) return;
   if (!shouldAutoApplyInfiniteWait({
     runMode: execution.job.mode,
     hasWaitRequest: execution.state.waitRequest !== null,
@@ -345,6 +370,7 @@ export async function finalizeAgentRun(execution: AgentExecutionContext): Promis
     || execution.job.mode === "infinite_auto"
     || execution.job.mode === "infinite_checkin";
 
+  await saveHarnessTokens(execution);
   await maybeAutoApplyRecurringWait(execution);
   if (!finalResponse && !isRecurringRunMode && execution.workflow.workflowContext === null) {
     await execution.debugLogger.log("Finalizing run without an explicit final response.", {

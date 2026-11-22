@@ -80,6 +80,7 @@ import type { RunBootstrap, RunGitHubAccess, RunRuntimeRoute } from "@meowbert/r
 import type { GitHubTokenRefresh } from "@meowbert/run-executor/agent/ports/platform-tools";
 import { listUnfinishedToolCalls } from "./tool-call-records.js";
 import { getTaskScheduleInfo } from "../task-schedules/service.js";
+import { loadRunHarnessState } from "../harness-settings/run-state.js";
 import { config } from "../../lib/config.js";
 import { createExecutorSnapshot } from "./executor-snapshot.js";
 
@@ -747,6 +748,7 @@ export async function loadServerRunState(
       googleWorkspaceReferences: tooling.googleWorkspaceReferences,
       hasGoogleWorkspaceFolders: tooling.hasGoogleWorkspaceFolders,
       scheduleInfo: await getTaskScheduleInfo(job.taskId),
+      harness: await loadRunHarnessState(job.taskId, { isProjectMaster: snapshot.task.is_project_master === true }),
       isProjectMaster: snapshot.task.is_project_master === true
         && getProjectMasterEnabled(snapshot.workspace_model_defaults),
       projectMasterTaskAgent: snapshot.task.is_project_master === true

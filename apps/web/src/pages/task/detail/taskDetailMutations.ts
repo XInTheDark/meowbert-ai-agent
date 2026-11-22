@@ -10,6 +10,7 @@ import type {
 } from "../../../lib/types";
 import { buildTaskSchedulePayload } from "../../../task/taskParameters";
 import { joinTaskMessage } from "../../../lib/utils";
+import type { HarnessSettings, HarnessUserPatch } from "@meowbert/shared/harness-settings";
 
 export type TaskScheduleAction = "pause" | "resume" | "run-now";
 
@@ -218,6 +219,7 @@ export async function updateTaskParameters(
     workflow?: TaskWorkflowComposerConfig;
     previousWorkflow?: TaskWorkflowOverview | null;
     tools?: TaskToolOptions;
+    harness?: HarnessUserPatch;
   }
 ): Promise<{
   max_steps_override: number | null;
@@ -227,6 +229,7 @@ export async function updateTaskParameters(
   task_type: NonNullable<TaskDetail["task"]["task_type"]>;
   schedule: TaskDetail["task"]["schedule"];
   workflow: TaskWorkflowOverview | null;
+  harness: HarnessSettings | null;
 }> {
   return api.patch<{
     max_steps_override: number | null;
@@ -236,12 +239,14 @@ export async function updateTaskParameters(
     task_type: NonNullable<TaskDetail["task"]["task_type"]>;
     schedule: TaskDetail["task"]["schedule"];
     workflow: TaskWorkflowOverview | null;
+    harness: HarnessSettings | null;
   }>(`/api/tasks/${taskId}/parameters`, {
     ...(typeof parameters.maxSteps !== "undefined" ? { maxSteps: parameters.maxSteps } : {}),
     ...(typeof parameters.timeLimitSeconds !== "undefined" ? { timeLimitSeconds: parameters.timeLimitSeconds } : {}),
     ...(typeof parameters.allowWaiting !== "undefined" ? { allowWaiting: parameters.allowWaiting } : {}),
     ...(parameters.schedule ? { schedule: buildTaskSchedulePayload(parameters.schedule) } : {}),
     ...(parameters.workflow ? { workflow: buildWorkflowPayload(parameters.workflow, parameters.previousWorkflow) } : {}),
+    ...(parameters.harness ? { harness: parameters.harness } : {}),
     ...(parameters.tools ? {
       tools: {
         webSearch: parameters.tools.webSearch,

@@ -18,6 +18,7 @@ import {
   Terminal,
   Trash2
 } from "lucide-react";
+import type { HarnessSettings } from "@meowbert/shared/harness-settings";
 import type { TaskAssistantMessageDisplayPreferences, TaskDetail } from "../../../lib/types";
 import { badgeClass, formatDateTime, formatRelative, formatTaskTypeLabel } from "../../../lib/utils";
 import { TaskStatusBadge } from "../../../components/tasks/TaskStatusBadge";
@@ -56,6 +57,8 @@ interface TaskDetailTopbarProps {
   onPauseSchedule: () => void;
   onResumeSchedule: () => void;
   onRunNowSchedule: () => void;
+  onExtendTimedRun?: () => void;
+  harness?: HarnessSettings | null;
   onOpenSubtask: (subtaskId: string) => void;
   latestContextUsage: TaskDetail["latest_context_usage"];
   lastIdleCompactionAt?: string | null;
@@ -227,12 +230,47 @@ function useDismissable(open: boolean, onDismiss: () => void, ref: RefObject<HTM
  * pause/resume/run controls behind a popover. Previously this was a permanent strip
  * that pushed the conversation down by a whole row.
  */
+function HarnessFacts({ harness }: { harness: HarnessSettings | null }) {
+  if (!harness) return null;
+  const keepAliveSetBy = harness.keepAliveUntil?.setBy;
+  return (
+    <>
+      {keepAliveSetBy ? (
+        <div>
+          <dt>Kept alive by</dt>
+          <dd>{keepAliveSetBy === "agent" ? "Agent" : "You"}</dd>
+        </div>
+      ) : null}
+      {harness.stopCheck ? (
+        <div>
+          <dt>Stop check</dt>
+          <dd><code>{harness.stopCheck.value.command}</code></dd>
+        </div>
+      ) : null}
+      {harness.tokenBudget ? (
+        <div>
+          <dt>Token budget</dt>
+          <dd>{harness.tokenBudget.value.toLocaleString()}</dd>
+        </div>
+      ) : null}
+      {harness.sandboxKeepWarmMinutes ? (
+        <div>
+          <dt>Warm sandbox</dt>
+          <dd>{harness.sandboxKeepWarmMinutes.value} min</dd>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function TaskDetailScheduleChip(props: {
   task: TaskDetail["task"];
+  harness: HarnessSettings | null;
   isScheduleActionBusy: boolean;
   onPauseSchedule: () => void;
   onResumeSchedule: () => void;
   onRunNowSchedule: () => void;
+  onExtendTimedRun?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -316,6 +354,7 @@ function TaskDetailScheduleChip(props: {
                   <dd><span className="badge warning task-recurring-pill">pending run</span></dd>
                 </div>
               ) : null}
+              <HarnessFacts harness={props.harness} />
             </dl>
 
             <div className="task-schedule-actions">
@@ -328,7 +367,18 @@ function TaskDetailScheduleChip(props: {
                 >
                   {recurringSchedule.state === "active" ? "Stop timed run" : "Start timed run"}
                 </button>
-              ) : (
+              ) : null}
+              {isTimedTask && props.onExtendTimedRun && recurringSchedule.state === "active" && recurringSchedule.run_deadline_at ? (
+                <button
+                  type="button"
+                  className="btn ghost compact"
+                  onClick={props.onExtendTimedRun}
+                  disabled={props.isScheduleActionBusy}
+                >
+                  +1 h
+                </button>
+              ) : null}
+              {isTimedTask ? null : (
                 <>
                   <button
                     type="button"
@@ -571,10 +621,12 @@ export function TaskDetailTopbar(props: TaskDetailTopbarProps) {
               {recurringSchedule ? (
                 <TaskDetailScheduleChip
                   task={props.task}
+                  harness={props.harness ?? null}
                   isScheduleActionBusy={props.isScheduleActionBusy}
                   onPauseSchedule={props.onPauseSchedule}
                   onResumeSchedule={props.onResumeSchedule}
                   onRunNowSchedule={props.onRunNowSchedule}
+                  onExtendTimedRun={props.onExtendTimedRun}
                 />
               ) : null}
               <TaskDetailSubtasksChip subtasks={props.subtasks} onOpenSubtask={props.onOpenSubtask} />

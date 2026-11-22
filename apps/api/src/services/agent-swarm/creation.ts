@@ -3,6 +3,7 @@ import type { AgentSwarmSettings } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 import { setTaskBranchSelection } from "../tasks/task-service/index.js";
 import { activateTaskTimeLimitInTx } from "../tasks/task-service/time-limit.js";
+import { applyUserHarnessPatchInTx } from "../tasks/task-harness-settings.js";
 import { upsertAgentSwarmInTx } from "./swarm-row.js";
 import {
   ensureWorkflowInitialRun,
@@ -80,6 +81,7 @@ export async function createAgentSwarmTask(input: BaseCreateWorkflowInput & {
       if (input.timeLimitSeconds !== null && input.timeLimitSeconds !== undefined) {
         await activateTaskTimeLimitInTx(client, taskId, input.sendAt ?? leader.userMessageCreatedAt);
       }
+      await applyUserHarnessPatchInTx(client, { taskId, userId: input.initiatorUserId, patch: input.harness });
       return leader.userMessageId;
     });
   } catch (error) {

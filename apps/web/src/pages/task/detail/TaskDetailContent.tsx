@@ -40,6 +40,7 @@ import type { TaskDetailLoadedController } from "./useTaskDetailLoadedController
 import { useCanvasPanelWidth } from "./useCanvasPanelWidth";
 import { projectCanvasView } from "./useTaskCanvas";
 import { useTaskBridgeControl } from "./useTaskBridgeControl";
+import { extendTimedRun } from "../../../task/taskParameters";
 
 type ModelProps = { model: TaskDetailLoadedController };
 
@@ -56,6 +57,7 @@ function TaskTopbar({ model }: ModelProps) {
   return (
     <TaskDetailTopbar
       task={task}
+      harness={taskDetail.harness ?? null}
       displayStatus={displayStatus}
       persistentShellCount={model.persistentShells.items.length}
       subtasks={taskDetail.subtasks ?? []}
@@ -125,6 +127,10 @@ function TaskTopbar({ model }: ModelProps) {
         "run-now",
         task.task_type === "timed" ? "Timed run triggered." : "Recurring run triggered."
       )}
+      onExtendTimedRun={() => {
+        const next = extendTimedRun(model.composer.taskParameters, task.schedule?.run_deadline_at ?? null);
+        if (next) void model.actions.handleTaskParametersChange(next);
+      }}
       onOpenSubtask={(subtaskId) => {
         if (!model.context.taskWorkspaceId || !model.context.taskProjectId) return;
         model.context.navigate(buildTaskRoutePath({

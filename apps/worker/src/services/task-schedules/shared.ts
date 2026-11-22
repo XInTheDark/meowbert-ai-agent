@@ -48,6 +48,10 @@ export interface TaskScheduleInfo {
   pendingRun: boolean;
   runTimeoutSeconds: number | null;
   runDeadlineAt: string | null;
+  // Keep-alive cycle state for Timed schedules.
+  idleCycleCount?: number;
+  failedCycleCount?: number;
+  lastWakeReason?: "interval" | "failure" | null;
 }
 
 export interface ScheduleTaskToolEnabledTools {

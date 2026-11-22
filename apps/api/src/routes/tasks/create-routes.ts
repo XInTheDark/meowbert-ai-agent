@@ -106,6 +106,7 @@ async function createRequestedTask(input: {
     maxStepsOverride: input.body.parameters?.maxSteps ?? null,
     allowWaiting: input.body.parameters?.allowWaiting,
     timeLimitSeconds: input.body.parameters?.timeLimitSeconds ?? null,
+    harness: input.body.parameters?.harness,
     isIncognito: input.body.incognito === true,
     readOnly: input.body.restrictions?.readOnly === true,
     networkDisabled: input.body.restrictions?.networkDisabled === true,

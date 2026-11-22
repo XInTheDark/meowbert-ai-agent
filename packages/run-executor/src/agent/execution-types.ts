@@ -10,6 +10,7 @@ import type { ContextManagementState } from "../context-management-v2/types.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { SwarmRunContext } from "../agent-swarm/run-context.js";
 import type { ForkSeed } from "../agent-swarm/fork-types.js";
+import type { HarnessRunState } from "./harness-run-state.js";
 
 export type PromptEnvelopeState = ReturnType<typeof createPromptEnvelope>;
 export type AgentScheduleInfo = RunScheduleInfo | null;
@@ -88,6 +89,9 @@ export interface AgentExecutionContext {
   taskInputDir: string;
   scheduleInfo: AgentScheduleInfo;
   allowScheduleTools: boolean;
+  allowHarnessSettings: boolean;
+  // The task's harness settings, updated when the agent changes them.
+  harness: HarnessRunState;
   loadedToolGroups: Set<string>;
   // enable_skill entry point: skills, plus the built-in tool groups this run may load.
   enableSkillById: (skillId: string) => Promise<{ doc: string | null; toolNames: string[] }>;

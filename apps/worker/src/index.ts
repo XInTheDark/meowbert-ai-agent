@@ -37,6 +37,7 @@ import { startSandboxOrphanCleanupLoop } from "./services/tasks/sandbox-orphan-c
 import { startScratchCleanupLoop } from "./services/storage/scratch-eviction.js";
 import { startEventRetentionCleanupLoop } from "./services/tasks/event-retention.js";
 import { workerSandboxManager } from "./services/runtime/sandbox.js";
+import { evictOldestWarmSandbox, stopAllWarmSandboxes } from "./services/run-host/warm-sandboxes.js";
 import { restorePersistentShellExpiryTimers } from "./services/runtime/persistent-shell-sessions.js";
 import { startMemoryReindexListener } from "./services/memory-reindex/service.js";
 import { startMemorySynthesisEventListener } from "./services/memory-synthesis/service.js";
@@ -154,6 +155,8 @@ async function start(): Promise<void> {
   const adminRuntimeMigrationLoop = startAdminRuntimeMigrationLoop();
   const workspaceStorageMigrationLoop = startWorkspaceStorageMigrationLoop();
   const sandboxOrphanCleanupLoop = startSandboxOrphanCleanupLoop();
+  // A new sandbox waiting for capacity stops a warm one first.
+  workerSandboxManager.setCapacityReliever(evictOldestWarmSandbox);
   const scratchCleanupLoop = startScratchCleanupLoop();
   const memorySynthesisEventListener = startMemorySynthesisEventListener();
   const memoryReindexListener = startMemoryReindexListener();
@@ -241,6 +244,7 @@ async function start(): Promise<void> {
     await memoryReindexListener.stop();
     await worker.close();
     await emailWorker.close();
+    await stopAllWarmSandboxes();
     await runDeliveryLoop.stop();
     await runApi?.close();
     await closeQueue();

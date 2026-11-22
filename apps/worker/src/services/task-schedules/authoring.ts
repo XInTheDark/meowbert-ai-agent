@@ -381,6 +381,8 @@ export async function applyInfiniteWait(taskId: string, seconds: number): Promis
               ELSE $2
             END,
             pending_run = false,
+            failed_cycle_count = 0,
+            last_wake_reason = 'interval',
             updated_at = now()
       WHERE task_id = $1
         AND mode = 'infinite'
@@ -438,8 +440,12 @@ export async function getTaskScheduleInfo(taskId: string): Promise<TaskScheduleI
     pending_run: boolean;
     run_timeout_seconds: number | null;
     run_deadline_at: string | null;
+    idle_cycle_count: number | null;
+    failed_cycle_count: number | null;
+    last_wake_reason: "interval" | "failure" | null;
   }>(
-    `SELECT mode, schedule_state, repeat_cron, timezone, next_run_at, pending_run, run_timeout_seconds, run_deadline_at
+    `SELECT mode, schedule_state, repeat_cron, timezone, next_run_at, pending_run, run_timeout_seconds, run_deadline_at,
+            idle_cycle_count, failed_cycle_count, last_wake_reason
        FROM task_schedules
       WHERE task_id = $1`,
     [taskId]
@@ -458,7 +464,10 @@ export async function getTaskScheduleInfo(taskId: string): Promise<TaskScheduleI
     nextRunAt: row.next_run_at,
     pendingRun: row.pending_run,
     runTimeoutSeconds: row.run_timeout_seconds,
-    runDeadlineAt: row.run_deadline_at
+    runDeadlineAt: row.run_deadline_at,
+    idleCycleCount: row.idle_cycle_count ?? 0,
+    failedCycleCount: row.failed_cycle_count ?? 0,
+    lastWakeReason: row.last_wake_reason ?? null
   };
 }
 

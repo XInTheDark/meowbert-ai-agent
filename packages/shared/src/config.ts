@@ -154,7 +154,14 @@ const configSchema = z.object({
     htmlCanvas: htmlCanvasConfigSchema.optional(),
     office: officeConfigSchema.optional()
   }).optional(),
-  webPush: webPushConfigSchema.optional()
+  webPush: webPushConfigSchema.optional(),
+  // Limits on the harness settings an agent can set for its own task.
+  harness: z.object({
+    maxAgentKeepAliveMinutes: z.number().int().positive().default(240),
+    maxSandboxKeepWarmMinutes: z.number().int().positive().default(30),
+    maxStopCheckAttempts: z.number().int().positive().default(3),
+    maxFailedKeepAliveCycles: z.number().int().positive().default(3)
+  }).prefault({})
 });
 
 type ParsedAppConfig = z.infer<typeof configSchema>;

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { createTaskMessageMetadata } from "@meowbert/shared";
-import type { ChosenModelRoute, TaskWorkflowType, TaskExecutionJob, TaskSource, TaskExecutionTarget } from "@meowbert/shared";
+import type { ChosenModelRoute, TaskWorkflowType, TaskExecutionJob, TaskSource, TaskExecutionTarget, HarnessUserPatch } from "@meowbert/shared";
 import { query, withTransaction } from "../../../lib/db.js";
 import { setTaskBranchSelection } from "./branching.js";
 import { ensureDispatchedRun, enqueueRun } from "./runs.js";
@@ -15,6 +15,7 @@ import {
   type TaskPrefaceMessage
 } from "./shared.js";
 import { activateTaskTimeLimitInTx } from "./time-limit.js";
+import { applyUserHarnessPatchInTx } from "../task-harness-settings.js";
 import { ensureTaskPromptEntitlement, recordTaskPromptUsage } from "./prompt-usage.js";
 import type { ProjectCanvasIntent } from "../../canvases/project-canvases.js";
 import { attachPendingTaskInputs, lockTaskInputUploads } from "../../files/task-upload-manifest.js";
@@ -39,6 +40,7 @@ interface CreateTaskInput {
   maxStepsOverride?: number | null;
   allowWaiting?: boolean | null;
   timeLimitSeconds?: number | null;
+  harness?: HarnessUserPatch;
   isIncognito?: boolean;
   readOnly?: boolean;
   networkDisabled?: boolean;
@@ -279,6 +281,8 @@ async function createTaskRecords(input: CreateTaskInput, taskId: string, selecti
     if (input.timeLimitSeconds !== null && input.timeLimitSeconds !== undefined) {
       await activateTaskTimeLimitInTx(client, taskId, input.sendAt ?? insertedUserMessage.created_at);
     }
+
+    await applyUserHarnessPatchInTx(client, { taskId, userId: input.initiatorUserId ?? null, patch: input.harness });
 
     return userMessageId;
   });

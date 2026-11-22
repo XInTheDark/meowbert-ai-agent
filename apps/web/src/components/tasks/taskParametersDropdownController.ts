@@ -13,7 +13,7 @@ import {
   parseAgentSwarmAdvancedDraft,
   type AgentSwarmAdvancedDraft
 } from "../../task/agentSwarmAdvancedFields";
-import type { TaskParameters, TaskType, TaskWorkflowComposerConfig } from "../../lib/types";
+import type { TaskHarnessParameters, TaskParameters, TaskType, TaskWorkflowComposerConfig } from "../../lib/types";
 import type { AgentSummary } from "./AgentDropdown";
 import type { ChatToolsPopoverPlacement } from "./useChatToolsDropdownPlacement";
 
@@ -149,6 +149,9 @@ function useTaskParameterDraft(resolved: TaskParameters) {
   const [maxSteps, setMaxSteps] = useState("");
   const [taskTimeLimitMinutes, setTaskTimeLimitMinutes] = useState("");
   const [allowWaiting, setAllowWaiting] = useState(true);
+  const [stopCheckCommand, setStopCheckCommand] = useState("");
+  const [harnessTokenBudget, setHarnessTokenBudget] = useState("");
+  const [sandboxKeepWarmMinutes, setSandboxKeepWarmMinutes] = useState("");
   const [longHorizonTokenBudget, setLongHorizonTokenBudget] = useState("");
   const [longHorizonTimeBudgetMinutes, setLongHorizonTimeBudgetMinutes] = useState("");
   const [longHorizonEnableClarifyPhase, setLongHorizonEnableClarifyPhase] = useState(true);
@@ -161,7 +164,9 @@ function useTaskParameterDraft(resolved: TaskParameters) {
   return {
     panel, setPanel, scheduledCron, setScheduledCron, scheduledTimezone, setScheduledTimezone,
     timedMinutes, setTimedMinutes, maxSteps, setMaxSteps, taskTimeLimitMinutes, setTaskTimeLimitMinutes,
-    allowWaiting, setAllowWaiting, longHorizonTokenBudget, setLongHorizonTokenBudget,
+    allowWaiting, setAllowWaiting, stopCheckCommand, setStopCheckCommand,
+    harnessTokenBudget, setHarnessTokenBudget, sandboxKeepWarmMinutes, setSandboxKeepWarmMinutes,
+    longHorizonTokenBudget, setLongHorizonTokenBudget,
     longHorizonTimeBudgetMinutes, setLongHorizonTimeBudgetMinutes,
     longHorizonEnableClarifyPhase, setLongHorizonEnableClarifyPhase,
     longHorizonEnableReviewPhase, setLongHorizonEnableReviewPhase,
@@ -192,6 +197,9 @@ function useDraftSynchronization(
     draft.setMaxSteps(draft.resolved.maxSteps ? String(draft.resolved.maxSteps) : "");
     draft.setTaskTimeLimitMinutes(formatMinutes(draft.resolved.timeLimitSeconds));
     draft.setAllowWaiting(draft.resolved.allowWaiting);
+    draft.setStopCheckCommand(draft.resolved.harness.stopCheckCommand ?? "");
+    draft.setHarnessTokenBudget(draft.resolved.harness.tokenBudget ? String(draft.resolved.harness.tokenBudget) : "");
+    draft.setSandboxKeepWarmMinutes(draft.resolved.harness.sandboxKeepWarmMinutes ? String(draft.resolved.harness.sandboxKeepWarmMinutes) : "");
     draft.setLongHorizonTokenBudget(props.workflowConfig?.tokenBudget ? String(props.workflowConfig.tokenBudget) : "");
     draft.setLongHorizonTimeBudgetMinutes(props.workflowConfig?.timeBudgetMinutes ? String(props.workflowConfig.timeBudgetMinutes) : "");
     draft.setLongHorizonEnableClarifyPhase(props.workflowConfig?.enableClarifyPhase !== false);
@@ -218,6 +226,22 @@ function useDraftSynchronization(
     props.workflowConfig?.enableReviewPhase,
     props.workflowConfig?.type
   ]);
+}
+
+function parseOptionalPositiveInteger(value: string): number | null | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+// The harness fields of Edit parameters, or an error message when one is invalid.
+function parseHarnessDraft(draft: ReturnType<typeof useTaskParameterDraft>): TaskHarnessParameters | string {
+  const tokenBudget = parseOptionalPositiveInteger(draft.harnessTokenBudget);
+  if (tokenBudget === undefined) return "Token budget must be a positive whole number.";
+  const sandboxKeepWarmMinutes = parseOptionalPositiveInteger(draft.sandboxKeepWarmMinutes);
+  if (sandboxKeepWarmMinutes === undefined) return "Keep sandbox warm must be a positive whole number of minutes.";
+  return { stopCheckCommand: draft.stopCheckCommand.trim() || null, tokenBudget, sandboxKeepWarmMinutes };
 }
 
 function useTaskScheduleActions(
@@ -259,14 +283,23 @@ function useTaskScheduleActions(
     if (timeLimit && (!Number.isFinite(parsedMinutes) || parsedMinutes <= 0)) {
       return setError("Task time limit must be a positive number of minutes.");
     }
+    const harness = parseHarnessDraft(draft);
+    if (typeof harness === "string") return setError(harness);
     await apply({
       ...draft.resolved,
       maxSteps: maxSteps ? parsedSteps : null,
       timeLimitSeconds: timeLimit ? Math.max(60, Math.floor(parsedMinutes * 60)) : null,
-      allowWaiting: draft.allowWaiting
+      allowWaiting: draft.allowWaiting,
+      harness
     });
   }
-  const clearParameters = () => apply({ ...draft.resolved, maxSteps: null, timeLimitSeconds: null, allowWaiting: true });
+  const clearParameters = () => apply({
+    ...draft.resolved,
+    maxSteps: null,
+    timeLimitSeconds: null,
+    allowWaiting: true,
+    harness: buildDefaultTaskParameters().harness
+  });
   return { apply, clearSchedule, applyInfiniteTask, saveScheduledTask, saveTimedTask, saveParameters, clearParameters };
 }
 
@@ -439,7 +472,8 @@ export function useTaskParametersDropdown(props: TaskParametersDropdownProps) {
     workflowSummary, scheduleSummary,
     pendingTypeChange, requestTaskTypeChange, confirmTypeChange, cancelTypeChange,
     hasCustomParameters: hasCustomTaskParameters(resolved) || workflowSummary !== null,
-    hasParameterOverrides: resolved.maxSteps !== null || resolved.timeLimitSeconds !== null || resolved.allowWaiting === false,
+    hasParameterOverrides: resolved.maxSteps !== null || resolved.timeLimitSeconds !== null || resolved.allowWaiting === false
+      || resolved.harness.stopCheckCommand !== null || resolved.harness.tokenBudget !== null || resolved.harness.sandboxKeepWarmMinutes !== null,
     isWorkflowTask: props.taskType === "long_horizon" || props.taskType === "agent_swarm" || (Boolean(props.workflowConfig) && props.workflowConfig?.type !== "standard"),
     canEditWorkflow: typeof props.onWorkflowChange === "function" && Boolean(props.workflowConfig),
     showScheduleControls: true,

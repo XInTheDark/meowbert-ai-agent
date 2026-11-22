@@ -323,6 +323,18 @@ export const editCurrentTaskScheduleArgumentsSchema = z.object({
   enabled_tools: enabledToolsSchema
 });
 
+const nonNegativeInt = z.number().int().min(0);
+
+export const harnessSettingsArgumentsSchema = z.object({
+  keep_alive_minutes: nonNegativeInt.nullable(),
+  wake_interval_seconds: nonNegativeInt.nullable(),
+  stop_check_command: z.string().nullable(),
+  stop_check_timeout_seconds: z.number().int().positive().nullable(),
+  token_budget: z.number().int().positive().nullable(),
+  notify: z.enum(["on_finish", "on_failure", "never"]).nullable(),
+  sandbox_keep_warm_minutes: nonNegativeInt.nullable()
+});
+
 export const createSubtaskArgumentsSchema = z.object({
   message: z.string().min(1),
   title: z.string().min(1).max(240).nullable(),

@@ -5,6 +5,10 @@ import {
   AGENT_SWARM_SPAWN_EFFORT_MAX,
   AGENT_SWARM_SPAWN_EFFORT_MIN,
   isSkillEnabledByConfig,
+  MAX_STOP_CHECK_TIMEOUT_SECONDS,
+  MAX_WAKE_INTERVAL_SECONDS,
+  MIN_STOP_CHECK_TIMEOUT_SECONDS,
+  MIN_WAKE_INTERVAL_SECONDS,
   taskExecutionTargetSchema,
   type TaskSource
 } from "@meowbert/shared";
@@ -163,11 +167,26 @@ export const taskSchedulePatchSchema = z
   .strict()
   .optional();
 
+// Harness settings the user sets with a task's parameters. A missing key leaves a setting as it
+// is; null clears it. Ranges are checked again when the change is applied.
+export const taskHarnessSchema = z
+  .object({
+    wakeIntervalSeconds: z.number().int().min(MIN_WAKE_INTERVAL_SECONDS).max(MAX_WAKE_INTERVAL_SECONDS).nullable().optional(),
+    stopCheckCommand: z.string().trim().min(1).max(4000).nullable().optional(),
+    stopCheckTimeoutSeconds: z.number().int().min(MIN_STOP_CHECK_TIMEOUT_SECONDS).max(MAX_STOP_CHECK_TIMEOUT_SECONDS).nullable().optional(),
+    tokenBudget: z.number().int().positive().nullable().optional(),
+    notify: z.enum(["on_finish", "on_failure", "never"]).nullable().optional(),
+    sandboxKeepWarmMinutes: z.number().int().positive().nullable().optional()
+  })
+  .strict()
+  .optional();
+
 export const taskParametersSchema = z
   .object({
     maxSteps: z.number().int().positive().nullable().optional(),
     timeLimitSeconds: z.number().int().min(60).max(7 * 24 * 60 * 60).nullable().optional(),
-    allowWaiting: z.boolean().optional()
+    allowWaiting: z.boolean().optional(),
+    harness: taskHarnessSchema
   })
   .strict()
   .optional();
@@ -222,7 +241,8 @@ export const taskParametersPatchBody = z
     schedule: taskSchedulePatchSchema,
     workflow: taskWorkflowPatchSchema,
     tools: taskToolOptionsSchema,
-    allowWaiting: z.boolean().optional()
+    allowWaiting: z.boolean().optional(),
+    harness: taskHarnessSchema
   })
   .strict();
 

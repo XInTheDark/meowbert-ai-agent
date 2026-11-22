@@ -25,6 +25,7 @@ export interface RunBootstrap {
   googleWorkspaceReferences: GoogleWorkspaceRuntimeReference[];
   hasGoogleWorkspaceFolders: boolean;
   scheduleInfo: RunScheduleInfo | null;
+  harness?: RunHarnessState | null;
   isProjectMaster: boolean;
   projectMasterTaskAgent: ProjectMasterTaskAgent | null;
   // Tool calls a previous attempt started but never recorded a result for.
@@ -99,4 +100,17 @@ export interface RunScheduleInfo {
   pendingRun: boolean;
   runTimeoutSeconds: number | null;
   runDeadlineAt: string | null;
+  // Keep-alive cycle state; older control planes omit it.
+  idleCycleCount?: number;
+  failedCycleCount?: number;
+  lastWakeReason?: "interval" | "failure" | null;
+}
+
+// The task's harness settings and the limits that apply to them; older control planes omit it.
+export interface RunHarnessState {
+  settings: import("@meowbert/shared").HarnessSettings;
+  spentTokens: number;
+  maxStopCheckAttempts: number;
+  // Whether this run may change them with harness_settings.
+  agentMayChange: boolean;
 }

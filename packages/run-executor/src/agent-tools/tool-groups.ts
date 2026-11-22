@@ -1,14 +1,23 @@
-import { EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME, SCHEDULE_TASK_TOOL_NAME } from "./shared.js";
+import { EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME, HARNESS_SETTINGS_TOOL_NAME, SCHEDULE_TASK_TOOL_NAME } from "./shared.js";
+import { HARNESS_SETTINGS_GUIDE } from "./harness-settings-guide.js";
 
 // Built-in tools that most runs never need. They stay out of the request until the agent loads them
 // with `enable_skill`, the same way it loads a skill's tools.
 export const TASK_SCHEDULING_TOOL_GROUP_ID = "task-scheduling";
+export const HARNESS_SETTINGS_TOOL_GROUP_ID = "harness-settings";
 
-const TOOL_GROUPS: Record<string, { name: string; description: string; toolNames: string[] }> = {
+// `guide`, when set, is what loading the group returns instead of its one-line description.
+const TOOL_GROUPS: Record<string, { name: string; description: string; guide?: string; toolNames: string[] }> = {
   [TASK_SCHEDULING_TOOL_GROUP_ID]: {
     name: "Task scheduling",
     description: "Create recurring tasks or reminders, or change the current task's schedule.",
     toolNames: [SCHEDULE_TASK_TOOL_NAME, EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME]
+  },
+  [HARNESS_SETTINGS_TOOL_GROUP_ID]: {
+    name: "Harness settings",
+    description: "Keep this task running until a deadline, wake it on an interval, require a check to pass before it finishes, cap its tokens, or keep its sandbox warm between runs.",
+    guide: HARNESS_SETTINGS_GUIDE,
+    toolNames: [HARNESS_SETTINGS_TOOL_NAME]
   }
 };
 
@@ -43,6 +52,6 @@ export function withToolGroups(
     const group = allowedToolGroups.includes(skillId) ? TOOL_GROUPS[skillId] : undefined;
     if (!group) return enableSkill(skillId);
     loadedToolGroups.add(skillId);
-    return { doc: group.description, toolNames: group.toolNames };
+    return { doc: group.guide ?? group.description, toolNames: group.toolNames };
   };
 }

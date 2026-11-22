@@ -117,6 +117,7 @@ export interface PreparedAgentRunContext {
   // Tool calls an earlier run of the task started and never finished.
   unfinishedToolCalls: RunToolCallStart[];
   scheduleInfo: RunBootstrap["scheduleInfo"];
+  harness: RunBootstrap["harness"];
   skillsRootDir: string | null;
   activeMcpConnections: Map<string, McpConnection>;
   activeSkillTools: FunctionTool[];
@@ -581,6 +582,7 @@ function assemblePreparedContext(
     projectMasterTaskAgent: bootstrap.projectMasterTaskAgent,
     unfinishedToolCalls: bootstrap.unfinishedToolCalls,
     scheduleInfo: bootstrap.scheduleInfo,
+    harness: bootstrap.harness ?? null,
     skillsRootDir: tooling.skillsRootDir,
     activeMcpConnections: skillTooling.activeMcpConnections,
     activeSkillTools: skillTooling.activeSkillTools,

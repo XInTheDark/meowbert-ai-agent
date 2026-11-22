@@ -1,4 +1,11 @@
-import type { ComputerToolName, ConversationMap, DesktopComputerExecutorResult, DesktopComputerStatus } from "@meowbert/shared";
+import type {
+  ComputerToolName,
+  ConversationMap,
+  DesktopComputerExecutorResult,
+  DesktopComputerStatus,
+  HarnessSettings,
+  HarnessSettingsChange
+} from "@meowbert/shared";
 import type { TaskHistoryMessage, TaskHistorySearchInput, TaskHistorySearchResult, TaskMessageToolOptions } from "../types.js";
 import type {
   TaskLiveSyncFolderSearchFilters,
@@ -45,6 +52,13 @@ export interface PlatformToolHost {
   }): Promise<RecurringScheduleState>;
   pauseRecurringSchedule(): Promise<RecurringScheduleState>;
   applyInfiniteWait(seconds: number): Promise<string>;
+  // Applies the agent's harness_settings change; throws with the reason when it is not allowed.
+  updateHarnessSettings(change: HarnessSettingsChange): Promise<HarnessSettingsSnapshot>;
+  // Times the next keep-alive cycle after this run; null when keep-alive is no longer on.
+  // A spent budget ends keep-alive instead.
+  scheduleKeepAliveCycle(input: { idle: boolean; budgetExhausted: boolean }): Promise<string | null>;
+  // Adds this run's tokens to the task's total, which its token budget is checked against.
+  addTaskSpentTokens(tokens: number): Promise<void>;
 
   createSubtask(input: {
     message: string;
@@ -183,6 +197,14 @@ export interface OrganizationStagedState {
   graph: ConversationMap | null;
   outlineChanged: boolean;
   mapChanged: boolean;
+}
+
+export interface HarnessSettingsSnapshot {
+  settings: HarnessSettings;
+  spentTokens: number;
+  // The latest keep-alive deadline the agent may set right now.
+  latestAgentKeepAliveUntil: string | null;
+  maxSandboxKeepWarmMinutes: number;
 }
 
 export interface RecurringScheduleState {

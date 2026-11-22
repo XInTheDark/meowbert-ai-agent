@@ -73,6 +73,13 @@ async function resolveEntitlement(userId: string, client?: PoolClient): Promise<
   };
 }
 
+// The user's limit on runtimes that outlive a run (shell sessions and warm sandboxes); null when
+// none applies.
+export async function resolvePersistentRuntimeLimit(userId: string): Promise<number | null> {
+  const entitlement = await resolveEntitlement(userId);
+  return entitlement.isSuperAdmin ? null : entitlement.limit;
+}
+
 export interface CreditReservation {
   eventId: string | null;
   credits: number;
@@ -128,8 +135,9 @@ export async function reserveCreditAndSlot(input: {
       }
       if (input.newSession) {
         const active = await client.query<{ count: string }>(
-          `SELECT COUNT(*)::text AS count FROM persistent_shell_sessions
-            WHERE creator_user_id = $1 AND status IN ('starting', 'running', 'idle')`,
+          `SELECT ((SELECT COUNT(*) FROM persistent_shell_sessions
+                     WHERE creator_user_id = $1 AND status IN ('starting', 'running', 'idle'))
+                 + (SELECT COUNT(*) FROM task_warm_sandboxes WHERE user_id = $1 AND expires_at > now()))::text AS count`,
           [input.userId]
         );
         if (Number.parseInt(active.rows[0]?.count ?? "0", 10) > entitlement.limit) {

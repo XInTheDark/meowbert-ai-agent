@@ -21,6 +21,7 @@ import {
   SHOW_CANVAS_TOOL_NAME,
   CREATE_SUBTASK_TOOL_NAME,
   EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME,
+  HARNESS_SETTINGS_TOOL_NAME,
   ENABLE_SKILL_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
@@ -101,6 +102,9 @@ import {
   handleStopTask
 } from "./handlers/scheduling.js";
 import { handleCreateSubtask, handleStartSubtask } from "./handlers/subtasks.js";
+import { handleHarnessSettings } from "./handlers/harness-settings.js";
+import { runStopCheck } from "./handlers/stop-check.js";
+import { recordHarnessToolCall } from "../agent/harness-run-state.js";
 import {
   handleRequestClarification,
   handleStartLongHorizonTask,
@@ -123,6 +127,20 @@ import { getHighestCallNumber, getProviderCallId, isToolCallItem } from "../cont
 import { trackRepeatedToolCall } from "./repeated-tool-calls.js";
 import { getErrorMessage } from "./utils.js";
 
+// A failing stop check rejects final_response; once it has failed too often the answer goes
+// through with a note saying so.
+async function handleFinalResponseWithStopCheck(
+  outputItem: ResponseFunctionToolCall,
+  ctx: ToolDispatchContext,
+  state: ToolDispatchState
+): Promise<ToolCallResult> {
+  const stopCheck = await runStopCheck(outputItem, ctx);
+  if (stopCheck.kind === "rejected") return stopCheck.result;
+  const result = await ctx.features.interceptFinalResponse(outputItem, ctx, state) ?? handleFinalResponse(outputItem, state);
+  if (stopCheck.kind !== "bypassed" || !result.finalResponse) return result;
+  return { ...result, finalResponse: { ...result.finalResponse, response: `${result.finalResponse.response}\n\n${stopCheck.note}` } };
+}
+
 function isCustomToolCallItem(outputItem: ResponseOutputItem): outputItem is ResponseCustomToolCall {
   return outputItem.type === "custom_tool_call"
     && typeof outputItem.call_id === "string"
@@ -143,6 +161,7 @@ async function dispatchFunctionToolCall(
     || (outputItem.name === STOP_TASK_TOOL_NAME && !eligibility.stop))) {
     return toolErrorResult("This action is unavailable in the current run phase. Follow the latest run instructions.");
   }
+  recordHarnessToolCall(ctx.harness, outputItem.name);
   const featureResult = ctx.features.handleToolCall(outputItem, ctx, state);
   if (featureResult) {
     return featureResult;
@@ -202,7 +221,7 @@ async function dispatchFunctionToolCall(
       ) {
         return toolErrorResult("Long Horizon review approval is required before final_response. Continue the workflow with its available action.");
       }
-      return await ctx.features.interceptFinalResponse(outputItem, ctx, state) ?? handleFinalResponse(outputItem, state);
+      return handleFinalResponseWithStopCheck(outputItem, ctx, state);
 
     case MARK_ARTIFACT_TOOL_NAME:
       return handleMarkArtifact(outputItem, ctx, state);
@@ -296,6 +315,9 @@ async function dispatchFunctionToolCall(
     case EDIT_CURRENT_TASK_SCHEDULE_TOOL_NAME:
       return handleEditCurrentTaskSchedule(outputItem, ctx, state);
 
+    case HARNESS_SETTINGS_TOOL_NAME:
+      return handleHarnessSettings(outputItem, ctx, state);
+
     case CREATE_SUBTASK_TOOL_NAME:
       return handleCreateSubtask(outputItem, ctx, state);
 
@@ -326,6 +348,7 @@ async function dispatchCustomToolCall(
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ApplyPatchResult> {
+  recordHarnessToolCall(ctx.harness, outputItem.name);
   switch (outputItem.name) {
     case APPLY_PATCH_TOOL_NAME:
       return handleApplyPatch(outputItem, ctx, state);

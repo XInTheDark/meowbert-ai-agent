@@ -1,6 +1,7 @@
 import type { IdleCompactionMode } from "@meowbert/shared/idle-compaction-settings";
 import { THEME_MODE_VALUES, type ThemeMode } from "@meowbert/shared/themes";
 import type { AgentSwarmAdvancedSettings } from "@meowbert/shared/agent-swarm-config";
+import type { HarnessSettings } from "@meowbert/shared/harness-settings";
 import type { CachebeatSettings } from "@meowbert/shared/cachebeat-settings";
 import type { TaskSearchPreview } from "@meowbert/shared/task-history-search";
 import type { TaskMessageDisplay } from "@meowbert/shared/task-message-display";
@@ -284,6 +285,7 @@ export interface TaskDetail {
   workflow?: TaskWorkflowOverview | null;
   // Follow-ups waiting for the running task's next turn.
   queued_messages?: TaskQueuedMessage[];
+  harness?: HarnessSettings | null;
 }
 
 export interface TaskQueuedMessage {
@@ -582,6 +584,14 @@ export interface TaskParameters {
   maxSteps: number | null;
   timeLimitSeconds: number | null;
   allowWaiting: boolean;
+  harness: TaskHarnessParameters;
+}
+
+// The harness settings the user edits with a task's parameters. Keep-alive is the Timed type.
+export interface TaskHarnessParameters {
+  stopCheckCommand: string | null;
+  tokenBudget: number | null;
+  sandboxKeepWarmMinutes: number | null;
 }
 
 export interface TaskAgentSelection {

@@ -139,5 +139,11 @@
   },
   "memory": {
     "indexCacheRoot": "/tmp/meowbert-memory-index-cache"
+  },
+  "harness": {
+    "maxAgentKeepAliveMinutes": 240,
+    "maxSandboxKeepWarmMinutes": 30,
+    "maxStopCheckAttempts": 3,
+    "maxFailedKeepAliveCycles": 3
   }
 }

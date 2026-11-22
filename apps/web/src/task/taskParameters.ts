@@ -1,4 +1,47 @@
-import type { TaskParameters, TaskScheduleType, TaskType } from "../lib/types";
+import type { HarnessSettings, HarnessUserPatch } from "@meowbert/shared/harness-settings";
+import type { TaskHarnessParameters, TaskParameters, TaskScheduleType, TaskType } from "../lib/types";
+
+const EMPTY_HARNESS_PARAMETERS: TaskHarnessParameters = {
+  stopCheckCommand: null,
+  tokenBudget: null,
+  sandboxKeepWarmMinutes: null
+};
+
+function positiveInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
+}
+
+function normalizeHarnessParameters(value: unknown): TaskHarnessParameters {
+  if (!value || typeof value !== "object") return EMPTY_HARNESS_PARAMETERS;
+  const candidate = value as Record<string, unknown>;
+  const command = typeof candidate.stopCheckCommand === "string" ? candidate.stopCheckCommand.trim() : "";
+  return {
+    stopCheckCommand: command || null,
+    tokenBudget: positiveInteger(candidate.tokenBudget),
+    sandboxKeepWarmMinutes: positiveInteger(candidate.sandboxKeepWarmMinutes)
+  };
+}
+
+function hasHarnessParameters(harness: TaskHarnessParameters): boolean {
+  return harness.stopCheckCommand !== null || harness.tokenBudget !== null || harness.sandboxKeepWarmMinutes !== null;
+}
+
+// The keys the user changed, with null for a cleared one, so settings the agent set stay its own.
+export function buildHarnessPatch(previous: TaskHarnessParameters, next: TaskHarnessParameters): HarnessUserPatch | undefined {
+  const patch: HarnessUserPatch = {};
+  if (previous.stopCheckCommand !== next.stopCheckCommand) patch.stopCheckCommand = next.stopCheckCommand;
+  if (previous.tokenBudget !== next.tokenBudget) patch.tokenBudget = next.tokenBudget;
+  if (previous.sandboxKeepWarmMinutes !== next.sandboxKeepWarmMinutes) patch.sandboxKeepWarmMinutes = next.sandboxKeepWarmMinutes;
+  return Object.keys(patch).length > 0 ? patch : undefined;
+}
+
+function harnessParametersFromSettings(settings: HarnessSettings | null | undefined): TaskHarnessParameters {
+  return {
+    stopCheckCommand: settings?.stopCheck?.value.command ?? null,
+    tokenBudget: settings?.tokenBudget?.value ?? null,
+    sandboxKeepWarmMinutes: settings?.sandboxKeepWarmMinutes?.value ?? null
+  };
+}
 
 export function buildDefaultTaskParameters(): TaskParameters {
   return {
@@ -11,7 +54,8 @@ export function buildDefaultTaskParameters(): TaskParameters {
     },
     maxSteps: null,
     timeLimitSeconds: null,
-    allowWaiting: true
+    allowWaiting: true,
+    harness: EMPTY_HARNESS_PARAMETERS
   };
 }
 
@@ -26,6 +70,7 @@ export function normalizeTaskParameters(value: unknown): TaskParameters {
     maxSteps?: unknown;
     timeLimitSeconds?: unknown;
     allowWaiting?: unknown;
+    harness?: unknown;
   };
 
   const rawSchedule = candidate.schedule && typeof candidate.schedule === "object"
@@ -70,7 +115,8 @@ export function normalizeTaskParameters(value: unknown): TaskParameters {
       && candidate.timeLimitSeconds > 0
       ? Math.floor(candidate.timeLimitSeconds)
       : null,
-    allowWaiting: candidate.allowWaiting !== false
+    allowWaiting: candidate.allowWaiting !== false,
+    harness: normalizeHarnessParameters(candidate.harness)
   };
 }
 
@@ -78,7 +124,8 @@ export function hasCustomTaskParameters(taskParameters: TaskParameters): boolean
   return taskParameters.schedule.type !== "standard"
     || taskParameters.maxSteps !== null
     || taskParameters.timeLimitSeconds !== null
-    || taskParameters.allowWaiting === false;
+    || taskParameters.allowWaiting === false
+    || hasHarnessParameters(taskParameters.harness);
 }
 
 export function taskScheduleMatches(left: TaskParameters["schedule"], right: TaskParameters["schedule"]): boolean {
@@ -155,6 +202,18 @@ export function buildCreateTaskSchedulePayload(taskParameters: TaskParameters): 
   };
 }
 
+const TIMED_RUN_EXTENSION_SECONDS = 60 * 60;
+
+// The parameters that move a Timed task's deadline an hour later, or null when it has none.
+export function extendTimedRun(taskParameters: TaskParameters, deadlineAt: string | null, now: number = Date.now()): TaskParameters | null {
+  if (taskParameters.schedule.type !== "timed" || !deadlineAt) return null;
+  const remainingSeconds = Math.max(0, Math.ceil((Date.parse(deadlineAt) - now) / 1000));
+  return {
+    ...taskParameters,
+    schedule: { ...taskParameters.schedule, timeLimitSeconds: remainingSeconds + TIMED_RUN_EXTENSION_SECONDS }
+  };
+}
+
 export function buildTaskParametersFromTask(input: {
   taskType?: TaskType;
   maxStepsOverride?: number | null;
@@ -166,6 +225,7 @@ export function buildTaskParametersFromTask(input: {
     run_timeout_seconds?: number | null;
     run_deadline_at?: string | null;
   } | null;
+  harness?: HarnessSettings | null;
 }): TaskParameters {
   const normalizedTaskType: TaskScheduleType =
     input.taskType === "scheduled" || input.taskType === "infinite" || input.taskType === "timed"
@@ -182,7 +242,8 @@ export function buildTaskParametersFromTask(input: {
     },
     maxSteps: input.maxStepsOverride ?? null,
     timeLimitSeconds: input.timeLimitSeconds ?? null,
-    allowWaiting: input.allowWaiting
+    allowWaiting: input.allowWaiting,
+    harness: harnessParametersFromSettings(input.harness)
   });
 }
 
@@ -190,11 +251,13 @@ export function buildCreateTaskParametersPayload(taskParameters: TaskParameters)
   maxSteps?: number;
   timeLimitSeconds?: number;
   allowWaiting?: boolean;
+  harness?: HarnessUserPatch;
 } | undefined {
   const payload: {
     maxSteps?: number;
     timeLimitSeconds?: number;
     allowWaiting?: boolean;
+    harness?: HarnessUserPatch;
   } = {};
 
   if (taskParameters.maxSteps !== null) {
@@ -207,6 +270,11 @@ export function buildCreateTaskParametersPayload(taskParameters: TaskParameters)
 
   if (taskParameters.allowWaiting === false) {
     payload.allowWaiting = false;
+  }
+
+  const harness = buildHarnessPatch(EMPTY_HARNESS_PARAMETERS, taskParameters.harness);
+  if (harness) {
+    payload.harness = harness;
   }
 
   return Object.keys(payload).length > 0 ? payload : undefined;
