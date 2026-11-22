@@ -95,6 +95,7 @@ services:
     environment:
       MEOWBERT_CONFIG_PATH: ${MEOWBERT_CONFIG_PATH:-/app/config/global.docker.json}
       MEOWBERT_SANDBOX_RUNTIME_IMAGE: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-sandbox-runtime:main}
+      MEOWBERT_SANDBOX_CGROUP_PARENT: ${MEOWBERT_SANDBOX_CGROUP_PARENT:-}
       DATABASE_HOST: meowbert-postgres
       DATABASE_PORT: "5432"
       DATABASE_USER: ${MEOWBERT_POSTGRES_USER:-postgres}
@@ -146,6 +147,7 @@ services:
     environment:
       MEOWBERT_CONFIG_PATH: ${MEOWBERT_CONFIG_PATH:-/app/config/global.docker.json}
       MEOWBERT_SANDBOX_RUNTIME_IMAGE: ${MEOWBERT_SANDBOX_RUNTIME_IMAGE:-ghcr.io/xinthedark/meowbert-sandbox-runtime:main}
+      MEOWBERT_SANDBOX_CGROUP_PARENT: ${MEOWBERT_SANDBOX_CGROUP_PARENT:-}
       MEOWBERT_API_URL: http://api:4000
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
       DATABASE_HOST: meowbert-postgres

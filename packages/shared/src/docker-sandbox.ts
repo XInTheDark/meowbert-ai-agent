@@ -8,7 +8,13 @@ import Docker, { type Container } from "dockerode";
 import { toSandboxPath, toSandboxText } from "./docker-sandbox-paths.js";
 import { BoundedOutputCapture } from "./shell-output.js";
 export { toSandboxPath, fromSandboxPath, toSandboxText } from "./docker-sandbox-paths.js";
-import { selectSandboxPassthroughEnv, type SandboxConfig, type SandboxResourcesConfig } from "./sandbox.js";
+import {
+  DEFAULT_SANDBOX_MAX_RUNNING_CONTAINERS,
+  selectSandboxPassthroughEnv,
+  type SandboxConfig,
+  type SandboxResourcesConfig
+} from "./sandbox.js";
+import { createSerialGate, waitForSandboxSlot } from "./docker-sandbox-capacity.js";
 import {
   DEFAULT_EXEC_CLOSE_TIMEOUT_MS,
   FORCE_KILL_DELAY_MS,
@@ -34,6 +40,7 @@ import {
   SANDBOX_WORKSPACE_ID_LABEL_KEY,
   buildMissingSandboxImageMessage,
   buildMissingSandboxRuntimeMessage,
+  isDockerContainerGoneError,
   isDockerImageMissingError,
   isDockerRuntimeUnavailableError,
   mapManagedSandboxContainer,
@@ -217,6 +224,16 @@ function toEnvList(values: Record<string, string> | undefined, config: SandboxCo
     .map(([key, value]) => `${key}=${toSandboxPath(value)}`);
 
   return entries.length > 0 ? entries : undefined;
+}
+
+// Removal is best effort, but a failure means a container may keep holding memory,
+// so leave a trace for the orphan cleanup to explain.
+function reportSandboxRemoveFailure(containerId: string, error: unknown): void {
+  if (isDockerContainerGoneError(error)) {
+    return;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`[sandbox] Failed to remove sandbox container ${containerId}: ${message}`);
 }
 
 async function emitSandboxLifecycleEvent(
@@ -460,8 +477,8 @@ export class DockerSandboxHandle implements MachineHandle {
     }
     try {
       await this.container.remove({ force: true });
-    } catch {
-      // Best-effort cleanup.
+    } catch (error) {
+      reportSandboxRemoveFailure(this.container.id, error);
     }
   }
 }
@@ -472,6 +489,7 @@ export class DockerSandboxManager {
   private readonly currentContainerId: string | null;
   private currentContainerMounts: MountedPathInfo[] | null = null;
   private readonly nestedMountMirrorPaths = new Map<string, string>();
+  private readonly capacityGate = createSerialGate();
 
   constructor(config: SandboxConfig) {
     this.config = config;
@@ -557,9 +575,19 @@ export class DockerSandboxManager {
         this.config.startTimeoutMs,
         `Timed out while removing sandbox container ${containerId}`
       );
-    } catch {
-      // Best-effort cleanup.
+    } catch (error) {
+      reportSandboxRemoveFailure(containerId, error);
     }
+  }
+
+  /** IDs of every running container on the Docker host, sandbox or not. */
+  async listRunningContainerIds(): Promise<string[]> {
+    const containers = await withTimeout(
+      this.docker.listContainers({ all: false }),
+      this.config.startTimeoutMs,
+      "Timed out while listing running containers"
+    );
+    return containers.map((container) => container.Id);
   }
 
   async readCrashReport(containerId: string): Promise<SandboxCrashReport | null> {
@@ -856,6 +884,11 @@ export class DockerSandboxManager {
 
     if (typeof resources.memoryMb === "number") {
       hostConfig.Memory = resources.memoryMb * 1024 * 1024;
+      // Equal to Memory, so a sandbox at its limit is OOM-killed instead of pushing the host into swap.
+      hostConfig.MemorySwap = hostConfig.Memory;
+    }
+    if (this.config.cgroupParent) {
+      hostConfig.CgroupParent = this.config.cgroupParent;
     }
     if (typeof resources.cpus === "number") {
       hostConfig.NanoCpus = Math.max(1, Math.floor(resources.cpus * 1_000_000_000));
@@ -895,21 +928,17 @@ export class DockerSandboxManager {
       }
     });
     try {
-      container = await withTimeout(
-        this.docker.createContainer({
-          Image: this.config.image,
-          Entrypoint: CONTAINER_LOOP_COMMAND.slice(0, 2),
-          Cmd: CONTAINER_LOOP_COMMAND.slice(2),
-          WorkingDir: toSandboxPath(options.workingDir),
-          Env: toEnvList(options.env, this.config),
-          ...(requestedPorts.length > 0 ? { ExposedPorts: exposedPorts } : {}),
-          User: sandboxIdentity.user,
-          Labels: labels,
-          HostConfig: hostConfig
-        }),
-        this.config.startTimeoutMs,
-        "Timed out while creating sandbox container"
-      );
+      container = await this.createContainerWithinCapacity(options, () => this.docker.createContainer({
+        Image: this.config.image,
+        Entrypoint: CONTAINER_LOOP_COMMAND.slice(0, 2),
+        Cmd: CONTAINER_LOOP_COMMAND.slice(2),
+        WorkingDir: toSandboxPath(options.workingDir),
+        Env: toEnvList(options.env, this.config),
+        ...(requestedPorts.length > 0 ? { ExposedPorts: exposedPorts } : {}),
+        User: sandboxIdentity.user,
+        Labels: labels,
+        HostConfig: hostConfig
+      }));
     } catch (error) {
       if (isDockerImageMissingError(error)) {
         throw new Error(buildMissingSandboxImageMessage(this.config));
@@ -950,6 +979,48 @@ export class DockerSandboxManager {
       container,
       baseWorkingDir: options.workingDir
     });
+  }
+
+  // Holds this process's gate from the capacity check until Docker has the new container,
+  // so its count includes the container before the next caller checks.
+  private createContainerWithinCapacity(
+    options: SandboxContainerOptions,
+    create: () => Promise<Container>
+  ): Promise<Container> {
+    return this.capacityGate(async () => {
+      const limit = this.config.maxRunningContainers ?? DEFAULT_SANDBOX_MAX_RUNNING_CONTAINERS;
+      const { waitedMs } = await waitForSandboxSlot({
+        limit,
+        countActive: () => this.countActiveSandboxes(),
+        onWaiting: (active) => emitSandboxLifecycleEvent(options, {
+          stage: "sandbox.capacity",
+          phase: "start",
+          message: "Waiting for a free sandbox slot on this Docker host.",
+          payload: { activeSandboxes: active, maxRunningContainers: limit }
+        })
+      });
+      if (waitedMs > 0) {
+        await emitSandboxLifecycleEvent(options, {
+          stage: "sandbox.capacity",
+          phase: "success",
+          message: "Got a free sandbox slot.",
+          payload: { waitedMs }
+        });
+      }
+      return withTimeout(create(), this.config.startTimeoutMs, "Timed out while creating sandbox container");
+    });
+  }
+
+  private async countActiveSandboxes(): Promise<number> {
+    const containers = await withTimeout(
+      this.docker.listContainers({
+        all: true,
+        filters: { label: [`${SANDBOX_LABEL_KEY}=true`], status: ["created", "restarting", "running"] }
+      }),
+      this.config.startTimeoutMs,
+      "Timed out while counting sandbox containers"
+    );
+    return containers.length;
   }
 
   async runEphemeralShellCommand(input: {

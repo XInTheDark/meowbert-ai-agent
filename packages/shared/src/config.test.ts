@@ -86,6 +86,7 @@ afterEach(() => {
   delete process.env.MEOWBERT_CONFIG_JSON;
   delete process.env.MEOWBERT_CONFIG_BASE64;
   delete process.env.MEOWBERT_SANDBOX_RUNTIME_IMAGE;
+  delete process.env.MEOWBERT_SANDBOX_CGROUP_PARENT;
   delete process.env.DATABASE_URL;
   delete process.env.DATABASE_HOST;
   delete process.env.DATABASE_PORT;
@@ -299,6 +300,15 @@ describe("loadConfig sandbox image env override", () => {
     const loaded = loadConfig(temp.configPath);
 
     expect(loaded.runtime.sandbox.image).toBe("ghcr.io/xinthedark/meowbert-ai-agent/sandbox-runtime:main");
+  });
+
+  it("uses MEOWBERT_SANDBOX_CGROUP_PARENT when provided, and leaves it unset when blank", () => {
+    const temp = writeTempConfig("config");
+    process.env.MEOWBERT_SANDBOX_CGROUP_PARENT = " ";
+    expect(loadConfig(temp.configPath).runtime.sandbox.cgroupParent).toBeUndefined();
+
+    process.env.MEOWBERT_SANDBOX_CGROUP_PARENT = "meowbert-sandboxes.slice";
+    expect(loadConfig(temp.configPath).runtime.sandbox.cgroupParent).toBe("meowbert-sandboxes.slice");
   });
 });
 

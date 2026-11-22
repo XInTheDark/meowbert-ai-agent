@@ -87,6 +87,16 @@ export function isDockerImageMissingError(error: unknown): boolean {
   return text.includes("no such") || text.includes("no such image");
 }
 
+// A container that is already gone, or already being removed, needs no further cleanup.
+export function isDockerContainerGoneError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const statusCode = (error as DockerErrorLike).statusCode;
+  return statusCode === 404 || (statusCode === 409 && getDockerErrorText(error).includes("already in progress"));
+}
+
 export function isDockerRuntimeUnavailableError(error: unknown): boolean {
   const text = getDockerErrorText(error);
   return text.includes("unknown runtime specified")

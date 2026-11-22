@@ -4,6 +4,7 @@ export const DEFAULT_SANDBOX_DOCKER_HOST = "unix:///var/run/docker.sock";
 export const DEFAULT_SANDBOX_START_TIMEOUT_MS = 30_000;
 export const DEFAULT_SANDBOX_SESSION_IDLE_TIMEOUT_MS = 45 * 60 * 1000;
 export const DEFAULT_SANDBOX_PIDS_LIMIT = 256;
+export const DEFAULT_SANDBOX_MAX_RUNNING_CONTAINERS = 16;
 
 export const sandboxResourcesSchema = z.object({
   pids: z.number().int().positive().default(DEFAULT_SANDBOX_PIDS_LIMIT),
@@ -19,6 +20,10 @@ export const sandboxConfigSchema = z.object({
   dockerHost: z.string().min(1).default(DEFAULT_SANDBOX_DOCKER_HOST),
   startTimeoutMs: z.number().int().positive().default(DEFAULT_SANDBOX_START_TIMEOUT_MS),
   sessionIdleTimeoutMs: z.number().int().positive().default(DEFAULT_SANDBOX_SESSION_IDLE_TIMEOUT_MS),
+  // Sandboxes this Docker host may run at once, across every worker and API process.
+  maxRunningContainers: z.number().int().positive().optional(),
+  // A host cgroup (such as a systemd slice) that caps every sandbox's memory together.
+  cgroupParent: z.string().min(1).optional(),
   envPassthroughPatterns: z.array(z.string().min(1)).default([]),
   resources: sandboxResourcesSchema
 });

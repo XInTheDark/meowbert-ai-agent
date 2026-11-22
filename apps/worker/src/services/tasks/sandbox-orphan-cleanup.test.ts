@@ -9,12 +9,35 @@ vi.mock("../runtime/sandbox.js", () => ({
   workerSandboxManager: {
     getCurrentContainerId: vi.fn(() => null),
     listManagedContainers: vi.fn(async () => []),
+    listRunningContainerIds: vi.fn(async () => []),
     stopAndRemoveContainer: vi.fn(async () => undefined)
   }
 }));
 
+import type { ManagedSandboxContainerSummary } from "@meowbert/shared/docker-sandbox";
 import { query } from "../../lib/db.js";
 import { cleanupSandboxOrphansOnce } from "./sandbox-orphan-cleanup.js";
+
+function sandbox(
+  containerId: string,
+  overrides: Partial<ManagedSandboxContainerSummary> = {}
+): ManagedSandboxContainerSummary {
+  return {
+    containerId,
+    image: "sandbox-image",
+    state: "running",
+    status: "Up 1 minute",
+    createdAt: new Date().toISOString(),
+    purpose: "task-run",
+    workspaceId: "ws-1",
+    environmentId: "env-1",
+    taskId: null,
+    runId: null,
+    sessionId: null,
+    parentContainerId: null,
+    ...overrides
+  };
+}
 
 function buildRowsResult<Row extends object>(rows: Row[]): QueryResult<Row> {
   return {
@@ -116,6 +139,7 @@ describe("sandbox orphan cleanup", () => {
           parentContainerId: "worker-parent"
         }
       ]),
+      listRunningContainerIds: vi.fn(async () => ["api-parent", "worker-parent"]),
       stopAndRemoveContainer: vi.fn(async () => undefined)
     };
 
@@ -126,5 +150,66 @@ describe("sandbox orphan cleanup", () => {
     expect(manager.stopAndRemoveContainer).toHaveBeenCalledWith("remove-stale-task");
     expect(manager.stopAndRemoveContainer).toHaveBeenCalledWith("remove-exited-same-parent");
     expect(manager.stopAndRemoveContainer).toHaveBeenCalledWith("remove-stale-persistent-session");
+  });
+
+  function mockActiveRows(): void {
+    mockedQuery
+      .mockResolvedValueOnce(buildRowsResult([{ task_id: "task-live", run_id: "run-live" }]))
+      .mockResolvedValueOnce(buildRowsResult([{ id: "session-live" }]));
+  }
+
+  function managerWith(
+    containers: ManagedSandboxContainerSummary[],
+    runningContainerIds: string[],
+    currentContainerId = "worker-1"
+  ) {
+    return {
+      getCurrentContainerId: vi.fn(() => currentContainerId),
+      listManagedContainers: vi.fn(async () => containers),
+      listRunningContainerIds: vi.fn(async () => runningContainerIds),
+      stopAndRemoveContainer: vi.fn(async () => undefined)
+    };
+  }
+
+  function removedIds(manager: ReturnType<typeof managerWith>): string[] {
+    return manager.stopAndRemoveContainer.mock.calls.map(([id]) => id).sort();
+  }
+
+  it("removes sandboxes whose parent process is gone, but keeps live persistent sessions", async () => {
+    mockActiveRows();
+    const manager = managerWith([
+      sandbox("live-run-dead-parent", { taskId: "task-live", runId: "run-live", parentContainerId: "dead-worker" }),
+      sandbox("shell-exec-dead-parent", { purpose: "shell-exec", parentContainerId: "dead-worker" }),
+      sandbox("api-shell-dead-parent", { purpose: "shell-session", parentContainerId: "dead-api" }),
+      sandbox("session-dead-parent", { purpose: "shell-session", sessionId: "session-live", parentContainerId: "dead-worker" }),
+      sandbox("live-run-live-parent", { taskId: "task-live", runId: "run-live", parentContainerId: "worker-1" })
+    ], ["worker-1-full-container-id"]);
+
+    await cleanupSandboxOrphansOnce(manager);
+
+    expect(removedIds(manager)).toEqual(["api-shell-dead-parent", "live-run-dead-parent", "shell-exec-dead-parent"]);
+  });
+
+  it("judges no parent gone when this worker cannot find its own container", async () => {
+    mockActiveRows();
+    const manager = managerWith([
+      sandbox("live-run", { taskId: "task-live", runId: "run-live", parentContainerId: "other-worker" })
+    ], ["unrelated-container"]);
+
+    await cleanupSandboxOrphansOnce(manager);
+
+    expect(manager.stopAndRemoveContainer).not.toHaveBeenCalled();
+  });
+
+  it("removes running shell-exec sandboxes that outlived their tool listing", async () => {
+    mockActiveRows();
+    const manager = managerWith([
+      sandbox("old-shell-exec", { purpose: "shell-exec", createdAt: new Date(Date.now() - 6 * 60_000).toISOString() }),
+      sandbox("fresh-shell-exec", { purpose: "shell-exec" })
+    ], ["worker-1"]);
+
+    await cleanupSandboxOrphansOnce(manager);
+
+    expect(removedIds(manager)).toEqual(["old-shell-exec"]);
   });
 });

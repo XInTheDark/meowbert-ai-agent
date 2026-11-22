@@ -58,6 +58,53 @@ New sandboxes now start under gVisor. It only affects task sandboxes; Meowbert's
 gVisor makes escapes much harder, but it's not a guarantee. Treat agents like a capable but untrusted user of the machine.
 :::
 
+## Capping memory for all sandboxes together
+
+Each sandbox has its own memory limit (`runtime.sandbox.resources.memoryMb`), and `runtime.sandbox.maxRunningContainers` limits how many run at once. Together they keep total sandbox memory near `memoryMb × maxRunningContainers`, but Docker does not enforce that total. gVisor also uses some memory of its own outside each sandbox's limit.
+
+To guarantee that sandboxes can never take memory the server needs for Postgres, Meowbert's services, and SSH, put every sandbox in one systemd slice with its own memory cap. Linux then stops sandboxes at the slice's limit, no matter how many are running:
+
+```
+host memory
+├── system, Docker, Postgres, Redis, Meowbert services
+└── meowbert-sandboxes.slice   (capped, for example at 13 GiB)
+    ├── sandbox (memoryMb each)
+    ├── sandbox
+    └── ...
+```
+
+This needs a Linux host where Docker uses the systemd cgroup driver, which is the default on current Ubuntu and Debian.
+
+1. Check the cgroup driver. It should print `systemd`:
+   ```bash
+   docker info --format '{{.CgroupDriver}}'
+   ```
+2. Create `/etc/systemd/system/meowbert-sandboxes.slice`. Size it so the rest of the server keeps enough memory: the example below suits a 24 GiB host running the full stack.
+   ```ini
+   [Unit]
+   Description=Memory cap for Meowbert sandboxes
+
+   [Slice]
+   MemoryAccounting=true
+   MemoryHigh=11G
+   MemoryMax=13G
+   MemorySwapMax=0
+   TasksMax=8000
+   ```
+   `MemoryHigh` is where Linux starts reclaiming memory and slowing sandboxes down. `MemoryMax` is the hard cap: above it, a process inside a sandbox is killed rather than anything outside the slice. `MemorySwapMax=0` keeps sandboxes out of swap.
+3. Load it:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl start meowbert-sandboxes.slice
+   ```
+4. Set `MEOWBERT_SANDBOX_CGROUP_PARENT=meowbert-sandboxes.slice` in `.env` (or your Coolify environment variables), or set `runtime.sandbox.cgroupParent` in `config/global.docker.json`. Then restart the API and worker.
+5. Start a task, then check that its sandbox is listed under the slice:
+   ```bash
+   systemd-cgls --no-pager /meowbert-sandboxes.slice
+   ```
+
+Sandboxes started before the restart stay outside the slice until they end. Each sandbox also has swap turned off, so one that reaches its own `memoryMb` is stopped instead of pushing the server into swap.
+
 ## What the operator should know
 
 - **The API and worker can control Docker.** They mount the Docker socket so they can start sandboxes, which gives them root-equivalent access to the host. Keep them patched, and don't expose Docker or the internal services to the network.

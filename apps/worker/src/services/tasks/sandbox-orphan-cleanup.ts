@@ -3,6 +3,8 @@ import { query } from "../../lib/db.js";
 import { workerSandboxManager } from "../runtime/sandbox.js";
 
 const SANDBOX_ORPHAN_CLEANUP_INTERVAL_MS = 60_000;
+// shell-exec containers list a skill's tools and stop within seconds; one this old was leaked.
+const SHELL_EXEC_MAX_AGE_MS = 5 * 60_000;
 
 interface ActiveTaskRunRow {
   task_id: string;
@@ -16,6 +18,7 @@ interface ActivePersistentShellSessionRow {
 interface SandboxCleanupManager {
   getCurrentContainerId(): string | null;
   listManagedContainers(): Promise<ManagedSandboxContainerSummary[]>;
+  listRunningContainerIds(): Promise<string[]>;
   stopAndRemoveContainer(containerId: string): Promise<void>;
 }
 
@@ -27,15 +30,47 @@ function isTaskBoundSandbox(container: ManagedSandboxContainerSummary): boolean 
   return container.purpose === "task-run" || container.purpose === "shell-session";
 }
 
+function isSameContainerId(left: string, right: string): boolean {
+  return left.startsWith(right) || right.startsWith(left);
+}
+
+// Parent labels may hold a short ID, so match by prefix. When this worker cannot find its own
+// ID among running containers, its view of IDs does not match Docker's, and no parent is judged gone.
+function buildParentGoneCheck(
+  runningContainerIds: string[],
+  currentParentContainerId: string | null
+): (parentContainerId: string | null) => boolean {
+  const lookupMatchesDocker = currentParentContainerId !== null
+    && runningContainerIds.some((id) => isSameContainerId(id, currentParentContainerId));
+  return (parentContainerId) => lookupMatchesDocker
+    && parentContainerId !== null
+    && !runningContainerIds.some((id) => isSameContainerId(id, parentContainerId));
+}
+
+function isExpiredShellExec(container: ManagedSandboxContainerSummary, nowMs: number): boolean {
+  if (container.purpose !== "shell-exec" || !container.createdAt) {
+    return false;
+  }
+  return nowMs - Date.parse(container.createdAt) > SHELL_EXEC_MAX_AGE_MS;
+}
+
 function shouldRemoveWorkerSandbox(input: {
   container: ManagedSandboxContainerSummary;
   activeRunLookup: Set<string>;
   activePersistentSessionLookup: Set<string>;
   currentParentContainerId: string | null;
+  isParentGone: (parentContainerId: string | null) => boolean;
+  nowMs: number;
 }): boolean {
   const { container, activeRunLookup, activePersistentSessionLookup, currentParentContainerId } = input;
+  // Persistent shell sessions outlive the process that started them, so only their DB row decides.
   if (container.purpose === "shell-session" && container.sessionId) {
     return container.state !== "running" || !activePersistentSessionLookup.has(container.sessionId);
+  }
+
+  // Only the process that created a sandbox holds its handle, so once that process is gone nothing can use it.
+  if (input.isParentGone(container.parentContainerId)) {
+    return true;
   }
 
   const isTaskBound = isTaskBoundSandbox(container);
@@ -44,6 +79,10 @@ function shouldRemoveWorkerSandbox(input: {
 
   if (container.state !== "running") {
     return isTaskBound || isSameParentContainer;
+  }
+
+  if (isExpiredShellExec(container, input.nowMs)) {
+    return true;
   }
 
   if (!isTaskBound) {
@@ -87,17 +126,22 @@ async function buildActivePersistentSessionLookup(): Promise<Set<string>> {
 export async function cleanupSandboxOrphansOnce(
   manager: SandboxCleanupManager = workerSandboxManager
 ): Promise<number> {
-  const [activeRunLookup, activePersistentSessionLookup, containers] = await Promise.all([
+  const [activeRunLookup, activePersistentSessionLookup, containers, runningContainerIds] = await Promise.all([
     buildActiveTaskRunLookup(),
     buildActivePersistentSessionLookup(),
-    manager.listManagedContainers()
+    manager.listManagedContainers(),
+    manager.listRunningContainerIds()
   ]);
   const currentParentContainerId = manager.getCurrentContainerId();
+  const isParentGone = buildParentGoneCheck(runningContainerIds, currentParentContainerId);
+  const nowMs = Date.now();
   const containersToRemove = containers.filter((container) => shouldRemoveWorkerSandbox({
     container,
     activeRunLookup,
     activePersistentSessionLookup,
-    currentParentContainerId
+    currentParentContainerId,
+    isParentGone,
+    nowMs
   }));
 
   for (const container of containersToRemove) {

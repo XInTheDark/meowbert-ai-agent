@@ -340,6 +340,20 @@ function applyEnvOverrides(config: AppConfig): AppConfig {
     };
   }
 
+  const sandboxCgroupParent = process.env.MEOWBERT_SANDBOX_CGROUP_PARENT?.trim();
+  if (sandboxCgroupParent) {
+    nextConfig = {
+      ...nextConfig,
+      runtime: {
+        ...nextConfig.runtime,
+        sandbox: {
+          ...nextConfig.runtime.sandbox,
+          cgroupParent: sandboxCgroupParent
+        }
+      }
+    };
+  }
+
   const meilisearchHost = process.env.MEOWBERT_MEILISEARCH_HOST?.trim();
   const meilisearchApiKey = process.env.MEOWBERT_MEILISEARCH_API_KEY?.trim();
   const meilisearchMasterKey = process.env.MEOWBERT_MEILISEARCH_MASTER_KEY?.trim();
