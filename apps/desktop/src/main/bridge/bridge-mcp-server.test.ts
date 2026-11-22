@@ -57,7 +57,7 @@ describe("BridgeMcpServer", () => {
     const listStd = await server.handleWebRequest(mcpPost("tok_123", { jsonrpc: "2.0", id: 1, method: "tools/list" }), TEST_PORT);
     expect(listStd.status).toBe(200);
     const stdBody = await listStd.json() as { result: { tools: Array<{ name: string }> } };
-    expect(stdBody.result.tools.map((t) => t.name)).toContain("meowbert_run_shell");
+    expect(stdBody.result.tools.map((t) => t.name)).toContain("meowbert_exec");
     expect(stdBody.result.tools.map((t) => t.name)).toContain("meowbert_start");
 
     server.reconfigure({ toolMode: "compact" });
@@ -76,7 +76,7 @@ describe("BridgeMcpServer", () => {
     const req1 = {
       input: [{ role: "user", content: "Create hello.txt" }],
       tools: [
-        { type: "function", name: "run_shell", description: "Run shell", parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } },
+        { type: "function", name: "exec", description: "Run code", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } },
         { type: "function", name: "final_response", description: "Finish", parameters: { type: "object", properties: { response: { type: "string" } }, required: ["response"] } }
       ]
     };
@@ -92,23 +92,23 @@ describe("BridgeMcpServer", () => {
     const startJson = await startRes.json() as { result: { content: Array<{ text: string }> } };
     expect(startJson.result.content[0].text).toContain("Create hello.txt");
 
-    const shellPromise = server.handleWebRequest(mcpPost("tok_123", {
+    const execPromise = server.handleWebRequest(mcpPost("tok_123", {
       jsonrpc: "2.0",
       id: 4,
       method: "tools/call",
-      params: { name: "meowbert_run_shell", arguments: { session_code: handoff.sessionCode, command: "echo ok" } }
+      params: { name: "meowbert_exec", arguments: { session_code: handoff.sessionCode, code: "return 'ok';" } }
     }), TEST_PORT);
     const turn1 = await turn1Promise;
     const fc1 = turn1.output[0] as { call_id: string; name: string; arguments: string };
-    expect(fc1.name).toBe("run_shell");
-    expect(JSON.parse(fc1.arguments)).toEqual({ command: "echo ok" });
+    expect(fc1.name).toBe("exec");
+    expect(JSON.parse(fc1.arguments)).toEqual({ code: "return 'ok';" });
 
     const turn2Promise = session.handleModelTurn({
       ...req1,
-      input: [...req1.input, fc1, { type: "function_call_output", call_id: fc1.call_id, output: "ok\n" }]
+      input: [...req1.input, fc1, { type: "function_call_output", call_id: fc1.call_id, output: "ok" }]
     });
-    const shellJson = await (await shellPromise).json() as { result: { content: Array<{ text: string }> } };
-    expect(shellJson.result.content[0].text).toBe("ok\n");
+    const execJson = await (await execPromise).json() as { result: { content: Array<{ text: string }> } };
+    expect(execJson.result.content[0].text).toBe("ok");
 
     const finalPromise = server.handleWebRequest(mcpPost("tok_123", {
       jsonrpc: "2.0",

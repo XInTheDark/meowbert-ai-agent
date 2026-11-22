@@ -509,10 +509,11 @@ describe("runAgentStepLoop", () => {
   });
 
   it.each([
-    { label: "workspace experiment on", workspace: true, metadata: {}, codeMode: true },
-    { label: "model opted out", workspace: true, metadata: { "gpt-test": { code_mode: false } }, codeMode: false },
-    { label: "workspace experiment off", workspace: false, metadata: {}, codeMode: false }
-  ])("requests code mode only when it applies: $label", async ({ workspace, metadata, codeMode }) => {
+    { label: "workspace experiment on", workspace: true, metadata: {}, bridge: false, codeMode: true },
+    { label: "model opted out", workspace: true, metadata: { "gpt-test": { code_mode: false } }, bridge: false, codeMode: false },
+    { label: "workspace experiment off", workspace: false, metadata: {}, bridge: false, codeMode: false },
+    { label: "bridge run", workspace: false, metadata: { "gpt-test": { code_mode: false } }, bridge: true, codeMode: true }
+  ])("requests code mode only when it applies: $label", async ({ workspace, metadata, bridge, codeMode }) => {
     mockedCreateModelResponseWithRetry.mockResolvedValueOnce({ output: [], output_text: "", usage: undefined } as never);
     mockedDispatchResponseOutput.mockResolvedValueOnce({
       sawToolCall: true,
@@ -524,6 +525,7 @@ describe("runAgentStepLoop", () => {
     });
     const execution = createExecutionContext();
     Object.assign(execution.prepared.snapshot, { code_mode_enabled: workspace, platform_model_metadata: metadata });
+    Object.assign(execution.prepared.settings, { bridgeMode: bridge });
 
     await runAgentStepLoop(execution as never);
 

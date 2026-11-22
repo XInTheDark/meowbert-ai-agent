@@ -328,8 +328,10 @@ function isBridgeMode(execution: AgentExecutionContext): boolean {
 }
 
 // Code mode is a workspace experiment that each model can opt out of; the Master never uses it.
+// Bridge runs always use it: the Desktop MCP tool list is fixed to the code-mode layout, and the
+// task's model, whose opt-out this is, never sees the tools there.
 function isCodeModeEnabled(execution: AgentExecutionContext): boolean {
-  if (isBridgeMode(execution)) return false;
+  if (isBridgeMode(execution)) return true;
   return execution.prepared.snapshot.code_mode_enabled === true
     && execution.prepared.isProjectMaster !== true
     && resolveCodeModeForModel(execution.prepared.runtimeModel, execution.prepared.snapshot.platform_model_metadata);

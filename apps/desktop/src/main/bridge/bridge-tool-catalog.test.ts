@@ -3,15 +3,15 @@ import type { FunctionTool } from "openai/resources/responses/responses";
 import {
   buildResponseTools,
   enableSkillArgumentsSchema,
-  markArtifactArgumentsSchema,
-  shellSessionArgumentsSchema,
   updateProgressArgumentsSchema
 } from "@meowbert/run-executor/agent-tools/index";
+import { buildCodeModeToolSet } from "@meowbert/run-executor/code-mode/code-mode-tools";
+import { execArgumentsSchema } from "@meowbert/run-executor/code-mode/exec-tool";
 import { BRIDGE_CORE_PROXY_TOOLS } from "./bridge-tool-catalog";
 
 describe("bridge-tool-catalog executor contract alignment", () => {
-  it("only advertises tools actually offered by buildResponseTools and mirrors their exact parameter keys", () => {
-    const responseTools = buildResponseTools(
+  it("only advertises tools a code-mode turn offers directly and mirrors their exact parameter keys", () => {
+    const tools = buildResponseTools(
       {
         webSearch: true,
         memorySearch: true,
@@ -33,6 +33,7 @@ describe("bridge-tool-catalog executor contract alignment", () => {
         runShellMaxTimeoutSeconds: 45
       }
     );
+    const responseTools = buildCodeModeToolSet(tools, 45).responseTools;
 
     const byName = new Map(
       responseTools
@@ -44,7 +45,7 @@ describe("bridge-tool-catalog executor contract alignment", () => {
 
     for (const spec of BRIDGE_CORE_PROXY_TOOLS) {
       const executorTool = byName.get(spec.meowbertToolName!);
-      expect(executorTool, `Expected ${spec.meowbertToolName} in buildResponseTools`).toBeDefined();
+      expect(executorTool, `Expected ${spec.meowbertToolName} among code-mode response tools`).toBeDefined();
 
       const execParams = (executorTool!.parameters ?? {}) as { properties?: Record<string, unknown>; required?: string[] };
       const mcpParams = spec.inputSchema as { properties?: Record<string, unknown>; required?: string[] };
@@ -58,11 +59,13 @@ describe("bridge-tool-catalog executor contract alignment", () => {
     }
   });
 
-  it("matches executor Zod validation for mark_artifact, update_progress, enable_skill, and shell_session", () => {
+  it("matches executor Zod validation for exec, update_progress, and enable_skill", () => {
     const byMcpName = new Map(BRIDGE_CORE_PROXY_TOOLS.map((spec) => [spec.mcpName, spec.inputSchema]));
 
-    expect(Object.keys((byMcpName.get("meowbert_mark_artifact") as { properties: Record<string, unknown> }).properties)).toContain("file_paths");
-    expect(markArtifactArgumentsSchema.safeParse({ file_paths: ["report.md"] }).success).toBe(true);
+    expect(Object.keys((byMcpName.get("meowbert_exec") as { properties: Record<string, unknown> }).properties)).toEqual(
+      expect.arrayContaining(["session_code", "code", "timeout_seconds", "summary"])
+    );
+    expect(execArgumentsSchema.safeParse({ code: "return 1;", timeout_seconds: null, summary: null }).success).toBe(true);
 
     expect(Object.keys((byMcpName.get("meowbert_update_progress") as { properties: Record<string, unknown> }).properties)).toEqual(
       expect.arrayContaining(["session_code", "goal", "status", "steps"])
@@ -75,20 +78,5 @@ describe("bridge-tool-catalog executor contract alignment", () => {
 
     expect(Object.keys((byMcpName.get("meowbert_enable_skill") as { properties: Record<string, unknown> }).properties)).toContain("skill");
     expect(enableSkillArgumentsSchema.safeParse({ skill: "docx" }).success).toBe(true);
-
-    const shellSessionProps = (byMcpName.get("meowbert_shell_session") as { properties: { action: { enum: string[] } } }).properties;
-    expect(shellSessionProps.action.enum).toContain("status");
-    expect(shellSessionArgumentsSchema.safeParse({
-      action: "list",
-      session_id: null,
-      command: null,
-      lifetime_seconds: null,
-      tail_lines: null,
-      save_output_path: null,
-      mode: null,
-      data: null,
-      cols: null,
-      rows: null
-    }).success).toBe(true);
   });
 });

@@ -1,24 +1,18 @@
 import type { FunctionTool } from "openai/resources/responses/responses";
 import { BRIDGE_MAX_RUN_SHELL_TIMEOUT_SECONDS, type BridgeToolMode } from "@meowbert/shared";
 import {
-  buildRunShellFunctionTool,
   buildWaitFunctionTool,
   ENABLE_SKILL_TOOL_NAME,
   FINAL_RESPONSE_TOOL_NAME,
   LIST_SKILLS_TOOL_NAME,
-  MARK_ARTIFACT_TOOL_NAME,
-  MEMORY_SEARCH_TOOL_NAME,
   RESPONSE_FUNCTION_TOOLS,
-  RUN_SHELL_TOOL_NAME,
-  SEARCH_WEB_TOOL,
   SEND_MESSAGE_TOOL_NAME,
-  SHELL_SESSION_TOOL_NAME,
   STOP_TASK_TOOL_NAME,
   UPDATE_PROGRESS_TOOL,
-  VIEW_IMAGE_TOOL_NAME,
-  VIEW_PDF_FILE_TOOL_NAME,
   WAIT_TOOL_NAME
 } from "@meowbert/run-executor/agent-tools/index";
+import { buildExecTool } from "@meowbert/run-executor/code-mode/exec-tool";
+import { SEARCH_TOOLS_TOOL } from "@meowbert/run-executor/code-mode/search-tools-tool";
 
 export interface StaticMcpToolSpec {
   mcpName: string;
@@ -78,7 +72,7 @@ export const BRIDGE_META_TOOLS: StaticMcpToolSpec[] = [
   },
   {
     mcpName: "meowbert_list_tools",
-    description: "List every Meowbert tool currently enabled for this bridge session along with its JSON schema.",
+    description: "List the Meowbert tools this bridge session can call directly, with their JSON schemas. Find the tools that run inside exec with meowbert_search_tools.",
     inputSchema: {
       type: "object",
       properties: SESSION_CODE_PROP,
@@ -102,21 +96,18 @@ export const BRIDGE_META_TOOLS: StaticMcpToolSpec[] = [
   }
 ];
 
+// Bridge runs always use code mode, so this mirrors a code-mode turn's direct tools. Shell, file
+// viewing, artifacts, memory and web search run inside exec, or through meowbert_call_tool.
 export const BRIDGE_CORE_PROXY_TOOLS: StaticMcpToolSpec[] = [
-  wrapExecutorTool(`meowbert_${RUN_SHELL_TOOL_NAME}`, buildRunShellFunctionTool(BRIDGE_MAX_RUN_SHELL_TIMEOUT_SECONDS)),
-  wrapExecutorTool(`meowbert_${SHELL_SESSION_TOOL_NAME}`, requireBuiltinTool(SHELL_SESSION_TOOL_NAME)),
-  wrapExecutorTool(`meowbert_${VIEW_IMAGE_TOOL_NAME}`, requireBuiltinTool(VIEW_IMAGE_TOOL_NAME)),
-  wrapExecutorTool(`meowbert_${VIEW_PDF_FILE_TOOL_NAME}`, requireBuiltinTool(VIEW_PDF_FILE_TOOL_NAME)),
-  wrapExecutorTool(`meowbert_${MARK_ARTIFACT_TOOL_NAME}`, requireBuiltinTool(MARK_ARTIFACT_TOOL_NAME)),
+  wrapExecutorTool("meowbert_exec", buildExecTool([], BRIDGE_MAX_RUN_SHELL_TIMEOUT_SECONDS)),
+  wrapExecutorTool("meowbert_search_tools", SEARCH_TOOLS_TOOL),
   wrapExecutorTool("meowbert_update_progress", UPDATE_PROGRESS_TOOL),
   wrapExecutorTool(`meowbert_${SEND_MESSAGE_TOOL_NAME}`, requireBuiltinTool(SEND_MESSAGE_TOOL_NAME)),
   wrapExecutorTool(`meowbert_${FINAL_RESPONSE_TOOL_NAME}`, requireBuiltinTool(FINAL_RESPONSE_TOOL_NAME)),
   wrapExecutorTool(`meowbert_${WAIT_TOOL_NAME}`, buildWaitFunctionTool(false)),
   wrapExecutorTool(`meowbert_${STOP_TASK_TOOL_NAME}`, requireBuiltinTool(STOP_TASK_TOOL_NAME)),
   wrapExecutorTool(`meowbert_${LIST_SKILLS_TOOL_NAME}`, requireBuiltinTool(LIST_SKILLS_TOOL_NAME)),
-  wrapExecutorTool(`meowbert_${ENABLE_SKILL_TOOL_NAME}`, requireBuiltinTool(ENABLE_SKILL_TOOL_NAME)),
-  wrapExecutorTool(`meowbert_${MEMORY_SEARCH_TOOL_NAME}`, requireBuiltinTool(MEMORY_SEARCH_TOOL_NAME)),
-  wrapExecutorTool("meowbert_search_web", SEARCH_WEB_TOOL)
+  wrapExecutorTool(`meowbert_${ENABLE_SKILL_TOOL_NAME}`, requireBuiltinTool(ENABLE_SKILL_TOOL_NAME))
 ];
 
 const CORE_PROXY_BY_MCP_NAME = new Map(
