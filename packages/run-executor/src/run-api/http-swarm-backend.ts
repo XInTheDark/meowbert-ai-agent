@@ -36,6 +36,7 @@ export function createHttpSwarmBackend(client: RunApiClient): SwarmBackend {
     steerLane: (_run, input) => call("swarm.steerLane", input),
     stopLane: (_run, input) => call("swarm.stopLane", input),
     resumeLane: (_run, input) => call("swarm.resumeLane", input),
+    listLanes: () => call("swarm.listLanes"),
     shareNote: (_run, input) => call("swarm.shareNote", input),
     emitEvent: (_run, message) => call("swarm.emitEvent", { message }),
     park: (_run, input) => call("swarm.park", { leafMessageId: input.leafMessageId, reason: input.reason }),

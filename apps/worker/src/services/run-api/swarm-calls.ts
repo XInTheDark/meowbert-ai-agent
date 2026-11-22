@@ -8,6 +8,7 @@ import { SwarmToolError } from "@meowbert/run-executor/agent-swarm/tool-error";
 import {
   CHECK_TOOL_NAME,
   DIVERGE_TOOL_NAME,
+  LIST_LANES_TOOL_NAME,
   RESUME_TOOL_NAME,
   SHARE_TOOL_NAME,
   SPLIT_TOOL_NAME,
@@ -195,6 +196,10 @@ export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
     if (typeof laneTaskId !== "string" || typeof message !== "string") invalid("resume needs a lane and a message.");
     const extra = typeof extraTokens === "number" && Number.isSafeInteger(extraTokens) && extraTokens > 0 ? extraTokens : null;
     return dbSwarmBackend.resumeLane(runRef(session), { laneTaskId, message, extraTokens: extra });
+  }),
+  "swarm.listLanes": refusable(async (session) => {
+    assertRole(session, LIST_LANES_TOOL_NAME);
+    return dbSwarmBackend.listLanes(runRef(session));
   }),
   "swarm.shareNote": refusable(async (session, args) => {
     assertRole(session, SHARE_TOOL_NAME);

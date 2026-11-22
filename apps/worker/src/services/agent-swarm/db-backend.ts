@@ -12,6 +12,7 @@ import { createCheckLane, createForkedLanes } from "./lane-creation.js";
 import { finishLaneRun } from "./lane-completion.js";
 import { resumeLane, steerLane, stopLane } from "./lane-control.js";
 import { claimLaneInboxInTx } from "./lane-inbox.js";
+import { listOwnedLanes } from "./lane-listing.js";
 import { countActiveChildrenInTx, hasOwnLanes } from "./lane-store.js";
 import { claimMergeItemsInTx } from "./merge-message.js";
 import { claimNoteItemsInTx, claimParentShareNoteItemsInTx } from "./notes-delivery.js";
@@ -128,6 +129,11 @@ export const dbSwarmBackend: SwarmBackend = {
     const lane = await resumeLane({ swarm: run.swarm, parentTaskId: run.taskId, ...input });
     return { title: lane.title };
   },
+  listLanes: (run) => listOwnedLanes(pool, {
+    ownerTaskId: run.taskId,
+    swarmTaskId: run.swarm.swarmTaskId,
+    dormantLaneTurns: run.swarm.settings.advanced.dormantLaneTurns
+  }),
   async shareNote(run, input) {
     const lane = ownLane(run);
     const urgent = input.urgent === true;

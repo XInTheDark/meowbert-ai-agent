@@ -1,6 +1,7 @@
 import {
   CHECK_TOOL_NAME,
   DIVERGE_TOOL_NAME,
+  LIST_LANES_TOOL_NAME,
   RESUME_TOOL_NAME,
   SHARE_TOOL_NAME,
   SPLIT_TOOL_NAME,
@@ -32,6 +33,7 @@ export function checkSwarmToolRole(toolName: string, swarm: SwarmRunContext | nu
     case STEER_TOOL_NAME:
     case STOP_LANE_TOOL_NAME:
     case RESUME_TOOL_NAME:
+    case LIST_LANES_TOOL_NAME:
       return lane?.kind === "check" ? "Check lanes have no lanes of their own." : null;
     case SHARE_TOOL_NAME:
       if (!lane) return "Only lanes can share notes.";

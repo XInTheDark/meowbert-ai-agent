@@ -48,6 +48,7 @@ export const RUN_API_READ_METHODS = [
   "swarm.loadBudgetState",
   "swarm.hasActiveLanes",
   "swarm.hasOwnLanes",
+  "swarm.listLanes",
   "swarm.loadAutoCheckFiles",
   "swarm.loadCheckInputs"
 ] as const;

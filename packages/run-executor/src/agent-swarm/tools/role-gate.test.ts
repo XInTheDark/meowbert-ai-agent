@@ -40,6 +40,8 @@ describe("swarm tool roles", () => {
     expect(checkSwarmToolRole("split", context({ kind: "check" }))).toMatch(/Check lanes cannot split/);
     expect(checkSwarmToolRole("share", context({ kind: "check" }))).toMatch(/do not share/);
     expect(checkSwarmToolRole("submit", context({ kind: "check" }))).toBeNull();
+    expect(checkSwarmToolRole("list_lanes", context(null))).toBeNull();
+    expect(checkSwarmToolRole("list_lanes", context({ kind: "check" }))).toMatch(/no lanes of their own/);
   });
 
   it("lets high effort use the next depth when the baseline allows it", () => {

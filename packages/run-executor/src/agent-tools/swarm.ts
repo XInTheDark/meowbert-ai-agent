@@ -12,6 +12,7 @@ export const CHECK_TOOL_NAME = "check";
 export const STEER_TOOL_NAME = "steer";
 export const STOP_LANE_TOOL_NAME = "stop";
 export const RESUME_TOOL_NAME = "resume";
+export const LIST_LANES_TOOL_NAME = "list_lanes";
 export const SHARE_TOOL_NAME = "share";
 export const SUBMIT_TOOL_NAME = "submit";
 export const SWARM_TOOL_NAMES = [
@@ -21,6 +22,7 @@ export const SWARM_TOOL_NAMES = [
   STEER_TOOL_NAME,
   STOP_LANE_TOOL_NAME,
   RESUME_TOOL_NAME,
+  LIST_LANES_TOOL_NAME,
   SHARE_TOOL_NAME,
   SUBMIT_TOOL_NAME
 ] as const;
@@ -84,6 +86,8 @@ export const resumeArgumentsSchema = z.object({
   message: z.string().trim().min(1).max(8_000),
   extra_tokens: z.number().int().positive().nullable()
 });
+
+export const listLanesArgumentsSchema = z.object({});
 
 export const shareArgumentsSchema = z.object({
   text: z.string().trim().min(1).max(2_000),
@@ -203,6 +207,8 @@ const RESUME_TOOL = tool(RESUME_TOOL_NAME, "Continue one of your dormant lanes w
   extra_tokens: { type: ["integer", "null"], description: "Budget to add to the lane's share when budgets are on; otherwise null." }
 });
 
+const LIST_LANES_TOOL = tool(LIST_LANES_TOOL_NAME, "List every lane you started and their sub-lanes, including finished, stopped and expired ones: status, whether you can resume it, and what it submitted.", {});
+
 const SHARE_TOOL = tool(SHARE_TOOL_NAME, "Lanes only. Share a short note with your sibling lanes, your parent's inbox, or both: a finding, decision or warning that would change how they act. Recipients see it at their next step.", {
   text: { type: "string", description: "One or two lines." },
   scope: {
@@ -245,5 +251,5 @@ const SUBMIT_TOOL = tool(SUBMIT_TOOL_NAME, "Lanes only. Finish your part and rep
 
 export function buildSwarmFunctionTools(toolSet: SwarmToolSet, router: PlatformModelRouter | null = null): FunctionTool[] {
   if (toolSet === "check") return [SUBMIT_TOOL];
-  return [buildSplitTool(router), buildDivergeTool(router), buildCheckTool(router), STEER_TOOL, STOP_LANE_TOOL, RESUME_TOOL, SHARE_TOOL, SUBMIT_TOOL];
+  return [buildSplitTool(router), buildDivergeTool(router), buildCheckTool(router), STEER_TOOL, STOP_LANE_TOOL, RESUME_TOOL, LIST_LANES_TOOL, SHARE_TOOL, SUBMIT_TOOL];
 }

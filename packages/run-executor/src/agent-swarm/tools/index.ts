@@ -2,6 +2,7 @@ import type { ResponseFunctionToolCall } from "openai/resources/responses/respon
 import {
   CHECK_TOOL_NAME,
   DIVERGE_TOOL_NAME,
+  LIST_LANES_TOOL_NAME,
   RESUME_TOOL_NAME,
   SHARE_TOOL_NAME,
   SPLIT_TOOL_NAME,
@@ -14,6 +15,7 @@ import { toolErrorResult, type ToolCallResult } from "../../agent-tool-dispatch/
 import type { ToolDispatchContext, ToolDispatchState } from "../../agent-tool-dispatch/types.js";
 import { handleCheck } from "./check.js";
 import { handleDiverge } from "./diverge.js";
+import { handleListLanes } from "./list-lanes.js";
 import { handleResume } from "./resume.js";
 import { handleShare } from "./share.js";
 import { handleSplit } from "./split.js";
@@ -29,6 +31,7 @@ export async function handleSwarmTool(backend: SwarmBackend, call: ResponseFunct
     case STEER_TOOL_NAME: return handleSteer(backend, call, ctx);
     case STOP_LANE_TOOL_NAME: return handleStopLane(backend, call, ctx);
     case RESUME_TOOL_NAME: return handleResume(backend, call, ctx, state);
+    case LIST_LANES_TOOL_NAME: return handleListLanes(backend, call, ctx);
     case SHARE_TOOL_NAME: return handleShare(backend, call, ctx);
     case SUBMIT_TOOL_NAME: return handleSubmit(backend, call, ctx, state);
     default: return toolErrorResult(`Unknown swarm tool: ${call.name}`);

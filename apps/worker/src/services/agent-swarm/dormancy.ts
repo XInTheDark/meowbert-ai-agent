@@ -3,6 +3,11 @@ import type { SwarmLaneRow, SwarmQueryable } from "./lane-store.js";
 
 export type DormantLane = Pick<SwarmLaneRow, "task_id" | "title" | "kind" | "steps" | "result_json">;
 
+// Whether a merged lane is still inside the window in which it can be resumed.
+export function isWithinDormantWindow(userTurnsSinceMerge: number, dormantLaneTurns: number): boolean {
+  return dormantLaneTurns > 0 && userTurnsSinceMerge <= dormantLaneTurns;
+}
+
 // A submitted or failed lane stays resumable while the swarm has had at most `dormantLaneTurns` user messages
 // since its result was merged. This is counted from the conversation, so no counter is kept; lanes
 // past it are marked expired as they are listed. Check lanes are reviewers, not owners of a part, and
@@ -21,7 +26,7 @@ export async function listDormantLanesInTx(client: PoolClient, input: {
       ORDER BY lane.created_at, lane.task_id`,
     [input.parentTaskId, input.swarmTaskId]
   );
-  const expired = result.rows.filter((lane) => lane.user_turns > input.dormantLaneTurns || input.dormantLaneTurns === 0);
+  const expired = result.rows.filter((lane) => !isWithinDormantWindow(lane.user_turns, input.dormantLaneTurns));
   if (expired.length > 0) {
     await client.query(
       "UPDATE task_swarm_lanes SET status = 'expired', updated_at = now() WHERE task_id = ANY($1::uuid[]) AND status IN ('done', 'failed')",
@@ -48,7 +53,7 @@ export async function isLaneResumableInTx(
     [lane.task_id, lane.swarm_task_id]
   );
   const row = result.rows[0];
-  return Boolean(row?.merged) && row.user_turns <= dormantLaneTurns;
+  return Boolean(row?.merged) && isWithinDormantWindow(row.user_turns, dormantLaneTurns);
 }
 
 // Archiving a swarm moves its fork seeds to cold storage, which ends its standing team.

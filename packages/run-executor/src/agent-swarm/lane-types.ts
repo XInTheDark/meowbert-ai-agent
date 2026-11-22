@@ -43,6 +43,22 @@ export interface SwarmLaneRow {
   ended_at: string | null;
 }
 
+// A lane as list_lanes shows it to the agent that started it or one of its ancestors.
+export interface SwarmLaneListing {
+  lane_id: string;
+  // Null for the caller's own lanes; otherwise the lane that started this one.
+  parent_lane_id: string | null;
+  title: string;
+  kind: SwarmLaneKind;
+  status: SwarmLaneStatus;
+  resumable: boolean;
+  steps: number;
+  spent_tokens: number;
+  direction: string | null;
+  summary: string | null;
+  files: string[];
+}
+
 // Why a swarm run parked instead of finishing.
 export type SwarmParkReason = "lanes" | "check" | "resume";
 
