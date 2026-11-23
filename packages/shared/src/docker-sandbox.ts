@@ -74,7 +74,18 @@ export {
   type SandboxCrashReport
 } from "./docker-sandbox-crash-report.js";
 
-const CONTAINER_LOOP_COMMAND = ["/bin/sh", "-lc", "trap 'exit 0' TERM INT; while :; do sleep 60; done"];
+// Seconds between SIGTERM and SIGKILL when stopping a sandbox, so in-flight writes can finish.
+const SANDBOX_STOP_GRACE_SECONDS = 10;
+
+// PID 1 passes SIGTERM on to every process in the sandbox and waits for them to exit (up to just
+// under the grace period), so it doesn't take them down mid-write. Sleeping in the background
+// lets the trap run as soon as the signal arrives.
+const CONTAINER_LOOP_SCRIPT = [
+  "stop_all() { kill -TERM -1 2>/dev/null; i=0;",
+  `while [ $i -lt ${SANDBOX_STOP_GRACE_SECONDS - 1} ] && kill -0 -1 2>/dev/null; do sleep 1; i=$((i + 1)); done; exit 0; };`,
+  "trap stop_all TERM INT; while :; do sleep 60 & wait $!; done"
+].join(" ");
+const CONTAINER_LOOP_COMMAND = ["/bin/sh", "-lc", CONTAINER_LOOP_SCRIPT];
 const execFile = promisify(execFileCallback);
 
 export interface SandboxMountPath {
@@ -478,7 +489,7 @@ export class DockerSandboxHandle implements MachineHandle {
 
   async stop(): Promise<void> {
     try {
-      await this.container.stop({ t: 1 });
+      await this.container.stop({ t: SANDBOX_STOP_GRACE_SECONDS });
     } catch {
       // Container may already be stopped.
     }
@@ -574,7 +585,7 @@ export class DockerSandboxManager {
 
     try {
       await withTimeout(
-        container.stop({ t: 1 }),
+        container.stop({ t: SANDBOX_STOP_GRACE_SECONDS }),
         this.config.startTimeoutMs,
         `Timed out while stopping sandbox container ${containerId}`
       );
