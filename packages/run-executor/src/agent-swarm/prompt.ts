@@ -118,8 +118,10 @@ export function buildParentShareNotesBlock(notes: ParentShareNote[], hasActiveLa
   ].join("\n");
 }
 
-export function buildCheckStartedMessage(): string {
-  return "A fresh reviewer is checking this before it is delivered. Your turn ends now; you resume with its findings. Fix what matters, then reply again.";
+export function buildCheckStartedMessage(wait: boolean): string {
+  return wait
+    ? "A fresh reviewer is checking this before it is delivered. Your turn ends now; you resume with its findings. Fix what matters, then reply again."
+    : "A fresh reviewer is checking this while you keep working. Its findings arrive between your steps, or call wait with its lane_id to pause for them.";
 }
 
 export function buildResumeStartedMessage(title: string, wait: boolean): string {

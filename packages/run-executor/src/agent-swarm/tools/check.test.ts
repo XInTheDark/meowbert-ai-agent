@@ -33,7 +33,15 @@ describe("Check review effort", () => {
     expect(backend.startCheckLane).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       reviewEffort: review_effort ?? "standard", focus: null
     }));
-    expect(state.swarmPark).toEqual({ reason: "check" });
+    expect(state.swarmPark).toEqual({ reason: "check", laneIds: ["reviewer"] });
+  });
+
+  it("keeps the caller working when it passes wait false", async () => {
+    const { backend, ctx, state } = setup();
+    const reply = await handleCheck(backend as unknown as SwarmBackend, call("check", { draft: "Draft", files: [], focus: null, wait: false }), ctx, state);
+    expect(backend.startCheckLane).toHaveBeenCalled();
+    expect(reply).toHaveProperty("output.waiting", false);
+    expect(state.swarmPark).toBeUndefined();
   });
 
   it("refuses invalid effort without creating a lane or parking the parent", async () => {
@@ -52,7 +60,7 @@ describe("Check review effort", () => {
     const held = await interceptFinalResponseForCheck(backend as unknown as SwarmBackend, call("final_response", { response: "Draft" }), ctx, state);
     expect(held).toHaveProperty("output.held_for_check", true);
     expect(backend.startCheckLane).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reviewEffort: "standard" }));
-    expect(state.swarmPark).toEqual({ reason: "check" });
+    expect(state.swarmPark).toEqual({ reason: "check", laneIds: ["reviewer"] });
   });
 
   it("skips automatic check while lanes are still active", async () => {

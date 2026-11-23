@@ -40,6 +40,7 @@ export async function handleDiverge(backend: SwarmBackend, call: ResponseFunctio
       kind: "diverge",
       lanes,
       spinePath: null,
+      wait: args.wait !== false,
       buildBrief: (lane) => buildDivergeBrief({ label: lane.label, question, direction: lane.direction, laneDir: lane.laneDir })
     });
   });

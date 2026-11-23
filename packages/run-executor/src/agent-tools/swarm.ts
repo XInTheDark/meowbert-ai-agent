@@ -59,7 +59,8 @@ export const divergeArgumentsSchema = z.object({
     title: laneTitle,
     direction: z.string().trim().min(1).max(4_000).nullable(),
     ...laneModel
-  })).min(1)
+  })).min(1),
+  wait: z.boolean().nullable().optional()
 });
 
 export const checkArgumentsSchema = z.object({
@@ -67,6 +68,7 @@ export const checkArgumentsSchema = z.object({
   files: z.array(z.string().trim().min(1)),
   focus: z.string().trim().min(1).max(4_000).nullable(),
   review_effort: reviewEffortSchema.nullish(),
+  wait: z.boolean().nullable().optional(),
   ...laneModel
 });
 
@@ -161,7 +163,7 @@ function buildSplitTool(router: PlatformModelRouter | null): FunctionTool {
 }
 
 function buildDivergeTool(router: PlatformModelRouter | null): FunctionTool {
-  return tool(DIVERGE_TOOL_NAME, "Fork lanes that each answer the same question independently and cannot see each other, then compare their answers. For judgment calls worth about three times the cost; at least one lane is always undirected. Must be your last tool call.", {
+  return tool(DIVERGE_TOOL_NAME, "Fork lanes that each answer the same question independently and cannot see each other, then compare their answers. For judgment calls worth about three times the cost; at least one lane is always undirected. Must be your last tool call. By default (wait true or null) your turn ends and you resume once all lanes submit; pass wait false to keep working while they answer.", {
     question: { type: "string", description: "The question every lane answers, with what a full answer contains." },
     lanes: {
       type: "array",
@@ -171,12 +173,13 @@ function buildDivergeTool(router: PlatformModelRouter | null): FunctionTool {
         direction: { type: ["string", "null"], description: "An angle to take, or null to answer with no steer." },
         ...modelChoiceProperties(router)
       })
-    }
+    },
+    wait: { type: ["boolean", "null"], description: "Whether to pause your turn now until the answers are in (default true when null). Pass false to keep working while they answer; their results arrive between your steps, or call wait with their lane_ids to pause for them later." }
   });
 }
 
 function buildCheckTool(router: PlatformModelRouter | null): FunctionTool {
-  return tool(CHECK_TOOL_NAME, "Hand a deliverable to a fresh reviewer that sees the user's messages, the draft and its files, but none of your reasoning. Your turn ends; you resume with its findings.", {
+  return tool(CHECK_TOOL_NAME, "Hand a deliverable to a fresh reviewer that sees the user's messages, the draft and its files, but none of your reasoning. By default (wait true or null) your turn ends and you resume with its findings; pass wait false to keep working while it reviews.", {
     draft: { type: "string", description: "The reply or deliverable as you would send it." },
     files: { type: "array", items: { type: "string" }, description: "Paths of the deliverable's files." },
     focus: { type: ["string", "null"], description: "Anything the reviewer should look at first; null for none." },
@@ -184,6 +187,7 @@ function buildCheckTool(router: PlatformModelRouter | null): FunctionTool {
       type: ["string", "null"], enum: [...REVIEW_EFFORT_LEVELS, null],
       description: "Review depth: standard checks correctness, requirements and writing; thorough uses Quality Control criteria, including rendered artifacts, visual quality and taste. Null uses standard. Independent of model reasoning effort."
     },
+    wait: { type: ["boolean", "null"], description: "Whether to pause your turn now until the review is done (default true when null). Pass false to keep working; its findings arrive between your steps, or call wait with its lane_id to pause for them later." },
     ...modelChoiceProperties(router)
   });
 }

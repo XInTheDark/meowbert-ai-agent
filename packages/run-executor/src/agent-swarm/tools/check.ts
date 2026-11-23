@@ -19,6 +19,8 @@ async function startCheck(backend: SwarmBackend, ctx: ToolDispatchContext, state
   focus: string | null;
   reviewEffort: ReviewEffort;
   modelRoute: ChosenModelRoute | null;
+  // Whether the caller parks until this Check lane finishes.
+  wait: boolean;
 }): Promise<ToolCallResult> {
   await ctx.assertNotCancelled();
   const swarm = ctx.swarm!;
@@ -45,9 +47,9 @@ async function startCheck(backend: SwarmBackend, ctx: ToolDispatchContext, state
     focus: input.focus,
     modelRoute: input.modelRoute
   });
-  state.swarmPark = { reason: "check" };
+  if (input.wait) state.swarmPark = { reason: "check", laneIds: [lane.taskId] };
   await backend.emitEvent(run, "Started a Check lane.");
-  return { output: { lane_id: lane.taskId, message: buildCheckStartedMessage() } };
+  return { output: { lane_id: lane.taskId, waiting: input.wait, message: buildCheckStartedMessage(input.wait) } };
 }
 
 export async function handleCheck(backend: SwarmBackend, call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult> {
@@ -61,7 +63,8 @@ export async function handleCheck(backend: SwarmBackend, call: ResponseFunctionT
       files: args.files,
       focus: args.focus,
       reviewEffort: normalizeReviewEffort(args.review_effort),
-      modelRoute: buildLaneModelRoute(ctx.swarm!.run.router, args.model, args.effort)
+      modelRoute: buildLaneModelRoute(ctx.swarm!.run.router, args.model, args.effort),
+      wait: args.wait !== false
     });
   });
 }
@@ -97,7 +100,9 @@ export async function interceptFinalResponseForCheck(
       files,
       focus: null,
       reviewEffort: "standard",
-      modelRoute: pickCheckModelRoute(swarm.run.router, swarm.runtime.model)
+      modelRoute: pickCheckModelRoute(swarm.run.router, swarm.runtime.model),
+      // The reply is held for this review, so the leader always waits for it.
+      wait: true
     });
     // Marks the reply as a held draft so the conversation shows it as one, not as the delivered answer.
     return { ...result, output: { ...(result.output as Record<string, unknown>), held_for_check: true } };
