@@ -1201,7 +1201,7 @@ export function buildWaitFunctionTool(includeSwarmLanes = false): FunctionTool {
       minimum: 1,
       maximum: 604800,
       description: includeSwarmLanes
-        ? "Maximum wait in seconds. Required for time and shell waits (1 to 3600, or up to 21600 with shell_sessions; 60 to 604800 for infinite recurring time-only waits). Use null when lanes is true."
+        ? "Maximum wait in seconds. Required for time and shell waits (1 to 3600, or up to 21600 with shell_sessions; 60 to 604800 for infinite recurring time-only waits). Use null when waiting on lanes."
         : "Required maximum wait. In-run waits take 1 to 3600 seconds, or up to 21600 when shell_sessions are set, so a long job can wake you when it finishes. Infinite recurring time-only waits use 60 to 604800 seconds. Never unlimited."
     },
     shell_sessions: {
@@ -1223,8 +1223,10 @@ export function buildWaitFunctionTool(includeSwarmLanes = false): FunctionTool {
     ...(includeSwarmLanes
       ? {
           lanes: {
-            type: ["boolean", "null"],
-            description: "Set true to end your turn now and resume once all active lanes have finished (use null for seconds and shell_sessions). Use null or false for timed or shell waits."
+            type: ["array", "null"],
+            items: { type: "string" },
+            maxItems: 50,
+            description: "lane_ids to pause for: your turn ends and you resume once all of them have finished. An empty list pauses for every active lane. Use null for seconds and shell_sessions when waiting on lanes, and null here for timed or shell waits."
           }
         }
       : {}),
@@ -1242,7 +1244,7 @@ export function buildWaitFunctionTool(includeSwarmLanes = false): FunctionTool {
     type: "function",
     name: WAIT_TOOL_NAME,
     description: includeSwarmLanes
-      ? "Use only when you actually have to wait, such as for a shell command or active lanes to finish. Never use this to delay the task or postpone work you can do now. With lanes true, ends your turn and resumes once all active lanes have finished. Otherwise waits in the current run until the timeout or any enabled shell-session condition is met, whichever happens first. In infinite recurring auto-runs only, a wait without shell_sessions or lanes instead ends the cycle and schedules the next run."
+      ? "Use only when you actually have to wait, such as for a shell command or active lanes to finish. Never use this to delay the task or postpone work you can do now. With lanes, ends your turn and resumes once those lanes (or every active lane, for an empty list) have finished. Otherwise waits in the current run until the timeout or any enabled shell-session condition is met, whichever happens first. In infinite recurring auto-runs only, a wait without shell_sessions or lanes instead ends the cycle and schedules the next run."
       : "Use only when you actually have to wait, such as for a shell command to finish. Never use this to delay the task or postpone work you can do now. Wait in the current run until the timeout or any enabled shell-session condition is met, whichever happens first. In infinite recurring auto-runs only, a wait without shell_sessions instead ends the cycle and schedules the next run.",
     strict: true,
     parameters: {

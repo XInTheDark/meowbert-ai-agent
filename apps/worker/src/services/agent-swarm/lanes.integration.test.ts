@@ -187,7 +187,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const lanes = await split(swarm, swarm.swarmTaskId, ["EU", "PT2030", "Regional"]);
     expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["running", "running", "queued"]);
 
-    expect(await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 2, reason: "lanes" }))
+    expect(await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 2, reason: "lanes", laneIds: null }))
       .toEqual({ wokeImmediately: false });
     const leaderRun = (await pool.query("SELECT exit_reason, ended_at FROM task_runs WHERE id = $1", [leaderJob.runId])).rows[0];
     expect(leaderRun.exit_reason).toBe("swarm_wait");
@@ -207,11 +207,25 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     expect(await pendingRuns(swarm.swarmTaskId)).toBe(1);
   });
 
+  it("wakes a parent waiting on named lanes once those end, while its other lanes keep running", async () => {
+    const swarm = await createSwarm();
+    const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
+    const [named, other] = await split(swarm, swarm.swarmTaskId, ["Named", "Other"]);
+
+    expect(await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "resume", laneIds: [named.taskId] }))
+      .toEqual({ wokeImmediately: false });
+    const woken = await submit(named.taskId);
+    expect(woken.parentWoken).toBe(true);
+    expect(await pendingRuns(swarm.swarmTaskId)).toBe(1);
+    expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["done", "running"]);
+    expect(other.taskId).not.toBe(named.taskId);
+  });
+
   it("delivers each finished lane's result to its parent exactly once", async () => {
     const swarm = await createSwarm();
     const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
     const lanes = await split(swarm, swarm.swarmTaskId, ["EU", "PT2030"]);
-    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes" });
+    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes", laneIds: null });
     await submit(lanes[0].taskId, "done", "Nine EU programs.");
     await submit(lanes[1].taskId, "done", "Four national programs.");
 
@@ -230,11 +244,11 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const swarm = await createSwarm({ maxRunningLanes: 1, maxDepth: 3 });
     const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
     const [a, b] = await split(swarm, swarm.swarmTaskId, ["A", "B"]);
-    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes" });
+    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes", laneIds: null });
     const parkLane = async (taskId: string) => {
       const run = (await pool.query("SELECT id FROM task_runs WHERE task_id = $1 AND ended_at IS NULL", [taskId])).rows[0];
       await parkSwarmRun({ job: { ...leaderJob, taskId, runId: run.id, mode: "agent_swarm_lane" },
-        swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes" });
+        swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes", laneIds: null });
     };
     const [c] = await split(await laneContext(a.taskId), a.taskId, ["C"]);
     await parkLane(a.taskId);
@@ -279,7 +293,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const swarm = await createSwarm();
     const job = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
     const [lane] = await split(swarm, swarm.swarmTaskId, ["A"]);
-    await parkSwarmRun({ job, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes" });
+    await parkSwarmRun({ job, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes", laneIds: null });
     await pool.query("UPDATE tasks SET cancellation_requested = true WHERE id = $1", [swarm.swarmTaskId]);
     await submit(lane.taskId);
     await recoverSwarmsOnce();
@@ -298,7 +312,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const [lane] = await split(swarm, swarm.swarmTaskId, ["Only lane"]);
     await submit(lane.taskId);
 
-    expect(await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes" }))
+    expect(await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes", laneIds: null }))
       .toEqual({ wokeImmediately: true });
     expect(await pendingRuns(swarm.swarmTaskId)).toBe(1);
   });
@@ -363,7 +377,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const swarm = await createSwarm();
     const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
     const [lane] = await split(swarm, swarm.swarmTaskId, ["Only lane"]);
-    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes" });
+    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes", laneIds: null });
     // The lane ends without the barrier check, as after a crash between the two.
     await pool.query("UPDATE task_swarm_lanes SET status = 'done', ended_at = now() WHERE task_id = $1", [lane.taskId]);
     await pool.query("UPDATE task_runs SET ended_at = now() WHERE task_id = $1", [lane.taskId]);
@@ -500,7 +514,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const euJob = (await pool.query("SELECT id FROM task_runs WHERE task_id = $1 AND ended_at IS NULL", [eu.taskId]))
       .rows.map((row) => ({ taskId: eu.taskId, runId: row.id as string, workspaceId, environmentId, triggerSource: "web" as const, mode: "agent_swarm_lane" as const }))[0];
     const [eic] = await split(await laneContext(eu.taskId), eu.taskId, ["EIC"]);
-    await parkSwarmRun({ job: euJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes" });
+    await parkSwarmRun({ job: euJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes", laneIds: null });
     expect(await laneStatuses(eu.taskId)).toEqual(["running"]);
 
     await stopLane({ swarm, parentTaskId: swarm.swarmTaskId, laneTaskId: eu.taskId, discard: false });
@@ -561,7 +575,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const swarm = await createSwarm({ maxRunningLanes: 1 });
     const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
     const [eu, national] = await split(swarm, swarm.swarmTaskId, ["EU", "National"]);
-    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes" });
+    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 1, reason: "lanes", laneIds: null });
     await submit(eu.taskId);
     expect(await laneStatuses(swarm.swarmTaskId)).toEqual(["done", "running"]);
     // The page's stop of a lane that has not started yet only flags it.
@@ -578,7 +592,7 @@ describe.skipIf(!databaseUrl)("Agent Swarm lanes in PostgreSQL", () => {
     const swarm = await createSwarm();
     const leaderJob = await startRun(swarm.swarmTaskId, "agent_swarm_leader");
     const [lane] = await split(swarm, swarm.swarmTaskId, ["Check"]);
-    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes" });
+    await parkSwarmRun({ job: leaderJob, swarmTaskId: swarm.swarmTaskId, maxRunningLanes: 32, reason: "lanes", laneIds: null });
     // The worker's fallback settled the run and task outside the lane path.
     await pool.query("UPDATE task_runs SET ended_at = now(), exit_reason = 'error', error_summary = 'ENOSPC' WHERE task_id = $1", [lane.taskId]);
     await pool.query("UPDATE tasks SET status = 'failed', updated_at = now() - interval '1 minute' WHERE id = $1", [lane.taskId]);

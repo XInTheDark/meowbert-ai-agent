@@ -96,7 +96,7 @@ export function buildSplitStartedMessage(lanes: Array<{ label: string; title: st
     `Started ${lanes.length} lane${lanes.length === 1 ? "" : "s"}: ${lanes.map((lane) => `${lane.label} (${lane.title})`).join(", ")}.`,
     wait
       ? "Your turn ends now; you resume with their results once every lane has submitted."
-      : "They are running while you keep working. Finished lane results arrive between your steps, or call wait with lanes true to pause until all active lanes finish."
+      : "They are running while you keep working. Finished lane results arrive between your steps, or call wait with lanes set to their lane_ids to pause until they finish."
   ].join(" ");
 }
 
@@ -110,7 +110,7 @@ export function buildNotesBlock(notes: SwarmNote[]): string {
 export function buildParentShareNotesBlock(notes: ParentShareNote[], hasActiveLanes: boolean): string {
   const woke = notes.some((note) => note.notify_parent === "wake");
   const header = woke && hasActiveLanes
-    ? "[Swarm notes from your lanes — a lane woke you while lanes are still running. Steer, stop, split, or reply if needed, or call wait with lanes true to keep waiting.]"
+    ? "[Swarm notes from your lanes — a lane woke you while lanes are still running. Steer, stop, split, or reply if needed, or call wait with lanes (an empty list for all) to keep waiting.]"
     : "[Swarm notes from your lanes]";
   return [
     header,
@@ -122,8 +122,10 @@ export function buildCheckStartedMessage(): string {
   return "A fresh reviewer is checking this before it is delivered. Your turn ends now; you resume with its findings. Fix what matters, then reply again.";
 }
 
-export function buildResumeStartedMessage(title: string): string {
-  return `Resumed lane ${title}. Your turn ends now; you resume with its new result.`;
+export function buildResumeStartedMessage(title: string, wait: boolean): string {
+  return wait
+    ? `Resumed lane ${title}. Your turn ends now; you resume with its new result.`
+    : `Resumed lane ${title}. It runs while you keep working; its result arrives between your steps, or call wait with its lane_id to pause for it.`;
 }
 
 export function buildLaneInboxMessage(kind: "steer" | "resume", body: string): string {

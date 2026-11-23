@@ -27,7 +27,9 @@ export function createSwarmRunFeatures(backend: SwarmBackend): SwarmRunFeatures 
     handleToolCall: (call, ctx, state) => isSwarmToolName(call.name) ? handleSwarmTool(backend, call, ctx, state) : null,
     interceptFinalResponse: (call, ctx, state) => interceptFinalResponseForCheck(backend, call, ctx, state),
     finalizeSwarmRun: (execution, appendAssistantMessage) => finalizeSwarmRun(execution, backend, appendAssistantMessage),
-    hasActiveSwarmLanes: (ctx) => ctx.swarm ? backend.hasActiveLanes({ taskId: ctx.taskId, swarm: ctx.swarm.run }) : Promise.resolve(false),
+    hasActiveSwarmLanes: (ctx, laneIds = null) => ctx.swarm
+      ? backend.hasActiveLanes({ taskId: ctx.taskId, swarm: ctx.swarm.run }, laneIds)
+      : Promise.resolve(false),
     parkLeaderIfLanesActive: (execution) => parkLeaderIfLanesActive(execution, backend)
   };
 }

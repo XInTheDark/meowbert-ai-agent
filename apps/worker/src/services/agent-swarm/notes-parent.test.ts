@@ -78,7 +78,7 @@ describe("parent share note inbox and wakeups", () => {
     expect(content).toContain("lane_id lane-b");
     expect(content).toContain("[urgent]");
     expect(content).toContain("Need pivot.");
-    expect(content).toContain("wait with lanes true");
+    expect(content).toContain("call wait with lanes");
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining("SET parent_delivered_at = now()"),
       [["10", "11"]]

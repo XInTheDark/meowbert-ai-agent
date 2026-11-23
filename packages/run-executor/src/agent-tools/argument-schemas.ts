@@ -355,12 +355,13 @@ export const waitArgumentsSchema = z.object({
   }).strict().refine((condition) => condition.on_output || condition.on_exit, {
     message: "Each shell session must enable on_output or on_exit."
   })).min(1).max(8).nullable().optional(),
-  lanes: z.boolean().nullable().optional(),
+  // Lane ids to pause for; an empty list pauses for every active lane.
+  lanes: z.array(z.string().uuid()).max(50).nullable().optional(),
   response: z.string().min(1).nullable().optional(),
   notify: z.boolean().nullable().optional()
-}).strict().refine((value) => value.lanes === true || typeof value.seconds === "number", {
-  message: "Provide seconds or set lanes to true."
-}).refine((value) => !(value.lanes === true && (value.shell_sessions?.length ?? 0) > 0), {
+}).strict().refine((value) => Array.isArray(value.lanes) || typeof value.seconds === "number", {
+  message: "Provide seconds or lanes."
+}).refine((value) => !(Array.isArray(value.lanes) && (value.shell_sessions?.length ?? 0) > 0), {
   message: "Cannot combine lanes with shell_sessions in wait."
 });
 

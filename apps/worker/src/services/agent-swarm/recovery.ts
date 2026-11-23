@@ -21,7 +21,8 @@ async function wakeParkedParents(): Promise<void> {
         AND NOT EXISTS (SELECT 1 FROM task_runs run WHERE run.task_id = park.task_id AND run.ended_at IS NULL)
         AND (
           NOT EXISTS (SELECT 1 FROM task_swarm_lanes lane
-                       WHERE lane.parent_task_id = park.task_id AND lane.status IN ('queued', 'running', 'waiting'))
+                       WHERE lane.parent_task_id = park.task_id AND lane.status IN ('queued', 'running', 'waiting')
+                         AND (park.wait_lane_ids IS NULL OR lane.task_id = ANY(park.wait_lane_ids)))
           OR EXISTS (SELECT 1 FROM task_swarm_notes note
                       WHERE note.scope_parent_task_id = park.task_id
                         AND note.notify_parent = 'wake'

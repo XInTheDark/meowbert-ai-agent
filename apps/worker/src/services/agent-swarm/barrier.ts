@@ -5,7 +5,8 @@ import { countActiveChildrenInTx } from "./lane-store.js";
 import { normalizeAgentSwarmSettings } from "@meowbert/shared";
 import { startQueuedLanesInTx } from "./scheduler.js";
 
-// A parent wakes when none of its direct lanes is queued, running or waiting, OR when a child shared
+// A parent wakes when none of the direct lanes it waits on (all of them unless it named some) is queued,
+// running or waiting, OR when a child shared
 // an urgent wake note that has not been delivered to the parent yet. Checked in the transaction that
 // changes child state or inserts the wake note, so nothing polls. Caller holds the swarm lock.
 export async function wakeParentIfBarrierMetInTx(client: PoolClient, parentTaskId: string): Promise<boolean> {
@@ -21,12 +22,12 @@ export async function wakeParentIfBarrierMetInTx(client: PoolClient, parentTaskI
       LIMIT 1`,
     [parentTaskId]
   );
-  if ((wakeNote.rowCount ?? 0) === 0 && await countActiveChildrenInTx(client, parentTaskId) > 0) return false;
-  const park = await client.query<{ resume_job_json: TaskExecutionJob }>(
-    "SELECT resume_job_json FROM task_swarm_parks WHERE task_id = $1",
+  const park = await client.query<{ resume_job_json: TaskExecutionJob; wait_lane_ids: string[] | null }>(
+    "SELECT resume_job_json, wait_lane_ids FROM task_swarm_parks WHERE task_id = $1",
     [parentTaskId]
   );
   if (!park.rows[0]) return false;
+  if ((wakeNote.rowCount ?? 0) === 0 && await countActiveChildrenInTx(client, parentTaskId, park.rows[0].wait_lane_ids) > 0) return false;
   const open = await client.query("SELECT id FROM task_runs WHERE task_id = $1 AND ended_at IS NULL LIMIT 1", [parentTaskId]);
   if (open.rowCount) return false;
   const lane = await client.query<{ swarm_task_id: string; config_json: unknown }>(

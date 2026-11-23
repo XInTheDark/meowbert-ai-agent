@@ -8,7 +8,7 @@ describe("wait tool contract", () => {
     expect(waitArgumentsSchema.safeParse({ seconds: 1, shell_sessions: null, response: null, notify: null }).success).toBe(true);
     expect(waitArgumentsSchema.safeParse({ seconds: 3600, shell_sessions: [session, { ...session, on_output: false, on_exit: true }] }).success).toBe(true);
     expect(waitArgumentsSchema.safeParse({ seconds: 604800, response: "Check again later" }).success).toBe(true);
-    expect(waitArgumentsSchema.safeParse({ seconds: null, shell_sessions: null, lanes: true, response: null, notify: null }).success).toBe(true);
+    expect(waitArgumentsSchema.safeParse({ seconds: null, shell_sessions: null, lanes: [], response: null, notify: null }).success).toBe(true);
   });
 
   it.each([
@@ -17,7 +17,7 @@ describe("wait tool contract", () => {
     { seconds: 10, shell_sessions: [{ ...session, session_id: "bad-id" }] },
     { seconds: 10, shell_sessions: [{ ...session, on_output: false }] },
     { seconds: 10, shell_sessions: Array(9).fill(session) },
-    { seconds: 10, shell_sessions: [session], lanes: true },
+    { seconds: 10, shell_sessions: [session], lanes: [] }, { seconds: null, lanes: true }, { seconds: null, lanes: ["not-a-uuid"] },
     { seconds: 10, unknown_condition: true }
   ])("rejects invalid wait arguments %j", (args) => {
     expect(waitArgumentsSchema.safeParse(args).success).toBe(false);
@@ -51,7 +51,7 @@ describe("wait tool contract", () => {
     if (wait?.type !== "function") throw new Error("wait unavailable");
     const parameters = wait.parameters as Record<string, any>;
     expect(parameters.required.sort()).toEqual(Object.keys(parameters.properties).sort());
-    expect(parameters.properties.lanes.type).toEqual(["boolean", "null"]);
+    expect(parameters.properties.lanes.type).toEqual(["array", "null"]);
     expect(parameters.properties.seconds.type).toEqual(["integer", "null"]);
   });
 });

@@ -84,7 +84,8 @@ export const stopLaneArgumentsSchema = z.object({
 export const resumeArgumentsSchema = z.object({
   lane_id: laneId,
   message: z.string().trim().min(1).max(8_000),
-  extra_tokens: z.number().int().positive().nullable()
+  extra_tokens: z.number().int().positive().nullable(),
+  wait: z.boolean().nullable().optional()
 });
 
 export const listLanesArgumentsSchema = z.object({});
@@ -155,7 +156,7 @@ function buildSplitTool(router: PlatformModelRouter | null): FunctionTool {
       })
     },
     spine_path: { type: ["string", "null"], description: "Path of the spine file you wrote for a split deliverable; null when there is none." },
-    wait: { type: ["boolean", "null"], description: "Whether to pause your turn now until your lanes finish (default true when null). Pass false to keep working in parallel while they run; finished lane results arrive between your steps, or call wait with lanes true to pause for them later." }
+    wait: { type: ["boolean", "null"], description: "Whether to pause your turn now until your lanes finish (default true when null). Pass false to keep working in parallel while they run; finished lane results arrive between your steps, or call wait with their lane_ids to pause for them later." }
   });
 }
 
@@ -201,10 +202,11 @@ const STOP_LANE_TOOL = tool(STOP_LANE_TOOL_NAME, "Stop one of your lanes and its
   discard: { type: "boolean" }
 });
 
-const RESUME_TOOL = tool(RESUME_TOOL_NAME, "Continue one of your dormant lanes with its full context, including a failed lane after its error is resolved. Your turn ends; you resume with its new result.", {
+const RESUME_TOOL = tool(RESUME_TOOL_NAME, "Continue one of your dormant lanes with its full context, including a failed lane after its error is resolved. By default you keep working while it runs; pass wait true to end your turn until it finishes.", {
   lane_id: laneIdProperty,
   message: { type: "string", description: "What the lane should do next." },
-  extra_tokens: { type: ["integer", "null"], description: "Budget to add to the lane's share when budgets are on; otherwise null." }
+  extra_tokens: { type: ["integer", "null"], description: "Budget to add to the lane's share when budgets are on; otherwise null." },
+  wait: { type: ["boolean", "null"], description: "Set true to end your turn now and resume once this lane finishes; must then be your last tool call. Null or false keeps you working; its result arrives between your steps, or call wait with its lane_id to pause for it later." }
 });
 
 const LIST_LANES_TOOL = tool(LIST_LANES_TOOL_NAME, "List every lane you started and their sub-lanes, including finished, stopped and expired ones: status, whether you can resume it, and what it submitted.", {});

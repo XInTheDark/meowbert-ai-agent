@@ -6,9 +6,15 @@ import type { SwarmParkReason } from "./lane-types.js";
 type AppendAssistantMessage = (text: string) => Promise<void>;
 
 // Parking ends the run: the backend also reports the task as waiting for its lanes.
-async function park(execution: AgentExecutionContext, backend: SwarmBackend, run: SwarmRunRef, reason: SwarmParkReason): Promise<void> {
+async function park(
+  execution: AgentExecutionContext,
+  backend: SwarmBackend,
+  run: SwarmRunRef,
+  reason: SwarmParkReason,
+  laneIds: string[] | null = null
+): Promise<void> {
   const leafMessageId = execution.state.currentLeafMessageId;
-  await backend.park(run, { job: { ...execution.job, branchMessageId: leafMessageId ?? undefined }, leafMessageId, reason });
+  await backend.park(run, { job: { ...execution.job, branchMessageId: leafMessageId ?? undefined }, leafMessageId, reason, laneIds });
 }
 
 // Handles how a swarm run ends, when it ends differently from an ordinary run. Returns false when the
@@ -24,7 +30,7 @@ export async function finalizeSwarmRun(
   const dispatch = execution.state.dispatchState;
   if (dispatch.swarmPark) {
     await appendAssistantMessage("");
-    await park(execution, backend, run, dispatch.swarmPark.reason);
+    await park(execution, backend, run, dispatch.swarmPark.reason, dispatch.swarmPark.laneIds ?? null);
     return true;
   }
   if (swarm.lane) {

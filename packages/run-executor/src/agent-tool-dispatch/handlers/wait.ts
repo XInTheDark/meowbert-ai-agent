@@ -7,10 +7,12 @@ import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
 import type { ToolDispatchContext, ToolDispatchState } from "../types.js";
 import { rethrowIfTaskCancelled, summarizeToolEventValue } from "../utils.js";
 
+// An empty lane list waits on every active lane; otherwise only on the named ones.
 async function handleSwarmLaneWait(
   ctx: ToolDispatchContext,
   state: ToolDispatchState,
-  execution: Awaited<ReturnType<typeof startBuiltinToolExecution>>
+  execution: Awaited<ReturnType<typeof startBuiltinToolExecution>>,
+  requestedLaneIds: string[]
 ): Promise<ToolCallResult> {
   if (!ctx.swarm) {
     throw new Error("Waiting on lanes is only available in Agent Swarm runs.");
@@ -18,19 +20,23 @@ async function handleSwarmLaneWait(
   if (ctx.codeModeParentCallId) {
     throw new Error("Call wait with lanes directly, not from exec.");
   }
-  const hasActive = await ctx.features.hasActiveSwarmLanes(ctx);
-  if (hasActive) {
-    state.swarmPark = { reason: "lanes" };
+  const laneIds = requestedLaneIds.length > 0 ? [...new Set(requestedLaneIds)] : null;
+  if (await ctx.features.hasActiveSwarmLanes(ctx, laneIds)) {
+    state.swarmPark = laneIds ? { reason: "lanes", laneIds } : { reason: "lanes" };
     return finishBuiltinToolSuccess(ctx, execution, {
       waiting: true,
       reason: "lanes",
-      message: "Your turn ends now; you resume with your lanes' results once every active lane has finished."
+      message: laneIds
+        ? "Your turn ends now; you resume with their results once those lanes have finished."
+        : "Your turn ends now; you resume with your lanes' results once every active lane has finished."
     });
   }
   return finishBuiltinToolSuccess(ctx, execution, {
     waiting: false,
     reason: "no_active_lanes",
-    message: "No active lanes are running. Any completed lane results will arrive on your next step."
+    message: laneIds
+      ? "None of those lanes is active. Any completed lane results will arrive on your next step."
+      : "No active lanes are running. Any completed lane results will arrive on your next step."
   });
 }
 
@@ -46,15 +52,15 @@ export async function handleWaitTool(
   }
   const execution = await startBuiltinToolExecution(ctx, state, outputItem, {
     inputLabel: "Wait",
-    inputText: summarizeToolEventValue(parsed.value) ?? (parsed.value.lanes ? "lanes" : `${parsed.value.seconds}s`)
+    inputText: summarizeToolEventValue(parsed.value) ?? (Array.isArray(parsed.value.lanes) ? "lanes" : `${parsed.value.seconds}s`)
   });
   try {
-    if (parsed.value.lanes === true) {
-      return await handleSwarmLaneWait(ctx, state, execution);
+    if (Array.isArray(parsed.value.lanes)) {
+      return await handleSwarmLaneWait(ctx, state, execution, parsed.value.lanes);
     }
     const seconds = parsed.value.seconds;
     if (typeof seconds !== "number") {
-      throw new Error("Waiting requires seconds or lanes: true.");
+      throw new Error("Waiting requires seconds or lanes.");
     }
     const shellSessions = parsed.value.shell_sessions ?? [];
     if (ctx.runMode === "infinite_auto" && shellSessions.length === 0) {

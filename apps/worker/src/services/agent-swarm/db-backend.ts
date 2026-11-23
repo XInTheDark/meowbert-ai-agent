@@ -70,7 +70,7 @@ export const dbSwarmBackend: SwarmBackend = {
   },
   loadBudgetState: (run) => loadBudgetState(run.swarm, run.taskId),
   markWrapUpNotified: (run) => markWrapUpNotified(ownLane(run).task_id),
-  hasActiveLanes: async (run) => await countActiveChildrenInTx(pool, run.taskId) > 0,
+  hasActiveLanes: async (run, laneIds = null) => await countActiveChildrenInTx(pool, run.taskId, laneIds) > 0,
   async recordTurn(run, input) {
     await chargeSwarmStep(run.swarm, run.taskId, input.weightedTokens);
     const lane = run.swarm.lane;
@@ -154,7 +154,8 @@ export const dbSwarmBackend: SwarmBackend = {
       job: input.job,
       swarmTaskId: run.swarm.swarmTaskId,
       maxRunningLanes: run.swarm.settings.advanced.maxRunningLanes,
-      reason: input.reason
+      reason: input.reason,
+      laneIds: input.laneIds
     });
     await emitTaskEvent(run.taskId, "status", { status: "queued", waitingForLanes: !wokeImmediately });
   },

@@ -120,8 +120,9 @@ export interface BudgetTelemetry {
 export interface ToolDispatchState {
   organization?: ConversationOrganizationState;
   subagentWaitDeadline?: string;
-  // A swarm call that ends the run: the caller parks until its lanes finish, or a lane submits.
-  swarmPark?: { reason: SwarmParkReason };
+  // A swarm call that ends the run: the caller parks until its lanes finish (only laneIds when set),
+  // or a lane submits.
+  swarmPark?: { reason: SwarmParkReason; laneIds?: string[] };
   swarmSubmit?: SwarmLaneResult;
   repeatedToolCall?: { name: string; parameters: string; count: number };
   conversationItems: ResponseInputItem[];

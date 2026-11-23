@@ -56,7 +56,8 @@ export interface SwarmBackend {
   claimInbox(run: SwarmRunRef, request: SwarmInboxRequest): Promise<SwarmInboxAppend | null>;
   loadBudgetState(run: SwarmRunRef): Promise<SwarmBudgetState | null>;
   markWrapUpNotified(run: SwarmRunRef): Promise<void>;
-  hasActiveLanes(run: SwarmRunRef): Promise<boolean>;
+  // With laneIds, whether any of those direct lanes is still active; null asks about all of them.
+  hasActiveLanes(run: SwarmRunRef, laneIds?: string[] | null): Promise<boolean>;
   // After each model turn: its cost (when the executor measures it), the lane's automatic notes and step.
   recordTurn(run: SwarmRunRef, input: { weightedTokens: number | null; autoNotes: string[] }): Promise<void>;
   forkLanes(run: SwarmRunRef, input: {
@@ -85,6 +86,7 @@ export interface SwarmBackend {
   emitEvent(run: SwarmRunRef, message: string): Promise<void>;
   // Ends the run and keeps its job to resume once the barrier is met. A remote backend sends only the
   // branch; the server resumes the job it admitted.
-  park(run: SwarmRunRef, input: { job: TaskExecutionJob; leafMessageId: string | null; reason: SwarmParkReason }): Promise<void>;
+  // laneIds names the lanes to wait on; null waits on every active direct lane.
+  park(run: SwarmRunRef, input: { job: TaskExecutionJob; leafMessageId: string | null; reason: SwarmParkReason; laneIds: string[] | null }): Promise<void>;
   finishLane(run: SwarmRunRef, input: { runId: string; status: "done" | "failed"; result: SwarmLaneResult }): Promise<void>;
 }

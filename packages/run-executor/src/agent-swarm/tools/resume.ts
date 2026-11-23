@@ -15,7 +15,8 @@ export async function handleResume(backend: SwarmBackend, call: ResponseFunction
       message: args.message,
       extraTokens: args.extra_tokens ?? null
     });
-    state.swarmPark = { reason: "resume" };
-    return { output: { resumed: true, message: buildResumeStartedMessage(lane.title) } };
+    const wait = args.wait === true;
+    if (wait) state.swarmPark = { reason: "resume", laneIds: [args.lane_id] };
+    return { output: { resumed: true, waiting: wait, message: buildResumeStartedMessage(lane.title, wait) } };
   });
 }

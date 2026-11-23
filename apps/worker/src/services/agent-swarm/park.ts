@@ -13,6 +13,8 @@ export async function parkSwarmRun(input: {
   swarmTaskId: string;
   maxRunningLanes: number;
   reason: SwarmParkReason;
+  // The lanes to wait on; null waits on every active direct lane.
+  laneIds: string[] | null;
 }): Promise<{ wokeImmediately: boolean }> {
   const { job } = input;
   return withTransaction(async (client) => {
@@ -22,11 +24,12 @@ export async function parkSwarmRun(input: {
     );
     if (task.rows[0]?.cancellation_requested) throw new Error("TASK_CANCELLED");
     await client.query(
-      `INSERT INTO task_swarm_parks (task_id, swarm_task_id, run_id, resume_job_json, reason)
-       VALUES ($1, $2, $3, $4::jsonb, $5)
+      `INSERT INTO task_swarm_parks (task_id, swarm_task_id, run_id, resume_job_json, reason, wait_lane_ids)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6::uuid[])
        ON CONFLICT (task_id) DO UPDATE SET
-         run_id = EXCLUDED.run_id, resume_job_json = EXCLUDED.resume_job_json, reason = EXCLUDED.reason, created_at = now()`,
-      [job.taskId, input.swarmTaskId, job.runId, JSON.stringify(job), input.reason]
+         run_id = EXCLUDED.run_id, resume_job_json = EXCLUDED.resume_job_json, reason = EXCLUDED.reason,
+         wait_lane_ids = EXCLUDED.wait_lane_ids, created_at = now()`,
+      [job.taskId, input.swarmTaskId, job.runId, JSON.stringify(job), input.reason, input.laneIds]
     );
     await client.query("UPDATE task_runs SET ended_at = now(), exit_reason = 'swarm_wait' WHERE id = $1", [job.runId]);
     await client.query("UPDATE task_run_dispatches SET queue_state = 'finished', finished_at = now() WHERE run_id = $1", [job.runId]);

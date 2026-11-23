@@ -96,33 +96,46 @@ describe("handleWaitTool", () => {
     expect(applyInfiniteWait).not.toHaveBeenCalled();
   });
 
-  it("parks a swarm run when wait is called with lanes true and active lanes exist", async () => {
+  it("parks a swarm run when wait is called on every lane and active lanes exist", async () => {
     const runState = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as ToolDispatchState;
     const ctx = context({
       swarm: {} as ToolDispatchContext["swarm"],
       features: { hasActiveSwarmLanes: vi.fn(async () => true) } as unknown as ToolDispatchContext["features"]
     });
-    const result = await handleWaitTool(call({ seconds: null, shell_sessions: null, lanes: true, response: null, notify: null }), ctx, runState);
+    const result = await handleWaitTool(call({ seconds: null, shell_sessions: null, lanes: [], response: null, notify: null }), ctx, runState);
     expect(result).toMatchObject({ output: { waiting: true, reason: "lanes" } });
     expect(runState.swarmPark).toEqual({ reason: "lanes" });
     expect(waitForConditions).not.toHaveBeenCalled();
   });
 
-  it("returns without parking when wait is called with lanes true and no lanes are active", async () => {
+  it("returns without parking when wait is called on every lane and no lanes are active", async () => {
     const runState = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as ToolDispatchState;
     const ctx = context({
       swarm: {} as ToolDispatchContext["swarm"],
       features: { hasActiveSwarmLanes: vi.fn(async () => false) } as unknown as ToolDispatchContext["features"]
     });
-    const result = await handleWaitTool(call({ seconds: null, shell_sessions: null, lanes: true, response: null, notify: null }), ctx, runState);
+    const result = await handleWaitTool(call({ seconds: null, shell_sessions: null, lanes: [], response: null, notify: null }), ctx, runState);
     expect(result).toMatchObject({ output: { waiting: false, reason: "no_active_lanes" } });
     expect(runState.swarmPark).toBeUndefined();
     expect(waitForConditions).not.toHaveBeenCalled();
   });
 
+  it("parks on only the named lanes when wait lists lane ids", async () => {
+    const laneId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const runState = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as ToolDispatchState;
+    const hasActiveSwarmLanes = vi.fn(async () => true);
+    const ctx = context({
+      swarm: {} as ToolDispatchContext["swarm"],
+      features: { hasActiveSwarmLanes } as unknown as ToolDispatchContext["features"]
+    });
+    await handleWaitTool(call({ seconds: null, shell_sessions: null, lanes: [laneId, laneId], response: null, notify: null }), ctx, runState);
+    expect(hasActiveSwarmLanes).toHaveBeenCalledWith(ctx, [laneId]);
+    expect(runState.swarmPark).toEqual({ reason: "lanes", laneIds: [laneId] });
+  });
+
   it("rejects waiting on lanes outside Agent Swarm runs", async () => {
     const runState = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as ToolDispatchState;
-    await handleWaitTool(call({ seconds: null, lanes: true }), context(), runState);
+    await handleWaitTool(call({ seconds: null, lanes: [] }), context(), runState);
     expect(finishBuiltinToolFailure).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.stringContaining("only available in Agent Swarm runs"));
     expect(runState.swarmPark).toBeUndefined();
   });

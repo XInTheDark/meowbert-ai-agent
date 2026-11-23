@@ -42,7 +42,8 @@ export interface RunFeatures {
   interceptFinalResponse(call: ResponseFunctionToolCall, ctx: ToolDispatchContext, state: ToolDispatchState): Promise<ToolCallResult | null>;
 
   finalizeSwarmRun(execution: AgentExecutionContext, appendAssistantMessage: AppendAssistantMessage): Promise<boolean>;
-  hasActiveSwarmLanes(ctx: ToolDispatchContext): Promise<boolean>;
+  // With laneIds, whether any of those lanes is still active; null asks about all of them.
+  hasActiveSwarmLanes(ctx: ToolDispatchContext, laneIds?: string[] | null): Promise<boolean>;
   parkLeaderIfLanesActive(execution: AgentExecutionContext): Promise<boolean>;
   parkForSubagentMail(job: TaskExecutionJob, deadline: string): Promise<void>;
 }

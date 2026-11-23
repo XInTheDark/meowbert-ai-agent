@@ -70,10 +70,16 @@ export async function setLaneStatusInTx(client: PoolClient, laneTaskId: string, 
   return result.rows[0] ?? null;
 }
 
-export async function countActiveChildrenInTx(client: SwarmQueryable, parentTaskId: string): Promise<number> {
+// With laneTaskIds, counts only those of the parent's direct lanes; null counts all of them.
+export async function countActiveChildrenInTx(
+  client: SwarmQueryable,
+  parentTaskId: string,
+  laneTaskIds: string[] | null = null
+): Promise<number> {
   const result = await client.query<{ count: string }>(
-    "SELECT COUNT(*)::text AS count FROM task_swarm_lanes WHERE parent_task_id = $1 AND status = ANY($2::text[])",
-    [parentTaskId, ACTIVE_LANE_STATUSES]
+    `SELECT COUNT(*)::text AS count FROM task_swarm_lanes
+      WHERE parent_task_id = $1 AND status = ANY($2::text[]) AND ($3::uuid[] IS NULL OR task_id = ANY($3::uuid[]))`,
+    [parentTaskId, ACTIVE_LANE_STATUSES, laneTaskIds]
   );
   return Number(result.rows[0]?.count ?? 0);
 }

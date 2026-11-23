@@ -44,6 +44,17 @@ function runRef(session: RunApiSession): SwarmRunRef {
   return { taskId: session.taskId, swarm: requireSwarm(session).context };
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Optional lane ids a call waits on or asks about; null means every direct lane.
+function laneIdsInput(value: unknown): string[] | null {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value) || value.length > 50 || !value.every((id) => typeof id === "string" && UUID_PATTERN.test(id))) {
+    invalid("laneIds must be a list of lane ids.");
+  }
+  return value as string[];
+}
+
 function input<T extends object>(args: unknown[]): T {
   const value = args[0];
   if (!value || typeof value !== "object") invalid("A swarm call needs an input object.");
@@ -128,7 +139,10 @@ export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
   }),
   "swarm.loadBudgetState": refusable((session) => dbSwarmBackend.loadBudgetState(runRef(session))),
   "swarm.markWrapUpNotified": refusable((session) => dbSwarmBackend.markWrapUpNotified(runRef(session))),
-  "swarm.hasActiveLanes": refusable((session) => dbSwarmBackend.hasActiveLanes(runRef(session))),
+  "swarm.hasActiveLanes": refusable((session, args) => {
+    const { laneIds } = input<{ laneIds?: unknown }>(args);
+    return dbSwarmBackend.hasActiveLanes(runRef(session), laneIdsInput(laneIds));
+  }),
   // A device's model turns are charged to the swarm by the model proxy, which measured them.
   "swarm.recordTurn": refusable(async (session, args) => {
     const { autoNotes } = input<{ autoNotes?: unknown }>(args);
@@ -228,13 +242,14 @@ export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
   // The run ends here; the job it resumes with is the one the control plane admitted.
   "swarm.park": refusable(async (session, args) => {
     const swarm = requireSwarm(session);
-    const { leafMessageId = null, reason } = input<{ leafMessageId?: string | null; reason?: unknown }>(args);
+    const { leafMessageId = null, reason, laneIds } = input<{ leafMessageId?: string | null; reason?: unknown; laneIds?: unknown }>(args);
     if (reason !== "lanes" && reason !== "check" && reason !== "resume") invalid("Invalid park reason.");
     await assertOwnMessage(session.taskId, leafMessageId);
     await dbSwarmBackend.park(runRef(session), {
       job: { ...swarm.job, branchMessageId: leafMessageId ?? undefined },
       leafMessageId,
-      reason
+      reason,
+      laneIds: laneIdsInput(laneIds)
     });
   }),
   "swarm.finishLane": refusable(async (session, args) => {

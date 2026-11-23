@@ -25,7 +25,7 @@ export function createHttpSwarmBackend(client: RunApiClient): SwarmBackend {
     claimInbox: (_run, request) => call("swarm.claimInbox", request),
     loadBudgetState: () => call("swarm.loadBudgetState"),
     markWrapUpNotified: () => call("swarm.markWrapUpNotified"),
-    hasActiveLanes: () => call("swarm.hasActiveLanes"),
+    hasActiveLanes: (_run, laneIds = null) => call("swarm.hasActiveLanes", { laneIds }),
     // The model proxy charges the turn's cost; only the lane's notes go up.
     recordTurn: (_run, input) => call("swarm.recordTurn", { autoNotes: input.autoNotes }),
     forkLanes: (_run, input) => call("swarm.forkLanes", input),
@@ -39,7 +39,7 @@ export function createHttpSwarmBackend(client: RunApiClient): SwarmBackend {
     listLanes: () => call("swarm.listLanes"),
     shareNote: (_run, input) => call("swarm.shareNote", input),
     emitEvent: (_run, message) => call("swarm.emitEvent", { message }),
-    park: (_run, input) => call("swarm.park", { leafMessageId: input.leafMessageId, reason: input.reason }),
+    park: (_run, input) => call("swarm.park", { leafMessageId: input.leafMessageId, reason: input.reason, laneIds: input.laneIds }),
     finishLane: (_run, input) => call("swarm.finishLane", { status: input.status, result: input.result })
   };
 }
