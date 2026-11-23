@@ -30,7 +30,7 @@
     "micromark-extension-gfm": "3.0.0",
     "openai": "6.33.0",
     "pg": "8.18.0",
-    "web-push": "3.6.7",
+    "web-push": "4.0.0",
     "ws": "8.21.3",
     "zod": "4.6.7"
   },
