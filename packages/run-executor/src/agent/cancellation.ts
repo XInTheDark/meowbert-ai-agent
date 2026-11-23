@@ -2,13 +2,16 @@ import type { RunControl } from "./ports/run-control.js";
 
 export interface TaskCancellationMonitor {
   signal: AbortSignal;
+  // Stays active across interrupt-and-resume so an in-flight model stream can finish cleanly
+  // without breaking upstream session caches; aborts immediately on explicit stop or supersession.
+  modelAbortSignal: AbortSignal;
   assertNotCancelled: (options?: {
     allowNewerAttempt?: boolean;
   }) => Promise<void>;
   stop: () => void;
 }
 
-type TaskCancellationReason = "explicit_cancel" | "newer_attempt" | "time_limit";
+type TaskCancellationReason = "explicit_cancel" | "interrupt_and_resume" | "newer_attempt" | "time_limit";
 
 function resolveAbortError(signal: AbortSignal): Error {
   const reason = signal.reason;
@@ -28,6 +31,7 @@ export function startTaskCancellationMonitor(
   }
 ): TaskCancellationMonitor {
   const controller = new AbortController();
+  const modelController = new AbortController();
   let stopped = false;
   let knownCancelled = false;
   let cancellationReason: TaskCancellationReason | null = null;
@@ -38,13 +42,23 @@ export function startTaskCancellationMonitor(
       : null;
 
   const markCancelled = (reason: TaskCancellationReason): void => {
+    const isHardCancel = reason !== "interrupt_and_resume";
     if (knownCancelled) {
+      if (cancellationReason === "interrupt_and_resume" && isHardCancel) {
+        cancellationReason = reason;
+        if (!modelController.signal.aborted) {
+          modelController.abort(new Error("TASK_CANCELLED"));
+        }
+      }
       return;
     }
     knownCancelled = true;
     cancellationReason = reason;
     if (!controller.signal.aborted) {
       controller.abort(new Error("TASK_CANCELLED"));
+    }
+    if (isHardCancel && !modelController.signal.aborted) {
+      modelController.abort(new Error("TASK_CANCELLED"));
     }
   };
 
@@ -76,7 +90,7 @@ export function startTaskCancellationMonitor(
     }
     const cancellation = await control.readCancellation();
     if (cancellation.cancelRequested) {
-      markCancelled("explicit_cancel");
+      markCancelled(cancellation.resumeAfterInterrupt ? "interrupt_and_resume" : "explicit_cancel");
       throw resolveAbortError(controller.signal);
     }
     if (!cancellation.latestAttempt) {
@@ -93,6 +107,7 @@ export function startTaskCancellationMonitor(
 
   return {
     signal: controller.signal,
+    modelAbortSignal: modelController.signal,
     assertNotCancelled,
     stop: () => {
       stopped = true;

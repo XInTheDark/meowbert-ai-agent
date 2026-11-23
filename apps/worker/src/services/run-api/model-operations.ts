@@ -41,7 +41,11 @@ async function runOnce(
   if (begun.state === "done") return restoreResult(begun.response);
   if (begun.state === "conflict") throw new RunApiFailure("operation_conflict", "This operation id was used for a different request.");
   if (begun.state === "pending") throw new RunApiFailure("outcome_unknown", "An earlier model operation has an unknown outcome; it will not be repeated.");
-  const stopWatching = session.control.watchCancellation(() => operation.controller.abort(new Error("TASK_CANCELLED")));
+  const stopWatching = session.control.watchCancellation((reason) => {
+    if (reason !== "interrupt_and_resume") {
+      operation.controller.abort(new Error("TASK_CANCELLED"));
+    }
+  });
   try {
     let response: StoredOperationResponse;
     try {

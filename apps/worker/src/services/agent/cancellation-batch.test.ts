@@ -32,3 +32,21 @@ it("distinguishes cancellation from supersession and ignores unsubscribed in-fli
   expect(superseded).toHaveBeenCalledWith("newer_attempt");
   expect(removed).not.toHaveBeenCalled();
 });
+
+it("emits interrupt_and_resume once and upgrades to explicit_cancel if resume_after_interrupt clears", async () => {
+  vi.useFakeTimers();
+  const notify = vi.fn();
+  stops.push(watchRunCancellation("t1", "r1", notify));
+  vi.mocked(query)
+    .mockResolvedValueOnce({ rows: [{ id: "r1", task_id: "t1", cancellation_requested: true, resume_after_interrupt: true, is_latest: true }] } as never)
+    .mockResolvedValueOnce({ rows: [{ id: "r1", task_id: "t1", cancellation_requested: true, resume_after_interrupt: true, is_latest: true }] } as never)
+    .mockResolvedValueOnce({ rows: [{ id: "r1", task_id: "t1", cancellation_requested: true, resume_after_interrupt: false, is_latest: true }] } as never);
+  await vi.advanceTimersByTimeAsync(500);
+  expect(notify).toHaveBeenCalledTimes(1);
+  expect(notify).toHaveBeenLastCalledWith("interrupt_and_resume");
+  await vi.advanceTimersByTimeAsync(500);
+  expect(notify).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(500);
+  expect(notify).toHaveBeenCalledTimes(2);
+  expect(notify).toHaveBeenLastCalledWith("explicit_cancel");
+});

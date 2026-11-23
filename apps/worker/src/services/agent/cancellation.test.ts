@@ -87,6 +87,27 @@ describe("task cancellation handling", () => {
     });
 
     await expect(monitor.assertNotCancelled()).rejects.toThrow("TASK_CANCELLED");
+    expect(monitor.signal.aborted).toBe(true);
+    expect(monitor.modelAbortSignal.aborted).toBe(true);
+    monitor.stop();
+  });
+
+  it("keeps modelAbortSignal active on interrupt_and_resume until an explicit cancel upgrades it", async () => {
+    let notify!: (reason: "explicit_cancel" | "interrupt_and_resume" | "newer_attempt") => void;
+    const control = createTestRunControl({ runId: "run-1" });
+    control.watchCancellation = (callback) => {
+      notify = callback;
+      return () => {};
+    };
+    const monitor = startTaskCancellationMonitor(control);
+
+    notify("interrupt_and_resume");
+    expect(monitor.signal.aborted).toBe(true);
+    expect(monitor.modelAbortSignal.aborted).toBe(false);
+    await expect(monitor.assertNotCancelled()).rejects.toThrow("TASK_CANCELLED");
+
+    notify("explicit_cancel");
+    expect(monitor.modelAbortSignal.aborted).toBe(true);
     monitor.stop();
   });
 });

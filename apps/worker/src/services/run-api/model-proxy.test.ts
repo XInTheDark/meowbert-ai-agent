@@ -163,7 +163,7 @@ it("cancels and bills abandoned provider work once after the reconnect grace exp
 
 it("aborts immediately on server cancellation instead of waiting for reconnect grace", async () => {
   const test = fixture();
-  let notify!: (reason: "explicit_cancel" | "newer_attempt") => void;
+  let notify!: (reason: "explicit_cancel" | "interrupt_and_resume" | "newer_attempt") => void;
   const stopWatching = vi.fn();
   test.session.control.watchCancellation = (callback) => { notify = callback; return stopWatching; };
   test.models.create.mockImplementationOnce(({ signal }) => new Promise((_resolve, reject) => {
@@ -177,6 +177,25 @@ it("aborts immediately on server cancellation instead of waiting for reconnect g
   expect(test.deps.chargeAbandoned).toHaveBeenCalledOnce();
   expect(test.deps.reservations.release).toHaveBeenCalledOnce();
   expect(stopWatching).toHaveBeenCalledOnce();
+});
+
+it("lets an in-flight model request finish on interrupt_and_resume to preserve upstream caches", async () => {
+  const test = fixture();
+  let notify!: (reason: "explicit_cancel" | "interrupt_and_resume" | "newer_attempt") => void;
+  let resolveUpstream!: (value: unknown) => void;
+  let upstreamSignal!: AbortSignal;
+  test.session.control.watchCancellation = (callback) => { notify = callback; return () => {}; };
+  test.models.create.mockImplementationOnce(({ signal }) => {
+    upstreamSignal = signal;
+    return new Promise((resolve) => { resolveUpstream = resolve; });
+  });
+  const pending = proxyModelRequest(test.session, test.request, test.deps, new AbortController().signal);
+  await vi.waitFor(() => expect(test.models.create).toHaveBeenCalledOnce());
+  notify("interrupt_and_resume");
+  expect(upstreamSignal.aborted).toBe(false);
+  resolveUpstream({ id: "resp_1", output: [], usage: { input_tokens: 10, output_tokens: 5 } });
+  await expect(pending).resolves.toMatchObject({ id: "resp_1" });
+  expect(test.deps.chargeAbandoned).not.toHaveBeenCalled();
 });
 
 it("allows hosted web_search on purpose=web_search only when allowBridgeWebSearch is enabled", async () => {

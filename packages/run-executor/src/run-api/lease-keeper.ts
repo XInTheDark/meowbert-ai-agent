@@ -73,7 +73,7 @@ export function createRunLeaseKeeper(client: RunApiClient, options: RunLeaseKeep
   async function pollCancellation(): Promise<void> {
     const state = await client.call("control.readCancellation", []).catch(() => null) as RunCancellationState | null;
     if (!state) return;
-    if (state.cancelRequested) notify("explicit_cancel");
+    if (state.cancelRequested) notify(state.resumeAfterInterrupt ? "interrupt_and_resume" : "explicit_cancel");
     else if (!state.latestAttempt) notify("newer_attempt");
   }
 

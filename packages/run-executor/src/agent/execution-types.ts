@@ -43,6 +43,7 @@ export interface AgentRunTimingState {
   runTimeLimitController: AbortController | null;
   runTimeLimitTimer: NodeJS.Timeout | null;
   runAbortSignal: AbortSignal;
+  modelAbortSignal?: AbortSignal;
 }
 
 export interface WorkflowCapabilityState {

@@ -5,6 +5,7 @@ import {
   appendMessage,
   consumeCommandInterruptForStep,
   isCancellationRequested,
+  isResumeAfterInterruptRequested,
   isTaskRunLatestAttempt,
   setTaskBranchSelection,
   setTaskStatusForRun
@@ -104,11 +105,12 @@ export function createDbRunControl(
     },
     setTaskStatus: (status) => setTaskStatusForRun(taskId, runId, status),
     async readCancellation() {
-      const [cancelRequested, latestAttempt] = await Promise.all([
+      const [cancelRequested, resumeAfterInterrupt, latestAttempt] = await Promise.all([
         isCancellationRequested(taskId),
+        isResumeAfterInterruptRequested(taskId),
         isTaskRunLatestAttempt(taskId, runId)
       ]);
-      return { cancelRequested, latestAttempt };
+      return { cancelRequested, resumeAfterInterrupt, latestAttempt };
     },
     watchCancellation: (notify) => watchRunCancellation(taskId, runId, notify),
     consumeCommandInterrupt: (step) => consumeCommandInterruptForStep(runId, step),

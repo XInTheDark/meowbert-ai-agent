@@ -135,6 +135,7 @@ function createRunTiming(
     }, Math.max(0, runDeadlineAtMs - Date.now()))
     : null;
 
+  const baseModelAbortSignal = prepared.cancellationMonitor.modelAbortSignal ?? prepared.cancellationMonitor.signal;
   return {
     isTimedInfiniteRun,
     runDeadlineAtMs,
@@ -146,7 +147,10 @@ function createRunTiming(
     runTimeLimitTimer,
     runAbortSignal: runTimeLimitController
       ? AbortSignal.any([prepared.cancellationMonitor.signal, runTimeLimitController.signal])
-      : prepared.cancellationMonitor.signal
+      : prepared.cancellationMonitor.signal,
+    modelAbortSignal: runTimeLimitController
+      ? AbortSignal.any([baseModelAbortSignal, runTimeLimitController.signal])
+      : baseModelAbortSignal
   };
 }
 

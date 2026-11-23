@@ -363,8 +363,8 @@ function buildParentTurnRequest(
     compatibilityModes: execution.prepared.runtimeCompatibilityModes,
     requestTimeoutMs: execution.prepared.snapshot.model_request_timeout_ms,
     abortSignal: execution.runTiming.timedRunFinalizing
-      ? execution.prepared.cancellationMonitor.signal
-      : execution.runTiming.runAbortSignal,
+      ? (execution.prepared.cancellationMonitor.modelAbortSignal ?? execution.prepared.cancellationMonitor.signal)
+      : (execution.runTiming.modelAbortSignal ?? execution.runTiming.runAbortSignal),
     cacheUserId: execution.prepared.snapshot.task.initiator_user_id ?? execution.job.taskId,
     promptCacheKey: turnRequest.promptCacheKey,
     sessionAffinityKey: execution.state.modelFallbackCount

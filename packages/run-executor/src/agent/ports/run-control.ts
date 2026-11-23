@@ -45,10 +45,11 @@ export interface AppendRunMessageInput {
   organizationSnapshots?: Array<Pick<ConversationSnapshot, "kind" | "payload_json">>;
 }
 
-export type RunCancellationReason = "explicit_cancel" | "newer_attempt";
+export type RunCancellationReason = "explicit_cancel" | "interrupt_and_resume" | "newer_attempt";
 
 export interface RunCancellationState {
   cancelRequested: boolean;
+  resumeAfterInterrupt?: boolean;
   latestAttempt: boolean;
 }
 

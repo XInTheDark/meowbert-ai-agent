@@ -1260,4 +1260,27 @@ describe("runAgentStepLoop", () => {
       expect.any(Function)
     );
   });
+
+  it("passes modelAbortSignal to model requests so soft interrupts finish the turn before aborting tool dispatch", async () => {
+    const modelAbortController = new AbortController();
+    const execution = createExecutionContext();
+    execution.runTiming.modelAbortSignal = modelAbortController.signal;
+    execution.prepared.cancellationMonitor.modelAbortSignal = modelAbortController.signal;
+
+    let observedModelSignal: AbortSignal | undefined;
+    mockedCreateModelResponseWithRetry.mockImplementationOnce(async (_taskId, input) => {
+      observedModelSignal = input.abortSignal;
+      execution.assertRunNotAborted.mockRejectedValueOnce(new Error("TASK_CANCELLED"));
+      return {
+        output: [{ type: "function_call", name: "run_shell", call_id: "c1", arguments: "{}" }],
+        output_text: "",
+        usage: undefined
+      } as never;
+    });
+
+    await expect(runAgentStepLoop(execution as never)).rejects.toThrow("TASK_CANCELLED");
+    expect(observedModelSignal).toBe(modelAbortController.signal);
+    expect(observedModelSignal?.aborted).toBe(false);
+    expect(mockedDispatchResponseOutput).not.toHaveBeenCalled();
+  });
 });
