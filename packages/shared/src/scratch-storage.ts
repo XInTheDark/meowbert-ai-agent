@@ -10,6 +10,14 @@ export interface ScratchStorageStatus {
   effectiveLimitBytes: number;
 }
 
+// Where scratch space went at the worker's last cleanup pass. Sizes need XFS project accounting.
+export interface ScratchUsageBreakdown {
+  measuredAt: string;
+  activeBytes: number;
+  idleBytes: number;
+  untrackedBytes: number;
+}
+
 // The backing filesystem is the pool boundary. No directory walks, including on non-XFS hosts.
 export async function readScratchStorage(root: string, limitMb: number | null): Promise<ScratchStorageStatus> {
   const stat = await fs.statfs(root);

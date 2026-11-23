@@ -1,16 +1,16 @@
 import fs from "node:fs/promises";
-import { readScratchStorage } from "@meowbert/shared";
+import { readScratchStorage, type ScratchUsageBreakdown } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import { query } from "../../lib/db.js";
 
 export async function getAdminScratchStorage() {
-  const result = await query<{ scratch_storage_limit_mb: string | null }>(
-    "SELECT scratch_storage_limit_mb FROM platform_settings WHERE id = 1"
+  const result = await query<{ scratch_storage_limit_mb: string | null; scratch_usage: ScratchUsageBreakdown | null }>(
+    "SELECT scratch_storage_limit_mb, scratch_usage FROM platform_settings WHERE id = 1"
   );
   const value = result.rows[0]?.scratch_storage_limit_mb;
   const { root, eviction } = config.runtime.taskScratch;
   await fs.mkdir(root, { recursive: true });
-  return { ...await readScratchStorage(root, value == null ? null : Number(value)), ...eviction };
+  return { ...await readScratchStorage(root, value == null ? null : Number(value)), ...eviction, usage: result.rows[0]?.scratch_usage ?? null };
 }
 
 export async function updateAdminScratchStorage(limitMb: number | null) {

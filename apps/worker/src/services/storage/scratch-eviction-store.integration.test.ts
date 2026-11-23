@@ -48,10 +48,11 @@ describe.skipIf(!url)("scratch eviction database and filesystem", () => {
     state.pool = new Pool({ connectionString: url, options: `-c search_path=${schema}` });
     await state.pool.query(`
       CREATE TABLE platform_settings (id integer PRIMARY KEY);
-      CREATE TABLE tasks (id uuid PRIMARY KEY, workspace_id uuid, status text, updated_at timestamptz);
+      CREATE TABLE environments (id uuid PRIMARY KEY, scratch_priority text NOT NULL DEFAULT 'normal');
+      CREATE TABLE tasks (id uuid PRIMARY KEY, workspace_id uuid, status text, updated_at timestamptz, environment_id uuid);
       CREATE TABLE task_runs (id uuid DEFAULT gen_random_uuid(), task_id uuid, ended_at timestamptz);
       CREATE TABLE persistent_shell_sessions (created_by_task_id uuid, status text);
-      CREATE TABLE task_swarm_lanes (task_id uuid, swarm_task_id uuid, status text);
+      CREATE TABLE task_swarm_lanes (task_id uuid, swarm_task_id uuid, status text, kind text NOT NULL DEFAULT 'split');
     `);
     await state.pool.query(await fs.readFile(new URL("../../../../../db/migrations/166_scratch_storage.sql", import.meta.url), "utf8"));
   });
@@ -115,6 +116,20 @@ describe.skipIf(!url)("scratch eviction database and filesystem", () => {
       expect(ids).not.toContain(root);
       expect(ids).not.toContain(laggingLane);
       expect(ids).toHaveLength(finished.length + 2);
+    } finally { client.release(); }
+  });
+
+  it("marks lanes that can never run again as retired and resumable lanes as finished", async () => {
+    const swarm = await task("awaiting_input");
+    const stopped = await task();
+    const check = await task();
+    const resumable = await task();
+    await state.pool!.query("INSERT INTO task_swarm_lanes VALUES ($1,$3,'stopped','split'), ($2,$3,'done','check'), ($4,$3,'done','split')", [stopped, check, swarm, resumable]);
+    const client = await state.pool!.connect();
+    try {
+      const completion = new Map((await listIdleScratchTasks(client, cutoff)).map((row) => [row.id, row.completion]));
+      expect(Object.fromEntries([stopped, check, resumable, swarm].map((id) => [id, completion.get(id)])))
+        .toEqual({ [stopped]: "retired", [check]: "retired", [resumable]: "finished", [swarm]: "open" });
     } finally { client.release(); }
   });
 

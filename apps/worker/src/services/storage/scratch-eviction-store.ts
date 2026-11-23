@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { PoolClient } from "pg";
-import { resolveTaskScratchDir, type ScratchCandidate } from "@meowbert/shared";
+import { resolveTaskScratchDir, type ScratchCandidate, type ScratchCompletion } from "@meowbert/shared";
 import { config } from "../../lib/config.js";
 import { withTransaction } from "../../lib/db.js";
 
@@ -11,7 +11,20 @@ export interface ScratchTaskRow {
   workspace_id: string;
   scratch_project_id: number | null;
   idle_since: string;
+  priority: string | null;
+  completion: ScratchCompletion;
 }
+
+// A stopped or expired lane, or a check lane that has reported, can never run again.
+// Done and failed work lanes stay resumable, so they count as finished tasks.
+const COMPLETION_SQL = `CASE
+    WHEN EXISTS (
+      SELECT 1 FROM task_swarm_lanes lane WHERE lane.task_id = t.id
+        AND (lane.status IN ('stopped', 'expired') OR (lane.kind = 'check' AND lane.status IN ('done', 'failed'))))
+      THEN 'retired'
+    WHEN t.status IN ('succeeded', 'failed', 'cancelled') THEN 'finished'
+    ELSE 'open'
+  END`;
 
 // Shared by candidate selection and the final locked recheck.
 // A swarm keeps its own scratch while any lane is active; a finished lane's scratch is free even if the swarm stays open.
@@ -29,13 +42,15 @@ const ELIGIBLE_SCRATCH_SQL = `t.scratch_present
 export async function listIdleScratchTasks(client: PoolClient, cutoff: string): Promise<ScratchTaskRow[]> {
   const result = await client.query<ScratchTaskRow>(
     `SELECT t.id, t.workspace_id, t.scratch_project_id,
-            GREATEST(t.updated_at, COALESCE((SELECT MAX(ended_at) FROM task_runs WHERE task_id = t.id), t.updated_at))::text AS idle_since
-       FROM tasks t WHERE ${ELIGIBLE_SCRATCH_SQL}`, [cutoff]
+            GREATEST(t.updated_at, COALESCE((SELECT MAX(ended_at) FROM task_runs WHERE task_id = t.id), t.updated_at))::text AS idle_since,
+            project.scratch_priority AS priority, ${COMPLETION_SQL} AS completion
+       FROM tasks t LEFT JOIN environments project ON project.id = t.environment_id
+      WHERE ${ELIGIBLE_SCRATCH_SQL}`, [cutoff]
   );
   return result.rows;
 }
 
-export async function detachIdleScratch(task: ScratchCandidate, cutoff: string): Promise<string | null> {
+export async function detachIdleScratch(task: Pick<ScratchCandidate, "id" | "workspaceId">, cutoff: string): Promise<string | null> {
   return withTransaction(async (client) => {
     // Run creation and scratch preparation also lock this task row.
     await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [task.id]);

@@ -6,6 +6,7 @@ import { API_CACHE_TTLS } from "../../lib/api-cache";
 import type { Project } from "../../lib/types";
 import { buildTaskListPath } from "./overview/projectOverviewUtils";
 import { DEFAULT_PAGE_SIZE } from "./overview/projectOverviewTypes";
+import { ProjectAdminOptionsDialog } from "./projects/ProjectAdminOptionsDialog";
 import { ProjectCard } from "./projects/ProjectCard";
 import { useProjectCardMenu } from "./projects/useProjectCardMenu";
 
@@ -13,7 +14,8 @@ type SortKey = "updated_at" | "created_at" | "name";
 
 export function ProjectIndexPage() {
   const workspaceApp = useWorkspaceApp();
-  const { activeWorkspaceId, api, setFlash } = workspaceApp;
+  const { activeWorkspaceId, api, setFlash, user } = workspaceApp;
+  const isSuperAdmin = user?.is_super_admin === true;
   const projects = workspaceApp.projects ?? workspaceApp.environments;
   const createProject = workspaceApp.createProject ?? workspaceApp.createEnvironment;
   const patchProject = workspaceApp.patchProject ?? workspaceApp.patchEnvironment;
@@ -27,6 +29,7 @@ export function ProjectIndexPage() {
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const createProjectRequestRef = useRef<Promise<void> | null>(null);
   const cardMenu = useProjectCardMenu();
+  const [adminOptionsProject, setAdminOptionsProject] = useState<Project | null>(null);
 
   async function createFromPage(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -120,6 +123,7 @@ export function ProjectIndexPage() {
         onNewTask={() => navigate(`${base}/tasks/new`)}
         onOpenFiles={() => navigate(`${base}/files`)}
         onOpenSettings={() => navigate(`${base}/settings`)}
+        onOpenAdminOptions={isSuperAdmin ? () => setAdminOptionsProject(project) : undefined}
         onRename={(name) => updateProject(project, { name }, "Project renamed.")}
         onToggleArchived={() => void updateProject(
           project,
@@ -223,6 +227,10 @@ export function ProjectIndexPage() {
           </article>
         )}
       </div>
+      {adminOptionsProject ? (
+        <ProjectAdminOptionsDialog api={api} projectId={adminOptionsProject.id} projectName={adminOptionsProject.name}
+          onClose={() => setAdminOptionsProject(null)} />
+      ) : null}
     </section>
   );
 }

@@ -25,7 +25,9 @@ const taskScratchConfigSchema = z.object({
     highWatermark: z.number().positive().max(1).optional(),
     targetWatermark: z.number().positive().max(1).optional(),
     minIdleMinutes: z.number().int().min(60).optional(),
-    maxIdleDays: z.number().int().min(0).optional()
+    maxIdleDays: z.number().int().min(0).optional(),
+    finishedIdleDays: z.number().int().min(0).optional(),
+    minFreeGb: z.number().min(0).optional()
   }).optional()
 });
 const browserUseConfigSchema = z.object({

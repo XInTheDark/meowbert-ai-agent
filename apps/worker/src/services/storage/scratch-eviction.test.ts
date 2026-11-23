@@ -3,7 +3,7 @@ import type { ScratchStorageStatus } from "@meowbert/shared";
 
 const state = vi.hoisted(() => ({
   query: vi.fn(),
-  policy: { highWatermark: 0.85, targetWatermark: 0.7, minIdleMinutes: 60, maxIdleDays: 0 }
+  policy: { highWatermark: 0.85, targetWatermark: 0.7, minIdleMinutes: 60, maxIdleDays: 0, finishedIdleDays: 0, minFreeGb: 0 }
 }));
 vi.mock("../../lib/config.js", () => ({ config: { runtime: { taskScratch: { root: "/scratch", eviction: state.policy }, sandbox: { sessionIdleTimeoutMs: 2_700_000 } } } }));
 vi.mock("../../lib/db.js", () => ({ withConnection: (fn: (client: unknown) => Promise<unknown>) => fn({ query: state.query }) }));
@@ -13,25 +13,31 @@ vi.mock("@meowbert/shared", async (original) => ({
   readScratchStorage: vi.fn(), readScratchProjectSizes: vi.fn()
 }));
 vi.mock("./scratch-eviction-store.js", () => ({ detachIdleScratch: vi.fn(), drainScratchTrash: vi.fn(), listIdleScratchTasks: vi.fn() }));
+vi.mock("./scratch-orphans.js", () => ({ reclaimOrphanScratch: vi.fn() }));
 vi.mock("../runtime/sandbox.js", () => ({ workerSandboxManager: { listManagedContainers: vi.fn() } }));
 
 import fs from "node:fs/promises";
 import { readScratchStorage, readScratchProjectSizes } from "@meowbert/shared";
 import { workerSandboxManager } from "../runtime/sandbox.js";
 import { detachIdleScratch, drainScratchTrash, listIdleScratchTasks } from "./scratch-eviction-store.js";
+import { reclaimOrphanScratch } from "./scratch-orphans.js";
 import { cleanupScratchOnce } from "./scratch-eviction.js";
 
 function status(used: number): ScratchStorageStatus {
   return { capacityBytes: 100, usedBytes: used, availableBytes: 100 - used, limitMb: null, effectiveLimitBytes: 100 };
 }
-function row(id: string, project: number, days: number) {
-  return { id, workspace_id: "workspace", scratch_project_id: project, idle_since: new Date(Date.now() - days * 86_400_000).toISOString() };
+function row(id: string, project: number, days: number, extra: { priority?: string; completion?: "retired" | "finished" | "open" } = {}) {
+  return {
+    id, workspace_id: "workspace", scratch_project_id: project, idle_since: new Date(Date.now() - days * 86_400_000).toISOString(),
+    priority: extra.priority ?? "normal", completion: extra.completion ?? "open"
+  };
 }
 
 describe("managed scratch cleanup", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     state.policy.maxIdleDays = 0;
+    state.policy.finishedIdleDays = 0;
     state.query.mockImplementation(async (sql: string) => {
       if (sql.includes("pg_try_advisory_lock")) return { rows: [{ acquired: true }] };
       if (sql.includes("FROM platform_settings")) return { rows: [{ scratch_storage_limit_mb: null }] };
@@ -42,6 +48,7 @@ describe("managed scratch cleanup", () => {
     vi.mocked(listIdleScratchTasks).mockResolvedValue([row("small", 1, 7), row("large", 2, 1), row("third", 3, 1)]);
     vi.mocked(workerSandboxManager.listManagedContainers).mockResolvedValue([]);
     vi.mocked(detachIdleScratch).mockImplementation(async (task) => `/scratch/.trash/${task.id}`);
+    vi.mocked(reclaimOrphanScratch).mockResolvedValue(0);
   });
 
   it("evicts by size and age, remeasures actual usage, and stops at the lower watermark", async () => {
@@ -65,6 +72,38 @@ describe("managed scratch cleanup", () => {
     vi.mocked(listIdleScratchTasks).mockResolvedValue([row("old", 1, 15), row("new", 2, 1)]);
     expect(await cleanupScratchOnce()).toBe(1);
     expect(detachIdleScratch).toHaveBeenCalledWith(expect.objectContaining({ id: "old" }), expect.any(String));
+  });
+
+  it("clears retired lanes at once and finished tasks after their shorter idle time, but keeps high-priority projects", async () => {
+    state.policy.maxIdleDays = 14;
+    state.policy.finishedIdleDays = 3;
+    vi.mocked(readScratchStorage).mockResolvedValue(status(20));
+    vi.mocked(listIdleScratchTasks).mockResolvedValue([
+      row("retired", 1, 0.1, { completion: "retired" }),
+      row("finished", 2, 4, { completion: "finished" }),
+      row("recent-finished", 3, 2, { completion: "finished" }),
+      row("open", 4, 4),
+      row("high", 5, 30, { priority: "high", completion: "finished" })
+    ]);
+    expect(await cleanupScratchOnce()).toBe(2);
+    expect(vi.mocked(detachIdleScratch).mock.calls.map(([task]) => task.id).sort()).toEqual(["finished", "retired"]);
+  });
+
+  it("records where scratch space went for the admin panel", async () => {
+    vi.mocked(readScratchStorage).mockResolvedValue(status(20));
+    vi.mocked(listIdleScratchTasks).mockResolvedValue([row("idle", 1, 1)]);
+    state.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("pg_try_advisory_lock")) return { rows: [{ acquired: true }] };
+      if (sql.includes("FROM platform_settings")) return { rows: [{ scratch_storage_limit_mb: null }] };
+      if (sql.includes("scratch_project_id IS NOT NULL")) {
+        return { rows: [{ id: "idle", workspace_id: "workspace", scratch_project_id: 1 }, { id: "busy", workspace_id: "workspace", scratch_project_id: 2 }] };
+      }
+      return { rows: [] };
+    });
+    vi.mocked(readScratchProjectSizes).mockResolvedValue(new Map([[1, 5], [2, 7]]));
+    await cleanupScratchOnce();
+    const saved = state.query.mock.calls.find(([sql]) => String(sql).includes("SET scratch_usage"));
+    expect(JSON.parse(saved![1][0])).toMatchObject({ activeBytes: 7, idleBytes: 5, untrackedBytes: 8 });
   });
 
   it("protects mounted scratch even when task state appeared idle", async () => {

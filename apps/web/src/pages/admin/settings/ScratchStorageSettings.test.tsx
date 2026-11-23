@@ -12,7 +12,8 @@ afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHT
 
 const overview: ScratchStorageOverview = {
   capacityBytes: 40 * 1024 * 1024, usedBytes: 10 * 1024 * 1024, availableBytes: 30 * 1024 * 1024,
-  limitMb: 20, effectiveLimitBytes: 20 * 1024 * 1024, highWatermark: 0.85, targetWatermark: 0.7, minIdleMinutes: 60, maxIdleDays: 14
+  limitMb: 20, effectiveLimitBytes: 20 * 1024 * 1024, highWatermark: 0.85, targetWatermark: 0.7, minIdleMinutes: 60, maxIdleDays: 14,
+  finishedIdleDays: 3, minFreeGb: 10, usage: null
 };
 
 async function renderSettings(active = true) {

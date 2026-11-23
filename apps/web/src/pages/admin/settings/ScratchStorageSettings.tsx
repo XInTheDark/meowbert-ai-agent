@@ -12,7 +12,8 @@ export function ScratchStorageSettings({ state }: { state: ReturnType<typeof use
           <RefreshCw size={15} />
         </button>
       </div>
-      {value ? <p className="muted-text">{formatBytes(value.usedBytes)} used · {formatBytes(value.capacityBytes)} capacity · {formatBytes(value.effectiveLimitBytes)} budget</p> : null}
+      {value ? <p className="muted-text">{formatBytes(value.usedBytes)} used of {formatBytes(value.effectiveLimitBytes)} budget ({formatBytes(value.capacityBytes)} disk)</p> : null}
+      {value?.usage ? <ScratchUsageRows usage={value.usage} /> : null}
       <div className="row-actions" style={{ justifyContent: "flex-start", alignItems: "flex-end" }}>
         <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
           <strong>Scratch storage limit (MiB)</strong>
@@ -23,9 +24,29 @@ export function ScratchStorageSettings({ state }: { state: ReturnType<typeof use
       </div>
       <p className="muted-text" style={{ marginBottom: 0 }}>
         Temporary task files, independent of workspace storage and sandbox images. Blank uses the backing capacity.
-        {value ? ` Above ${Math.round(value.highWatermark * 100)}%, idle scratch is cleared by size and age until usage falls below ${Math.round(value.targetWatermark * 100)}%. Active tasks are protected.` : ""}
+        {value ? ` Scratch of finished tasks is cleared after ${value.finishedIdleDays} days idle. Above ${Math.round(value.highWatermark * 100)}%, or with under ${value.minFreeGb} GB free, idle scratch is cleared by size, age and project priority until usage falls below ${Math.round(value.targetWatermark * 100)}%. Active tasks are protected.` : ""}
       </p>
       {state.error ? <p className="error-text">{state.error}</p> : null}
     </section>
+  );
+}
+
+type ScratchUsage = NonNullable<NonNullable<ReturnType<typeof useScratchStorageSettings>["overview"]>["usage"]>;
+
+function ScratchUsageRows({ usage }: { usage: ScratchUsage }) {
+  const rows: Array<[string, number]> = [
+    ["Active tasks", usage.activeBytes],
+    ["Idle tasks (can be cleared)", usage.idleBytes],
+    ["Not tied to a task", usage.untrackedBytes]
+  ];
+  return (
+    <dl className="scratch-usage-rows" style={{ display: "grid", gridTemplateColumns: "max-content max-content", gap: "0.2rem 1rem", margin: "0 0 0.75rem" }}>
+      {rows.map(([label, bytes]) => (
+        <div key={label} style={{ display: "contents" }}>
+          <dt className="muted-text">{label}</dt>
+          <dd style={{ margin: 0 }}>{formatBytes(bytes)}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

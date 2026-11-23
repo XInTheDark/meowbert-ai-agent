@@ -7,6 +7,7 @@ import { registerAdminDebugRoutes } from "./admin-debug-routes.js";
 import { registerAdminHostStorageRoutes } from "./admin-host-storage-routes.js";
 import { registerAdminMemoryEmbeddingRoutes } from "./admin-memory-embedding-routes.js";
 import { registerAdminNewsletterRoutes } from "./admin-newsletter-routes.js";
+import { registerAdminProjectScratchRoutes } from "./admin-project-scratch-routes.js";
 import { registerAdminRuntimeMigrationRoutes } from "./admin-runtime-migration-routes.js";
 import { registerAdminStorageRoutes } from "./admin-storage-routes.js";
 import { registerAdminSubscriptionRoutes } from "./admin-subscription-routes.js";
@@ -18,6 +19,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   registerAdminMemoryEmbeddingRoutes(fastify);
   registerAdminUsageActivationRoutes(fastify);
   registerAdminHostStorageRoutes(fastify);
+  registerAdminProjectScratchRoutes(fastify);
   registerAdminStorageRoutes(fastify);
   registerAdminRuntimeMigrationRoutes(fastify);
   registerAdminNewsletterRoutes(fastify);

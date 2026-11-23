@@ -11,6 +11,15 @@ export interface ScratchStorageOverview {
   targetWatermark: number;
   minIdleMinutes: number;
   maxIdleDays: number;
+  finishedIdleDays: number;
+  minFreeGb: number;
+  // Null until the worker has measured, or when scratch has no XFS size accounting.
+  usage: {
+    measuredAt: string;
+    activeBytes: number;
+    idleBytes: number;
+    untrackedBytes: number;
+  } | null;
 }
 
 const endpoint = "/api/admin/host-storage/scratch";

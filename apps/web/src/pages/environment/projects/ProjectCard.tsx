@@ -17,6 +17,8 @@ export interface ProjectCardProps {
   onOpenSettings: () => void;
   onRename: (name: string) => Promise<void>;
   onToggleArchived: () => void;
+  // Present only for super admins.
+  onOpenAdminOptions?: () => void;
 }
 
 // The whole card opens the project; less frequent actions live in the overflow menu.
@@ -80,6 +82,9 @@ export function ProjectCard(props: ProjectCardProps) {
           <DropdownItem onClick={() => runMenuAction(() => setIsRenaming(true))}>Rename</DropdownItem>
           <DropdownItem onClick={() => runMenuAction(props.onOpenFiles)}>Files</DropdownItem>
           <DropdownItem onClick={() => runMenuAction(props.onOpenSettings)}>Settings</DropdownItem>
+          {props.onOpenAdminOptions ? (
+            <DropdownItem onClick={() => runMenuAction(props.onOpenAdminOptions!)}>Admin options</DropdownItem>
+          ) : null}
           <DropdownDivider />
           <DropdownItem danger={!archived} onClick={() => runMenuAction(props.onToggleArchived)}>
             {archived ? "Restore" : "Archive"}
