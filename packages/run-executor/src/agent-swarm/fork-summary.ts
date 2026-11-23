@@ -42,6 +42,7 @@ function readAssistantText(output: unknown[]): string {
 // A tool call here is answered with null and the turn goes on, so the handoff still comes from the
 // same cached conversation; past this many rounds the caller falls back to its own summary.
 const MAX_HANDOFF_ROUNDS = 3;
+const PENDING_FORK_OUTPUT = "Preparing a handoff summary for the forked lanes before starting them.";
 
 function answerToolCalls(output: unknown[]): ResponseInputItem[] {
   return output.flatMap((item): ResponseInputItem[] => {
@@ -53,10 +54,34 @@ function answerToolCalls(output: unknown[]): ResponseInputItem[] {
   });
 }
 
-// Asks the parent's model, as one more turn of its conversation, for a handoff of `items` (the
-// conversation the parent's last request sent). It runs as its own session forked from the parent's,
-// so a session-resuming proxy (Meridian) starts from the parent's transcript and the parent's session
-// is left as it was. Returns null when no handoff came back.
+// Settles the pending fork call(s) in `items` so the handoff request is a valid tool-result
+// continuation of the parent's last assistant turn (preserving prefix and session-resuming caches).
+function answerUnansweredToolCalls(items: ResponseInputItem[]): ResponseInputItem[] {
+  const answered = new Set<string>();
+  for (const item of items) {
+    const record = item as { type?: unknown; call_id?: unknown };
+    if (typeof record.call_id !== "string") continue;
+    if (record.type === "function_call_output" || record.type === "custom_tool_call_output") {
+      answered.add(record.call_id);
+    }
+  }
+  return items.flatMap((item): ResponseInputItem[] => {
+    const record = item as { type?: unknown; call_id?: unknown };
+    if (typeof record.call_id !== "string" || answered.has(record.call_id)) return [];
+    if (record.type === "function_call") {
+      return [{ type: "function_call_output" as const, call_id: record.call_id, output: PENDING_FORK_OUTPUT }];
+    }
+    if (record.type === "custom_tool_call") {
+      return [{ type: "custom_tool_call_output" as const, call_id: record.call_id, output: PENDING_FORK_OUTPUT }];
+    }
+    return [];
+  });
+}
+
+// Asks the parent's model, as one more turn of its conversation, for a handoff of `items` (including
+// the parent's last assistant response, with any pending fork call answered). It runs as its own
+// session forked from the parent's, so a session-resuming proxy (Meridian) resumes from the parent's
+// transcript and leaves the parent's session untouched. Returns null when no handoff came back.
 export async function summarizeFromParentTurn(
   parent: ParentTurnRequest,
   items: ResponseInputItem[]
@@ -70,7 +95,7 @@ export async function summarizeFromParentTurn(
     ? `Return the handoff in ${handoffToolName === "submit" ? "submit's summary" : "final_response's response"}. This call only collects text; it does not submit work or finish the original run.`
     : "Reply with the handoff as plain text and call no tools.";
   const note = `[System: ${FORK_SUMMARY_REQUEST} ${responseInstruction} Nothing you write here reaches the user.]`;
-  const conversationItems: ResponseInputItem[] = [...items, { role: "user", content: note }];
+  const conversationItems: ResponseInputItem[] = [...items, ...answerUnansweredToolCalls(items), { role: "user", content: note }];
   const sessionAffinityKey = buildPromptCacheKey(parent.sessionAffinityKey, `fork-summary:${randomUUID()}`);
   for (let round = 0; round < MAX_HANDOFF_ROUNDS; round += 1) {
     const { response } = await createModelResponse({

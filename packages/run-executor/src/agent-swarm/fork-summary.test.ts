@@ -74,6 +74,25 @@ describe("summarizeFromParentTurn", () => {
     expect(requests[1].headers?.["x-session-affinity"]).toBe(requests[0].headers?.["x-session-affinity"]);
   });
 
+  it("answers only unanswered tool calls from the parent turn before requesting the handoff", async () => {
+    const { parent, requests } = parentRequest([
+      { type: "message", role: "assistant", content: [{ type: "output_text", text: "Handoff" }] }
+    ]);
+    const items = [
+      { role: "user" as const, content: "Train the model" },
+      { type: "function_call" as const, call_id: "done-call", name: "exec", arguments: "{}" },
+      { type: "function_call" as const, call_id: "split-call", name: "split", arguments: "{}" },
+      { type: "function_call_output" as const, call_id: "done-call", output: "{\"ok\":true}" }
+    ];
+
+    await expect(summarizeFromParentTurn(parent, items)).resolves.toBe("Handoff");
+
+    const input = requests[0].body.input as Array<Record<string, unknown>>;
+    expect(input.slice(0, 5)).toEqual([...parent.prefixItems, ...items]);
+    expect(input[5]).toMatchObject({ type: "function_call_output", call_id: "split-call" });
+    expect(input[6]).toMatchObject({ role: "user" });
+  });
+
   it("gives up when the model keeps calling tools", async () => {
     const { parent, requests } = parentRequest([
       { type: "function_call", call_id: "call-1", name: "exec", arguments: "{}" }

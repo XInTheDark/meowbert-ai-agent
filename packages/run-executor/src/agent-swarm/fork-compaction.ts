@@ -10,15 +10,16 @@ function isCancellation(execution: AgentExecutionContext, error: unknown): boole
   return execution.runTiming.runAbortSignal.aborted || (error instanceof Error && error.message === "TASK_CANCELLED");
 }
 
-// The handoff is asked of the parent's own conversation, so it reads the cache the parent's last
+// The handoff is asked of the parent's own conversation (including its latest response with the
+// pending fork call), so it continues the parent's session and reads the cache the parent's last
 // request wrote. A standalone summary request re-sends the whole history uncached; it is the fallback.
 async function summarizeWithParentCache(
   execution: AgentExecutionContext,
   parentRequest: ParentTurnRequest,
-  head: ResponseInputItem[]
+  items: ResponseInputItem[]
 ): Promise<ResponseInputItem[] | null> {
   try {
-    const handoff = await summarizeFromParentTurn(parentRequest, head);
+    const handoff = await summarizeFromParentTurn(parentRequest, items);
     return handoff ? [{ role: "system", content: `## Context Compaction\n\n${handoff}` }] : null;
   } catch (error) {
     if (isCancellation(execution, error)) throw error;
@@ -42,7 +43,7 @@ export function buildForkCompactor(
   return async (items, requestItemCount) => {
     const head = items.slice(0, requestItemCount);
     const tail = items.slice(requestItemCount);
-    const summary = await summarizeWithParentCache(execution, parentRequest, head)
+    const summary = await summarizeWithParentCache(execution, parentRequest, items)
       ?? await prepareCompactedItems({
         ...buildCompactionRunFields(execution, step(), execution.runTiming.runAbortSignal),
         trigger: "manual",
