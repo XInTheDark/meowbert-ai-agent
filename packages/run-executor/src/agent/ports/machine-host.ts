@@ -24,6 +24,8 @@ export interface MachineSpec {
   env: Record<string, string>;
   // Start the sandbox in the background right away; quick-mode runs start it only when the agent first needs it.
   startEagerly: boolean;
+  // Aborts when the run is stopped or interrupted, so a sandbox still waiting for a free slot gives up.
+  signal?: AbortSignal;
   log: (message: string, payload: Record<string, unknown>) => Promise<void>;
 }
 

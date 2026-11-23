@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createSerialGate, waitForSandboxSlot } from "./docker-sandbox-capacity.js";
+import { createSerialGate, isSandboxCapacityError, waitForSandboxSlot } from "./docker-sandbox-capacity.js";
 
 function fakeClock() {
   let nowMs = 0;
@@ -81,6 +81,29 @@ describe("waitForSandboxSlot", () => {
       ...clock
     })).rejects.toThrow("maxRunningContainers");
   });
+
+  it("names the full-host failure so callers can tell it apart", async () => {
+    const error = await waitForSandboxSlot({ limit: 1, countActive: async () => 1, timeoutMs: 0, ...fakeClock() })
+      .catch((caught: unknown) => caught);
+
+    expect(isSandboxCapacityError(error)).toBe(true);
+    expect(isSandboxCapacityError(new Error("Timed out while creating sandbox container"))).toBe(false);
+  });
+
+  it("gives up as soon as the run that needs the sandbox is interrupted", async () => {
+    const controller = new AbortController();
+    const waiting = waitForSandboxSlot({
+      limit: 1,
+      countActive: async () => 1,
+      onWaiting: () => {
+        setTimeout(() => controller.abort(new Error("TASK_CANCELLED")), 5);
+      },
+      pollIntervalMs: 60_000,
+      signal: controller.signal
+    });
+
+    await expect(waiting).rejects.toThrow("TASK_CANCELLED");
+  });
 });
 
 describe("createSerialGate", () => {
@@ -108,5 +131,24 @@ describe("createSerialGate", () => {
     await expect(first).rejects.toThrow("boom");
     await expect(second).resolves.toBe("ok");
     expect(order).toEqual(["first:start", "first:end", "second"]);
+  });
+
+  it("lets a queued caller leave when it is interrupted, without ever running its callback", async () => {
+    const gate = createSerialGate();
+    let releaseFirst!: () => void;
+    const first = gate(() => new Promise<string>((resolve) => {
+      releaseFirst = () => resolve("first");
+    }));
+    const controller = new AbortController();
+    const queuedCallback = vi.fn(async () => "queued");
+    const queued = gate(queuedCallback, controller.signal);
+
+    controller.abort(new Error("TASK_CANCELLED"));
+    await expect(queued).rejects.toThrow("TASK_CANCELLED");
+
+    releaseFirst();
+    await expect(first).resolves.toBe("first");
+    await expect(gate(async () => "next")).resolves.toBe("next");
+    expect(queuedCallback).not.toHaveBeenCalled();
   });
 });

@@ -68,6 +68,7 @@ export function createDesktopSandboxMachineProvider(options: DesktopSandboxMachi
           cpus: Math.min(spec.resources.cpus ?? 2, options.resources?.cpus ?? 2),
           pids: Math.min(spec.resources.pids ?? 256, options.resources?.pids ?? 256)
         },
+        signal: spec.signal,
         labels: {
           purpose: "task-run",
           deviceId: options.deviceId,

@@ -8,6 +8,7 @@ import Docker, { type Container } from "dockerode";
 import { toSandboxPath, toSandboxText } from "./docker-sandbox-paths.js";
 import { BoundedOutputCapture } from "./shell-output.js";
 export { toSandboxPath, fromSandboxPath, toSandboxText } from "./docker-sandbox-paths.js";
+export { isSandboxCapacityError } from "./docker-sandbox-capacity.js";
 import {
   DEFAULT_SANDBOX_MAX_RUNNING_CONTAINERS,
   selectSandboxPassthroughEnv,
@@ -101,6 +102,8 @@ export interface SandboxContainerOptions {
   env?: Record<string, string>;
   labels: SandboxContainerLabels;
   resources?: Partial<Pick<SandboxResourcesConfig, "pids" | "memoryMb" | "cpus">>;
+  // Abandons the wait for a free sandbox slot, such as when the run that needs it is interrupted.
+  signal?: AbortSignal;
   onLifecycleEvent?: (event: {
     stage: string;
     phase: "start" | "success";
@@ -999,6 +1002,7 @@ export class DockerSandboxManager {
         limit,
         countActive: () => this.countActiveSandboxes(),
         relieve: this.capacityReliever ?? undefined,
+        signal: options.signal,
         onWaiting: (active) => emitSandboxLifecycleEvent(options, {
           stage: "sandbox.capacity",
           phase: "start",
@@ -1014,8 +1018,9 @@ export class DockerSandboxManager {
           payload: { waitedMs }
         });
       }
+      options.signal?.throwIfAborted();
       return withTimeout(create(), this.config.startTimeoutMs, "Timed out while creating sandbox container");
-    });
+    }, options.signal);
   }
 
   private async countActiveSandboxes(): Promise<number> {

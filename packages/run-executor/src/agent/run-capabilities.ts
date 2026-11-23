@@ -1,4 +1,5 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses";
+import { isSandboxCapacityError } from "@meowbert/shared/docker-sandbox";
 import { getToolGroupSummary } from "../agent-tools/index.js";
 import { appendPromptEnvelopeDelta, type PromptEnvelope } from "./prompt-envelope.js";
 import type { PreparedAgentRunContext } from "./runtime.js";
@@ -20,7 +21,15 @@ function isExpectedEnableFailure(message: string): boolean {
   return message.startsWith("Skill not found:") || message.startsWith("Skill disabled in server config:");
 }
 
-async function autoEnableSelectedSkills(input: RunCapabilityInput): Promise<void> {
+// A stopped run ends here, and once the host had no sandbox slot to spare, later skills would only wait again.
+// True when the remaining skills and sources should be skipped.
+function sandboxUnavailable(input: RunCapabilityInput, error: unknown): boolean {
+  input.prepared.cancellationMonitor.signal.throwIfAborted();
+  return isSandboxCapacityError(error);
+}
+
+// Each returns false once the sandbox is unavailable, so the next ones are skipped.
+async function autoEnableSelectedSkills(input: RunCapabilityInput): Promise<boolean> {
   for (const skillId of input.prepared.runToolOptions.enabledSkills) {
     try {
       const enabledSkill = await input.enableSkillById(skillId);
@@ -35,11 +44,13 @@ async function autoEnableSelectedSkills(input: RunCapabilityInput): Promise<void
       if (!isExpectedEnableFailure(message)) {
         console.warn(`Failed to auto-enable skill ${skillId}: ${message}`);
       }
+      if (sandboxUnavailable(input, error)) return false;
     }
   }
+  return true;
 }
 
-async function autoEnableSelectedSources(input: RunCapabilityInput): Promise<void> {
+async function autoEnableSelectedSources(input: RunCapabilityInput): Promise<boolean> {
   for (const sourceId of input.prepared.runToolOptions.enabledSources) {
     try {
       const enabledSource = await input.prepared.enableSourceById(sourceId);
@@ -59,8 +70,10 @@ async function autoEnableSelectedSources(input: RunCapabilityInput): Promise<voi
       if (!message.startsWith("Source not found:")) {
         console.warn(`Failed to auto-enable source ${sourceId}: ${message}`);
       }
+      if (sandboxUnavailable(input, error)) return false;
     }
   }
+  return true;
 }
 
 // History already carries these skills' prompt updates, so only their tools come back.
@@ -75,6 +88,7 @@ async function restoreSkillsEnabledInHistory(input: RunCapabilityInput): Promise
       if (!isExpectedEnableFailure(message)) {
         console.warn(`Failed to restore skill ${skillId}: ${message}`);
       }
+      if (sandboxUnavailable(input, error)) return;
     }
   }
 }
@@ -108,8 +122,7 @@ function announceOnDemandCapabilities(input: RunCapabilityInput): void {
 export async function enableRunCapabilities(input: RunCapabilityInput): Promise<void> {
   announceOnDemandCapabilities(input);
   if (input.prepared.skillsRootDir) {
-    await autoEnableSelectedSkills(input);
-    await autoEnableSelectedSources(input);
+    if (!(await autoEnableSelectedSkills(input)) || !(await autoEnableSelectedSources(input))) return;
   }
   await restoreSkillsEnabledInHistory(input);
 }

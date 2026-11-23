@@ -42,6 +42,7 @@ async function createSandbox(spec: MachineSpec): Promise<DockerSandboxHandle> {
     env: spec.env,
     runAsRoot: spec.runAsRoot,
     resources: spec.resources,
+    signal: spec.signal,
     labels: {
       purpose: "task-run",
       workspaceId: spec.workspaceId,

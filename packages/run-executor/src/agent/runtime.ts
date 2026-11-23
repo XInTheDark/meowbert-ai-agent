@@ -504,6 +504,7 @@ async function startRunMachine(state: PreparedRunState, tooling: ReturnType<type
     resources: bootstrap.sandboxResources,
     env: state.shellEnvOverrides,
     startEagerly: !bootstrap.runtime.quickMode,
+    signal: state.cancellationMonitor.signal,
     log: (message, payload) => state.debugLogger.log(message, payload)
   });
   await probeSandboxFilesystem({

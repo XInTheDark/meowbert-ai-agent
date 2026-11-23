@@ -24,7 +24,7 @@ You rarely need to touch the config file after [setup](/getting-started/quicksta
   "maxSteps": 800,
   "workerConcurrency": 4,
   "sandbox": {
-    "maxRunningContainers": 16,
+    "maxRunningContainers": 64,
     "resources": { "memoryMb": 2048, "cpus": 2, "pids": 256, "storageMb": 4096 }
   }
 }
@@ -32,7 +32,7 @@ You rarely need to touch the config file after [setup](/getting-started/quicksta
 
 - `maxSteps`: the most tool calls one task run can make
 - `workerConcurrency`: how many task runs the worker handles at once
-- `sandbox.maxRunningContainers`: the most sandboxes the Docker host runs at once, counting task runs, shell sessions, and short-lived tool containers from every worker. Defaults to 16. When all are in use, a new sandbox waits for a free one, and the task fails if none frees up within 10 minutes. Multiply this by `memoryMb` to see roughly how much memory sandboxes can use together.
+- `sandbox.maxRunningContainers`: the most sandboxes the Docker host runs at once, counting task runs, shell sessions, and short-lived tool containers from every worker. Defaults to 64. When all are in use, a new sandbox waits for a free one, and the task fails if none frees up within 10 minutes. Stopping or interrupting the task ends the wait right away. Multiply this by `memoryMb` to see roughly how much memory sandboxes can use together.
 - `sandbox.resources`: limits for each task's container. `storageMb` is the per-workspace storage limit (a user's plan or admin override can change it). It is only enforced, and usage only shown, on backends with [XFS project quotas](/reference/xfs-project-quotas); elsewhere workspaces are not capped.
 
 ### Skills
