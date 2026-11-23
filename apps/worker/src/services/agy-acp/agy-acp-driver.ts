@@ -47,6 +47,7 @@ export class AgyAcpDriver {
   private acpSessionId: string | null = null;
   private tierName: string | null = null;
   private tierId: string | null = null;
+  private latestContextUsage: { used: number; size: number } | null = null;
   private stopped = false;
   private turnCancelled = false;
   private inFlightMcpCalls = 0;
@@ -60,13 +61,24 @@ export class AgyAcpDriver {
     this.options = options;
   }
 
+  getLatestContextUsage(): { used: number; size: number } | null {
+    return this.latestContextUsage;
+  }
+
   start(): Promise<void> {
     if (this.runPromise) return this.runPromise;
     this.runPromise = this.execute();
     return this.runPromise;
   }
 
-  async stop(): Promise<void> {
+  async stop(options?: { gracefulPromptWaitMs?: number }): Promise<void> {
+    const waitMs = options?.gracefulPromptWaitMs ?? 0;
+    if (waitMs > 0 && this.runPromise && !this.stopped) {
+      await Promise.race([
+        this.runPromise.catch(() => undefined),
+        new Promise<void>((resolve) => setTimeout(resolve, waitMs))
+      ]);
+    }
     this.stopped = true;
     this.turnCancelled = true;
     this.clearTimers();
@@ -164,6 +176,11 @@ export class AgyAcpDriver {
         onNotification: (notification) => {
           if (notification.method === "session/update") {
             this.resetInactivityWatchdog();
+            const update = (notification.params as { update?: Record<string, unknown> } | undefined)?.update;
+            if (update?.sessionUpdate === "usage_update" && typeof update.used === "number" && Number.isFinite(update.used)) {
+              const size = typeof update.size === "number" && Number.isFinite(update.size) ? update.size : 0;
+              this.latestContextUsage = { used: Math.max(0, Math.floor(update.used)), size: Math.max(0, Math.floor(size)) };
+            }
           }
         },
         onUnexpectedExit: (error) => {

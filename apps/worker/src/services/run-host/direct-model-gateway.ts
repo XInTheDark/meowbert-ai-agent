@@ -1,5 +1,11 @@
 import type { Response } from "openai/resources/responses/responses";
-import { parseModelResponseUsage, streamResponseToFinal } from "@meowbert/shared";
+import {
+  parseModelResponseUsage,
+  resolveInternalModel,
+  resolveModelTypeForModel,
+  streamResponseToFinal
+} from "@meowbert/shared";
+import { config } from "../../lib/config.js";
 import { getOpenAiClient, type OpenAiProviderConfig } from "@meowbert/run-executor/agent/openai-client";
 import { buildChatGptCodexProvider } from "@meowbert/run-executor/agent/chatgpt-request";
 import { withOpenAiRequestDebugLogging } from "../agent/openai-sdk-logger.js";
@@ -77,12 +83,29 @@ function readResponseStreamEvents(target: unknown): unknown[] {
     : [];
 }
 
-export function resolvePurposeModel(run: ServerRunState, purpose: ModelCallPurpose): string {
-  if (purpose === "title") return run.bootstrap.runtime.quickModel;
-  if (purpose === "web_search" && run.bootstrap.runtime.modelType === "agy_acp") {
-    return run.bootstrap.runtime.quickModel;
+function resolveNonAgyAuxiliaryModel(run: ServerRunState): string {
+  const metadata = run.snapshot.platform_model_metadata;
+  const candidates = [
+    run.bootstrap.runtime.quickModel,
+    resolveInternalModel({
+      specializedModels: run.snapshot.platform_specialized_models,
+      fallbackModel: config.openai.defaultModel
+    }),
+    config.openai.defaultModel
+  ];
+  for (const candidate of candidates) {
+    if (candidate && resolveModelTypeForModel(candidate, metadata) !== "agy_acp") {
+      return candidate;
+    }
   }
-  return run.bootstrap.runtime.model;
+  throw new Error("Configure a non-ACP fastModel or internalModel in Admin -> Model Settings for auxiliary title/web_search calls.");
+}
+
+export function resolvePurposeModel(run: ServerRunState, purpose: ModelCallPurpose): string {
+  if (run.bootstrap.runtime.modelType === "agy_acp" && (purpose === "title" || purpose === "web_search")) {
+    return resolveNonAgyAuxiliaryModel(run);
+  }
+  return purpose === "title" ? run.bootstrap.runtime.quickModel : run.bootstrap.runtime.model;
 }
 
 async function streamProviderResponse(input: {

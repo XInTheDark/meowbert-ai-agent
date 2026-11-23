@@ -30,6 +30,8 @@ describe.skipIf(!process.env.USAGE_ACTIVATION_TEST_DATABASE_URL)("activation cla
     await query("CREATE SCHEMA activation_worker_test");
     await query(await readFile(new URL("../../../../../db/migrations/120_ai_providers.sql", import.meta.url), "utf8"));
     await query(await readFile(new URL("../../../../../db/migrations/127_scheduled_usage_activation.sql", import.meta.url), "utf8"));
+    await query(await readFile(new URL("../../../../../db/migrations/174_antigravity_credentials.sql", import.meta.url), "utf8"));
+    await query(await readFile(new URL("../../../../../db/migrations/175_usage_activation_antigravity.sql", import.meta.url), "utf8"));
   });
   afterAll(async () => { await query("DROP SCHEMA activation_worker_test CASCADE"); await pool.end(); });
   beforeEach(async () => {

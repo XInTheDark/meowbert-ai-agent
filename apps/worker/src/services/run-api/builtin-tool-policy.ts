@@ -3,7 +3,14 @@ import { buildResponseTools, HARNESS_SETTINGS_TOOL_GROUP_ID, TASK_SCHEDULING_TOO
 import { buildCodeModeToolSet } from "@meowbert/run-executor/code-mode/code-mode-tools";
 import { resolveRunToolOptions } from "@meowbert/run-executor/agent/runtime";
 import { COMPACTION_TOOL_NAME, COMPACTION_OUTPUT_SCHEMA } from "@meowbert/run-executor/context-compaction/shared";
-import { workspaceFileFeatures, normalizeWorkspaceFileHost, getPersistentRuntimeEnabled, type PlatformModelRouter } from "@meowbert/shared";
+import {
+  BRIDGE_MAX_RUN_SHELL_TIMEOUT_SECONDS,
+  getPersistentRuntimeEnabled,
+  isBridgeTaskExecutionTarget,
+  normalizeWorkspaceFileHost,
+  workspaceFileFeatures,
+  type PlatformModelRouter
+} from "@meowbert/shared";
 import type { SwarmToolSet } from "@meowbert/run-executor/agent-tools/swarm";
 import { shouldExposeStopTaskForRecurringRun } from "@meowbert/run-executor/tasks/recurring-run-utils";
 import type { ServerRunState } from "../run-host/bootstrap.js";
@@ -22,7 +29,10 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
   const features = workspaceFileFeatures(normalizeWorkspaceFileHost(bootstrap.fileHost));
   const options = resolveRunToolOptions(snapshot, job, bootstrap.memoryEnabled);
   if (!features.memorySearch || bootstrap.embeddingFeatures?.memorySearchEnabled === false) options.memorySearch = false;
-  const maximum = Math.max(1, Math.floor(snapshot.shell_tool_max_timeout_ms / 1000));
+  const bridgeDriven = isBridgeTaskExecutionTarget(job.executionTarget) || bootstrap.runtime.modelType === "agy_acp";
+  const maximum = bridgeDriven
+    ? BRIDGE_MAX_RUN_SHELL_TIMEOUT_SECONDS
+    : Math.max(1, Math.floor(snapshot.shell_tool_max_timeout_ms / 1000));
   const schedule = bootstrap.scheduleInfo ?? null;
   const allowStopTask = shouldExposeStopTaskForRecurringRun({ hasSchedule: schedule !== null, scheduleState: schedule?.scheduleState ?? null,
     isTimedInfiniteRun: job.mode === "infinite_auto" && schedule?.mode === "infinite" && (schedule.runTimeoutSeconds ?? 0) > 0 });
@@ -47,7 +57,8 @@ export function builtinRunTools(state: ServerRunState, consent: DeviceToolConsen
       allowHostShell: local && consent.hostShell === true, allowRefreshGitHubToken: bootstrap.github.hasAppConnection,
       allowStartLongHorizonTask: !local, allowRequestClarification: !local, allowSubmitResponse: !local, allowSubmitReview: !local,
       runShellMaxTimeoutSeconds: maximum, contextManagementVersion: version,
-      allowPersistentShellSessions: getPersistentRuntimeEnabled(bootstrap.runtime.environmentPayload), useClaudeWebSearch: bootstrap.runtime.modelType === "claude",
+      allowPersistentShellSessions: getPersistentRuntimeEnabled(bootstrap.runtime.environmentPayload),
+      useClaudeWebSearch: bootstrap.runtime.modelType === "claude" || bridgeDriven,
       ...(swarm ? { swarmTools: swarm.set, swarmRouter: swarm.router } : {})
     });
     tools.push(...ordinary, ...buildResponseTools(options, [], { quickModeActive: true, newMessageOrganizationEnabled: organization }),

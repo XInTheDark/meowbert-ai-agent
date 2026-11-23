@@ -20,7 +20,7 @@ export function createModelToolPolicy(state: ServerRunState, control: RunControl
   const skills = createSkillToolPolicy(state, control, consent);
   let builtinModel: string | null = null;
   let builtin: Tool[] = [];
-  const allowBridgeHostedWebSearch = isBridgeTaskExecutionTarget(state.job.executionTarget)
+  const allowBridgeHostedWebSearch = (isBridgeTaskExecutionTarget(state.job.executionTarget) || state.bootstrap.runtime.modelType === "agy_acp")
     && resolveRunToolOptions(state.snapshot, state.job, state.bootstrap.memoryEnabled).webSearch === true;
   return async (tools: Tool[], purpose: string): Promise<void> => {
     if (builtinModel !== state.bootstrap.runtime.model) {

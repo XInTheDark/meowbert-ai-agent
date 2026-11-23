@@ -27,7 +27,7 @@ function modelPolicy(state: ServerRunState): RunModelPolicy {
     maxContextTokens: runtime.maxContextTokens,
     modelPayload: runtime.modelPayload,
     allowHostedWebSearch,
-    allowBridgeWebSearch: isBridgeTaskExecutionTarget(state.job.executionTarget) && allowHostedWebSearch
+    allowBridgeWebSearch: (isBridgeTaskExecutionTarget(state.job.executionTarget) || runtime.modelType === "agy_acp") && allowHostedWebSearch
   };
 }
 
@@ -53,7 +53,7 @@ export async function claimRunForApi(input: {
   sessions: RunApiSessions;
 }): Promise<RunClaim> {
   const { job } = input;
-  const { control, models } = createDirectRunServices(job);
+  const { control, models, onRunFinished } = createDirectRunServices(job);
   const lease = await input.leases.claim({ runId: job.runId, holder: input.holder, apiUrl: input.apiUrl, ttlMs: RUN_LEASE_TTL_MS });
   if (!lease) {
     throw new Error("The run is no longer admitted, so it cannot be claimed.");
@@ -62,6 +62,7 @@ export async function claimRunForApi(input: {
   try {
     bootstrap = await control.bootstrap();
   } catch (error) {
+    onRunFinished({ status: "failed", message: error instanceof Error ? error.message : String(error) });
     await input.leases.release({ runId: job.runId, epoch: lease.epoch });
     throw error;
   }
@@ -85,7 +86,8 @@ export async function claimRunForApi(input: {
     lastEventSeq: 0,
     modelRequestInFlight: false,
     finishedAt: null,
-    swarm
+    swarm,
+    onRunFinished
   });
   return {
     epoch: lease.epoch,

@@ -1,5 +1,6 @@
 import type { RunControl } from "@meowbert/run-executor/agent/ports/run-control";
 import type { ModelCallPurpose, ModelGateway } from "@meowbert/run-executor/agent/ports/model-gateway";
+import type { RunFinishedOutcome } from "@meowbert/run-executor/agent/ports/run-environment";
 import type { PlatformUsageBilling } from "@meowbert/shared";
 import { abortModelOperation } from "./model-operations.js";
 
@@ -38,6 +39,7 @@ export interface RunApiSession {
   storageWait?: boolean;
   // The Agent Swarm this run belongs to, as the control plane admitted it; swarm calls act for it.
   swarm?: RunApiSwarm | null;
+  onRunFinished?: (outcome: RunFinishedOutcome) => void;
 }
 
 export interface RunApiSwarm {
@@ -60,22 +62,35 @@ export class RunApiSessions {
 
   add(session: RunApiSession): void {
     const previous = this.sessions.get(session.runId);
-    if (previous && previous !== session) abortModelOperation(previous);
+    if (previous && previous !== session) {
+      abortModelOperation(previous);
+      if (previous.finishedAt === null) {
+        previous.finishedAt = Date.now();
+        previous.onRunFinished?.({ status: "cancelled" });
+      }
+    }
     this.sessions.set(session.runId, session);
   }
 
   // Keeps answering retries for a while, then goes.
-  markFinished(runId: string): void {
+  markFinished(runId: string, outcome: RunFinishedOutcome = { status: "completed" }): void {
     const session = this.sessions.get(runId);
     if (session && session.finishedAt === null) {
       session.finishedAt = Date.now();
       abortModelOperation(session);
+      session.onRunFinished?.(outcome);
     }
   }
 
   remove(runId: string): void {
     const session = this.sessions.get(runId);
-    if (session) abortModelOperation(session);
+    if (session) {
+      abortModelOperation(session);
+      if (session.finishedAt === null) {
+        session.finishedAt = Date.now();
+        session.onRunFinished?.({ status: "cancelled" });
+      }
+    }
     this.sessions.delete(runId);
   }
 

@@ -6,6 +6,9 @@ import {
 import { BridgeSession } from "@meowbert/run-executor/bridge/index";
 import type { ModelGateway } from "@meowbert/run-executor/agent/ports/model-gateway";
 import type { RunFinishedOutcome } from "@meowbert/run-executor/agent/ports/run-environment";
+import { query } from "../../lib/db.js";
+import { chargeSwarmStep } from "../agent-swarm/budget.js";
+import { loadSwarmRunContext } from "../agent-swarm/config.js";
 import { AgyAcpDriver } from "../agy-acp/agy-acp-driver.js";
 import { ensureWorkerBridgeHost, type WorkerBridgeHost } from "../agy-acp/agy-bridge-host.js";
 import { hydrateSelectedAgyProfile } from "../agy-acp/agy-profile-dir.js";
@@ -14,6 +17,7 @@ import type { ServerRunState } from "./bootstrap.js";
 
 const AGY_CONNECT_TIMEOUT_MS = 60_000;
 const AGY_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+const GRACEFUL_USAGE_WAIT_MS = 5_000;
 
 interface ActiveAgyRuntime {
   registrationId: string;
@@ -30,22 +34,48 @@ export interface AgyAwareModelGatewayOptions {
   reportTurnUsageError: (message: string) => Promise<void>;
 }
 
+async function chargeDelayedAgyBudgets(run: ServerRunState, weightedTokens: number): Promise<void> {
+  const tokens = Math.max(0, Math.floor(weightedTokens));
+  if (tokens <= 0) return;
+  await query("UPDATE tasks SET spent_tokens = spent_tokens + $2 WHERE id = $1", [run.job.taskId, tokens]).catch(() => undefined);
+  const swarm = await loadSwarmRunContext(run.snapshot.task, run.snapshot.platform_model_routers ?? []).catch(() => null);
+  if (swarm) {
+    await chargeSwarmStep(swarm, run.job.taskId, tokens).catch(() => undefined);
+  }
+}
+
 async function recordAgyUsage(
   run: ServerRunState,
   counts: ModelUsageCounts,
   reportTurnUsageError: (message: string) => Promise<void>
-): Promise<number | null> {
+): Promise<void> {
   try {
     const cost = await platformUsageRecorder.computeCost(run.bootstrap.runtime.model, counts);
     if (run.billing) {
       await platformUsageRecorder.recordEvent(run.billing, counts, cost);
     }
-    return cost.weightedTokens;
+    const budgetTokens = cost.weightedTokens > 0
+      ? cost.weightedTokens
+      : counts.inputTokens + counts.outputTokens;
+    await chargeDelayedAgyBudgets(run, budgetTokens);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await reportTurnUsageError(`Failed to record Antigravity token usage: ${message}`);
-    return null;
   }
+}
+
+function attachLiveContextUsage(
+  response: Awaited<ReturnType<BridgeSession["handleModelTurn"]>>,
+  contextUsage: { used: number; size: number } | null
+): void {
+  if (!contextUsage || contextUsage.used <= 0) return;
+  (response as { usage?: unknown }).usage = {
+    input_tokens: contextUsage.used,
+    input_tokens_details: { cached_tokens: 0 },
+    output_tokens: 0,
+    output_tokens_details: { reasoning_tokens: 0 },
+    total_tokens: contextUsage.used
+  };
 }
 
 export function createAgyAwareModelGateway(options: AgyAwareModelGatewayOptions): {
@@ -55,7 +85,6 @@ export function createAgyAwareModelGateway(options: AgyAwareModelGatewayOptions)
   let active: ActiveAgyRuntime | null = null;
   let starting: Promise<ActiveAgyRuntime> | null = null;
   let sessionEpoch = 0;
-  let pendingWeightedTokens = 0;
 
   function retireActive(outcome: RunFinishedOutcome): void {
     const current = active;
@@ -63,7 +92,8 @@ export function createAgyAwareModelGateway(options: AgyAwareModelGatewayOptions)
     if (!current) return;
     current.session.onRunEnded(outcome);
     current.bridgeHost.registry.unregister(current.registrationId);
-    void current.driver.stop().catch((error) => {
+    const gracefulPromptWaitMs = outcome.status === "completed" ? GRACEFUL_USAGE_WAIT_MS : 0;
+    void current.driver.stop({ gracefulPromptWaitMs }).catch((error) => {
       console.warn("[agy-acp] Error stopping Antigravity ACP driver", {
         runId: options.job.runId,
         error: error instanceof Error ? error.message : String(error)
@@ -73,8 +103,6 @@ export function createAgyAwareModelGateway(options: AgyAwareModelGatewayOptions)
 
   async function ensureActive(run: ServerRunState, currentInputLength: number): Promise<ActiveAgyRuntime> {
     if (active && currentInputLength < active.lastInputLength) {
-      // Context window rolled over mid-run (e.g., idle compaction after a long wait):
-      // retire the expired ACP process and start a fresh one with the new compact window.
       retireActive({
         status: "completed",
         message: "Context window rolled over after prompt cache expiry; continuing in a fresh ACP session."
@@ -112,8 +140,7 @@ export function createAgyAwareModelGateway(options: AgyAwareModelGatewayOptions)
         agyModel: agyConfig.agyModel,
         agyThinkingLevel: agyConfig.agyThinkingLevel,
         onUsage: async (counts) => {
-          const weighted = await recordAgyUsage(run, counts, options.reportTurnUsageError);
-          if (weighted !== null) pendingWeightedTokens += weighted;
+          await recordAgyUsage(run, counts, options.reportTurnUsageError);
         }
       });
       void driver.start();
@@ -149,9 +176,10 @@ export function createAgyAwareModelGateway(options: AgyAwareModelGatewayOptions)
       const runtime = await ensureActive(run, currentInputLength);
       runtime.lastInputLength = currentInputLength;
       const response = await runtime.session.handleModelTurn(request.body, request.signal);
-      const weightedTokens = pendingWeightedTokens > 0 ? pendingWeightedTokens : null;
-      pendingWeightedTokens = 0;
-      return { response, weightedTokens };
+      attachLiveContextUsage(response, runtime.driver.getLatestContextUsage());
+      // Return 0 so loop/harness budgets don't double-charge live context occupancy;
+      // actual turn cost is charged directly in onUsage when ACP returns result.usage.
+      return { response, weightedTokens: 0 };
     },
     isQuotaExceeded: () => options.directModels.isQuotaExceeded?.() ?? Promise.resolve(false)
   };
