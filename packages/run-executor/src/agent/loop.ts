@@ -726,7 +726,7 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     activeMcpConnections: execution.prepared.activeMcpConnections,
     activeSkillTools: execution.prepared.activeSkillTools,
     ...(codeModeTools.length > 0 ? { codeModeTools } : {}),
-    allowedFunctionTools: [...turn.availableResponseTools, ...codeModeTools]
+    allowedFunctionTools: turn.availableResponseTools
       .filter((tool): tool is FunctionTool => tool.type === "function").map((tool) => tool.name),
     enableSkillById: execution.enableSkillById,
     onDemandSkills: execution.onDemandCapabilities,

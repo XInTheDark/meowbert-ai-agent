@@ -197,4 +197,29 @@ describe("exec", () => {
       await rm(taskDir, { recursive: true, force: true });
     }
   });
+
+  it("rejects direct top-level calls to code-mode-only tools with an exec hint", async () => {
+    vi.clearAllMocks();
+    const state: ToolDispatchState = { conversationItems: [], runPersistedItems: [], commandStep: 0 };
+    const ctx = {
+      ...createContext(),
+      codeModeTools: [buildRunShellFunctionTool()],
+      allowedFunctionTools: ["exec", "final_response"]
+    };
+
+    await dispatchResponseOutput([
+      {
+        id: "fc_direct_shell",
+        type: "function_call",
+        call_id: "call_direct_shell",
+        name: "run_shell",
+        arguments: JSON.stringify({ command: "echo hi" })
+      }
+    ], ctx, state);
+
+    const output = state.conversationItems.find((item) => item.type === "function_call_output") as { output: string } | undefined;
+    expect(JSON.parse(output?.output ?? "{}")).toMatchObject({
+      error: "Call run_shell inside exec via tools.run_shell(...), not directly."
+    });
+  });
 });

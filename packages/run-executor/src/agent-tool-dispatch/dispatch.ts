@@ -152,7 +152,15 @@ async function dispatchFunctionToolCall(
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ToolCallResult> {
-  if (ctx.allowedFunctionTools && !ctx.allowedFunctionTools.includes(outputItem.name)) {
+  const allowed = ctx.codeModeParentCallId
+    ? (ctx.codeModeTools
+      ? ctx.codeModeTools.some((tool) => tool.name === outputItem.name)
+      : !ctx.allowedFunctionTools || ctx.allowedFunctionTools.includes(outputItem.name))
+    : (!ctx.allowedFunctionTools || ctx.allowedFunctionTools.includes(outputItem.name));
+  if (!allowed) {
+    if (!ctx.codeModeParentCallId && ctx.codeModeTools?.some((tool) => tool.name === outputItem.name)) {
+      return toolErrorResult(`Call ${outputItem.name} inside exec via tools.${outputItem.name}(...), not directly.`);
+    }
     return toolErrorResult("This tool is unavailable in the current run.");
   }
   const eligibility = ctx.completionEligibility;
