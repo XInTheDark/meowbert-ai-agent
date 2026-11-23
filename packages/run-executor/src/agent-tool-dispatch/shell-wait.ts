@@ -4,16 +4,21 @@ export const MAX_IN_RUN_WAIT_SECONDS = 3600;
 // A wait tied to a shell session wakes when the job does, so it may run as long as a long job.
 export const MAX_SHELL_CONDITION_WAIT_SECONDS = 6 * 3600;
 const POLL_INTERVAL_MS = 1000;
-// After the first minutes a long wait reads its sessions less often.
-const SLOW_POLL_AFTER_MS = 5 * 60_000;
-const SLOW_POLL_INTERVAL_MS = 5000;
+// Each session read runs a command in the session's container, so a long wait backs off:
+// once a second at first, then 1.5 times longer after each read, up to every 10 seconds.
+const FAST_POLL_WINDOW_MS = 30_000;
+const POLL_BACKOFF_FACTOR = 1.5;
+const MAX_POLL_INTERVAL_MS = 10_000;
 
 export function maxInRunWaitSeconds(hasShellConditions: boolean): number {
   return hasShellConditions ? MAX_SHELL_CONDITION_WAIT_SECONDS : MAX_IN_RUN_WAIT_SECONDS;
 }
 
-function shellPollIntervalMs(startedAtMs: number): number {
-  return Date.now() - startedAtMs < SLOW_POLL_AFTER_MS ? POLL_INTERVAL_MS : SLOW_POLL_INTERVAL_MS;
+function nextShellPollIntervalMs(startedAtMs: number, previousMs: number): number {
+  if (Date.now() - startedAtMs < FAST_POLL_WINDOW_MS) {
+    return POLL_INTERVAL_MS;
+  }
+  return Math.min(MAX_POLL_INTERVAL_MS, Math.round(previousMs * POLL_BACKOFF_FACTOR));
 }
 
 export interface ShellWaitCondition {
@@ -76,6 +81,7 @@ async function monitorShell(input: WaitInput, condition: ShellWaitCondition, sig
   const startedAtMs = Date.now();
   let initialOutputVersion: string | null | undefined;
   let observed = false;
+  let pollIntervalMs = POLL_INTERVAL_MS;
   while (true) {
     signal.throwIfAborted();
     const session = await input.readSession(condition.session_id);
@@ -92,7 +98,8 @@ async function monitorShell(input: WaitInput, condition: ShellWaitCondition, sig
     }
     initialOutputVersion = session.outputVersion;
     observed = true;
-    await delay(shellPollIntervalMs(startedAtMs), signal);
+    pollIntervalMs = nextShellPollIntervalMs(startedAtMs, pollIntervalMs);
+    await delay(pollIntervalMs, signal);
   }
 }
 

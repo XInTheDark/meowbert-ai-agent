@@ -145,9 +145,11 @@ describe("waitForConditions", () => {
     await vi.advanceTimersByTimeAsync(4 * 3600_000);
     const readsBeforeExit = getStatus.mock.calls.length;
     getStatus.mockResolvedValue(status({ status: "completed", exitCode: 0 }));
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(await pending).toMatchObject({ reason: "shell_exit", elapsed_seconds: 4 * 3600 + 5 });
-    // One read a second for five minutes, then one every five seconds.
-    expect(readsBeforeExit).toBeLessThan(300 + (4 * 3600 - 300) / 5 + 5);
+    await vi.advanceTimersByTimeAsync(10_000);
+    const result = await pending;
+    expect(result.reason).toBe("shell_exit");
+    expect(result.elapsed_seconds).toBeLessThanOrEqual(4 * 3600 + 10);
+    // One read a second for 30 seconds, then backing off to one every 10 seconds.
+    expect(readsBeforeExit).toBeLessThan(30 + 10 + (4 * 3600) / 10);
   });
 });
