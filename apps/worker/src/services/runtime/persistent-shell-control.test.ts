@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ query: vi.fn(), runtime: vi.fn(), stop: vi.fn() }));
+const mocks = vi.hoisted(() => ({ query: vi.fn(), runtime: vi.fn(), stop: vi.fn(), crashReport: vi.fn() }));
 vi.mock("../../lib/db.js", () => ({
   query: mocks.query,
   withConnection: (callback: (client: { query: typeof mocks.query }) => unknown) => callback({ query: mocks.query }),
   withTransaction: vi.fn()
 }));
 vi.mock("./persistent-shell-transport.js", () => ({ callPersistentShellRuntime: mocks.runtime }));
-vi.mock("./sandbox.js", () => ({ workerSandboxManager: { stopAndRemoveContainer: mocks.stop } }));
+vi.mock("./sandbox.js", () => ({
+  workerSandboxManager: { stopAndRemoveContainer: mocks.stop, readCrashReport: mocks.crashReport }
+}));
 
 import {
   controlPersistentShellSession,
@@ -33,6 +35,8 @@ const idle = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useRealTimers();
+  mocks.crashReport.mockResolvedValue(null);
   mocks.query.mockImplementation(async (sql: string) => ({
     rows: sql.includes("SELECT id, workspace_id") ? [{ ...session }] : [], rowCount: 1
   }));
@@ -139,5 +143,54 @@ describe("persistent shell command coordination", () => {
       data: "echo hello\n"
     })).rejects.toThrow("Persistent shell session is unavailable.");
     expect(mocks.stop).toHaveBeenCalledWith("original-container");
+  });
+});
+
+describe("persistent shell status failures", () => {
+  const failedUpdates = () => mocks.query.mock.calls.filter(([sql]) => String(sql).includes("status = 'failed'"));
+  const useSession = (id: string) => {
+    mocks.query.mockImplementation(async (sql: string) => ({
+      rows: sql.includes("SELECT id, workspace_id") ? [{ ...session, id }] : [], rowCount: 1
+    }));
+  };
+
+  it("keeps a session whose container is still running when a status request fails", async () => {
+    useSession("session-slow");
+    mocks.runtime.mockRejectedValue(new Error("Persistent shell request failed. Request timed out."));
+    const results = await listPersistentShellSessions({ environmentId: "project-1" });
+    expect(results[0]).toMatchObject({ id: "session-slow", status: "idle" });
+    expect(mocks.stop).not.toHaveBeenCalled();
+    expect(failedUpdates()).toHaveLength(0);
+  });
+
+  it("fails the session with Docker's crash report when the container stopped", async () => {
+    useSession("session-crashed");
+    mocks.runtime.mockRejectedValue(new Error("Persistent sandbox container is not running"));
+    mocks.crashReport.mockResolvedValue({
+      containerId: "original-container",
+      state: { status: "exited", exitCode: 137, oomKilled: true, error: null, startedAt: null, finishedAt: null },
+      limits: null,
+      recentEvents: ""
+    });
+    await listPersistentShellSessions({ environmentId: "project-1" });
+    expect(mocks.stop).toHaveBeenCalledWith("original-container");
+    const [, params] = failedUpdates()[0];
+    expect(params[1]).toContain("Persistent runtime container exited");
+    expect(params[1]).toContain("\"oomKilled\":true");
+  });
+
+  it("stops a running container whose supervisor stays unreachable past the grace period", async () => {
+    vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+    useSession("session-hung");
+    mocks.runtime.mockRejectedValue(new Error("Persistent shell request failed. Exit code: 1."));
+    await listPersistentShellSessions({ environmentId: "project-1" });
+    expect(mocks.stop).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(3 * 60_000);
+    await listPersistentShellSessions({ environmentId: "project-1" });
+    expect(mocks.stop).toHaveBeenCalledWith("original-container");
+    const [, params] = failedUpdates()[0];
+    expect(params[1]).toContain("stopped responding");
+    expect(params[1]).toContain("Exit code: 1.");
   });
 });

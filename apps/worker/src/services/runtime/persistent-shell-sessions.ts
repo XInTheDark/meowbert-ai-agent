@@ -2,7 +2,8 @@ import { persistentShellLogPath, readPersistentShellOutput } from "./persistent-
 import { reserveCreditAndSlot, type CreditReservation } from "./persistent-shell-credits.js";
 import { callPersistentShellRuntime, type PersistentShellRuntimeState } from "./persistent-shell-transport.js";
 import { randomUUID } from "node:crypto";
-import { formatSandboxCrashReport, type SandboxContainerLimits } from "@meowbert/shared/docker-sandbox";
+import { formatSandboxCrashReport, type SandboxContainerLimits, type SandboxCrashReport } from "@meowbert/shared/docker-sandbox";
+import { forgetStatusFailures, noteStatusFailure, STATUS_UNREACHABLE_GRACE_MS } from "./persistent-shell-liveness.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { PoolClient, QueryResult, QueryResultRow } from "pg";
@@ -444,6 +445,7 @@ async function stopPersistentShellSessionUnlocked(input: {
     [session.id, input.reason ?? "Stopped by shell_session."]
   );
   clearSessionExpiryTimer(session.id);
+  forgetStatusFailures(session.id);
 }
 
 export async function stopPersistentShellSession(input: {
@@ -537,26 +539,57 @@ async function refreshSessionState(session: PersistentShellSessionRow, client: P
     }
     return;
   }
+  let runtime: PersistentShellRuntimeState;
   try {
-    const runtime = await callPersistentShellRuntime(session, { action: "status" });
-    await persistRuntimeState(session, runtime, client);
-    if (!isActiveStatus(runtime.status)) {
-      clearSessionExpiryTimer(session.id);
-    }
-    if (runtime.status === "completed") {
-      await stopContainer(session);
-      await dbQuery(client, "UPDATE persistent_shell_sessions SET container_id = NULL, process_id = NULL WHERE id = $1", [session.id]);
-    }
-  } catch {
-    clearSessionExpiryTimer(session.id);
-    const crashReport = await workerSandboxManager.readCrashReport(session.container_id).catch(() => null);
-    await stopContainer(session).catch(() => {});
-    await dbQuery(client,
-      `UPDATE persistent_shell_sessions SET container_id = NULL, process_id = NULL, status = 'failed',
-         stopped_at = now(), stop_reason = $2, recovery_count = recovery_count + 1, updated_at = now()
-       WHERE id = $1 AND status IN ('starting', 'running', 'idle')`,
-      [session.id, crashReport ? `${CONTAINER_LOST_REASON}\n${formatSandboxCrashReport(crashReport)}` : CONTAINER_LOST_REASON]);
+    runtime = await callPersistentShellRuntime(session, { action: "status" });
+  } catch (error) {
+    await handleStatusFailure(session, session.container_id, error, client);
+    return;
   }
+  forgetStatusFailures(session.id);
+  await persistRuntimeState(session, runtime, client);
+  if (!isActiveStatus(runtime.status)) {
+    clearSessionExpiryTimer(session.id);
+  }
+  if (runtime.status === "completed") {
+    await stopContainer(session);
+    await dbQuery(client, "UPDATE persistent_shell_sessions SET container_id = NULL, process_id = NULL WHERE id = $1", [session.id]);
+  }
+}
+
+function describeLostSession(crashReport: SandboxCrashReport | null, error: unknown): string {
+  if (crashReport) {
+    return `${CONTAINER_LOST_REASON}\n${formatSandboxCrashReport(crashReport)}`;
+  }
+  const minutes = Math.round(STATUS_UNREACHABLE_GRACE_MS / 60_000);
+  const detail = error instanceof Error ? error.message : String(error);
+  return `Persistent shell stopped responding for ${minutes} minutes while its container was still running, so the container was stopped. Restart the command explicitly.\nLast error: ${detail}`;
+}
+
+// Keeps the session when Docker still reports its container running: the last known state stands
+// until the supervisor answers again or stays unreachable past the grace period.
+async function handleStatusFailure(
+  session: PersistentShellSessionRow,
+  containerId: string,
+  error: unknown,
+  client: PoolClient | null
+): Promise<void> {
+  const crashReport = await workerSandboxManager.readCrashReport(containerId).catch(() => null);
+  const failure = noteStatusFailure(session.id);
+  if (!crashReport && failure.unreachableMs < STATUS_UNREACHABLE_GRACE_MS) {
+    if (failure.firstFailure) {
+      console.warn(`[persistent-shell] status request failed for session ${session.id}; its container is still running`, error);
+    }
+    return;
+  }
+  forgetStatusFailures(session.id);
+  clearSessionExpiryTimer(session.id);
+  await stopContainer(session).catch(() => {});
+  await dbQuery(client,
+    `UPDATE persistent_shell_sessions SET container_id = NULL, process_id = NULL, status = 'failed',
+       stopped_at = now(), stop_reason = $2, recovery_count = recovery_count + 1, updated_at = now()
+     WHERE id = $1 AND status IN ('starting', 'running', 'idle')`,
+    [session.id, describeLostSession(crashReport, error)]);
 }
 
 export async function restorePersistentShellExpiryTimers(): Promise<void> {
