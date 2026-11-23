@@ -1,4 +1,5 @@
 import { recordRunCompletion, setTaskStatusForRun } from "../agent-db/index.js";
+import { wakeParkedSwarmTaskIfBarrierMet } from "../agent-swarm/park.js";
 import { completeTaskRun } from "../tasks/complete-task-run.js";
 import { wakeRunDeliveryLoop } from "../notifications/run-delivery-loop.js";
 import { pauseInfiniteScheduleAfterCheckin, pauseTimedScheduleAfterCompletion } from "../task-schedules/service.js";
@@ -62,6 +63,9 @@ export async function completeServerRun(run: ServerRunState, completion: RunComp
   if (completion.kind === "status") {
     const updatedStatus = await setTaskStatusForRun(run.job.taskId, run.job.runId, completion.status);
     await recordRunCompletion(run.job.runId, "completed", undefined, completion.notificationRequested);
+    if (run.job.mode === "compact_only") {
+      await wakeParkedSwarmTaskIfBarrierMet(run.job.taskId);
+    }
     return { updatedStatus };
   }
   await recordRunCompletion(run.job.runId, "completed", undefined, false);

@@ -12,11 +12,15 @@ export interface IdleTask {
   status: TaskStatus;
 }
 
-// An enabled Project Master always qualifies. Other top-level tasks qualify while the admin
-// setting is on; subtasks, workflow steps, threads and swarm lanes are driven by their parent.
+// An enabled Project Master always qualifies. Other top-level tasks and parked swarm parents
+// (waiting on active lanes in `task_swarm_parks`) qualify while the admin setting is on; subtasks,
+// workflow steps, threads and unparked swarm lanes are driven by their parent.
 const IDLE_COMPACTION_ELIGIBLE = `
   t.trashed_at IS NULL
-  AND t.status NOT IN ('queued', 'starting', 'running')
+  AND (
+    t.status NOT IN ('queued', 'starting', 'running')
+    OR (t.status = 'queued' AND EXISTS (SELECT 1 FROM task_swarm_parks sp WHERE sp.task_id = t.id))
+  )
   AND (
     (
       EXISTS (SELECT 1 FROM project_masters pm WHERE pm.task_id = t.id)
@@ -26,9 +30,14 @@ const IDLE_COMPACTION_ELIGIBLE = `
       EXISTS (SELECT 1 FROM platform_settings ps WHERE ps.id = 1 AND ps.idle_compaction_mode <> 'off')
       AND NOT EXISTS (SELECT 1 FROM project_masters pm WHERE pm.task_id = t.id)
       AND t.parent_task_id IS NULL
-      AND t.workflow_parent_task_id IS NULL
-      AND NOT EXISTS (SELECT 1 FROM task_threads tt WHERE tt.task_id = t.id)
-      AND NOT EXISTS (SELECT 1 FROM task_swarm_lanes sl WHERE sl.task_id = t.id)
+      AND (
+        (
+          t.workflow_parent_task_id IS NULL
+          AND NOT EXISTS (SELECT 1 FROM task_threads tt WHERE tt.task_id = t.id)
+          AND NOT EXISTS (SELECT 1 FROM task_swarm_lanes sl WHERE sl.task_id = t.id)
+        )
+        OR EXISTS (SELECT 1 FROM task_swarm_parks sp WHERE sp.task_id = t.id)
+      )
     )
   )`;
 

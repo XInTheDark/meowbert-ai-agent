@@ -47,3 +47,18 @@ export async function parkSwarmRun(input: {
 export async function clearSwarmPark(taskId: string): Promise<void> {
   await query("DELETE FROM task_swarm_parks WHERE task_id = $1", [taskId]);
 }
+
+// After a background run (such as idle compaction) finishes on a parked task, re-check its barrier
+// in case its lanes completed while that run held an open task_runs row.
+export async function wakeParkedSwarmTaskIfBarrierMet(taskId: string): Promise<boolean> {
+  const park = await query<{ swarm_task_id: string }>(
+    "SELECT swarm_task_id FROM task_swarm_parks WHERE task_id = $1",
+    [taskId]
+  );
+  const swarmTaskId = park.rows[0]?.swarm_task_id;
+  if (!swarmTaskId) return false;
+  return withTransaction(async (client) => {
+    await lockSwarmInTx(client, swarmTaskId);
+    return wakeParentIfBarrierMetInTx(client, taskId);
+  });
+}

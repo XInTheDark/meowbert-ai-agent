@@ -62,6 +62,8 @@ export async function resetV2ContextWindow(
     visibleMessageId: checkpointMessageId
   });
   execution.state.contextManagement = next;
+  // Once a lane leaves its first window, it no longer shares its parent's fork prefix or frozen tools.
+  execution.laneSeed = null;
   resetWindowRequestSetup(execution);
   execution.state.dispatchState.pendingContextV2Reset = false;
   const windowDeveloperItems = await buildV2WindowDeveloperItems(control.context, {
@@ -75,7 +77,7 @@ export async function resetV2ContextWindow(
     { role: "developer", content: buildContextWindowGuidance({
       historySearch: execution.prepared.historySearchEnabled,
       historyFiles: execution.prepared.isProjectMaster !== true,
-      clearAfterPauseSeconds: resolveLongPauseClearSeconds(execution.prepared, Boolean(execution.laneSeed))
+      clearAfterPauseSeconds: resolveLongPauseClearSeconds(execution.prepared)
     }) },
     ...seedItems
   );
@@ -83,6 +85,7 @@ export async function resetV2ContextWindow(
   execution.state.dispatchState.contextUsage = null;
   execution.state.dispatchState.contextWindowUsage = null;
   execution.state.lastActualContextUsage = null;
+  execution.state.lastModelRequestStartedAtMs = null;
   execution.state.hasActualContextUsage = false;
   console.info("[context-management-v2]", JSON.stringify({
     version: "v2",

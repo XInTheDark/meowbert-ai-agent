@@ -21,7 +21,7 @@ export interface RunFeatures {
   // False when the workflow had already moved on, so this run must not finish it.
   completeWorkflow(context: LoadedWorkflowRunContext, runId: string): Promise<boolean>;
 
-  loadSwarm(task: TaskRow, routers: PlatformModelRouter[]): Promise<SwarmRunContext | null>;
+  loadSwarm(task: TaskRow, routers: PlatformModelRouter[], options?: { preservePark?: boolean }): Promise<SwarmRunContext | null>;
   prepareLaneRun(input: {
     contextStore: RunContextStore;
     taskId: string;

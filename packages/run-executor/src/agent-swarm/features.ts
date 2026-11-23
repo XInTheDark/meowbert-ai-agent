@@ -18,7 +18,7 @@ export type SwarmRunFeatures = Pick<RunFeatures,
 // same in the cloud and on a device; only the backend differs.
 export function createSwarmRunFeatures(backend: SwarmBackend): SwarmRunFeatures {
   return {
-    loadSwarm: (task, routers) => backend.load(task, routers),
+    loadSwarm: (task, routers, options) => backend.load(task, routers, options),
     async prepareLaneRun(input) {
       return prepareLaneRun({ ...input, seed: await backend.loadForkSeed({ taskId: input.taskId, swarm: input.swarm }) });
     },

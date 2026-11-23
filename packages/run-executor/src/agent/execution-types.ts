@@ -78,7 +78,8 @@ export interface AgentExecutionState {
   // Model turns taken in this run.
   stepCount: number;
   // When this run's latest model request started, which is when the prompt cache was last read.
-  lastModelRequestStartedAtMs?: number;
+  // When the latest model request in this run started; null right after a mid-run window reset.
+  lastModelRequestStartedAtMs?: number | null;
 }
 
 export interface AgentExecutionContext {

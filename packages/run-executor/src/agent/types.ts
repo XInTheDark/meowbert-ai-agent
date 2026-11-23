@@ -64,6 +64,8 @@ export interface TaskRow {
   execution_target?: TaskExecutionTarget;
   // When the task's prompt cache was last read: its latest model request, or a later cachebeat.
   prompt_cache_read_at?: string | null;
+  // Provider-measured input tokens of the latest request in the open context window.
+  prompt_cache_used_tokens?: number | null;
 }
 
 export interface TaskMessageToolOptions {

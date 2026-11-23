@@ -135,15 +135,50 @@ async function loadTaskSnapshotBase(taskId: string) {
               tasks.interactive_canvas_id,
               tasks.interactive_canvas_intent,
               tasks.execution_target,
-              -- The latest model request, or a later cachebeat that kept its cache warm.
+              -- The latest model request in the open context window, or a later cachebeat that kept its cache warm.
               to_char(GREATEST(
                 (SELECT (e.payload_json->>'requestStartedAt')::timestamptz
                    FROM task_events e
-                  WHERE e.task_id = tasks.id AND e.type = 'context_usage' AND e.payload_json->>'source' = 'actual'
+                  WHERE e.task_id = tasks.id
+                    AND e.type = 'context_usage'
+                    AND e.payload_json->>'source' = 'actual'
+                    AND e.created_at >= COALESCE(
+                      (SELECT w.created_at
+                         FROM task_context_windows w
+                        WHERE w.task_id = tasks.id AND w.closed_at IS NULL
+                        ORDER BY w.ordinal DESC
+                        LIMIT 1),
+                      '-infinity'::timestamptz
+                    )
                   ORDER BY e.created_at DESC, e.id DESC
                   LIMIT 1),
-                (SELECT cb.cache_read_at FROM task_cachebeats cb WHERE cb.task_id = tasks.id)
-              ) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS prompt_cache_read_at
+                (SELECT cb.cache_read_at
+                   FROM task_cachebeats cb
+                  WHERE cb.task_id = tasks.id
+                    AND cb.cache_read_at >= COALESCE(
+                      (SELECT w.created_at
+                         FROM task_context_windows w
+                        WHERE w.task_id = tasks.id AND w.closed_at IS NULL
+                        ORDER BY w.ordinal DESC
+                        LIMIT 1),
+                      '-infinity'::timestamptz
+                    ))
+              ) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS prompt_cache_read_at,
+              (SELECT (e.payload_json->>'usedTokens')::int
+                 FROM task_events e
+                WHERE e.task_id = tasks.id
+                  AND e.type = 'context_usage'
+                  AND e.payload_json->>'source' = 'actual'
+                  AND e.created_at >= COALESCE(
+                    (SELECT w.created_at
+                       FROM task_context_windows w
+                      WHERE w.task_id = tasks.id AND w.closed_at IS NULL
+                      ORDER BY w.ordinal DESC
+                      LIMIT 1),
+                    '-infinity'::timestamptz
+                  )
+                ORDER BY e.created_at DESC, e.id DESC
+                LIMIT 1) AS prompt_cache_used_tokens
          FROM tasks
          LEFT JOIN task_threads tt ON tt.task_id = tasks.id
         WHERE tasks.id = $1`,

@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
   setTaskBranchSelection: vi.fn(),
   setTaskStatusForRun: vi.fn(),
   emitTaskEvent: vi.fn(),
-  scheduleTaskRunRetry: vi.fn()
+  scheduleTaskRunRetry: vi.fn(),
+  wakeParkedSwarmTaskIfBarrierMet: vi.fn(async () => false)
 }));
 
 vi.mock("../agent-db/index.js", () => ({
@@ -21,6 +22,7 @@ vi.mock("../tasks/task-run-retry.js", () => ({ scheduleTaskRunRetry: mocks.sched
 vi.mock("../task-schedules/service.js", () => ({ pauseInfiniteScheduleAfterCheckin: vi.fn() }));
 vi.mock("./run-cancellation.js", () => ({ handleCancelledRun: vi.fn() }));
 vi.mock("../agent-swarm/run-finalize.js", () => ({ finishFailedLaneRun: vi.fn() }));
+vi.mock("../agent-swarm/park.js", () => ({ wakeParkedSwarmTaskIfBarrierMet: mocks.wakeParkedSwarmTaskIfBarrierMet }));
 
 import { failServerRun } from "./run-failure.js";
 import { handleCancelledRun } from "./run-cancellation.js";
@@ -47,6 +49,7 @@ describe("failServerRun for idle compaction", () => {
     await failServerRun(idleJob, failure);
     expect(mocks.setTaskStatusForRun).toHaveBeenCalledWith("task-1", "run-1", "succeeded");
     expect(mocks.recordRunCompletion).toHaveBeenCalledWith("run-1", "error", failure.errorMessage);
+    expect(mocks.wakeParkedSwarmTaskIfBarrierMet).toHaveBeenCalledWith("task-1");
     expect(mocks.appendMessage).not.toHaveBeenCalled();
   });
 

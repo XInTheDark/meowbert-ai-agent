@@ -30,9 +30,9 @@ function ownLane(run: SwarmRunRef) {
 // Swarm state for runs whose executor sits inside the control plane. The Run API serves the same
 // backend to device runs, acting for the run whose lease made each call.
 export const dbSwarmBackend: SwarmBackend = {
-  async load(task, routers) {
+  async load(task, routers, options) {
     const swarm = await loadSwarmRunContext(task, routers);
-    if (swarm) await clearSwarmPark(task.id);
+    if (swarm && !options?.preservePark) await clearSwarmPark(task.id);
     return swarm;
   },
   async loadForkSeed(run) {

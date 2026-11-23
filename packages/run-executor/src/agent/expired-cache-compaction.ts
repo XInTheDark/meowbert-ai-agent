@@ -19,17 +19,32 @@ function lastCacheReadAtMs(execution: AgentExecutionContext): number | null {
   return Number.isFinite(readAtMs) ? readAtMs : null;
 }
 
+function measuredCacheTokens(execution: AgentExecutionContext): number {
+  const fromRun = execution.state.lastActualContextUsage?.inputTokens;
+  if (typeof fromRun === "number" && Number.isFinite(fromRun)) return fromRun;
+  if (execution.state.lastModelRequestStartedAtMs === undefined) {
+    const fromSnapshot = execution.prepared.snapshot.task.prompt_cache_used_tokens;
+    if (typeof fromSnapshot === "number" && Number.isFinite(fromSnapshot)) return fromSnapshot;
+  }
+  return 0;
+}
+
 // With Full idle compaction, a request that would re-send a large conversation whose prompt cache has
 // expired goes to a fresh window instead, so the expired conversation is never sent again.
+// A freshly forked lane has no prior request of its own (`readAtMs === null`), so its seed stays intact.
 export function shouldCompactExpiredCache(execution: AgentExecutionContext, nowMs: number): boolean {
   const { snapshot } = execution.prepared;
   if (snapshot.idle_compaction_mode !== "full" || execution.state.contextManagement.version !== "v2") return false;
-  if (isNotesOnlyTurn(execution) || execution.laneSeed) return false;
+  if (isNotesOnlyTurn(execution)) return false;
   const readAtMs = lastCacheReadAtMs(execution);
   if (readAtMs === null) return false;
   const settings = resolveIdleCompactionForModel(execution.prepared.runtimeModel, snapshot.platform_model_metadata);
   if (!settings.enabled || nowMs < readAtMs + settings.promptCacheTtlSeconds * 1000) return false;
-  return estimateContextItemsTokens(execution.state.dispatchState.conversationItems) >= settings.minTokens;
+  const tokens = Math.max(
+    measuredCacheTokens(execution),
+    estimateContextItemsTokens(execution.state.dispatchState.conversationItems)
+  );
+  return tokens >= settings.minTokens;
 }
 
 // The new window keeps the user's recent messages and any tool results the agent has not read yet;

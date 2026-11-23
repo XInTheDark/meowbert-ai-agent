@@ -63,6 +63,14 @@ describe("swarm calls from a device", () => {
     expect(clearSwarmPark).toHaveBeenCalledWith("leader");
   });
 
+  it("preserves the swarm park when loading for a compact_only run", async () => {
+    const compactSession = session(true) as { swarm: { job: Record<string, unknown> } };
+    compactSession.swarm.job.mode = "compact_only";
+    const reply = await SWARM_CALL_HANDLERS["swarm.load"](compactSession as never, []);
+    expect(reply).toMatchObject({ ok: { swarmTaskId: "leader", lane: null } });
+    expect(clearSwarmPark).not.toHaveBeenCalled();
+  });
+
   it("forks lanes on the runtime the server admitted, not the one the device sent", async () => {
     const reply = await SWARM_CALL_HANDLERS["swarm.forkLanes"](session(true), [forkInput({ routerId: "router", modelId: "fast", reasoningScore: 3 })]);
     expect(reply).toMatchObject({ ok: [{ label: "A" }] });

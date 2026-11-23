@@ -117,11 +117,11 @@ function refusable(handler: Handler): Handler {
 }
 
 export const SWARM_CALL_HANDLERS: Record<SwarmMethod, Handler> = {
-  // A run that starts while its task is parked takes over from the park.
+  // A real run that starts while its task is parked takes over from the park; background compaction keeps it.
   "swarm.load": refusable(async (session) => {
     const swarm = session.swarm;
     if (!swarm) return null;
-    await clearSwarmPark(session.taskId);
+    if (swarm.job.mode !== "compact_only") await clearSwarmPark(session.taskId);
     return structuredClone(swarm.context);
   }),
   "swarm.loadForkSeed": refusable((session) => dbSwarmBackend.loadForkSeed(runRef(session))),

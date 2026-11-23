@@ -395,7 +395,7 @@ async function buildRunPromptEnvelope(input: {
       { role: "developer", content: buildContextWindowGuidance({
         historySearch: prepared.historySearchEnabled,
         historyFiles: prepared.isProjectMaster !== true,
-        clearAfterPauseSeconds: resolveLongPauseClearSeconds(prepared, Boolean(input.swarm?.lane))
+        clearAfterPauseSeconds: resolveLongPauseClearSeconds(prepared)
       }) }
     );
   }
@@ -484,7 +484,11 @@ export async function initializeAgentExecution(
     workflowTaskDir: workflow.workflowContext?.workflowTaskDir
   });
   prepared.shellEnvOverrides.TASK_INPUT_DIR = taskInputDir;
-  const swarm = await prepared.features.loadSwarm(prepared.snapshot.task, prepared.snapshot.platform_model_routers ?? []);
+  const swarm = await prepared.features.loadSwarm(
+    prepared.snapshot.task,
+    prepared.snapshot.platform_model_routers ?? [],
+    { preservePark: job.mode === "compact_only" }
+  );
   const laneRun = swarm?.lane && swarm.lane.kind !== "check"
     ? await prepared.features.prepareLaneRun({
       contextStore: prepared.control.context,
@@ -495,6 +499,8 @@ export async function initializeAgentExecution(
       runtimeModel: prepared.runtimeModel
     })
     : null;
+  // Only a lane's initial window shares its parent's fork prefix and frozen tools; rolled-over windows run normally.
+  const usingLaneSeed = Boolean(laneRun && laneRun.contextManagement.previousWindowId === null);
   const isManualClear = job.mode === "compact_only" && job.contextAction === "clear";
   const { mappedConversationItems, resolvedContextManagement, forceIncludeIssues } = laneRun
     ? { mappedConversationItems: [], resolvedContextManagement: { state: laneRun.contextManagement, conversationItems: laneRun.conversationItems }, forceIncludeIssues: [] }
@@ -543,8 +549,8 @@ export async function initializeAgentExecution(
     scheduleInfo,
     projectContextPromptData
   });
-  const systemPrompt = toSandboxText(laneRun
-    ? laneRun.promptEnvelope.baseFrames[0]?.content ?? fullSystemPrompt
+  const systemPrompt = toSandboxText(usingLaneSeed
+    ? laneRun!.promptEnvelope.baseFrames[0]?.content ?? fullSystemPrompt
     : prepared.quickMode ? buildQuickModeSystemPrompt(prepared.isProjectMaster === true) : fullSystemPrompt);
   let activeSystemPrompt = systemPrompt;
   await debugLogger.log("Built system prompt.", {
@@ -553,12 +559,12 @@ export async function initializeAgentExecution(
     promptLength: systemPrompt.length
   });
   const organization = laneRun ? undefined : await prepareConversationOrganization(prepared, job);
-  const promptEnvelope = laneRun
-    ? laneRun.promptEnvelope
+  const promptEnvelope = usingLaneSeed
+    ? laneRun!.promptEnvelope
     : await buildRunPromptEnvelope({ systemPrompt, prepared, workflow, swarm, organization, contextManagement: resolvedContextManagement.state, conversationItems });
   if (!prepared.quickMode) {
     // A lane's prompt notes are already in its inherited prefix; only the tools come back.
-    const capabilityEnvelope = laneRun ? createPromptEnvelope("") : promptEnvelope;
+    const capabilityEnvelope = usingLaneSeed ? createPromptEnvelope("") : promptEnvelope;
     await debugLogger.stage({
       stage: "init.auto_enable",
       startMessage: "Auto-enabling selected skills and sources.",
@@ -669,7 +675,7 @@ export async function initializeAgentExecution(
     recurringStateFilePath,
     workflow,
     swarm,
-    laneSeed: laneRun?.seed ?? null,
+    laneSeed: usingLaneSeed ? laneRun!.seed : null,
     systemPrompt: activeSystemPrompt,
     promptEnvelope,
     runTiming,

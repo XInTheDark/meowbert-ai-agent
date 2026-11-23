@@ -51,7 +51,7 @@ export interface CreatedLane {
 // Swarm state lives on the control plane. A run reaches it only through this, in process for cloud
 // workers and over the Run API for devices. Refusals the model should see are SwarmToolErrors.
 export interface SwarmBackend {
-  load(task: TaskRow, routers: PlatformModelRouter[]): Promise<SwarmRunContext | null>;
+  load(task: TaskRow, routers: PlatformModelRouter[], options?: { preservePark?: boolean }): Promise<SwarmRunContext | null>;
   loadForkSeed(run: SwarmRunRef): Promise<ForkSeed | null>;
   claimInbox(run: SwarmRunRef, request: SwarmInboxRequest): Promise<SwarmInboxAppend | null>;
   loadBudgetState(run: SwarmRunRef): Promise<SwarmBudgetState | null>;
