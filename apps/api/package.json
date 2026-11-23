@@ -12,7 +12,7 @@
     "migrate": "tsx src/migrate-cli.ts"
   },
   "dependencies": {
-    "@fastify/cors": "10.1.0",
+    "@fastify/cors": "11.4.1",
     "@fastify/jwt": "10.0.0",
     "@fastify/multipart": "9.4.0",
     "@fastify/rate-limit": "10.3.0",
