@@ -15,7 +15,11 @@ import {
   type SandboxConfig,
   type SandboxResourcesConfig
 } from "./sandbox.js";
-import { createSerialGate, waitForSandboxSlot } from "./docker-sandbox-capacity.js";
+import {
+  assertShellSessionCapacity,
+  claimSandboxSlot,
+  createSerialGate
+} from "./docker-sandbox-capacity.js";
 import {
   DEFAULT_EXEC_CLOSE_TIMEOUT_MS,
   FORCE_KILL_DELAY_MS,
@@ -990,44 +994,67 @@ export class DockerSandboxManager {
     });
   }
 
-  // Holds this process's gate from the capacity check until Docker has the new container,
-  // so its count includes the container before the next caller checks.
-  private createContainerWithinCapacity(
+  // Holds this process's gate only across each capacity check and container creation,
+  // releasing it while waiting so blocked callers never starve other sandbox operations.
+  private async createContainerWithinCapacity(
     options: SandboxContainerOptions,
     create: () => Promise<Container>
   ): Promise<Container> {
-    return this.capacityGate(async () => {
-      const limit = this.config.maxRunningContainers ?? DEFAULT_SANDBOX_MAX_RUNNING_CONTAINERS;
-      const { waitedMs } = await waitForSandboxSlot({
-        limit,
-        countActive: () => this.countActiveSandboxes(),
-        relieve: this.capacityReliever ?? undefined,
-        signal: options.signal,
-        onWaiting: (active) => emitSandboxLifecycleEvent(options, {
-          stage: "sandbox.capacity",
-          phase: "start",
-          message: "Waiting for a free sandbox slot on this Docker host.",
-          payload: { activeSandboxes: active, maxRunningContainers: limit }
-        })
-      });
-      if (waitedMs > 0) {
-        await emitSandboxLifecycleEvent(options, {
-          stage: "sandbox.capacity",
-          phase: "success",
-          message: "Got a free sandbox slot.",
-          payload: { waitedMs }
+    const limit = this.config.maxRunningContainers ?? DEFAULT_SANDBOX_MAX_RUNNING_CONTAINERS;
+    const createWithTimeout = (): Promise<Container> => withTimeout(
+      create(),
+      this.config.startTimeoutMs,
+      "Timed out while creating sandbox container"
+    );
+
+    if (options.labels.purpose === "shell-session") {
+      return this.capacityGate(async () => {
+        await assertShellSessionCapacity({
+          limit,
+          countActive: () => this.countActiveSandboxes(),
+          countShellSessions: () => this.countActiveSandboxes("shell-session"),
+          relieve: this.capacityReliever ?? undefined,
+          signal: options.signal
         });
-      }
-      options.signal?.throwIfAborted();
-      return withTimeout(create(), this.config.startTimeoutMs, "Timed out while creating sandbox container");
-    }, options.signal);
+        options.signal?.throwIfAborted();
+        return createWithTimeout();
+      }, options.signal);
+    }
+
+    const { value, waitedMs } = await claimSandboxSlot({
+      gate: this.capacityGate,
+      limit,
+      countActive: () => this.countActiveSandboxes(),
+      relieve: this.capacityReliever ?? undefined,
+      signal: options.signal,
+      claim: createWithTimeout,
+      onWaiting: (active) => emitSandboxLifecycleEvent(options, {
+        stage: "sandbox.capacity",
+        phase: "start",
+        message: "Waiting for a free sandbox slot on this Docker host.",
+        payload: { activeSandboxes: active, maxRunningContainers: limit }
+      })
+    });
+    if (waitedMs > 0) {
+      await emitSandboxLifecycleEvent(options, {
+        stage: "sandbox.capacity",
+        phase: "success",
+        message: "Got a free sandbox slot.",
+        payload: { waitedMs }
+      });
+    }
+    return value;
   }
 
-  private async countActiveSandboxes(): Promise<number> {
+  private async countActiveSandboxes(purpose?: SandboxContainerLabels["purpose"]): Promise<number> {
+    const labelFilters = [`${SANDBOX_LABEL_KEY}=true`];
+    if (purpose) {
+      labelFilters.push(`${SANDBOX_PURPOSE_LABEL_KEY}=${purpose}`);
+    }
     const containers = await withTimeout(
       this.docker.listContainers({
         all: true,
-        filters: { label: [`${SANDBOX_LABEL_KEY}=true`], status: ["created", "restarting", "running"] }
+        filters: { label: labelFilters, status: ["created", "restarting", "running"] }
       }),
       this.config.startTimeoutMs,
       "Timed out while counting sandbox containers"

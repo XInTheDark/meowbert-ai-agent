@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { createSerialGate, isSandboxCapacityError, waitForSandboxSlot } from "./docker-sandbox-capacity.js";
+import {
+  assertShellSessionCapacity,
+  claimSandboxSlot,
+  createSerialGate,
+  isSandboxCapacityError,
+  resolveShellSessionLimit,
+  waitForSandboxSlot
+} from "./docker-sandbox-capacity.js";
 
 function fakeClock() {
   let nowMs = 0;
@@ -150,5 +157,84 @@ describe("createSerialGate", () => {
     await expect(first).resolves.toBe("first");
     await expect(gate(async () => "next")).resolves.toBe("next");
     expect(queuedCallback).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveShellSessionLimit", () => {
+  it("reserves task headroom below maxRunningContainers", () => {
+    expect(resolveShellSessionLimit(64)).toBe(48);
+    expect(resolveShellSessionLimit(32)).toBe(24);
+    expect(resolveShellSessionLimit(16)).toBe(12);
+    expect(resolveShellSessionLimit(4)).toBe(3);
+    expect(resolveShellSessionLimit(1)).toBe(1);
+  });
+});
+
+describe("assertShellSessionCapacity", () => {
+  it("rejects persistent shells once they reach their cap, leaving task slots free", async () => {
+    await expect(assertShellSessionCapacity({
+      limit: 64,
+      countActive: async () => 48,
+      countShellSessions: async () => 48
+    })).rejects.toThrow(/48 persistent shell slots.*16 of 64/);
+  });
+
+  it("evicts a warm sandbox when total slots are full but shell slots have room", async () => {
+    let active = 64;
+    const relieve = vi.fn(async () => {
+      active -= 1;
+      return true;
+    });
+
+    await expect(assertShellSessionCapacity({
+      limit: 64,
+      countActive: async () => active,
+      countShellSessions: async () => 10,
+      relieve
+    })).resolves.toBeUndefined();
+    expect(relieve).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails fast instead of waiting when all host slots stay full", async () => {
+    await expect(assertShellSessionCapacity({
+      limit: 64,
+      countActive: async () => 64,
+      countShellSessions: async () => 10,
+      relieve: async () => false
+    })).rejects.toThrow(/all 64 sandbox slots/);
+  });
+});
+
+describe("claimSandboxSlot", () => {
+  it("releases the gate while sleeping so another caller is not blocked behind a waiting run", async () => {
+    const gate = createSerialGate();
+    let active = 4;
+    let releaseSleep!: () => void;
+    const waiting = claimSandboxSlot({
+      gate,
+      limit: 4,
+      countActive: async () => active,
+      claim: async () => {
+        active += 1;
+        return "claimed-task";
+      },
+      sleep: () => new Promise<void>((resolve) => {
+        releaseSleep = resolve;
+      }),
+      now: () => 0
+    });
+
+    await vi.waitFor(() => expect(releaseSleep).toBeTypeOf("function"));
+
+    // While the task run is sleeping between polls, another caller can enter the gate immediately.
+    await expect(gate(async () => assertShellSessionCapacity({
+      limit: 4,
+      countActive: async () => active,
+      countShellSessions: async () => 3
+    }))).rejects.toThrow(/3 persistent shell slots/);
+
+    active = 3;
+    releaseSleep();
+    await expect(waiting).resolves.toEqual({ value: "claimed-task", waitedMs: 0 });
   });
 });
