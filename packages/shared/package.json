@@ -152,6 +152,10 @@
     "./task-execution-target": {
       "types": "./dist/task-execution-target.d.ts",
       "default": "./dist/task-execution-target.js"
+    },
+    "./antigravity-crypto": {
+      "types": "./dist/antigravity-crypto.d.ts",
+      "default": "./dist/antigravity-crypto.js"
     }
   },
   "scripts": {

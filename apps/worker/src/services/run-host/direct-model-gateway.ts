@@ -78,7 +78,11 @@ function readResponseStreamEvents(target: unknown): unknown[] {
 }
 
 export function resolvePurposeModel(run: ServerRunState, purpose: ModelCallPurpose): string {
-  return purpose === "title" ? run.bootstrap.runtime.quickModel : run.bootstrap.runtime.model;
+  if (purpose === "title") return run.bootstrap.runtime.quickModel;
+  if (purpose === "web_search" && run.bootstrap.runtime.modelType === "agy_acp") {
+    return run.bootstrap.runtime.quickModel;
+  }
+  return run.bootstrap.runtime.model;
 }
 
 async function streamProviderResponse(input: {

@@ -56,6 +56,7 @@ const tabGroups: AdminTabGroup[] = [
       { key: "settings", label: "Settings", Icon: Settings },
       { key: "model", label: "Model", Icon: MessageSquareText },
       { key: "ai-providers", label: "AI providers", Icon: Plug },
+      { key: "antigravity", label: "Antigravity", Icon: Plug },
       { key: "embeddings", label: "Embeddings", Icon: Binary },
       { key: "users", label: "Users", Icon: Users },
       { key: "subscriptions", label: "Plans", Icon: UserRoundCog }

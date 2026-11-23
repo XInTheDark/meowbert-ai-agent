@@ -17,20 +17,52 @@ export const usageActivationRuleSchema = z.discriminatedUnion("kind", [
   }).strict()
 ]);
 
-export const usageActivationInputSchema = z.object({
+export const usageActivationTargetTypeSchema = z.enum(["ai_provider", "antigravity"]);
+export type UsageActivationTargetType = z.infer<typeof usageActivationTargetTypeSchema>;
+
+export const usageActivationInputBaseSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  providerId: z.string().uuid(),
+  targetType: usageActivationTargetTypeSchema.optional().default("ai_provider"),
+  providerId: z.string().uuid().nullable().optional(),
+  antigravityCredentialIds: z.array(z.string().uuid()).max(50).optional().default([]),
   model: z.string().trim().min(1).max(240),
   enabled: z.boolean(),
   rules: z.array(usageActivationRuleSchema).min(1).max(20)
 }).strict();
 
+export const usageActivationInputSchema = usageActivationInputBaseSchema.superRefine((value, ctx) => {
+  if (value.targetType === "antigravity") {
+    if (value.antigravityCredentialIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["antigravityCredentialIds"],
+        message: "Select at least one Antigravity account."
+      });
+    }
+    return;
+  }
+  if (!value.providerId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["providerId"],
+      message: "Choose an AI provider."
+    });
+  }
+});
+
 export type UsageActivationRule = z.infer<typeof usageActivationRuleSchema>;
-export type UsageActivationInput = z.infer<typeof usageActivationInputSchema>;
+export type UsageActivationInput = z.input<typeof usageActivationInputSchema>;
+export type ParsedUsageActivationInput = z.output<typeof usageActivationInputSchema>;
 export type UsageActivationStatus = "running" | "succeeded" | "failed" | "skipped" | "interrupted";
-export interface UsageActivationSchedule extends Omit<UsageActivationInput, "providerId"> {
+export interface UsageActivationSchedule {
   id: string;
+  name: string;
+  targetType: UsageActivationTargetType;
   providerId: string | null;
+  antigravityCredentialIds: string[];
+  model: string;
+  enabled: boolean;
+  rules: UsageActivationRule[];
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastFinishedAt: string | null;

@@ -7,22 +7,35 @@ import { executorSettingsFromConfig } from "@meowbert/run-executor/agent/ports/e
 import { config } from "../../lib/config.js";
 import { createDbRunControl, type DbRunControl } from "./db-run-control.js";
 import type { ModelGateway } from "@meowbert/run-executor/agent/ports/model-gateway";
+import type { RunFinishedOutcome } from "@meowbert/run-executor/agent/ports/run-environment";
 import { createDirectModelGateway } from "./direct-model-gateway.js";
+import { createAgyAwareModelGateway } from "./agy-acp-gateway.js";
 import { sandboxMachineProvider } from "./sandbox-machine-host.js";
 import { cloudRunFeatures } from "./cloud-run-features.js";
 
 // The run's control and model access straight against the database and the provider keys.
-export function createDirectRunServices(job: TaskExecutionJob): { control: DbRunControl; models: ModelGateway } {
+export function createDirectRunServices(job: TaskExecutionJob): {
+  control: DbRunControl;
+  models: ModelGateway;
+  onRunFinished: (outcome: RunFinishedOutcome) => void;
+} {
   const control = createDbRunControl(job, createTaskDebugLogger(job.taskId));
-  const models = createDirectModelGateway({
+  const reportTurnUsageError = (message: string) => emitTaskEvent(job.taskId, "error", { message });
+  const directModels = createDirectModelGateway({
     requireRun: () => control.serverState(),
     onNetworkRequest: (event) => createNetworkRequestLogger(
       job.taskId,
       control.serverState().bootstrap.runtime.networkRequestLoggingEnabled
     )(event),
-    reportTurnUsageError: (message) => emitTaskEvent(job.taskId, "error", { message })
+    reportTurnUsageError
   });
-  return { control, models };
+  const { models, onRunFinished } = createAgyAwareModelGateway({
+    job,
+    requireRun: () => control.serverState(),
+    directModels,
+    reportTurnUsageError
+  });
+  return { control, models, onRunFinished };
 }
 
 // A run executed inside the control plane: database, provider keys and Docker are all local.

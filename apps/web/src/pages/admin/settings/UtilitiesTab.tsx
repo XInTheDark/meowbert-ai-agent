@@ -9,11 +9,32 @@ import "./usage-activation/usage-activation.css";
 export function UtilitiesTab({ models = [] }: { models?: string[] }) {
   const state = useUsageActivation();
   const [editing, setEditing] = useState<UsageActivationSchedule | "new" | null>(null);
+  const hasAnyProvider = state.providers.length > 0 || state.antigravityCredentials.length > 0;
+
   async function toggle(schedule: UsageActivationSchedule) {
-    if (!schedule.providerId) return;
-    await state.save({ name: schedule.name, model: schedule.model, providerId: schedule.providerId,
-      enabled: !schedule.enabled, rules: schedule.rules }, schedule.id);
+    const isAntigravity = schedule.targetType === "antigravity";
+    if (!isAntigravity && !schedule.providerId) return;
+    if (isAntigravity && (schedule.antigravityCredentialIds?.length ?? 0) === 0) return;
+    const payload = isAntigravity
+      ? {
+          name: schedule.name,
+          targetType: "antigravity" as const,
+          providerId: null,
+          antigravityCredentialIds: schedule.antigravityCredentialIds ?? [],
+          model: schedule.model,
+          enabled: !schedule.enabled,
+          rules: schedule.rules
+        }
+      : {
+          name: schedule.name,
+          model: schedule.model,
+          providerId: schedule.providerId,
+          enabled: !schedule.enabled,
+          rules: schedule.rules
+        };
+    await state.save(payload, schedule.id);
   }
+
   return (
     <section className="admin-utilities" aria-labelledby="usage-activation-title">
       <div className="activation-heading">
@@ -28,13 +49,25 @@ export function UtilitiesTab({ models = [] }: { models?: string[] }) {
       <p className="muted-text">Send a small request to a provider and model at scheduled times. All times are UTC; requests consume provider usage.</p>
       <p className="muted-text activation-help">Missed times are skipped after one minute. Failed requests aren’t retried. Provider rules determine whether a request starts a usage window.</p>
       {state.loading ? <p role="status">Loading schedules…</p> : <>
-        {!state.providers.length ? <p role="status">Add a provider in AI providers first.</p> : null}
+        {!hasAnyProvider ? <p role="status">Add a provider in AI providers or connect an Antigravity account first.</p> : null}
         {!state.schedules.length && !editing ? <p className="muted-text">No schedules yet.</p> : null}
-        <ActivationScheduleList schedules={state.schedules} providers={state.providers} disabled={state.saving || editing !== null}
-          onEdit={setEditing} onRemove={(id) => void state.remove(id)} onToggle={(schedule) => void toggle(schedule)} />
+        <ActivationScheduleList
+          schedules={state.schedules}
+          providers={state.providers}
+          antigravityCredentials={state.antigravityCredentials}
+          disabled={state.saving || editing !== null}
+          onEdit={setEditing}
+          onRemove={(id) => void state.remove(id)}
+          onToggle={(schedule) => void toggle(schedule)}
+        />
         {editing ? <ActivationScheduleForm key={editing === "new" ? "new" : editing.id}
-          schedule={editing === "new" ? undefined : editing} providers={state.providers} models={models}
-          saving={state.saving} onSave={state.save} onCancel={() => setEditing(null)} /> : null}
+          schedule={editing === "new" ? undefined : editing}
+          providers={state.providers}
+          antigravityCredentials={state.antigravityCredentials}
+          models={models}
+          saving={state.saving}
+          onSave={state.save}
+          onCancel={() => setEditing(null)} /> : null}
       </>}
       {state.error ? <p role="alert" className="error-text">{state.error}</p> : null}
     </section>

@@ -3,7 +3,8 @@ import { applyPatchFunctionToolDefinition } from "../agent/apply-patch.js";
 
 export type BridgeMcpContentBlock =
   | { type: "text"; text: string }
-  | { type: "image"; data: string; mimeType: string };
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "resource"; resource: { uri: string; mimeType: string; blob: string } };
 
 export interface BridgeMcpToolResult {
   content: BridgeMcpContentBlock[];
@@ -34,6 +35,11 @@ function parseDataImageUrl(url: string): { mimeType: string; data: string } | nu
   return { mimeType: match[1], data: match[2].replace(/\s+/g, "") };
 }
 
+function parseDataPdfUrl(url: string): string | null {
+  const match = /^data:application\/pdf;base64,([A-Za-z0-9+/=\s]+)$/.exec(url);
+  return match ? match[1].replace(/\s+/g, "") : null;
+}
+
 function extractTextAndImagesFromContent(content: unknown): { texts: string[]; images: BridgeMcpContentBlock[] } {
   if (typeof content === "string") {
     return { texts: content.trim() ? [content] : [], images: [] };
@@ -51,6 +57,17 @@ function extractTextAndImagesFromContent(content: unknown): { texts: string[]; i
       const parsed = parseDataImageUrl(part.image_url);
       if (parsed) {
         images.push({ type: "image", mimeType: parsed.mimeType, data: parsed.data });
+      }
+    } else if (part.type === "input_file" && typeof part.file_data === "string") {
+      const blob = parseDataPdfUrl(part.file_data);
+      if (blob) {
+        const filename = typeof part.filename === "string" && part.filename.trim()
+          ? part.filename.trim()
+          : "attachment.pdf";
+        images.push({
+          type: "resource",
+          resource: { uri: `file:///attachments/${encodeURIComponent(filename)}`, mimeType: "application/pdf", blob }
+        });
       }
     }
   }

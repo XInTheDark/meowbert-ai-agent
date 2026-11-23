@@ -28,6 +28,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 RUN python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
 RUN curl -fsSL https://rclone.org/install.sh | bash
+RUN curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/install-agy.sh \
+  && bash /tmp/install-agy.sh --dir /usr/local/bin \
+  && rm -f /tmp/install-agy.sh \
+  && /usr/local/bin/agy --version
+ENV AGY_CLI_DISABLE_AUTO_UPDATE=true
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/package.json
 COPY apps/api/package.json apps/api/package.json

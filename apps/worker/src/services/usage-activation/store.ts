@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { nextUsageActivationAt, usageActivationInputSchema, type UsageActivationStatus } from "@meowbert/shared";
+import { nextUsageActivationAt, usageActivationInputBaseSchema, type UsageActivationStatus } from "@meowbert/shared";
 import { query, withTransaction } from "../../lib/db.js";
 
 export interface ActivationClaim {
   id: string; token: string; revision: number; model: string;
 }
+
+export type ActivationProviderTarget =
+  | { baseUrl: string; apiKey: string }
+  | { targetType: "antigravity"; credentialIds: string[] };
 
 export async function claimDueActivations(): Promise<ActivationClaim[]> {
   return withTransaction(async (client) => {
@@ -17,7 +21,7 @@ export async function claimDueActivations(): Promise<ActivationClaim[]> {
         ORDER BY next_run_at, id LIMIT 10 FOR UPDATE SKIP LOCKED`);
     const claims: ActivationClaim[] = [];
     for (const row of result.rows) {
-      const parsed = usageActivationInputSchema.shape.rules.safeParse(row.rules_json);
+      const parsed = usageActivationInputBaseSchema.shape.rules.safeParse(row.rules_json);
       if (!parsed.success) {
         await client.query(`UPDATE usage_activation_schedules SET enabled = false, next_run_at = NULL,
           claim_token = NULL, claim_until = NULL, last_status = 'failed',
@@ -39,16 +43,27 @@ export async function claimDueActivations(): Promise<ActivationClaim[]> {
   });
 }
 
-export async function getActivationProvider(claim: ActivationClaim): Promise<{ baseUrl: string; apiKey: string } | null> {
-  const result = await query<{ base_url: string | null; api_key: string | null }>(
-    `SELECT p.base_url, p.api_key FROM usage_activation_schedules s
-     LEFT JOIN ai_providers p ON p.id = s.provider_id
-     WHERE s.id = $1 AND s.claim_token = $2 AND s.revision = $3 AND s.enabled = true
-       AND s.claim_until > clock_timestamp()`,
+export async function getActivationProvider(claim: ActivationClaim): Promise<ActivationProviderTarget | null> {
+  const result = await query<{
+    target_type: string | null;
+    antigravity_credential_ids: string[] | null;
+    base_url: string | null;
+    api_key: string | null;
+  }>(
+    `SELECT s.target_type, s.antigravity_credential_ids, p.base_url, p.api_key
+       FROM usage_activation_schedules s
+       LEFT JOIN ai_providers p ON p.id = s.provider_id
+      WHERE s.id = $1 AND s.claim_token = $2 AND s.revision = $3 AND s.enabled = true
+        AND s.claim_until > clock_timestamp()`,
     [claim.id, claim.token, claim.revision]
   );
   const row = result.rows[0];
   if (!row) return null;
+  if (row.target_type === "antigravity") {
+    const credentialIds = Array.isArray(row.antigravity_credential_ids) ? row.antigravity_credential_ids : [];
+    if (credentialIds.length === 0) throw new Error("provider_missing");
+    return { targetType: "antigravity", credentialIds };
+  }
   if (!row.base_url || !row.api_key) throw new Error("provider_missing");
   return { baseUrl: row.base_url, apiKey: row.api_key };
 }

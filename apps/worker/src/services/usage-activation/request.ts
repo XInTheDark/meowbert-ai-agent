@@ -23,6 +23,10 @@ export async function sendActivationRequest(provider: AiProviderConfig, model: s
 export function activationErrorMessage(error: unknown): string {
   if (error instanceof OpenAI.APIError && error.status) return `Provider returned HTTP ${error.status}.`;
   if (error instanceof Error && error.message === "provider_missing") return "Provider was removed. Choose another provider.";
+  if (error instanceof Error && error.message.startsWith("antigravity_partial_failure:")) {
+    const ratio = error.message.slice("antigravity_partial_failure:".length);
+    return `${ratio} Antigravity account requests failed. Check account credentials and model.`;
+  }
   if (error instanceof OpenAI.APIConnectionTimeoutError || (error instanceof Error && /timeout|abort/i.test(error.name))) {
     return "Provider request timed out after 30 seconds.";
   }

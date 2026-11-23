@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AdminAiProvider, UsageActivationInput, UsageActivationSchedule } from "@meowbert/shared";
+import type {
+  AdminAiProvider,
+  AdminAntigravityCredential,
+  UsageActivationInput,
+  UsageActivationSchedule
+} from "@meowbert/shared";
 import { useWorkspaceApp } from "../../../../contexts/WorkspaceContext";
 
 const path = "/api/admin/utilities/usage-activation";
@@ -8,6 +13,7 @@ export function useUsageActivation() {
   const { api } = useWorkspaceApp();
   const [schedules, setSchedules] = useState<UsageActivationSchedule[]>([]);
   const [providers, setProviders] = useState<AdminAiProvider[]>([]);
+  const [antigravityCredentials, setAntigravityCredentials] = useState<AdminAntigravityCredential[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,12 +21,15 @@ export function useUsageActivation() {
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const [data, providerData] = await Promise.all([
+      const [data, providerData, agyData] = await Promise.all([
         api.get<{ schedules: UsageActivationSchedule[] }>(path),
-        api.get<{ providers: AdminAiProvider[] }>("/api/admin/ai-providers")
+        api.get<{ providers: AdminAiProvider[] }>("/api/admin/ai-providers"),
+        api.get<{ credentials: AdminAntigravityCredential[] }>("/api/admin/antigravity/credentials")
+          .catch(() => ({ credentials: [] as AdminAntigravityCredential[] }))
       ]);
       setSchedules(data.schedules);
       setProviders(providerData.providers);
+      setAntigravityCredentials(agyData?.credentials ?? []);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -57,5 +66,5 @@ export function useUsageActivation() {
     } finally { setSaving(false); }
   }
 
-  return { schedules, providers, loading, saving, error, reload, save, remove };
+  return { schedules, providers, antigravityCredentials, loading, saving, error, reload, save, remove };
 }

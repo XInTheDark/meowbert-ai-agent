@@ -56,7 +56,7 @@ export function ModelSettingsTab(props: ModelSettingsTabProps) {
           rows={12}
         />
         <p className="hint-text" style={{ marginTop: 0 }}>
-          Set <code>fallbackModels</code> to an ordered array of model IDs, such as <code>["backup-model"]</code>. With context management v2, exhausted model requests switch to the next model in a fresh context window. Each fallback uses its own metadata and the same provider.
+          Set <code>fallbackModels</code> to an ordered array of model IDs, such as <code>["backup-model"]</code>. With context management v2, exhausted model requests switch to the next model in a fresh context window. Each fallback uses its own metadata and the same provider. Set <code>"type": "agy_acp"</code> (with optional <code>agy_model</code> and <code>agy_thinking_level</code>) to drive a model via the worker's Antigravity ACP runtime.
         </p>
       </label>
 

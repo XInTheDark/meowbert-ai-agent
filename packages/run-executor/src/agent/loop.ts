@@ -331,7 +331,7 @@ interface ModelTurnResult {
 }
 
 function isBridgeMode(execution: AgentExecutionContext): boolean {
-  return execution.prepared.settings.bridgeMode === true;
+  return execution.prepared.settings.bridgeMode === true || execution.prepared.runtimeModelType === "agy_acp";
 }
 
 // Code mode is a workspace experiment that each model can opt out of; the Master never uses it.
@@ -999,7 +999,8 @@ async function runSingleAgentStep(execution: AgentExecutionContext, step: number
     return "break";
   }
 
-  if (!isBridgeMode(execution) && shouldCompactExpiredCache(execution, Date.now())) await clearExpiredCacheWindow(execution);
+  const canCompactExpiredCache = !isBridgeMode(execution) || execution.prepared.runtimeModelType === "agy_acp";
+  if (canCompactExpiredCache && shouldCompactExpiredCache(execution, Date.now())) await clearExpiredCacheWindow(execution);
   const availability = resolveStepAvailability(execution, step);
   // An idle notes turn takes no new work: inboxes wait for the work to resume, and it has no answer to wind down to.
   if (!isNotesOnlyTurn(execution)) {

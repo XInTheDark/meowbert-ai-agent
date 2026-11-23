@@ -5,6 +5,8 @@ export interface PlatformModelMetadataEntry extends Record<string, unknown> {
   context_window?: number;
   fallbackModels?: string[];
   type?: PlatformModelType;
+  agy_model?: string;
+  agy_thinking_level?: string;
   // How long the provider keeps a prompt cache, counted from the start of the request that wrote it.
   prompt_cache_ttl_seconds?: number;
   idle_compaction?: boolean;
@@ -13,12 +15,13 @@ export interface PlatformModelMetadataEntry extends Record<string, unknown> {
 
 export type PlatformModelMetadata = Record<string, PlatformModelMetadataEntry>;
 export type PlatformModelCompatibilityMode = "noSystemMessages" | "noDeveloperMessages" | "forceFixDoubleResponse" | "forcePersistReasoningContent" | "parseXMLToolCalls" | "disablePdfFile";
-export type PlatformModelType = "openai" | "google" | "claude";
+export type PlatformModelType = "openai" | "google" | "claude" | "agy_acp";
 export type PlatformContextManagementVersion = "v1" | "v2";
 
 export const DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 256_000;
 export const DEFAULT_MODEL_TYPE: PlatformModelType = "openai";
 export const DEFAULT_PROMPT_CACHE_TTL_SECONDS = 3600;
+export const DEFAULT_AGY_ACP_PROMPT_CACHE_TTL_SECONDS = 900;
 export const DEFAULT_IDLE_COMPACTION_MIN_TOKENS = 40_000;
 
 export const DEFAULT_PLATFORM_MODEL_METADATA: PlatformModelMetadata = {
@@ -98,7 +101,7 @@ function normalizeContextWindow(value: unknown): number | null {
 }
 
 function normalizeModelType(value: unknown): PlatformModelType | null {
-  if (value === "openai" || value === "google" || value === "claude") {
+  if (value === "openai" || value === "google" || value === "claude" || value === "agy_acp") {
     return value;
   }
   if (value === "gemini") {
@@ -109,6 +112,14 @@ function normalizeModelType(value: unknown): PlatformModelType | null {
   }
 
   return null;
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function normalizeContextManagementVersion(value: unknown): PlatformContextManagementVersion | null {
@@ -165,6 +176,20 @@ function normalizeEntry(rawEntry: unknown, fallbackToDefaultContextWindow: boole
     delete entry.type;
   } else {
     entry.type = modelType;
+  }
+
+  const agyModel = normalizeOptionalString(entry.agy_model);
+  if (agyModel === null) {
+    delete entry.agy_model;
+  } else {
+    entry.agy_model = agyModel;
+  }
+
+  const agyThinkingLevel = normalizeOptionalString(entry.agy_thinking_level);
+  if (agyThinkingLevel === null) {
+    delete entry.agy_thinking_level;
+  } else {
+    entry.agy_thinking_level = agyThinkingLevel;
   }
 
   if (contextManagementVersion === null) {
@@ -300,6 +325,22 @@ export function resolveCodeModeForModel(model: string | null | undefined, rawMet
   return metadata.default?.code_mode !== false;
 }
 
+export interface AgyAcpModelConfig {
+  agyModel: string | null;
+  agyThinkingLevel: string | null;
+}
+
+export function resolveAgyAcpConfigForModel(model: string | null | undefined, rawMetadata: unknown): AgyAcpModelConfig {
+  const metadata = normalizePlatformModelMetadata(rawMetadata);
+  const normalizedModel = normalizeModelKey(model);
+  const exact = normalizedModel ? metadata[normalizedModel] : undefined;
+  const defaults = metadata.default;
+  return {
+    agyModel: normalizeOptionalString(exact?.agy_model) ?? normalizeOptionalString(defaults?.agy_model) ?? normalizedModel,
+    agyThinkingLevel: normalizeOptionalString(exact?.agy_thinking_level) ?? normalizeOptionalString(defaults?.agy_thinking_level)
+  };
+}
+
 export interface IdleCompactionSettings {
   enabled: boolean;
   promptCacheTtlSeconds: number;
@@ -312,9 +353,13 @@ export function resolveIdleCompactionForModel(model: string | null | undefined, 
   const normalizedModel = normalizeModelKey(model);
   const exact = normalizedModel ? metadata[normalizedModel] : undefined;
   const defaults = metadata.default;
+  const resolvedType = normalizeModelType(exact?.type) ?? normalizeModelType(defaults?.type) ?? DEFAULT_MODEL_TYPE;
+  const fallbackTtl = resolvedType === "agy_acp"
+    ? DEFAULT_AGY_ACP_PROMPT_CACHE_TTL_SECONDS
+    : DEFAULT_PROMPT_CACHE_TTL_SECONDS;
   return {
     enabled: (exact?.idle_compaction ?? defaults?.idle_compaction) !== false,
-    promptCacheTtlSeconds: exact?.prompt_cache_ttl_seconds ?? defaults?.prompt_cache_ttl_seconds ?? DEFAULT_PROMPT_CACHE_TTL_SECONDS,
+    promptCacheTtlSeconds: exact?.prompt_cache_ttl_seconds ?? defaults?.prompt_cache_ttl_seconds ?? fallbackTtl,
     minTokens: exact?.idle_compaction_min_tokens ?? defaults?.idle_compaction_min_tokens ?? DEFAULT_IDLE_COMPACTION_MIN_TOKENS
   };
 }

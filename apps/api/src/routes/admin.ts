@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { registerAdminAiProviderRoutes } from "./admin-ai-provider-routes.js";
+import { registerAdminAntigravityRoutes } from "./admin-antigravity-routes.js";
 import { registerAdminUsageActivationRoutes } from "./admin-usage-activation-routes.js";
 import { registerAdminConnectorRoutes } from "./admin-connector-routes.js";
 import { registerAdminCoreRoutes } from "./admin-core-routes.js";
@@ -16,6 +17,7 @@ import { registerAdminUserRoutes } from "./admin-user-routes.js";
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   registerAdminCoreRoutes(fastify);
   registerAdminAiProviderRoutes(fastify);
+  registerAdminAntigravityRoutes(fastify);
   registerAdminMemoryEmbeddingRoutes(fastify);
   registerAdminUsageActivationRoutes(fastify);
   registerAdminHostStorageRoutes(fastify);

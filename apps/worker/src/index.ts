@@ -11,6 +11,7 @@ import { pool } from "./lib/db.js";
 import { closeQueue } from "./lib/queue.js";
 import { runAgentJob } from "@meowbert/run-executor/agent/index";
 import { createCloudRunEnvironment } from "./services/run-host/cloud-run-environment.js";
+import { stopWorkerBridgeHost } from "./services/agy-acp/agy-bridge-host.js";
 import { createCloudHttpRunEnvironment } from "./services/run-host/cloud-http-run-environment.js";
 import { startRunApi } from "./services/run-api/runtime.js";
 import { startTaskRunRecoveryLoop } from "./services/tasks/task-run-recovery.js";
@@ -247,6 +248,7 @@ async function start(): Promise<void> {
     await stopAllWarmSandboxes();
     await runDeliveryLoop.stop();
     await runApi?.close();
+    await stopWorkerBridgeHost();
     await closeQueue();
     await redis.quit();
     await pool.end();

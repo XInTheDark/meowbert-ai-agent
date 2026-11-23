@@ -91,6 +91,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    init: true
     restart: unless-stopped
     environment:
       MEOWBERT_CONFIG_PATH: ${MEOWBERT_CONFIG_PATH:-/app/config/global.docker.json}
@@ -143,6 +144,7 @@ services:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
+    init: true
     restart: unless-stopped
     environment:
       MEOWBERT_CONFIG_PATH: ${MEOWBERT_CONFIG_PATH:-/app/config/global.docker.json}

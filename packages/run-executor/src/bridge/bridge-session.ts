@@ -292,6 +292,21 @@ export class BridgeSession {
     this.resolveAllPendingCalls(errorToolResult(reason));
   }
 
+  fail(reason: string): void {
+    if (this.isClosed()) return;
+    this.closedReason = reason;
+    this.clearTimers();
+    this.setStatus("completed", reason);
+    const err = new Error(reason);
+    if (this.turnWaiter) {
+      const waiter = this.turnWaiter;
+      this.turnWaiter = null;
+      waiter.reject(err);
+    }
+    for (const waiter of this.startBodyWaiters.splice(0, this.startBodyWaiters.length)) waiter.reject(err);
+    this.resolveAllPendingCalls(errorToolResult(reason));
+  }
+
   cancel(reason = "RUN_CANCELLED: Stop working immediately."): void {
     if (this.isClosed()) return;
     this.closedReason = reason;

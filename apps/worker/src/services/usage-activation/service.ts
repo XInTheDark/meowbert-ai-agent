@@ -1,13 +1,19 @@
 import { claimDueActivations, expireActivationClaims, finishActivation, getActivationProvider, type ActivationClaim } from "./store.js";
 import { activationErrorMessage, sendActivationRequest } from "./request.js";
+import { sendAntigravityActivationRequest } from "./antigravity-request.js";
 
 async function executeActivation(claim: ActivationClaim): Promise<void> {
   let errorMessage: string | null = null;
   let skipped = false;
   try {
     const provider = await getActivationProvider(claim);
-    if (provider) await sendActivationRequest(provider, claim.model);
-    else skipped = true;
+    if (!provider) {
+      skipped = true;
+    } else if ("targetType" in provider) {
+      await sendAntigravityActivationRequest(provider.credentialIds, claim.model);
+    } else {
+      await sendActivationRequest(provider, claim.model);
+    }
   } catch (error) {
     errorMessage = activationErrorMessage(error);
   }
