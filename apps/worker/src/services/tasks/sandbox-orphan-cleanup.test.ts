@@ -39,6 +39,10 @@ function sandbox(
   };
 }
 
+function minutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString();
+}
+
 function buildRowsResult<Row extends object>(rows: Row[]): QueryResult<Row> {
   return {
     command: "SELECT",
@@ -218,11 +222,47 @@ describe("sandbox orphan cleanup", () => {
     const manager = managerWith([
       sandbox("warm-live-parent", { taskId: "task-done", runId: "run-done", parentContainerId: "worker-1" }),
       sandbox("warm-dead-parent", { taskId: "task-done-2", runId: "run-done-2", parentContainerId: "dead-worker" }),
-      sandbox("not-warm", { taskId: "task-done-3", runId: "run-done-3", parentContainerId: "worker-1" })
+      sandbox("not-warm", { taskId: "task-done-3", runId: "run-done-3", parentContainerId: "worker-1", createdAt: minutesAgo(3) })
     ], ["worker-1"]);
 
     await cleanupSandboxOrphansOnce(manager, async () => new Set(["warm-live-parent", "warm-dead-parent"]));
 
     expect(removedIds(manager)).toEqual(["not-warm", "warm-dead-parent"]);
+  });
+
+  it("keeps a new sandbox whose run is not in the active list yet, then removes it once it is old", async () => {
+    mockActiveRows();
+    const manager = managerWith([
+      sandbox("still-starting", { state: "created", taskId: "task-new", runId: "run-new", parentContainerId: "worker-1" }),
+      sandbox("just-started", { taskId: "task-new-2", runId: "run-new-2", parentContainerId: "worker-1" }),
+      sandbox("old-stale", { taskId: "task-old", runId: "run-old", parentContainerId: "worker-1", createdAt: minutesAgo(3) }),
+      sandbox("young-exited", { state: "exited", taskId: "task-x", runId: "run-x", parentContainerId: "worker-1" }),
+      sandbox("young-dead-parent", { taskId: "task-y", runId: "run-y", parentContainerId: "dead-worker" })
+    ], ["worker-1"]);
+
+    await cleanupSandboxOrphansOnce(manager);
+
+    expect(removedIds(manager)).toEqual(["old-stale", "young-dead-parent", "young-exited"]);
+  });
+
+  it("reads active runs after listing containers, so a run that starts during a slow listing is kept", async () => {
+    const order: string[] = [];
+    mockedQuery.mockImplementation(async (sql: string) => {
+      order.push("db");
+      return sql.includes("persistent_shell_sessions")
+        ? buildRowsResult([])
+        : buildRowsResult([{ task_id: "task-new", run_id: "run-new" }]);
+    });
+    const manager = managerWith([], ["worker-1"]);
+    manager.listManagedContainers.mockImplementation(async () => {
+      order.push("docker");
+      return [sandbox("new-run", { taskId: "task-new", runId: "run-new", parentContainerId: "worker-1", createdAt: minutesAgo(3) })];
+    });
+
+    await cleanupSandboxOrphansOnce(manager, async () => new Set());
+
+    expect(order[0]).toBe("docker");
+    expect(order.slice(1)).toEqual(["db", "db"]);
+    expect(manager.stopAndRemoveContainer).not.toHaveBeenCalled();
   });
 });

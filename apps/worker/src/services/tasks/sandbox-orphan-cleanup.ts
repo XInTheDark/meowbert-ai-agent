@@ -6,6 +6,9 @@ import { listWarmSandboxContainerIds } from "../run-host/warm-sandboxes.js";
 const SANDBOX_ORPHAN_CLEANUP_INTERVAL_MS = 60_000;
 // shell-exec containers list a skill's tools and stop within seconds; one this old was leaked.
 const SHELL_EXEC_MAX_AGE_MS = 5 * 60_000;
+// A run creates its sandbox right after its row turns active, and a loaded Docker host can take
+// tens of seconds to create and start one, so a young sandbox is never judged by run state alone.
+const NEW_SANDBOX_GRACE_MS = 2 * 60_000;
 
 interface ActiveTaskRunRow {
   task_id: string;
@@ -55,6 +58,14 @@ function isExpiredShellExec(container: ManagedSandboxContainerSummary, nowMs: nu
   return nowMs - Date.parse(container.createdAt) > SHELL_EXEC_MAX_AGE_MS;
 }
 
+function isStartingUp(container: ManagedSandboxContainerSummary, nowMs: number): boolean {
+  if (container.state !== "created" && container.state !== "running") {
+    return false;
+  }
+  const createdMs = container.createdAt ? Date.parse(container.createdAt) : Number.NaN;
+  return Number.isFinite(createdMs) && nowMs - createdMs < NEW_SANDBOX_GRACE_MS;
+}
+
 function shouldRemoveWorkerSandbox(input: {
   container: ManagedSandboxContainerSummary;
   activeRunLookup: Set<string>;
@@ -77,6 +88,10 @@ function shouldRemoveWorkerSandbox(input: {
 
   // A task's warm sandbox outlives its run until the warm window ends.
   if (container.state === "running" && [...input.warmContainerIds].some((id) => isSameContainerId(id, container.containerId))) {
+    return false;
+  }
+
+  if (isStartingUp(container, input.nowMs)) {
     return false;
   }
 
@@ -134,11 +149,15 @@ export async function cleanupSandboxOrphansOnce(
   manager: SandboxCleanupManager = workerSandboxManager,
   listWarmContainerIds: () => Promise<Set<string>> = listWarmSandboxContainerIds
 ): Promise<number> {
-  const [activeRunLookup, activePersistentSessionLookup, containers, runningContainerIds] = await Promise.all([
-    buildActiveTaskRunLookup(),
-    buildActivePersistentSessionLookup(),
+  // List containers before reading active runs: Docker listing can take seconds under load, and a
+  // run snapshot taken earlier would miss runs that started (and created sandboxes) in between.
+  const [containers, runningContainerIds] = await Promise.all([
     manager.listManagedContainers(),
     manager.listRunningContainerIds()
+  ]);
+  const [activeRunLookup, activePersistentSessionLookup] = await Promise.all([
+    buildActiveTaskRunLookup(),
+    buildActivePersistentSessionLookup()
   ]);
   const warmContainerIds = await listWarmContainerIds().catch(() => new Set<string>());
   const currentParentContainerId = manager.getCurrentContainerId();
