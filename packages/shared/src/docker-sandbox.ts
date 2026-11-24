@@ -183,12 +183,22 @@ export interface StartAttachedProcessInput {
   stdin?: boolean;
 }
 
-export function sandboxSecurityOptions(config: Pick<SandboxConfig, "allowUserNamespaces">): string[] {
-  const options = ["no-new-privileges:true"];
-  if (config.allowUserNamespaces) {
-    options.push("seccomp=unconfined", "apparmor=unconfined");
+type SandboxSecurityHostConfig = Pick<
+  NonNullable<Docker.ContainerCreateOptions["HostConfig"]>,
+  "SecurityOpt" | "MaskedPaths" | "ReadonlyPaths"
+>;
+
+export function sandboxSecurityHostConfig(config: Pick<SandboxConfig, "allowUserNamespaces">): SandboxSecurityHostConfig {
+  if (!config.allowUserNamespaces) {
+    return { SecurityOpt: ["no-new-privileges:true"] };
   }
-  return options;
+  // Empty masked and read-only path lists are the API form of the CLI's `systempaths=unconfined`.
+  // The kernel refuses a fresh /proc mount inside a user namespace while parts of /proc are covered.
+  return {
+    SecurityOpt: ["no-new-privileges:true", "seccomp=unconfined", "apparmor=unconfined"],
+    MaskedPaths: [],
+    ReadonlyPaths: []
+  };
 }
 
 function createDockerClient(dockerHost: string): Docker {
@@ -889,7 +899,7 @@ export class DockerSandboxManager {
       NetworkMode: options.networkEnabled ? undefined : "none",
       PidsLimit: resources.pids,
       ReadonlyRootfs: true,
-      SecurityOpt: sandboxSecurityOptions(this.config),
+      ...sandboxSecurityHostConfig(this.config),
       CapDrop: ["ALL"],
       ...(sandboxIdentity.groupAdd ? { GroupAdd: sandboxIdentity.groupAdd } : {}),
       Tmpfs: {

@@ -62,6 +62,8 @@ gVisor makes escapes much harder, but it's not a guarantee. Treat agents like a 
 
 Some tools create their own Linux namespaces from inside the sandbox, for example `unshare -rn` to run a command with no network access. Under gVisor this works out of the box. Under Docker's default runtime (`runc`), Docker's seccomp and AppArmor profiles block it, and the command fails with "Operation not permitted".
 
+On Ubuntu 23.10 and later, the host also blocks unprivileged user namespaces by default. If commands still fail after turning on the setting below, check `sysctl kernel.apparmor_restrict_unprivileged_userns` on the host: `1` means the host is blocking them, and `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` lifts it for every process on the host. Add the same line to a file in `/etc/sysctl.d/` to keep it after reboots.
+
 To allow it on `runc`, set `allowUserNamespaces` in `config/global.docker.json`:
 
 ```json
@@ -74,7 +76,7 @@ To allow it on `runc`, set `allowUserNamespaces` in `config/global.docker.json`:
 
 Then restart: `docker compose restart api worker`.
 
-This turns off seccomp and AppArmor confinement for task sandboxes. Sandboxes still run as a non-root user with all capabilities dropped, `no-new-privileges`, a read-only system filesystem, and resource limits. The cost is a larger attack surface on the host kernel: kernel vulnerabilities reachable through user namespaces become reachable from tasks. Only turn it on when you trust the people running tasks, or use gVisor instead. It has no effect under gVisor, which already allows namespaces inside its own kernel.
+This turns off seccomp and AppArmor confinement for task sandboxes, and stops Docker from masking parts of `/proc`, so commands that mount their own `/proc` (such as `unshare --mount-proc`) also work. Sandboxes still run as a non-root user with all capabilities dropped, `no-new-privileges`, a read-only system filesystem, and resource limits. The cost is a larger attack surface on the host kernel: kernel vulnerabilities reachable through user namespaces become reachable from tasks. Only turn it on when you trust the people running tasks, or use gVisor instead. It has no effect under gVisor, which already allows namespaces inside its own kernel.
 
 ## Capping memory for all sandboxes together
 

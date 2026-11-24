@@ -3,20 +3,22 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { DockerSandboxManager, dockerSandboxTestUtils, sandboxSecurityOptions } from "./docker-sandbox.js";
+import { DockerSandboxManager, dockerSandboxTestUtils, sandboxSecurityHostConfig } from "./docker-sandbox.js";
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe("sandbox security options", () => {
-  it("keeps seccomp and AppArmor confinement unless user namespaces are allowed", () => {
-    expect(sandboxSecurityOptions({ allowUserNamespaces: false })).toEqual(["no-new-privileges:true"]);
-    expect(sandboxSecurityOptions({ allowUserNamespaces: true })).toEqual([
-      "no-new-privileges:true",
-      "seccomp=unconfined",
-      "apparmor=unconfined"
-    ]);
+  it("keeps seccomp, AppArmor and /proc masking unless user namespaces are allowed", () => {
+    expect(sandboxSecurityHostConfig({ allowUserNamespaces: false })).toEqual({
+      SecurityOpt: ["no-new-privileges:true"]
+    });
+    expect(sandboxSecurityHostConfig({ allowUserNamespaces: true })).toEqual({
+      SecurityOpt: ["no-new-privileges:true", "seccomp=unconfined", "apparmor=unconfined"],
+      MaskedPaths: [],
+      ReadonlyPaths: []
+    });
   });
 });
 
