@@ -17,6 +17,8 @@ export const sandboxConfigSchema = z.object({
   provider: z.literal("docker"),
   image: z.string().min(1),
   runtime: z.string().min(1).optional(),
+  // Lifts seccomp and AppArmor confinement so unprivileged user and network namespaces work under runc.
+  allowUserNamespaces: z.boolean().optional(),
   dockerHost: z.string().min(1).default(DEFAULT_SANDBOX_DOCKER_HOST),
   startTimeoutMs: z.number().int().positive().default(DEFAULT_SANDBOX_START_TIMEOUT_MS),
   sessionIdleTimeoutMs: z.number().int().positive().default(DEFAULT_SANDBOX_SESSION_IDLE_TIMEOUT_MS),

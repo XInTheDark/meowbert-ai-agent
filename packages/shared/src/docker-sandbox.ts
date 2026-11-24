@@ -183,6 +183,14 @@ export interface StartAttachedProcessInput {
   stdin?: boolean;
 }
 
+export function sandboxSecurityOptions(config: Pick<SandboxConfig, "allowUserNamespaces">): string[] {
+  const options = ["no-new-privileges:true"];
+  if (config.allowUserNamespaces) {
+    options.push("seccomp=unconfined", "apparmor=unconfined");
+  }
+  return options;
+}
+
 function createDockerClient(dockerHost: string): Docker {
   if (dockerHost.startsWith("npipe:////./pipe/")) {
     return new Docker({ socketPath: dockerHost.slice(8) });
@@ -881,7 +889,7 @@ export class DockerSandboxManager {
       NetworkMode: options.networkEnabled ? undefined : "none",
       PidsLimit: resources.pids,
       ReadonlyRootfs: true,
-      SecurityOpt: ["no-new-privileges:true"],
+      SecurityOpt: sandboxSecurityOptions(this.config),
       CapDrop: ["ALL"],
       ...(sandboxIdentity.groupAdd ? { GroupAdd: sandboxIdentity.groupAdd } : {}),
       Tmpfs: {

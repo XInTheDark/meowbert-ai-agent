@@ -58,6 +58,24 @@ New sandboxes now start under gVisor. It only affects task sandboxes; Meowbert's
 gVisor makes escapes much harder, but it's not a guarantee. Treat agents like a capable but untrusted user of the machine.
 :::
 
+## Allowing user namespaces without gVisor
+
+Some tools create their own Linux namespaces from inside the sandbox, for example `unshare -rn` to run a command with no network access. Under gVisor this works out of the box. Under Docker's default runtime (`runc`), Docker's seccomp and AppArmor profiles block it, and the command fails with "Operation not permitted".
+
+To allow it on `runc`, set `allowUserNamespaces` in `config/global.docker.json`:
+
+```json
+"runtime": {
+  "sandbox": {
+    "allowUserNamespaces": true
+  }
+}
+```
+
+Then restart: `docker compose restart api worker`.
+
+This turns off seccomp and AppArmor confinement for task sandboxes. Sandboxes still run as a non-root user with all capabilities dropped, `no-new-privileges`, a read-only system filesystem, and resource limits. The cost is a larger attack surface on the host kernel: kernel vulnerabilities reachable through user namespaces become reachable from tasks. Only turn it on when you trust the people running tasks, or use gVisor instead. It has no effect under gVisor, which already allows namespaces inside its own kernel.
+
 ## Capping memory for all sandboxes together
 
 Each sandbox has its own memory limit (`runtime.sandbox.resources.memoryMb`), and `runtime.sandbox.maxRunningContainers` limits how many run at once. Together they keep total sandbox memory near `memoryMb × maxRunningContainers`, but Docker does not enforce that total. gVisor also uses some memory of its own outside each sandbox's limit.
