@@ -18,6 +18,7 @@ import type { ServerRunState } from "./bootstrap.js";
 const AGY_CONNECT_TIMEOUT_MS = 60_000;
 const AGY_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 const GRACEFUL_USAGE_WAIT_MS = 5_000;
+const MAX_ACP_SESSION_RESTARTS_PER_TURN = 2;
 
 interface ActiveAgyRuntime {
   registrationId: string;
@@ -160,6 +161,40 @@ export function createAgyAwareModelGateway(options: AgyAwareModelGatewayOptions)
     return starting;
   }
 
+  // The driver closes its BridgeSession with fail() when the Antigravity process or
+  // account breaks (quota exhausted, account switched, crash, watchdog). The run
+  // itself is still healthy, so the turn can be replayed on a fresh ACP session,
+  // which receives the full conversation through meowbert_start.
+  function failedAcpSessionMessage(runtime: ActiveAgyRuntime, error: unknown, signal?: AbortSignal): string | null {
+    if (signal?.aborted || active !== runtime) return null;
+    if (runtime.session.getStatus() !== "completed") return null;
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  async function runTurnWithSessionRestarts(
+    run: ServerRunState,
+    request: Parameters<ModelGateway["create"]>[0],
+    currentInputLength: number
+  ) {
+    for (let restarts = 0; ; restarts += 1) {
+      const runtime = await ensureActive(run, currentInputLength);
+      runtime.lastInputLength = currentInputLength;
+      try {
+        const response = await runtime.session.handleModelTurn(request.body, request.signal);
+        return { runtime, response };
+      } catch (error) {
+        const failure = failedAcpSessionMessage(runtime, error, request.signal);
+        if (failure === null || restarts >= MAX_ACP_SESSION_RESTARTS_PER_TURN) throw error;
+        console.warn("[agy-acp] Antigravity ACP session failed; restarting in a fresh session", {
+          runId: options.job.runId,
+          attempt: restarts + 1,
+          error: failure
+        });
+        retireActive({ status: "failed", message: failure });
+      }
+    }
+  }
+
   const models: ModelGateway = {
     async create(request) {
       const run = options.requireRun();
@@ -173,9 +208,7 @@ export function createAgyAwareModelGateway(options: AgyAwareModelGatewayOptions)
         return options.directModels.create(request);
       }
       const currentInputLength = Array.isArray(request.body.input) ? request.body.input.length : 0;
-      const runtime = await ensureActive(run, currentInputLength);
-      runtime.lastInputLength = currentInputLength;
-      const response = await runtime.session.handleModelTurn(request.body, request.signal);
+      const { runtime, response } = await runTurnWithSessionRestarts(run, request, currentInputLength);
       attachLiveContextUsage(response, runtime.driver.getLatestContextUsage());
       // Return 0 so loop/harness budgets don't double-charge live context occupancy;
       // actual turn cost is charged directly in onUsage when ACP returns result.usage.
