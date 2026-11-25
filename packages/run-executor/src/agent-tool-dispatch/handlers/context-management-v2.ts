@@ -47,6 +47,19 @@ export function isContextManagementV2Tool(name: string): boolean {
 
 const CONTEXT_EDIT_REQUEST_TOOL_NAMES = new Set([EXEC_TOOL_NAME, CONTEXT_REPLACE_CALLS_TOOL_NAME]);
 const HISTORY_READ_MAX_CHARS = 20_000;
+// Generous cap so normal notes are unaffected, while runaway notes cannot overflow context.
+export const NOTES_READ_MAX_CHARS = 100_000;
+
+function limitNoteReadOutput(result: Record<string, unknown>): Record<string, unknown> {
+  if (typeof result.content !== "string" || result.content.length <= NOTES_READ_MAX_CHARS) {
+    return result;
+  }
+  return {
+    ...result,
+    content: `${result.content.slice(0, NOTES_READ_MAX_CHARS)}\n...[truncated; full length: ${result.content.length} characters. Use start_line and stop_line to read the rest.]`,
+    truncated: true
+  };
+}
 
 // Queues the edit for the turn boundary; see context-management-v2/context-edits.ts.
 function queueContextEdit(call: ResponseFunctionToolCall, raw: unknown, ctx: ToolDispatchContext, state: ToolDispatchState): unknown {
@@ -138,7 +151,7 @@ export async function handleContextManagementV2Tool(
       output = await store.listNotes(context, notesListFilesArgumentsSchema.parse(raw));
       break;
     case NOTES_READ_FILE_TOOL_NAME:
-      output = await store.readNote(context, notesReadFileArgumentsSchema.parse(raw));
+      output = limitNoteReadOutput(await store.readNote(context, notesReadFileArgumentsSchema.parse(raw)));
       break;
     case NOTES_SEARCH_CONTENTS_TOOL_NAME:
       output = await searchContextNotes(store, context, notesSearchContentsArgumentsSchema.parse(raw));

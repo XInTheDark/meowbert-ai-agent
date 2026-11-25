@@ -136,6 +136,47 @@ export async function linkContextNodeToVisibleMessage(store: RunContextStore, in
   return { ...input.state, branchLeafMessageId: input.visibleMessageId };
 }
 
+export const NOTES_SEARCH_MAX_LINE_CHARS = 500;
+export const NOTES_SEARCH_MAX_TOTAL_CHARS = 20_000;
+
+export interface NoteSearchFileResult {
+  path: string;
+  matches: Array<{ line: number; content: string }>;
+}
+
+export function boundNoteSearchResults(files: NoteSearchFileResult[]): {
+  files: NoteSearchFileResult[];
+  truncated?: true;
+} {
+  const kept: NoteSearchFileResult[] = [];
+  let usedChars = 0;
+  let truncated = false;
+
+  for (const file of files) {
+    const fileMatches: Array<{ line: number; content: string }> = [];
+    for (const match of file.matches) {
+      const clipped = match.content.length > NOTES_SEARCH_MAX_LINE_CHARS
+        ? `${match.content.slice(0, NOTES_SEARCH_MAX_LINE_CHARS - 3)}...`
+        : match.content;
+      if (clipped.length < match.content.length) truncated = true;
+      const entry = { line: match.line, content: clipped };
+      const entryChars = JSON.stringify(entry).length + (fileMatches.length === 0 ? file.path.length + 24 : 1);
+      if ((kept.length > 0 || fileMatches.length > 0) && usedChars + entryChars > NOTES_SEARCH_MAX_TOTAL_CHARS) {
+        truncated = true;
+        break;
+      }
+      fileMatches.push(entry);
+      usedChars += entryChars;
+    }
+    if (fileMatches.length > 0) {
+      kept.push({ path: file.path, matches: fileMatches });
+    }
+    if (fileMatches.length < file.matches.length) break;
+  }
+
+  return truncated ? { files: kept, truncated: true } : { files: kept };
+}
+
 export async function searchContextNotes(store: RunContextStore, state: ContextManagementV2State, input: {
   query: string;
   path_prefix?: string | null;
@@ -157,5 +198,5 @@ export async function searchContextNotes(store: RunContextStore, state: ContextM
     const matches = lines.flatMap((line, index) => line.includes(input.query) ? [{ line: index + 1, content: line }] : []).slice(0, matchesPerFile);
     return matches.length > 0 ? { path: file.path, matches } : null;
   }));
-  return { files: files.filter((file): file is NonNullable<typeof file> => file !== null) };
+  return boundNoteSearchResults(files.filter((file): file is NoteSearchFileResult => file !== null));
 }

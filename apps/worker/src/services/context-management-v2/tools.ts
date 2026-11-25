@@ -3,6 +3,7 @@ import { query } from "../../lib/db.js";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import type { ContextHistoryWindow, ContextWindowRef, StoredContextHistoryItem } from "@meowbert/run-executor/agent/ports/run-control";
 import type { ContextNoteRow } from "@meowbert/run-executor/context-management-v2/types";
+import { boundNoteSearchResults, type NoteSearchFileResult } from "@meowbert/run-executor/context-management-v2/window";
 import { accessibleNodesCte, writeContextNote } from "./service.js";
 
 const DEFAULT_LIMIT = 20;
@@ -104,7 +105,7 @@ export async function searchContextNotes(state: ContextWindowRef, input: { query
     const matches = lines.flatMap((line, index) => line.includes(input.query) ? [{ line: index + 1, content: line }] : []).slice(0, matchesPerFile);
     return matches.length > 0 ? { path: file.path, matches } : null;
   }));
-  return { files: files.filter((file): file is NonNullable<typeof file> => file !== null) };
+  return boundNoteSearchResults(files.filter((file): file is NoteSearchFileResult => file !== null));
 }
 
 export async function mutateContextNote(state: ContextWindowRef, input: { path: string; text: string; append: boolean }) {

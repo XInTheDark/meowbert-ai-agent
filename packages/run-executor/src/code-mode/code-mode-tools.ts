@@ -25,7 +25,7 @@ import {
   WAIT_TOOL_NAME
 } from "../agent-tools/index.js";
 import { UPDATE_PROGRESS_TOOL_NAME } from "../agent-tools/progress.js";
-import { SWARM_TOOL_NAMES } from "../agent-tools/swarm.js";
+import { LIST_LANES_TOOL_NAME, SWARM_TOOL_NAMES } from "../agent-tools/swarm.js";
 import { buildExecTool } from "./exec-tool.js";
 import { SEARCH_TOOLS_TOOL } from "./search-tools-tool.js";
 
@@ -60,7 +60,8 @@ const DIRECT_TOOL_NAMES = new Set<string>([
   UPDATE_PROGRESS_TOOL_NAME,
   ...COMPUTER_RESPONSE_FUNCTION_TOOLS.map((tool) => tool.name),
   ...ORGANIZATION_TOOL_NAMES,
-  ...SWARM_TOOL_NAMES
+  // list_lanes can return hundreds of lanes; running it inside exec lets scripts filter and caps output.
+  ...SWARM_TOOL_NAMES.filter((name) => name !== LIST_LANES_TOOL_NAME)
 ]);
 
 function isNestedTool(tool: Tool): tool is FunctionTool {

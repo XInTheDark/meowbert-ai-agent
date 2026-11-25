@@ -15,6 +15,8 @@ vi.mock("../../context-management-v2/window.js", async (importOriginal) => ({
 }));
 
 import { dispatchResponseOutput } from "../dispatch.js";
+import { NOTES_READ_MAX_CHARS, handleContextManagementV2Tool } from "./context-management-v2.js";
+import { NOTES_SEARCH_MAX_LINE_CHARS, NOTES_SEARCH_MAX_TOTAL_CHARS, boundNoteSearchResults } from "../../context-management-v2/window.js";
 
 const contextManagementV2: ContextManagementV2State = {
   version: "v2",
@@ -105,5 +107,44 @@ describe("Context Management V2 tool calls", () => {
     expect(result.finalResponse).toBeNull();
     const refused = state.runPersistedItems.find((item) => item.type === "function_call_output" && item.call_id === "call-answer");
     expect((refused as { output: string }).output).toContain("Only the notes tools are available");
+  });
+
+  it("caps oversized notes_read_file output while leaving normal notes intact", async () => {
+    const readNote = vi.fn()
+      .mockResolvedValueOnce({ path: "normal.md", content: "hello", start_line: 1, stop_line: 1 })
+      .mockResolvedValueOnce({ path: "huge.md", content: "x".repeat(NOTES_READ_MAX_CHARS + 500), start_line: 1, stop_line: 1 });
+    const ctx = { control: { context: { readNote } }, contextManagementV2 } as unknown as ToolDispatchContext;
+    const state = { conversationItems: [], runPersistedItems: [], commandStep: 0 } as unknown as ToolDispatchState;
+
+    const normal = await handleContextManagementV2Tool({
+      type: "function_call", call_id: "read-1", name: "notes_read_file",
+      arguments: JSON.stringify({ path: "normal.md", start_line: null, stop_line: null })
+    } as never, ctx, state);
+    expect(normal.output).toEqual({ path: "normal.md", content: "hello", start_line: 1, stop_line: 1 });
+
+    const huge = await handleContextManagementV2Tool({
+      type: "function_call", call_id: "read-2", name: "notes_read_file",
+      arguments: JSON.stringify({ path: "huge.md", start_line: null, stop_line: null })
+    } as never, ctx, state);
+    const hugeOutput = huge.output as { content: string; truncated: boolean };
+    expect(hugeOutput.truncated).toBe(true);
+    expect(hugeOutput.content.length).toBeLessThan(NOTES_READ_MAX_CHARS + 200);
+    expect(hugeOutput.content).toContain("Use start_line and stop_line");
+  });
+
+  it("bounds notes_search_contents line lengths and total size", () => {
+    const files = Array.from({ length: 10 }, (_, fileIndex) => ({
+      path: `note-${fileIndex}.md`,
+      matches: Array.from({ length: 15 }, (_, lineIndex) => ({
+        line: lineIndex + 1,
+        content: `match-${fileIndex}-${lineIndex}-${"a".repeat(NOTES_SEARCH_MAX_LINE_CHARS + 200)}`
+      }))
+    }));
+
+    const bounded = boundNoteSearchResults(files);
+
+    expect(bounded.truncated).toBe(true);
+    expect(bounded.files[0]?.matches[0]?.content.length).toBe(NOTES_SEARCH_MAX_LINE_CHARS);
+    expect(JSON.stringify(bounded.files).length).toBeLessThanOrEqual(NOTES_SEARCH_MAX_TOTAL_CHARS + 500);
   });
 });

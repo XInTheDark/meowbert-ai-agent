@@ -88,4 +88,16 @@ describe("buildCodeModeToolSet", () => {
 
     expect(buildCodeModeToolSet(tools, 600)).toEqual({ responseTools: tools, nestedTools: [] });
   });
+
+  it("moves list_lanes behind exec in swarm runs while keeping other swarm tools direct", () => {
+    const tools = buildResponseTools(options, [], { swarmTools: "all" });
+    const { responseTools, nestedTools } = buildCodeModeToolSet(tools, 600);
+    const directNames = responseTools.map(toolName);
+    const nestedNames = nestedTools.map((tool) => tool.name);
+
+    expect(nestedNames).toContain("list_lanes");
+    expect(directNames).not.toContain("list_lanes");
+    expect(directNames).toEqual(expect.arrayContaining(["split", "diverge", "check", "steer", "stop", "resume", "share", "submit"]));
+    expect(buildCodeModeToolsPrompt(nestedTools)).toContain("tools.list_lanes(");
+  });
 });

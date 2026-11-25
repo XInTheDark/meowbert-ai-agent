@@ -33,6 +33,10 @@ import {
   computerTypeSchema,
   computerWaitSchema
 } from "../../computer/computer-tools.js";
+import {
+  RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS,
+  RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS
+} from "../../agent-tools/index.js";
 import { parseToolArguments } from "../../agent/utils.js";
 import { finishBuiltinToolFailure, finishBuiltinToolSuccess, startBuiltinToolExecution } from "../events.js";
 import { toolErrorResult, type ToolCallResult } from "../tool-call-result.js";
@@ -91,6 +95,27 @@ function getComputerToolTimeoutMs(toolName: ComputerToolName, args: Record<strin
     DEFAULT_COMPUTER_TOOL_TIMEOUT_MS,
     (requestedSeconds * 1_000) + COMPUTER_LOCAL_SHELL_TIMEOUT_BUFFER_MS
   );
+}
+
+function truncateLocalShellStream(text: string): { value: string; truncated: boolean } {
+  const limit = RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS + RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS;
+  if (text.length <= limit) return { value: text, truncated: false };
+  return {
+    value: `${text.slice(0, RUN_SHELL_DEFAULT_OUTPUT_LIMIT_START_CHARS)}\n...[truncated; full length: ${text.length} characters]\n${text.slice(-RUN_SHELL_DEFAULT_OUTPUT_LIMIT_END_CHARS)}`,
+    truncated: true
+  };
+}
+
+export function limitComputerLocalShellOutput(output: Record<string, unknown>): Record<string, unknown> {
+  const stdout = typeof output.stdout === "string" ? truncateLocalShellStream(output.stdout) : null;
+  const stderr = typeof output.stderr === "string" ? truncateLocalShellStream(output.stderr) : null;
+  if (!stdout?.truncated && !stderr?.truncated) return output;
+  return {
+    ...output,
+    ...(stdout ? { stdout: stdout.value } : {}),
+    ...(stderr ? { stderr: stderr.value } : {}),
+    output_truncated: true
+  };
 }
 
 function buildComputerMessagePayload(toolName: ComputerToolName, output: Record<string, unknown>): Record<string, unknown> {
@@ -227,14 +252,18 @@ export async function handleComputerToolCall(
         })]
       : [];
 
-    const finished = await finishBuiltinToolSuccess(ctx, execution, result.output ?? { ok: true }, {
+    const toolOutput = toolName === COMPUTER_LOCAL_SHELL_TOOL_NAME && result.output
+      ? limitComputerLocalShellOutput(result.output)
+      : (result.output ?? { ok: true });
+
+    const finished = await finishBuiltinToolSuccess(ctx, execution, toolOutput, {
       eventPayload: {
         computerUse: true,
         ...(result.observation?.display ? { display: result.observation.display } : {}),
         ...(result.observation?.cursor ? { cursor: result.observation.cursor } : {})
       },
       messagePayload: {
-        ...buildComputerMessagePayload(toolName, result.output ?? {}),
+        ...buildComputerMessagePayload(toolName, toolOutput),
         computerUse: true,
         ...(result.observation?.text ? { observationText: result.observation.text } : {}),
         ...(result.observation?.display ? { display: result.observation.display } : {}),

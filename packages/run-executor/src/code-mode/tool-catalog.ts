@@ -31,6 +31,7 @@ import {
   isToolGroupTool
 } from "../agent-tools/index.js";
 import { SUBAGENT_TOOL_NAMES } from "../agent-tools/subagents.js";
+import { LIST_LANES_TOOL_NAME } from "../agent-tools/swarm.js";
 
 // How exec presents the tools it can call. Warm tools, which most tasks reach for, are documented in
 // full in exec's description. Every other tool is cold and documented on demand by search_tools,
@@ -46,7 +47,8 @@ const WARM_TOOL_NAMES = new Set<string>([
   INDEX_SAVE_TOOL_NAME,
   MARK_ARTIFACT_TOOL_NAME,
   VIEW_IMAGE_TOOL_NAME,
-  VIEW_PDF_FILE_TOOL_NAME
+  VIEW_PDF_FILE_TOOL_NAME,
+  LIST_LANES_TOOL_NAME
 ]);
 
 const BUILT_IN_GROUPS: Record<string, readonly string[]> = {
