@@ -41,8 +41,8 @@ function readShownFilePath(result: ToolCallResult): string | null {
   return typeof filePath === "string" ? filePath : null;
 }
 
-function resolveTimeoutMs(timeoutSeconds: number | null, ctx: ToolDispatchContext): number {
-  const requestedMs = timeoutSeconds === null ? ctx.settings.commandTimeoutMs : timeoutSeconds * 1000;
+function resolveTimeoutMs(timeoutSeconds: number | null | undefined, ctx: ToolDispatchContext): number {
+  const requestedMs = timeoutSeconds == null ? ctx.settings.commandTimeoutMs : timeoutSeconds * 1000;
   return Math.max(1_000, Math.min(requestedMs, ctx.shellToolMaxTimeoutMs));
 }
 

@@ -126,6 +126,7 @@ import { recordContextItems } from "../context-management-v2/window.js";
 import { getHighestCallNumber, getProviderCallId, isToolCallItem } from "../context-management-v2/call-numbers.js";
 import { trackRepeatedToolCall } from "./repeated-tool-calls.js";
 import { getErrorMessage } from "./utils.js";
+import { normalizeToolArgumentsText } from "./normalize-tool-arguments.js";
 
 // A failing stop check rejects final_response; once it has failed too often the answer goes
 // through with a note saying so.
@@ -152,6 +153,11 @@ async function dispatchFunctionToolCall(
   ctx: ToolDispatchContext,
   state: ToolDispatchState
 ): Promise<ToolCallResult> {
+  // Nested calls arrive already normalized by dispatchNestedToolCall.
+  const directTool = ctx.codeModeParentCallId ? undefined : ctx.directFunctionTools?.find((tool) => tool.name === outputItem.name);
+  if (directTool) {
+    outputItem = { ...outputItem, arguments: normalizeToolArgumentsText(directTool.parameters, outputItem.arguments) };
+  }
   const allowed = ctx.codeModeParentCallId
     ? (ctx.codeModeTools
       ? ctx.codeModeTools.some((tool) => tool.name === outputItem.name)

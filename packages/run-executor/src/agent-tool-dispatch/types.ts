@@ -73,6 +73,8 @@ export interface ToolDispatchContext {
   codeModeTools?: FunctionTool[];
   // Current request's direct and nested function tools; saved prompts never grant access.
   allowedFunctionTools?: string[];
+  // Schemas of the direct function tools, used to repair omitted nullable keys and quoted numbers.
+  directFunctionTools?: FunctionTool[];
   // Set while a tool runs inside exec, so its display message is never replayed as a model call.
   codeModeParentCallId?: string;
   enableSkillById: (skillId: string) => Promise<{ doc: string | null; toolNames: string[] }>;

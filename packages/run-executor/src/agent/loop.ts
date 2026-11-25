@@ -651,6 +651,7 @@ function buildSwarmDispatchContext(execution: AgentExecutionContext, turn: Model
 
 function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnResult, step: number): ToolDispatchContext {
   const codeModeTools = turn.codeModeTools;
+  const directFunctionTools = turn.availableResponseTools.filter((tool): tool is FunctionTool => tool.type === "function");
   const specializedModels = execution.prepared.snapshot.platform_specialized_models ?? {
     internalModel: null,
     fastModel: null,
@@ -726,8 +727,8 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     activeMcpConnections: execution.prepared.activeMcpConnections,
     activeSkillTools: execution.prepared.activeSkillTools,
     ...(codeModeTools.length > 0 ? { codeModeTools } : {}),
-    allowedFunctionTools: turn.availableResponseTools
-      .filter((tool): tool is FunctionTool => tool.type === "function").map((tool) => tool.name),
+    allowedFunctionTools: directFunctionTools.map((tool) => tool.name),
+    directFunctionTools,
     enableSkillById: execution.enableSkillById,
     onDemandSkills: execution.onDemandCapabilities,
     appendPromptDelta: (promptDeltaInput) => {

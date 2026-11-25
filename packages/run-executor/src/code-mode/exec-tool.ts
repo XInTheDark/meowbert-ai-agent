@@ -8,7 +8,7 @@ export const EXEC_TOOL_NAME = "exec";
 
 export const execArgumentsSchema = z.object({
   code: z.string().min(1),
-  timeout_seconds: z.number().positive().nullable(),
+  timeout_seconds: z.number().positive().nullable().optional(),
   summary: z.string().nullable().optional()
 }).strict();
 
