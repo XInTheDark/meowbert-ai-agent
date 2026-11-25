@@ -7,11 +7,23 @@ const JUMP_TOP_GAP_PX = 24;
 /** A jump whose message never renders is dropped after this long. */
 const JUMP_TIMEOUT_MS = 3000;
 const READING_BLOCK_SELECTOR = "p, li, pre, blockquote, h1, h2, h3, h4, h5, h6, tr, img, hr";
+const MAX_FALLBACK_ANCHORS = 5;
+
+interface FallbackAnchor {
+  element: HTMLElement;
+  messageIds: string[];
+  offsetTop: number;
+}
 
 interface ReadingAnchor {
   element: HTMLElement;
-  messageId: string | null;
   offsetTop: number;
+  messageElement: HTMLElement;
+  messageOffsetTop: number;
+  messageIds: string[];
+  fallbacks: FallbackAnchor[];
+  scrollHeight: number;
+  scrollTop: number;
 }
 
 interface PendingJump {
@@ -32,6 +44,8 @@ export interface ConversationScrollController {
   /** Ref for the feed element; attaching and detaching the observers follows React's ref updates. */
   feedRef: { current: HTMLDivElement | null };
   followBottom: () => void;
+  /** Switches out of bottom-follow and ensures a reading anchor is captured before content prepends. */
+  holdPosition: () => void;
   jumpTo: (messageId: string, textAnchor?: ConversationTextAnchor | null) => void;
   isJumpPending: () => boolean;
   /** Whether the feed's latest scroll event came from the controller rather than the reader. */
@@ -42,9 +56,30 @@ function distanceFromBottom(feed: HTMLElement): number {
   return feed.scrollHeight - feed.scrollTop - feed.clientHeight;
 }
 
-function findMessageById(feed: HTMLElement, messageId: string): HTMLElement | null {
-  for (const element of feed.querySelectorAll<HTMLElement>("[data-message-id]")) {
-    if (element.dataset.messageId === messageId) {
+function readElementMessageIds(element: HTMLElement): string[] {
+  const ids: string[] = [];
+  if (element.dataset.messageId) {
+    ids.push(element.dataset.messageId);
+  }
+  if (element.dataset.messageIds) {
+    for (const id of element.dataset.messageIds.split(/\s+/)) {
+      if (id && !ids.includes(id)) {
+        ids.push(id);
+      }
+    }
+  }
+  return ids;
+}
+
+function findMessageByAnyId(feed: HTMLElement, messageIds: string[]): HTMLElement | null {
+  if (messageIds.length === 0) return null;
+  const targets = new Set(messageIds);
+  for (const element of feed.querySelectorAll<HTMLElement>("[data-message-id], [data-message-ids]")) {
+    if (element.dataset.messageId && targets.has(element.dataset.messageId)) {
+      return element;
+    }
+    const grouped = element.dataset.messageIds;
+    if (grouped && grouped.split(/\s+/).some((id) => targets.has(id))) {
       return element;
     }
   }
@@ -58,23 +93,67 @@ function findMessageById(feed: HTMLElement, messageId: string): HTMLElement | nu
  */
 function findReadingAnchor(feed: HTMLElement): ReadingAnchor | null {
   const feedTop = feed.getBoundingClientRect().top;
-  for (const message of feed.querySelectorAll<HTMLElement>("[data-message-id]")) {
-    if (message.getBoundingClientRect().bottom <= feedTop + 10) {
+  const messages = feed.querySelectorAll<HTMLElement>("[data-message-id]");
+  let primary: Omit<ReadingAnchor, "fallbacks" | "scrollHeight" | "scrollTop"> | null = null;
+  const fallbacks: FallbackAnchor[] = [];
+
+  for (const message of messages) {
+    const messageRect = message.getBoundingClientRect();
+    if (messageRect.bottom <= feedTop + 10) {
       continue;
     }
-    let element = message;
-    for (const block of message.querySelectorAll<HTMLElement>(READING_BLOCK_SELECTOR)) {
-      const rect = block.getBoundingClientRect();
-      if (rect.height > 0 && rect.top >= feedTop) {
-        element = block;
-        break;
+    if (!primary) {
+      let element = message;
+      for (const block of message.querySelectorAll<HTMLElement>(READING_BLOCK_SELECTOR)) {
+        const rect = block.getBoundingClientRect();
+        if (rect.height > 0 && rect.top >= feedTop) {
+          element = block;
+          break;
+        }
       }
+      primary = {
+        element,
+        offsetTop: element.getBoundingClientRect().top - feedTop,
+        messageElement: message,
+        messageOffsetTop: messageRect.top - feedTop,
+        messageIds: readElementMessageIds(message)
+      };
+      continue;
     }
-    return {
-      element,
-      messageId: message.dataset.messageId ?? null,
-      offsetTop: element.getBoundingClientRect().top - feedTop
-    };
+    fallbacks.push({
+      element: message,
+      messageIds: readElementMessageIds(message),
+      offsetTop: messageRect.top - feedTop
+    });
+    if (fallbacks.length >= MAX_FALLBACK_ANCHORS) {
+      break;
+    }
+  }
+
+  return primary ? { ...primary, fallbacks, scrollHeight: feed.scrollHeight, scrollTop: feed.scrollTop } : null;
+}
+
+function resolveAnchorTarget(feed: HTMLElement, anchor: ReadingAnchor): { element: HTMLElement; offsetTop: number } | null {
+  if (anchor.element.isConnected) {
+    return { element: anchor.element, offsetTop: anchor.offsetTop };
+  }
+  if (anchor.messageElement.isConnected) {
+    return { element: anchor.messageElement, offsetTop: anchor.messageOffsetTop };
+  }
+  for (const fallback of anchor.fallbacks) {
+    if (fallback.element.isConnected) {
+      return { element: fallback.element, offsetTop: fallback.offsetTop };
+    }
+  }
+  const byPrimaryId = findMessageByAnyId(feed, anchor.messageIds);
+  if (byPrimaryId) {
+    return { element: byPrimaryId, offsetTop: anchor.messageOffsetTop };
+  }
+  for (const fallback of anchor.fallbacks) {
+    const byFallbackId = findMessageByAnyId(feed, fallback.messageIds);
+    if (byFallbackId) {
+      return { element: byFallbackId, offsetTop: fallback.offsetTop };
+    }
   }
   return null;
 }
@@ -126,14 +205,17 @@ export function createConversationScrollController(options?: {
 
   function restoreReadingAnchor(): void {
     if (!feed || !anchor) return;
-    const element = anchor.element.isConnected
-      ? anchor.element
-      : anchor.messageId ? findMessageById(feed, anchor.messageId) : null;
-    if (!element) {
-      capture();
+    const target = resolveAnchorTarget(feed, anchor);
+    if (!target) {
+      const heightDelta = feed.scrollHeight - anchor.scrollHeight;
+      if (heightDelta > 0.5) {
+        setScrollTop(anchor.scrollTop + heightDelta);
+      } else {
+        capture();
+      }
       return;
     }
-    const delta = element.getBoundingClientRect().top - feed.getBoundingClientRect().top - anchor.offsetTop;
+    const delta = target.element.getBoundingClientRect().top - feed.getBoundingClientRect().top - target.offsetTop;
     if (Math.abs(delta) > 0.5) {
       setScrollTop(feed.scrollTop + delta);
     } else {
@@ -165,13 +247,17 @@ export function createConversationScrollController(options?: {
 
   // Compared against the live position, so it answers correctly whichever scroll listener runs first.
   function isProgrammaticScroll(): boolean {
-    return feed !== null && programmaticScrollTop !== null && feed.scrollTop === programmaticScrollTop;
+    return feed !== null && programmaticScrollTop !== null && Math.abs(feed.scrollTop - programmaticScrollTop) <= 0.5;
   }
 
   function handleWheel(event: WheelEvent): void {
     clearPendingJump();
     if (event.deltaY < 0) {
+      const wasFollowing = following;
       following = false;
+      if (wasFollowing || !anchor) {
+        capture();
+      }
     }
   }
 
@@ -234,6 +320,11 @@ export function createConversationScrollController(options?: {
       clearPendingJump();
       following = true;
       sync();
+    },
+    holdPosition: () => {
+      clearPendingJump();
+      following = false;
+      capture();
     },
     jumpTo: (messageId, textAnchor) => {
       clearPendingJump();

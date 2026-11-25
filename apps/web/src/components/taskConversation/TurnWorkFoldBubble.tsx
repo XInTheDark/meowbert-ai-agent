@@ -18,9 +18,11 @@ export function TurnWorkFoldBubble(props: {
   renderItem: (item: ConversationEntryItem) => ReactNode;
 }): JSX.Element {
   const messageIds = props.fold.items.flatMap(getItemMessageIds);
+  const uniqueMessageIds = [...new Set(messageIds)];
   return (
     <div className="chat-bubble turn-work-fold" data-message-id={messageIds[0]}
-      data-last-message-id={messageIds[messageIds.length - 1]}>
+      data-last-message-id={messageIds[messageIds.length - 1]}
+      data-message-ids={uniqueMessageIds.join(" ")}>
       <CompletedActivityDisclosure title={props.fold.title} count={props.fold.callCount}
         expansionKey={props.expansionKey} forceExpanded={messageIds.some((id) => props.searchMessageIds.has(id))}>
         <div className="turn-work-fold-body">{props.fold.items.map(props.renderItem)}</div>

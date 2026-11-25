@@ -132,4 +132,83 @@ describe("createConversationScrollController", () => {
 
     expect(scroll.isProgrammaticScroll()).toBe(false);
   });
+
+  it("keeps the viewport anchored on a surviving message below when the top message folds on prepend", () => {
+    const feed = buildFeed(6);
+    const scroll = createConversationScrollController();
+    scroll.feedRef.current = feed;
+
+    readerScrollsTo(feed, 0);
+    // Simulate older messages prepending and folding m-0 into a grouped bubble above m-1.
+    const topRow = feed.children[0]!;
+    topRow.remove();
+    const fold = document.createElement("div");
+    fold.dataset.messageId = "older-0";
+    fold.dataset.messageIds = "older-0 older-1 m-0";
+    feed.prepend(fold);
+    for (let index = 4; index >= 0; index -= 1) {
+      const older = document.createElement("div");
+      older.dataset.messageId = `older-pre-${index}`;
+      feed.prepend(older);
+    }
+    contentChanged();
+
+    // 5 prepended rows + fold replacing m-0 shifted m-1 down by 500px; scrollTop follows m-1 instead of staying at 0.
+    expect(feed.scrollTop).toBe(500);
+  });
+
+  it("matches grouped data-message-ids when no earlier message element stays connected", () => {
+    const feed = buildFeed(1);
+    const scroll = createConversationScrollController();
+    scroll.feedRef.current = feed;
+
+    scroll.holdPosition();
+    feed.innerHTML = "";
+    for (let index = 0; index < 4; index += 1) {
+      appendRow(feed, `older-${index}`);
+    }
+    const grouped = document.createElement("div");
+    grouped.dataset.messageId = "older-merged";
+    grouped.dataset.messageIds = "older-merged m-0";
+    feed.appendChild(grouped);
+    for (let index = 0; index < 4; index += 1) {
+      appendRow(feed, `after-${index}`);
+    }
+    contentChanged();
+
+    expect(feed.scrollTop).toBe(400);
+  });
+
+  it("falls back to scrollHeight delta when every visible row is replaced during prepend", () => {
+    const feed = buildFeed(4);
+    const scroll = createConversationScrollController();
+    scroll.feedRef.current = feed;
+
+    readerScrollsTo(feed, 50);
+    feed.innerHTML = "";
+    for (let index = 0; index < 9; index += 1) {
+      appendRow(feed, `replaced-${index}`);
+    }
+    contentChanged();
+
+    // scrollHeight grew by 500px (from 400 to 900); scrollTop shifts from 50 to 550 instead of staying near 0.
+    expect(feed.scrollTop).toBe(550);
+  });
+
+  it("holds reading position instead of snapping to bottom when holdPosition is called before prepend", () => {
+    const feed = buildFeed(4);
+    const scroll = createConversationScrollController();
+    scroll.feedRef.current = feed;
+    expect(feed.scrollTop).toBe(100);
+
+    scroll.holdPosition();
+    for (let index = 3; index >= 0; index -= 1) {
+      const older = document.createElement("div");
+      older.dataset.messageId = `older-${index}`;
+      feed.prepend(older);
+    }
+    contentChanged();
+
+    expect(feed.scrollTop).toBe(500);
+  });
 });

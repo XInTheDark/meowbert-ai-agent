@@ -625,12 +625,13 @@ export function useTaskDetailConversation(
     if (!messagePage.has_older || pageLoadInFlightRef.current) {
       return;
     }
+    scroll.holdPosition();
     olderChainActiveRef.current = true;
     void loadConversationPage({
       direction: "older",
       beforeIndex: messagePage.start_index
     });
-  }, [loadConversationPage, messagePage.has_older, messagePage.start_index]);
+  }, [loadConversationPage, messagePage.has_older, messagePage.start_index, scroll]);
 
   // A page of collapsed tool calls can add almost no height, so keep fetching while the reader is still near the top.
   useEffect(() => {
