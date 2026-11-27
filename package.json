@@ -29,7 +29,7 @@
     "version:desktop": "node scripts/desktop-version.mjs"
   },
   "optionalDependencies": {
-    "@esbuild/darwin-arm64": "0.27.3"
+    "@esbuild/darwin-arm64": "0.28.2"
   },
   "overrides": {
     "@lancedb/lancedb": {
