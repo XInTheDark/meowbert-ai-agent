@@ -82,6 +82,11 @@ function isSwarmLane(execution: AgentExecutionContext): boolean {
   return Boolean(execution.swarm?.lane);
 }
 
+function canMessageUserMidRun(execution: AgentExecutionContext): boolean {
+  return !execution.workflow.workflowContext && !execution.prepared.isSubtask
+    && !execution.prepared.snapshot.task.read_only && !isIdleCompactionRun(execution.job);
+}
+
 // Infinite cycles end with wait; keep-alive (Timed) cycles end with final_response like any run.
 function isFinalResponseEligible(execution: AgentExecutionContext): boolean {
   if (execution.workflow.workflowContext) {
@@ -462,8 +467,7 @@ async function requestModelTurn(input: {
       allowFinalResponse: execution.workflow.workflowContext ? availability.allowFinalResponseTool : true,
       allowStopTask: execution.allowStopTask,
       allowWaitTool: execution.prepared.snapshot.task.allow_waiting !== false && !execution.workflow.workflowContext,
-      allowSendMessage: !execution.workflow.workflowContext && !execution.prepared.isSubtask
-        && !execution.prepared.snapshot.task.read_only && !isIdleCompactionRun(execution.job),
+      allowSendMessage: canMessageUserMidRun(execution),
       allowScheduleTools: execution.allowScheduleTools,
       allowHarnessSettings: execution.allowHarnessSettings,
       loadedToolGroups: [...execution.loadedToolGroups],
@@ -701,6 +705,7 @@ function buildDispatchContext(execution: AgentExecutionContext, turn: ModelTurnR
     workspaceRoot: execution.prepared.workspaceRoot,
     workspaceRootIsStorageUnit: execution.prepared.fileHost?.kind === "device",
     publishMidRunMessages: () => publishMidRunMessages(execution),
+    deliverPlainText: canMessageUserMidRun(execution) && !isSwarmLane(execution),
     liveSyncFiles: execution.prepared.liveSyncFiles,
     sandbox: execution.prepared.sandbox,
     shellEnvOverrides: execution.prepared.shellEnvOverrides,
@@ -755,9 +760,21 @@ function handlePlainTextWithoutToolCall(
   execution: AgentExecutionContext,
   availability: AgentStepAvailability,
   requireWorkflowToolAction: boolean,
-  sawFunctionToolCall: boolean
+  sawFunctionToolCall: boolean,
+  plainTextDelivered: boolean
 ): void {
   if (sawFunctionToolCall) {
+    return;
+  }
+
+  if (plainTextDelivered) {
+    appendRuntimeNotice(execution, {
+      role: "user",
+      content: availability.allowFinalResponseTool
+        ? "[System: Your plain-text reply was sent to the user as a message, and the run is still going. If you are done, end it with final_response without repeating what you sent; otherwise keep working with tools.]"
+        : "[System: Your plain-text reply was sent to the user as a message, and the run is still going. Keep working with tools."
+          + (availability.allowWaitTool ? " Call wait() if you want to pause.]" : "]")
+    });
     return;
   }
 
@@ -960,7 +977,8 @@ async function processModelTurnResult(
       execution,
       availability,
       requireWorkflowToolAction,
-      dispatchResult.sawFunctionToolCall
+      dispatchResult.sawFunctionToolCall,
+      dispatchResult.plainTextDelivered === true
     );
     return "continue";
   }

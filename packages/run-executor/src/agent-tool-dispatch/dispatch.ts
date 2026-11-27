@@ -4,6 +4,7 @@ import { READ_TASK_EVIDENCE_TOOL_NAME } from "../agent-tools/memory-evidence.js"
 import { handleReadTaskEvidence } from "./handlers/memory-evidence.js";
 import { handleConversationOrganization } from "./handlers/conversation-organization.js";
 import { recordWebSearchCall } from "../agent-swarm/activity.js";
+import { deliverPlainTextAsMessage } from "./plain-text-messages.js";
 import type {
   ResponseCustomToolCall,
   ResponseFunctionToolCall,
@@ -516,6 +517,7 @@ export async function dispatchResponseOutput(
 
   await ctx.assertNotCancelled();
   await recordResponseItems(effectiveItems, ctx, state);
+  const plainTextDelivered = await deliverPlainTextAsMessage(effectiveItems, ctx, state);
   let sawToolCall = false;
   let sawFunctionToolCall = false;
   let finalResponse: ToolDispatchResult["finalResponse"] = null;
@@ -678,5 +680,5 @@ export async function dispatchResponseOutput(
     await ctx.assertNotCancelled();
   }
 
-  return { sawToolCall, sawFunctionToolCall, finalResponse, waitRequest, stopRequest, workflowPause };
+  return { sawToolCall, sawFunctionToolCall, plainTextDelivered, finalResponse, waitRequest, stopRequest, workflowPause };
 }

@@ -59,6 +59,8 @@ export interface ToolDispatchContext {
   runMode: TaskExecutionJob["mode"];
   // Idle compaction turns may only use the notes tools; any other call gets an error.
   notesOnly?: boolean;
+  // Post text written outside tool calls to the user, as send_message would.
+  deliverPlainText?: boolean;
   completionEligibility?: { finalResponse: boolean; wait: boolean; stop: boolean };
   runToolOptions: TaskMessageToolOptions;
   readOnly: boolean;
@@ -166,6 +168,7 @@ export interface ToolDispatchState {
 export interface ToolDispatchResult {
   sawToolCall: boolean;
   sawFunctionToolCall: boolean;
+  plainTextDelivered?: boolean;
   finalResponse: {
     summary?: string;
     response: string;
